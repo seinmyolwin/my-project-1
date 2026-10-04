@@ -14,10 +14,13 @@ import {
   User,
   Share2,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  Loader2
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { evaluateWinnings, formatAmount, getPermutations } from '../utils/lotteryUtils';
+import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
+import { fetchLiveThai3D } from '../utils/thaiLotteryApi';
 
 export const WinningPayoutView: React.FC = () => {
   const {
@@ -43,6 +46,27 @@ export const WinningPayoutView: React.FC = () => {
     String(activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100)
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [isFetchingLive, setIsFetchingLive] = useState(false);
+  const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
+
+  const handleFetchLiveThai = async () => {
+    setIsFetchingLive(true);
+    setLiveStatusMsg('ထိုင်းနိုင်ငံ တရားဝင် 3D ဝက်ဘ်ဆိုက်မှ ရလဒ် ရယူနေပါသည်...');
+    try {
+      const res = await fetchLiveThai3D();
+      if (res.success && res.result) {
+        setWinningInput(res.result.threed);
+        setLiveStatusMsg(res.message);
+      } else {
+        setLiveStatusMsg('ထိုင်း 3D ရလဒ် ရယူရာတွင် အဆင်မပြေပါ၊ စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
+      }
+    } catch {
+      setLiveStatusMsg('အင်တာနက် ချိတ်ဆက်မှု စစ်ဆေးပြီး စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
+    } finally {
+      setIsFetchingLive(false);
+    }
+  };
 
   // Settled 3D rounds history strictly for 3D
   const settled3DRounds = useMemo(() => {
@@ -136,24 +160,57 @@ ${settings.shopName} (${settings.shopPhone})`;
           )}
         </div>
 
+        {/* Live Official Thai Result Status Banner */}
+        {liveStatusMsg && (
+          <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-xl p-3 text-xs font-bold flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-indigo-600 animate-pulse shrink-0" />
+              <span>{liveStatusMsg}</span>
+            </div>
+            <button
+              onClick={() => setLiveStatusMsg(null)}
+              className="text-slate-400 hover:text-slate-700 font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Input Form */}
         <form onSubmit={handleSettle} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
             
             {/* 3-Digit Winning Number */}
             <div className="sm:col-span-4 space-y-1.5">
-              <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider">
-                {isMyanmar ? 'ပေါက်ဂဏန်း (၃ လုံး)' : 'Winning 3D Number'}
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider">
+                  {isMyanmar ? 'ပေါက်ဂဏန်း (၃ လုံး)' : 'Winning 3D Number'}
+                </label>
+                <button
+                  type="button"
+                  onClick={handleFetchLiveThai}
+                  disabled={isFetchingLive}
+                  className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                  title="ထိုင်းနိုင်ငံ တရားဝင် ဝက်ဘ်ဆိုက်မှ အလိုအလျောက် ရယူရန်"
+                >
+                  {isFetchingLive ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
+                  ) : (
+                    <Globe className="w-3 h-3 text-indigo-600" />
+                  )}
+                  <span>{isMyanmar ? 'ထိုင်းတရားဝင် ရယူမည်' : 'Fetch Thai Live'}</span>
+                </button>
+              </div>
               <input
                 type="text"
                 inputMode="numeric"
                 maxLength={3}
                 value={winningInput}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
+                  const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3);
                   setWinningInput(val);
                 }}
+                onFocus={(e) => e.target.select()}
                 placeholder="000 - 999"
                 className="w-full bg-slate-50 focus:bg-white border-2 border-amber-300 focus:border-amber-500 rounded-xl px-4 py-3 text-3xl font-black text-amber-900 font-mono tracking-widest text-center outline-none shadow-2xs transition-colors"
               />
@@ -165,9 +222,11 @@ ${settings.shopName} (${settings.shopPhone})`;
                 {isMyanmar ? 'တည့်ပေါက် အဆ (ဆ)' : 'Straight Multiplier'}
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={multiplierInput}
-                onChange={(e) => setMultiplierInput(e.target.value)}
+                onChange={(e) => setMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                onFocus={(e) => e.target.select()}
                 placeholder="600"
                 className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-3 text-xl font-bold text-slate-900 font-mono text-center outline-none transition-colors shadow-2xs"
               />
@@ -179,9 +238,11 @@ ${settings.shopName} (${settings.shopPhone})`;
                 {isMyanmar ? 'ပတ်လည်ပေါက် (ဆ)' : 'Todd Mult.'}
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={toddMultiplierInput}
-                onChange={(e) => setToddMultiplierInput(e.target.value)}
+                onChange={(e) => setToddMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                onFocus={(e) => e.target.select()}
                 placeholder="100"
                 className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-3 text-xl font-bold text-slate-900 font-mono text-center outline-none transition-colors shadow-2xs"
               />

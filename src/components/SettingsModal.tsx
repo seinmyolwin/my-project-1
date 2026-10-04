@@ -19,13 +19,24 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { BookieMode } from '../types';
 
+import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
+import { ShieldCheck, KeyRound, CheckCircle2, Lock } from 'lucide-react';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: '3d' | '2d' | 'football' | 'general';
+  enabledModes: EnabledModes;
+  onUpdateEnabledModes: (modes: EnabledModes) => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab = '3d' }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  initialTab = '3d',
+  enabledModes,
+  onUpdateEnabledModes
+}) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
   const football = useFootball();
@@ -33,8 +44,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general'>(initialTab);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Enabled Modes State
+  const [localModes, setLocalModes] = useState<EnabledModes>(enabledModes);
+
+  // Security PIN Change State
+  const [oldPin, setOldPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmNewPin, setConfirmNewPin] = useState('');
+  const [pinStatusMsg, setPinStatusMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
   // 3D Form State
-  const [name3D, setName3D] = useState(lottery3D.settings.appName || '3D Ledger Pro');
+  const [name3D, setName3D] = useState(lottery3D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop3D, setShop3D] = useState(lottery3D.settings.shopName || '');
   const [phone3D, setPhone3D] = useState(lottery3D.settings.shopPhone || '');
   const [address3D, setAddress3D] = useState(lottery3D.settings.shopAddress || '');
@@ -45,7 +65,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   const [footer3D, setFooter3D] = useState(lottery3D.settings.voucherFooterMessage || '');
 
   // 2D Form State
-  const [name2D, setName2D] = useState(lottery2D.settings.appName || '2D Ledger Pro');
+  const [name2D, setName2D] = useState(lottery2D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop2D, setShop2D] = useState(lottery2D.settings.shopName || '');
   const [phone2D, setPhone2D] = useState(lottery2D.settings.shopPhone || '');
   const [address2D, setAddress2D] = useState(lottery2D.settings.shopAddress || '');
@@ -56,7 +76,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
   const [footer2D, setFooter2D] = useState(lottery2D.settings.voucherFooterMessage || '');
 
   // Football Form State
-  const [nameFB, setNameFB] = useState(football.settings.appName || 'Football Ledger Pro');
+  const [nameFB, setNameFB] = useState(football.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shopFB, setShopFB] = useState(football.settings.shopName || '');
   const [phoneFB, setPhoneFB] = useState(football.settings.shopPhone || '');
   const [commFB, setCommFB] = useState(String(football.settings.defaultCommissionRate || 8));
@@ -112,6 +132,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
       slipFooterMessage: footerFB.trim()
     });
 
+    // 4. Save Enabled Modes
+    saveEnabledModes(localModes);
+    onUpdateEnabledModes(localModes);
+
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
@@ -157,7 +181,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 : 'text-slate-600 hover:bg-slate-200/70'
             }`}
           >
-            <span>၃ လုံး ချဲဒိုင် (3D)</span>
+            <span>အိုးစည်လေး (3D)</span>
           </button>
 
           <button
@@ -169,7 +193,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 : 'text-slate-600 hover:bg-slate-200/70'
             }`}
           >
-            <span>၂ လုံး ထီဒိုင် (2D)</span>
+            <span>ဇီးကွက် (2D)</span>
           </button>
 
           <button
@@ -181,7 +205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 : 'text-slate-600 hover:bg-slate-200/70'
             }`}
           >
-            <span>ဘောလုံးဒိုင် (Football)</span>
+            <span>ပစ်တိုင်းထောင် (Football)</span>
           </button>
 
           <button
@@ -570,6 +594,167 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           {/* TAB: General Settings */}
           {activeTab === 'general' && (
             <div className="space-y-4">
+              
+              {/* Business Modes Master Switch */}
+              <div className="bg-indigo-50/70 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  <span>လုပ်ငန်းအမျိုးအစားများ မာစတာ စဝစ်ချ် (Enable / Disable Businesses)</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  ပိုင်ရှင် မလုပ်ကိုင်သော လုပ်ငန်းများကို ပိတ်ထားပါက အက်ပ်မီနူးတွင် လုံးဝ ပေါ်လာတော့မည် မဟုတ်ပါ။
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <label className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                    localModes['3d'] ? 'bg-white border-indigo-500 font-bold text-indigo-950 shadow-2xs' : 'bg-slate-100 border-slate-200 text-slate-400'
+                  }`}>
+                    <div className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={localModes['3d']}
+                        onChange={(e) => {
+                          const next = { ...localModes, '3d': e.target.checked };
+                          if (next['3d'] || next['2d'] || next['football']) setLocalModes(next);
+                        }}
+                        className="rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>အိုးစည်လေး (3D)</span>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                    localModes['2d'] ? 'bg-white border-teal-500 font-bold text-teal-950 shadow-2xs' : 'bg-slate-100 border-slate-200 text-slate-400'
+                  }`}>
+                    <div className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={localModes['2d']}
+                        onChange={(e) => {
+                          const next = { ...localModes, '2d': e.target.checked };
+                          if (next['3d'] || next['2d'] || next['football']) setLocalModes(next);
+                        }}
+                        className="rounded text-teal-600 focus:ring-teal-500"
+                      />
+                      <span>ဇီးကွက် (2D)</span>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                    localModes['football'] ? 'bg-white border-emerald-500 font-bold text-emerald-950 shadow-2xs' : 'bg-slate-100 border-slate-200 text-slate-400'
+                  }`}>
+                    <div className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={localModes['football']}
+                        onChange={(e) => {
+                          const next = { ...localModes, 'football': e.target.checked };
+                          if (next['3d'] || next['2d'] || next['football']) setLocalModes(next);
+                        }}
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>ပစ်တိုင်းထောင် (FB)</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Change Owner PIN Code */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
+                  <KeyRound className="w-4 h-4 text-indigo-600" />
+                  <span>ပိုင်ရှင် လုံခြုံရေး PIN Code ပြောင်းလဲရန် (ဂဏန်း ၆ လုံး)</span>
+                </div>
+
+                {pinStatusMsg && (
+                  <div className={`p-2.5 rounded-xl text-xs font-bold ${
+                    pinStatusMsg.type === 'error' ? 'bg-rose-50 text-rose-800 border border-rose-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  }`}>
+                    {pinStatusMsg.text}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      ယခင် PIN မူလ:
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={oldPin}
+                      onChange={(e) => setOldPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="••••••"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-sm font-mono text-center font-bold text-slate-900 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      PIN အသစ် (၆ လုံး):
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="••••••"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-sm font-mono text-center font-bold text-slate-900 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      PIN အသစ် အတည်ပြုပါ:
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={confirmNewPin}
+                      onChange={(e) => setConfirmNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="••••••"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-sm font-mono text-center font-bold text-slate-900 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinStatusMsg(null);
+                      if (!verifyOwnerPin(oldPin)) {
+                        setPinStatusMsg({ type: 'error', text: 'ယခင် PIN မူလ မှားယွင်းနေပါသည်!' });
+                        return;
+                      }
+                      if (newPin.length !== 6 || !/^\d{6}$/.test(newPin)) {
+                        setPinStatusMsg({ type: 'error', text: 'PIN အသစ်သည် ဂဏန်း ၆ လုံး တိတိကျကျ ဖြစ်ရပါမည်' });
+                        return;
+                      }
+                      if (newPin !== confirmNewPin) {
+                        setPinStatusMsg({ type: 'error', text: 'PIN အသစ်နှစ်ခု တူညီမှုမရှိပါ!' });
+                        return;
+                      }
+                      if (saveOwnerPin(newPin)) {
+                        setPinStatusMsg({ type: 'success', text: 'PIN အသစ်အား အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ' });
+                        setOldPin('');
+                        setNewPin('');
+                        setConfirmNewPin('');
+                      }
+                    }}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-2xs cursor-pointer"
+                  >
+                    PIN အသစ် ပြောင်းမည်
+                  </button>
+                </div>
+              </div>
+
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                 <span className="text-xs font-bold text-slate-800 block">အထွေထွေ ငွေကြေးသတ်မှတ်ချက်:</span>
                 <div>

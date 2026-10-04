@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { LogOut } from 'lucide-react';
 import { LotteryProvider, useLottery } from './context/LotteryContext';
 import { TwoDLotteryProvider, useTwoDLottery } from './context/TwoDLotteryContext';
 import { FootballProvider, useFootball } from './context/FootballContext';
@@ -46,6 +47,12 @@ import { PreviousResultsModal } from './components/PreviousResultsModal';
 import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
 
+// Security & Setup Modals
+import { FirstTimePinSetupModal } from './components/FirstTimePinSetupModal';
+import { PinPromptModal } from './components/PinPromptModal';
+import { getStoredEnabledModes, isFirstTimePinSetup, EnabledModes } from './utils/securityUtils';
+import { useDoubleBackToExit } from './hooks/useDoubleBackToExit';
+
 function AppContent() {
   const { settings: settings3D } = useLottery();
   const { settings: settings2D } = useTwoDLottery();
@@ -78,7 +85,19 @@ function AppContent() {
   const [activeTab2D, setActiveTab2D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers' | 'limits'>('sales');
   const [activeTabFB, setActiveTabFB] = useState<'fixtures' | 'slip_entry' | 'slips_list'>('fixtures');
 
-  // Modals state
+  // Security & Business Switch State
+  const [enabledModes, setEnabledModes] = useState<EnabledModes>(() => getStoredEnabledModes());
+  const [isFirstTimeSetupOpen, setIsFirstTimeSetupOpen] = useState(() => isFirstTimePinSetup());
+  const [isPinPromptOpen, setIsPinPromptOpen] = useState(false);
+
+  // Ensure current dealer mode is enabled
+  useEffect(() => {
+    if (!enabledModes[dealerMode]) {
+      if (enabledModes['3d']) setDealerMode('3d');
+      else if (enabledModes['2d']) setDealerMode('2d');
+      else if (enabledModes['football']) setDealerMode('football');
+    }
+  }, [enabledModes, dealerMode]);
   const [printingVoucher3D, setPrintingVoucher3D] = useState<Voucher | null>(null);
   const [printingVoucher2D, setPrintingVoucher2D] = useState<TwoDVoucher | null>(null);
 
@@ -101,17 +120,85 @@ function AppContent() {
   const [isPreviousResultsOpen, setIsPreviousResultsOpen] = useState(false);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
 
+  // Check if any modal is active
+  const hasActiveModal =
+    !!printingVoucher3D ||
+    !!printingVoucher2D ||
+    isSettingsOpen ||
+    isPinPromptOpen ||
+    isNotificationsOpen ||
+    isRoundManager3DOpen ||
+    isRoundManager2DOpen ||
+    isLimitsModal3DOpen ||
+    isForwardModal3DOpen ||
+    isForwardModal2DOpen ||
+    isBackupModalOpen ||
+    isHelpOpen ||
+    isPreviousResultsOpen ||
+    isTitleModalOpen;
+
+  const closeActiveModal = useCallback(() => {
+    if (printingVoucher3D) setPrintingVoucher3D(null);
+    else if (printingVoucher2D) setPrintingVoucher2D(null);
+    else if (isSettingsOpen) setIsSettingsOpen(false);
+    else if (isPinPromptOpen) setIsPinPromptOpen(false);
+    else if (isNotificationsOpen) setIsNotificationsOpen(false);
+    else if (isRoundManager3DOpen) setIsRoundManager3DOpen(false);
+    else if (isRoundManager2DOpen) setIsRoundManager2DOpen(false);
+    else if (isLimitsModal3DOpen) setIsLimitsModal3DOpen(false);
+    else if (isForwardModal3DOpen) setIsForwardModal3DOpen(false);
+    else if (isForwardModal2DOpen) setIsForwardModal2DOpen(false);
+    else if (isBackupModalOpen) setIsBackupModalOpen(false);
+    else if (isHelpOpen) setIsHelpOpen(false);
+    else if (isPreviousResultsOpen) setIsPreviousResultsOpen(false);
+    else if (isTitleModalOpen) setIsTitleModalOpen(false);
+  }, [
+    printingVoucher3D,
+    printingVoucher2D,
+    isSettingsOpen,
+    isPinPromptOpen,
+    isNotificationsOpen,
+    isRoundManager3DOpen,
+    isRoundManager2DOpen,
+    isLimitsModal3DOpen,
+    isForwardModal3DOpen,
+    isForwardModal2DOpen,
+    isBackupModalOpen,
+    isHelpOpen,
+    isPreviousResultsOpen,
+    isTitleModalOpen
+  ]);
+
+  const isSubTab =
+    (dealerMode === '3d' && activeTab3D !== 'sales') ||
+    (dealerMode === '2d' && activeTab2D !== 'sales') ||
+    (dealerMode === 'football' && activeTabFB !== 'fixtures');
+
+  const goToMainTab = useCallback(() => {
+    if (dealerMode === '3d') setActiveTab3D('sales');
+    else if (dealerMode === '2d') setActiveTab2D('sales');
+    else if (dealerMode === 'football') setActiveTabFB('fixtures');
+  }, [dealerMode]);
+
+  // Handle hardware / browser back button navigation & 2-second double press exit
+  const { showExitToast } = useDoubleBackToExit({
+    hasActiveModal,
+    closeActiveModal,
+    isSubTab,
+    goToMainTab
+  });
+
   // Sync document title with active mode
   useEffect(() => {
     if (dealerMode === '3d') {
-      const title = settings3D.appName || settings3D.shopName || '3D Ledger Pro';
-      document.title = `${title} - သုံးလုံး ချဲ စာရင်းစနစ်`;
+      const title = settings3D.appName || settings3D.shopName || 'ရွှေမင်္ဂလာ';
+      document.title = `${title} - အိုးစည်လေး စာရင်းစနစ် (3D)`;
     } else if (dealerMode === '2d') {
-      const title = settings2D.appName || settings2D.shopName || '2D Ledger Pro';
-      document.title = `${title} - ၂ လုံး ထီ စာရင်းစနစ်`;
+      const title = settings2D.appName || settings2D.shopName || 'ရွှေမင်္ဂလာ';
+      document.title = `${title} - ဇီးကွက် စာရင်းစနစ် (2D)`;
     } else {
-      const title = settingsFB.appName || settingsFB.shopName || 'Football Betting Pro';
-      document.title = `${title} - ဘောလုံးဒိုင် စာရင်းစနစ်`;
+      const title = settingsFB.appName || settingsFB.shopName || 'ရွှေမင်္ဂလာ';
+      document.title = `${title} - ပစ်တိုင်းထောင် စာရင်းစနစ် (Football)`;
     }
   }, [dealerMode, settings3D, settings2D, settingsFB]);
 
@@ -161,7 +248,8 @@ function AppContent() {
         setDealerMode={setDealerMode}
         activeTab={currentActiveTab}
         setActiveTab={handleSetTab}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        enabledModes={enabledModes}
+        onOpenSettings={() => setIsPinPromptOpen(true)}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
         onOpenRoundManager={handleOpenRoundManager}
         onOpenLimitsManager={() => handleOpenLimitsModal()}
@@ -329,6 +417,27 @@ function AppContent() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         initialTab={dealerMode}
+        enabledModes={enabledModes}
+        onUpdateEnabledModes={(modes) => setEnabledModes(modes)}
+      />
+
+      {/* First-Time PIN & Business Setup Modal */}
+      <FirstTimePinSetupModal
+        isOpen={isFirstTimeSetupOpen}
+        onCompleted={(modes) => {
+          setEnabledModes(modes);
+          setIsFirstTimeSetupOpen(false);
+        }}
+      />
+
+      {/* Security PIN Prompt Modal */}
+      <PinPromptModal
+        isOpen={isPinPromptOpen}
+        onClose={() => setIsPinPromptOpen(false)}
+        onSuccess={() => {
+          setIsPinPromptOpen(false);
+          setIsSettingsOpen(true);
+        }}
       />
 
       {/* Quick Title & Branding Customization Modal */}
@@ -368,6 +477,21 @@ function AppContent() {
 
       {/* Offline Status Badge */}
       <OfflineIndicator />
+
+      {/* Double Back Exit Toast Banner for Mobile/Tablet */}
+      {showExitToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0">
+            <LogOut className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-xs font-black block">အက်ပ်မှ ထွက်ရန်</span>
+            <span className="text-[11px] text-slate-300">
+              နောက်သို့ (Back) ၂ စက္ကန့်အတွင်း အမြန် ၂ ချက် နှိပ်ပါ
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

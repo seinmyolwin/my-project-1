@@ -11,7 +11,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { formatAmount } from '../../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 
 interface TwoDForwardModalProps {
   isOpen: boolean;
@@ -132,7 +132,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
               maxLength={2}
               placeholder="ဂဏန်း (24)"
               value={itemNum}
-              onChange={(e) => setItemNum(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setItemNum(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2))}
+              onFocus={(e) => e.target.select()}
               className="w-full h-10 px-2 text-center font-mono font-bold rounded-xl border border-slate-300"
             />
           </div>
@@ -141,7 +142,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
               type="text"
               placeholder="ငွေပမာဏ"
               value={itemAmt}
-              onChange={(e) => setItemAmt(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setItemAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+              onFocus={(e) => e.target.select()}
               className="w-full h-10 px-2 text-right font-mono font-bold rounded-xl border border-slate-300"
             />
           </div>

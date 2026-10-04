@@ -18,7 +18,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { formatAmount, getPermutations } from '../utils/lotteryUtils';
+import { formatAmount, getPermutations, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 
 interface LimitManagerModalProps {
   isOpen: boolean;
@@ -317,7 +317,8 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                     <input
                       type="text"
                       value={blockedInput}
-                      onChange={(e) => setBlockedInput(e.target.value)}
+                      onChange={(e) => setBlockedInput(convertMyanmarToEnglishDigits(e.target.value))}
+                      onFocus={(e) => e.target.select()}
                       placeholder={isMyanmar ? 'ဥပမာ: 987 သို့မဟုတ် 123, 456, 789' : 'e.g. 987 or 123, 456'}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-rose-900 outline-none focus:border-rose-500 shadow-2xs"
                     />
@@ -460,7 +461,8 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                     <input
                       type="text"
                       value={numberInput}
-                      onChange={(e) => setNumberInput(e.target.value)}
+                      onChange={(e) => setNumberInput(convertMyanmarToEnglishDigits(e.target.value))}
+                      onFocus={(e) => e.target.select()}
                       placeholder={isMyanmar ? 'ဥပမာ: 789 သို့ 123, 456' : 'e.g. 789 or 123, 456'}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-indigo-900 outline-none focus:border-indigo-500 shadow-2xs"
                     />
@@ -471,10 +473,11 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                       {isMyanmar ? 'သတ်မှတ်ထိုးကြေး' : 'Max Limit'} ({settings.currency})
                     </label>
                     <input
-                      type="number"
-                      step="5000"
+                      type="text"
+                      inputMode="numeric"
                       value={limitInput}
-                      onChange={(e) => setLimitInput(e.target.value)}
+                      onChange={(e) => setLimitInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                      onFocus={(e) => e.target.select()}
                       placeholder="50000"
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-emerald-800 outline-none focus:border-indigo-500 shadow-2xs"
                     />

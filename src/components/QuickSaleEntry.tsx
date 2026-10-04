@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher } from '../types';
-import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS } from '../utils/lotteryUtils';
+import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import { ImageSlipScannerModal } from './ImageSlipScannerModal';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
 
@@ -616,7 +616,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                 </div>
                 <textarea
                   value={rawBatchText}
-                  onChange={(e) => setRawBatchText(e.target.value)}
+                  onChange={(e) => setRawBatchText(convertMyanmarToEnglishDigits(e.target.value))}
+                  onFocus={(e) => e.target.select()}
                   placeholder={`123=1000\n456-500\n789R=1000\n555=2000`}
                   rows={4}
                   className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
@@ -668,9 +669,10 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                       maxLength={3}
                       value={numberInput}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
+                        const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3);
                         setNumberInput(val);
                       }}
+                      onFocus={(e) => e.target.select()}
                       placeholder="000 - 999"
                       className="w-full bg-slate-50 focus:bg-white border-2 border-slate-200 focus:border-indigo-600 rounded-xl px-3 py-2.5 text-2xl font-black text-indigo-950 font-mono tracking-widest text-center outline-none transition-colors shadow-2xs"
                       autoFocus
@@ -690,11 +692,11 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                   </label>
                   <input
                     ref={amountInputRef}
-                    type="number"
-                    step="100"
-                    min="100"
+                    type="text"
+                    inputMode="numeric"
                     value={amountInput}
-                    onChange={(e) => setAmountInput(e.target.value)}
+                    onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     placeholder="1000"
                     className="w-full bg-slate-50 focus:bg-white border-2 border-slate-200 focus:border-indigo-600 rounded-xl px-3 py-2.5 text-xl font-bold text-emerald-700 font-mono text-center outline-none transition-colors shadow-2xs"
                   />

@@ -21,7 +21,7 @@ import {
   Ban
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import {
   preprocessCanvas,
   parseSlipImageText,
@@ -248,11 +248,12 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
         if (row.id !== id) return row;
         const updated = { ...row, [field]: val };
         if (field === 'number') {
-          updated.number = String(val).replace(/[^0-9]/g, '').slice(0, 3);
+          updated.number = convertMyanmarToEnglishDigits(String(val)).replace(/[^0-9]/g, '').slice(0, 3);
           updated.isValid = updated.number.length === 3;
         }
         if (field === 'amount') {
-          updated.amount = Math.max(0, parseInt(val, 10) || 0);
+          const cleanAmt = convertMyanmarToEnglishDigits(String(val)).replace(/[^0-9]/g, '');
+          updated.amount = Math.max(0, parseInt(cleanAmt, 10) || 0);
         }
         return updated;
       })
@@ -633,6 +634,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
                                 maxLength={3}
                                 value={row.number}
                                 onChange={(e) => handleUpdateRow(row.id, 'number', e.target.value)}
+                                onFocus={(e) => e.target.select()}
                                 className={`w-16 px-2 py-1 text-center font-mono font-black text-sm rounded border ${
                                   row.isValid
                                     ? 'border-slate-300 text-indigo-950 bg-white'
@@ -677,6 +679,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
                                   min="100"
                                   value={row.amount}
                                   onChange={(e) => handleUpdateRow(row.id, 'amount', e.target.value)}
+                                  onFocus={(e) => e.target.select()}
                                   className="w-24 px-2 py-1 text-right font-mono font-bold text-xs rounded border border-slate-300 bg-white text-emerald-700"
                                 />
                                 <span className="text-[11px] text-slate-400">{settings.currency}</span>

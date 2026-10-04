@@ -32,7 +32,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                ၃ လုံး (3D) အရောင်းနှင့် စာရင်းစနစ် အသုံးပြုနည်း လမ်းညွှန်
+                အိုးစည်လေး (3D)၊ ဇီးကွက် (2D)၊ ပစ်တိုင်းထောင် (Football) စာရင်းစနစ် အသုံးပြုနည်း လမ်းညွှန်
               </h3>
               <p className="text-xs text-slate-500">
                 IT Expert မှ ထည့်သွင်းပေးထားသော အဓိက Feature များနှင့် အသုံးပြုပုံ

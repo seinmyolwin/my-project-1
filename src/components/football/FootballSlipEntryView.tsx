@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useFootball } from '../../context/FootballContext';
 import { FootballBetSelection, FootballSlip } from '../../types';
-import { formatAmount } from '../../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 
 interface FootballSlipEntryViewProps {
   onSlipCreated: (slip: FootballSlip) => void;
@@ -312,7 +312,8 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                 <input
                   type="text"
                   value={stakeAmount}
-                  onChange={(e) => setStakeAmount(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => setStakeAmount(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                  onFocus={(e) => e.target.select()}
                   className="w-full h-11 px-3 text-right font-mono text-lg font-bold rounded-xl border border-slate-300 focus:border-emerald-500 bg-white"
                 />
               </div>

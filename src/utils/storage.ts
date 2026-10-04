@@ -17,8 +17,8 @@ import {
 } from '../types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  appName: '3D Ledger Pro (သုံးလုံး ချဲ စာရင်း)',
-  shopName: 'ရွှေမင်္ဂလာ (၃ လုံး ချဲထီ အရောင်းကိုယ်စားလှယ်)',
+  appName: 'ရွှေမင်္ဂလာ',
+  shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
   shopPhone: '09-798889900',
   shopAddress: 'ရန်ကုန်မြို့ / မန္တလေးမြို့',
   currency: 'Ks',
@@ -206,8 +206,8 @@ export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
 // 2D LOTTERY INITIAL DATA & STORAGE
 // ====================================================
 export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
-  appName: '2D Ledger Pro (နှစ်လုံး ချဲ စာရင်း)',
-  shopName: 'ရွှေမင်္ဂလာ (၂ လုံး ထီ/ချဲ အရောင်းဒိုင်)',
+  appName: 'ရွှေမင်္ဂလာ',
+  shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
   shopPhone: '09-798889900',
   shopAddress: 'ရန်ကုန်မြို့ / မန္တလေးမြို့',
   currency: 'Ks',
@@ -365,8 +365,8 @@ export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
 // FOOTBALL BETTING INITIAL DATA & STORAGE
 // ====================================================
 export const DEFAULT_FOOTBALL_SETTINGS: FootballSettings = {
-  appName: 'Football Ledger Pro (ဘောလုံးဒိုင် စာရင်း)',
-  shopName: 'ရွှေမင်္ဂလာ (ဘောလုံးပွဲ အကြော/မောင်း/ဘော်ဒီ ဒိုင်)',
+  appName: 'ရွှေမင်္ဂလာ',
+  shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
   shopPhone: '09-798889900',
   currency: 'Ks',
   minMaungCount: 2,

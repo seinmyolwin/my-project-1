@@ -19,15 +19,15 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
   const [selectedMode, setSelectedMode] = useState<BookieMode>(activeMode);
 
   // 3D form state
-  const [name3D, setName3D] = useState(lottery3D.settings.appName || '3D Ledger Pro');
+  const [name3D, setName3D] = useState(lottery3D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop3D, setShop3D] = useState(lottery3D.settings.shopName || '');
 
   // 2D form state
-  const [name2D, setName2D] = useState(lottery2D.settings.appName || '2D Ledger Pro');
+  const [name2D, setName2D] = useState(lottery2D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop2D, setShop2D] = useState(lottery2D.settings.shopName || '');
 
   // Football form state
-  const [nameFB, setNameFB] = useState(football.settings.appName || 'Football Ledger Pro');
+  const [nameFB, setNameFB] = useState(football.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shopFB, setShopFB] = useState(football.settings.shopName || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -39,19 +39,19 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
 
     // Save 3D
     lottery3D.updateSettings({
-      appName: name3D.trim() || '3D Ledger Pro',
+      appName: name3D.trim() || 'ရွှေမင်္ဂလာ',
       shopName: shop3D.trim()
     });
 
     // Save 2D
     lottery2D.updateSettings({
-      appName: name2D.trim() || '2D Ledger Pro',
+      appName: name2D.trim() || 'ရွှေမင်္ဂလာ',
       shopName: shop2D.trim()
     });
 
     // Save Football
     football.updateSettings({
-      appName: nameFB.trim() || 'Football Ledger Pro',
+      appName: nameFB.trim() || 'ရွှေမင်္ဂလာ',
       shopName: shopFB.trim()
     });
 
@@ -76,7 +76,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 အက်ပ်ခေါင်းစဉ်နှင့် ဆိုင်အမည် ပြင်ဆင်ခြင်း
               </h3>
               <p className="text-xs text-slate-400">
-                ၃ လုံး၊ ၂ လုံးနှင့် ဘောလုံးဒိုင် အသီးသီးအတွက် ခေါင်းစဉ်များ ပြောင်းလဲနိုင်ပါသည်
+                အိုးစည်လေး၊ ဇီးကွက်နှင့် ပစ်တိုင်းထောင် အသီးသီးအတွက် ခေါင်းစဉ်များ ပြောင်းလဲနိုင်ပါသည်
               </p>
             </div>
           </div>
@@ -100,7 +100,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>၃ လုံး (3D)</span>
+            <span>အိုးစည်လေး (3D)</span>
           </button>
 
           <button
@@ -112,7 +112,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>၂ လုံး (2D)</span>
+            <span>ဇီးကွက် (2D)</span>
           </button>
 
           <button
@@ -124,7 +124,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>ဘောလုံး (Football)</span>
+            <span>ပစ်တိုင်းထောင် (Football)</span>
           </button>
         </div>
 
@@ -135,7 +135,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
             <div className="space-y-3.5 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
               <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
                 <Layers className="w-4 h-4 text-indigo-600" />
-                <span>၃ လုံး ချဲဒိုင် (3D Lottery) ခေါင်းစဉ်</span>
+                <span>အိုးစည်လေး (3D) ခေါင်းစဉ်</span>
               </div>
 
               <div>
@@ -146,7 +146,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   type="text"
                   value={name3D}
                   onChange={(e) => setName3D(e.target.value)}
-                  placeholder="3D Ledger Pro"
+                  placeholder="အိုးစည်လေး Pro"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -159,7 +159,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   type="text"
                   value={shop3D}
                   onChange={(e) => setShop3D(e.target.value)}
-                  placeholder="ရွှေမင်္ဂလာ (၃ လုံး ချဲထီ အရောင်း)"
+                  placeholder="ရွှေမင်္ဂလာ (အိုးစည်လေး အရောင်းဒိုင်)"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -170,7 +170,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
             <div className="space-y-3.5 bg-teal-50/50 p-4 rounded-2xl border border-teal-100">
               <div className="flex items-center gap-2 text-teal-900 font-bold text-xs">
                 <Layers className="w-4 h-4 text-teal-600" />
-                <span>၂ လုံး ထီဒိုင် (2D Lottery) ခေါင်းစဉ်</span>
+                <span>ဇီးကွက် (2D) ခေါင်းစဉ်</span>
               </div>
 
               <div>
@@ -181,7 +181,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   type="text"
                   value={name2D}
                   onChange={(e) => setName2D(e.target.value)}
-                  placeholder="2D Ledger Pro"
+                  placeholder="ဇီးကွက် Pro"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -194,7 +194,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   type="text"
                   value={shop2D}
                   onChange={(e) => setShop2D(e.target.value)}
-                  placeholder="ရွှေမင်္ဂလာ (၂ လုံး ထီ/ချဲ အရောင်းဒိုင်)"
+                  placeholder="ရွှေမင်္ဂလာ (ဇီးကွက် အရောင်းဒိုင်)"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -205,7 +205,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
             <div className="space-y-3.5 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
                 <Layers className="w-4 h-4 text-emerald-600" />
-                <span>ဘောလုံးဒိုင် (Football Betting) ခေါင်းစဉ်</span>
+                <span>ပစ်တိုင်းထောင် (Football) ခေါင်းစဉ်</span>
               </div>
 
               <div>
@@ -216,7 +216,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   type="text"
                   value={nameFB}
                   onChange={(e) => setNameFB(e.target.value)}
-                  placeholder="Football Ledger Pro"
+                  placeholder="ပစ်တိုင်းထောင် Pro"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -229,7 +229,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   type="text"
                   value={shopFB}
                   onChange={(e) => setShopFB(e.target.value)}
-                  placeholder="ရွှေမင်္ဂလာ (ဘောလုံးဒိုင် စာရင်း)"
+                  placeholder="ရွှေမင်္ဂလာ (ပစ်တိုင်းထောင် စာရင်းဒိုင်)"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>

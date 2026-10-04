@@ -29,7 +29,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
             <Trophy className="w-4 h-4" />
           </div>
           <span className="text-xs font-bold text-teal-200">
-            အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (2D):
+            အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (ဇီးကွက် - 2D):
           </span>
         </div>
 
@@ -59,7 +59,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           onClick={onOpenHistory}
           className="text-xs font-bold text-teal-300 hover:text-white flex items-center gap-1 hover:underline ml-auto cursor-pointer"
         >
-          <span>၂ လုံး မှတ်တမ်းအားလုံး</span>
+          <span>ဇီးကွက် မှတ်တမ်းအားလုံး</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -82,7 +82,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
             <Trophy className="w-4 h-4" />
           </div>
           <span className="text-xs font-bold text-indigo-200">
-            အရင်ပွဲစဉ် ထွက်ဂဏန်း (3D):
+            အရင်ပွဲစဉ် ထွက်ဂဏန်း (အိုးစည်လေး - 3D):
           </span>
           {latest && (
             <div className="flex items-center gap-2 bg-indigo-900/80 border border-indigo-700/60 rounded-xl px-2.5 py-1 text-xs">
@@ -100,7 +100,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           onClick={onOpenHistory}
           className="text-xs font-bold text-indigo-300 hover:text-white flex items-center gap-1 hover:underline ml-auto cursor-pointer"
         >
-          <span>၃ လုံး ရလဒ်မှတ်တမ်းအားလုံး</span>
+          <span>အိုးစည်လေး ရလဒ်မှတ်တမ်းအားလုံး</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -118,7 +118,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           <Trophy className="w-4 h-4" />
         </div>
         <span className="text-xs font-bold text-emerald-200">
-          ပြီးဆုံးခဲ့သော ပွဲရလဒ်များ:
+          ပြီးဆုံးခဲ့သော ပစ်တိုင်းထောင် ပွဲရလဒ်များ:
         </span>
       </div>
 
@@ -142,7 +142,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
         onClick={onOpenHistory}
         className="text-xs font-bold text-emerald-300 hover:text-white flex items-center gap-1 hover:underline ml-auto cursor-pointer"
       >
-        <span>ဘောလုံး ရလဒ်မှတ်တမ်းအားလုံး</span>
+        <span>ပစ်တိုင်းထောင် ရလဒ်မှတ်တမ်းအားလုံး</span>
         <ChevronRight className="w-3.5 h-3.5" />
       </button>
     </div>

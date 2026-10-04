@@ -10,10 +10,13 @@ import {
   TrendingDown,
   User,
   Phone,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Globe,
+  Loader2
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { formatAmount } from '../../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
+import { fetchLiveThai2D } from '../../utils/thaiLotteryApi';
 
 export const TwoDWinningPayoutView: React.FC = () => {
   const {
@@ -34,6 +37,28 @@ export const TwoDWinningPayoutView: React.FC = () => {
   const [multiplierInput, setMultiplierInput] = useState(
     String(activeRound?.multiplier || settings.defaultMultiplier || 85)
   );
+
+  const [isFetchingLive, setIsFetchingLive] = useState(false);
+  const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
+
+  const handleFetchLiveThai2D = async () => {
+    setIsFetchingLive(true);
+    setLiveStatusMsg('ထိုင်း SET တရားဝင် ဝက်ဘ်ဆိုက်မှ 2D ရလဒ် ရယူနေပါသည်...');
+    try {
+      const sess = activeRound?.session === 'morning' ? 'morning' : 'evening';
+      const res = await fetchLiveThai2D(sess);
+      if (res.success && res.result) {
+        setWinningInput(res.result.twod);
+        setLiveStatusMsg(res.message);
+      } else {
+        setLiveStatusMsg('ထိုင်း 2D ရလဒ် ရယူရာတွင် အဆင်မပြေပါ၊ စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
+      }
+    } catch {
+      setLiveStatusMsg('အင်တာနက် ချိတ်ဆက်မှု စစ်ဆေးပြီး စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
+    } finally {
+      setIsFetchingLive(false);
+    }
+  };
 
   // Settled 2D rounds history strictly for 2D
   const settled2DRounds = useMemo(() => {
@@ -92,19 +117,49 @@ export const TwoDWinningPayoutView: React.FC = () => {
           )}
         </div>
 
+        {/* Live Status Banner */}
+        {liveStatusMsg && (
+          <div className="bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl p-3.5 text-xs font-bold flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-teal-600 animate-pulse shrink-0" />
+              <span>{liveStatusMsg}</span>
+            </div>
+            <button onClick={() => setLiveStatusMsg(null)} className="text-slate-400 hover:text-slate-700 font-bold">
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Input Form */}
         <form onSubmit={handleSettle} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
           <div className="sm:col-span-4">
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {isMyanmar ? 'ပေါက်ဂဏန်း (၂ လုံး - ၀၀ မှ ၉၉)' : 'Winning Number (2-Digit)'}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                {isMyanmar ? 'ပေါက်ဂဏန်း (၂ လုံး - ၀၀ မှ ၉၉)' : 'Winning Number (2-Digit)'}
+              </label>
+              <button
+                type="button"
+                onClick={handleFetchLiveThai2D}
+                disabled={isFetchingLive}
+                className="text-[11px] font-bold text-teal-800 hover:text-teal-950 flex items-center gap-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                title="ထိုင်း SET တရားဝင် ဝက်ဘ်ဆိုက်မှ ရလဒ် ရယူရန်"
+              >
+                {isFetchingLive ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-teal-600" />
+                ) : (
+                  <Globe className="w-3 h-3 text-teal-600" />
+                )}
+                <span>{isMyanmar ? 'ထိုင်း SET တရားဝင် ရယူမည်' : 'Fetch Thai SET'}</span>
+              </button>
+            </div>
             <input
               type="text"
               inputMode="numeric"
               maxLength={2}
               placeholder="82"
               value={winningInput}
-              onChange={(e) => setWinningInput(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setWinningInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2))}
+              onFocus={(e) => e.target.select()}
               className="w-full h-14 px-4 text-center font-mono text-3xl font-black rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all text-amber-950"
             />
           </div>
@@ -114,9 +169,11 @@ export const TwoDWinningPayoutView: React.FC = () => {
               {isMyanmar ? 'အလျော်ဆ (ဥပမာ- 85 ဆ)' : 'Multiplier (e.g. 85x)'}
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={multiplierInput}
-              onChange={(e) => setMultiplierInput(e.target.value)}
+              onChange={(e) => setMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+              onFocus={(e) => e.target.select()}
               className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
             />
           </div>

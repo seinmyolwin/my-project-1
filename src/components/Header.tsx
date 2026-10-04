@@ -25,11 +25,14 @@ import { formatAmount } from '../utils/lotteryUtils';
 import { PWAInstallButton } from './PWAInstallButton';
 import { BookieMode } from '../types';
 
+import { EnabledModes } from '../utils/securityUtils';
+
 interface HeaderProps {
   dealerMode: BookieMode;
   setDealerMode: (mode: BookieMode) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  enabledModes?: EnabledModes;
   onOpenSettings: () => void;
   onOpenNotifications: () => void;
   onOpenRoundManager: () => void;
@@ -46,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   setDealerMode,
   activeTab,
   setActiveTab,
+  enabledModes = { '3d': true, '2d': true, 'football': true },
   onOpenSettings,
   onOpenNotifications,
   onOpenRoundManager,
@@ -79,8 +83,8 @@ export const Header: React.FC<HeaderProps> = ({
   let currency = 'MMK';
 
   if (dealerMode === '3d') {
-    appTitle = lottery3D.settings.appName || '3D Ledger Pro';
-    shopName = lottery3D.settings.shopName || '၃ လုံး ချဲထီ စာရင်း';
+    appTitle = lottery3D.settings.appName || 'ရွှေမင်္ဂလာ';
+    shopName = lottery3D.settings.shopName || 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်';
     revenue = lottery3D.roundSummary.netRevenue;
     isSettled = lottery3D.activeRound?.status === 'settled';
     isProfit = lottery3D.roundSummary.isProfit;
@@ -88,8 +92,8 @@ export const Header: React.FC<HeaderProps> = ({
     alertCount = lottery3D.lowStockAlerts.length;
     currency = lottery3D.settings.currency;
   } else if (dealerMode === '2d') {
-    appTitle = lottery2D.settings.appName || '2D Ledger Pro';
-    shopName = lottery2D.settings.shopName || '၂ လုံး ထီ စာရင်း';
+    appTitle = lottery2D.settings.appName || 'ရွှေမင်္ဂလာ';
+    shopName = lottery2D.settings.shopName || 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်';
     revenue = lottery2D.roundSummary.netRevenue;
     isSettled = lottery2D.activeRound?.status === 'settled';
     isProfit = lottery2D.roundSummary.isProfit;
@@ -97,8 +101,8 @@ export const Header: React.FC<HeaderProps> = ({
     alertCount = lottery2D.lowStockAlerts.length;
     currency = lottery2D.settings.currency;
   } else {
-    appTitle = football.settings.appName || 'Football Ledger Pro';
-    shopName = football.settings.shopName || 'ဘောလုံးဒိုင် စာရင်း';
+    appTitle = football.settings.appName || 'ရွှေမင်္ဂလာ';
+    shopName = football.settings.shopName || 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်';
     revenue = football.summary.netRevenue;
     isSettled = football.summary.wonTicketsCount > 0 || football.summary.lostTicketsCount > 0;
     isProfit = football.summary.isProfit;
@@ -124,53 +128,59 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
           {/* Multi-Bookie Dealer Mode Switcher Tabs */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-800/90 rounded-2xl border border-slate-700">
-            <button
-              type="button"
-              onClick={() => {
-                setDealerMode('3d');
-                setActiveTab('sales');
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                dealerMode === '3d'
-                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-indigo-300"></span>
-              <span>{isMyanmar ? '၃ လုံး ချဲဒိုင် (3D)' : '3D Lottery'}</span>
-            </button>
+            {enabledModes['3d'] && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDealerMode('3d');
+                  setActiveTab('sales');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  dealerMode === '3d'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-indigo-300"></span>
+                <span>{isMyanmar ? 'အိုးစည်လေး (3D)' : '3D Lottery'}</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setDealerMode('2d');
-                setActiveTab('sales');
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                dealerMode === '2d'
-                  ? 'bg-teal-600 text-white shadow-md ring-2 ring-teal-400/40'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-teal-300"></span>
-              <span>{isMyanmar ? '၂ လုံး ထီဒိုင် (2D)' : '2D Lottery'}</span>
-            </button>
+            {enabledModes['2d'] && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDealerMode('2d');
+                  setActiveTab('sales');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  dealerMode === '2d'
+                    ? 'bg-teal-600 text-white shadow-md ring-2 ring-teal-400/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-teal-300"></span>
+                <span>{isMyanmar ? 'ဇီးကွက် (2D)' : '2D Lottery'}</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setDealerMode('football');
-                setActiveTab('fixtures');
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                dealerMode === 'football'
-                  ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
-              <span>{isMyanmar ? 'ဘောလုံးဒိုင် (Football)' : 'Football Betting'}</span>
-            </button>
+            {enabledModes['football'] && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDealerMode('football');
+                  setActiveTab('fixtures');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  dealerMode === 'football'
+                    ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
+                <span>{isMyanmar ? 'ပစ်တိုင်းထောင် (Football)' : 'Football Betting'}</span>
+              </button>
+            )}
           </div>
 
           {/* Previous Results Ticker & Action Buttons */}
@@ -188,10 +198,10 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
                 title={
                   dealerMode === '3d'
-                    ? '၃ လုံး (3D) အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
+                    ? 'အိုးစည်လေး (3D) အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
                     : dealerMode === '2d'
-                    ? '၂ လုံး (2D) အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
-                    : 'ဘောလုံး (Football) ပြီးဆုံးခဲ့သော ပွဲစဉ်ရလဒ်များနှင့် အဖြေများ'
+                    ? 'ဇီးကွက် (2D) အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
+                    : 'ပစ်တိုင်းထောင် (Football) ပြီးဆုံးခဲ့သော ပွဲစဉ်ရလဒ်များနှင့် အဖြေများ'
                 }
               >
                 <Trophy
@@ -204,12 +214,12 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 />
                 <span className="hidden sm:inline">
-                  {dealerMode === '3d' && '၃ လုံး ထွက်ဂဏန်းမှတ်တမ်း'}
-                  {dealerMode === '2d' && '၂ လုံး ထွက်ဂဏန်းမှတ်တမ်း'}
-                  {dealerMode === 'football' && 'ဘောလုံး ပွဲပြီးရလဒ်မှတ်တမ်း'}
+                  {dealerMode === '3d' && 'အိုးစည်လေး ထွက်ဂဏန်းမှတ်တမ်း'}
+                  {dealerMode === '2d' && 'ဇီးကွက် ထွက်ဂဏန်းမှတ်တမ်း'}
+                  {dealerMode === 'football' && 'ပစ်တိုင်းထောင် ပွဲပြီးရလဒ်မှတ်တမ်း'}
                 </span>
                 <span className="sm:hidden">
-                  {dealerMode === '3d' ? '၃ လုံး ရလဒ်' : dealerMode === '2d' ? '၂ လုံး ရလဒ်' : 'ပွဲပြီးရလဒ်'}
+                  {dealerMode === '3d' ? 'အိုးစည်လေး ရလဒ်' : dealerMode === '2d' ? 'ဇီးကွက် ရလဒ်' : 'ပစ်တိုင်းထောင် ရလဒ်'}
                 </span>
 
                 {dealerMode === '3d' && latestSettled3D?.winningNumber && (
@@ -292,10 +302,10 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <p className="text-xs text-slate-500">
                 {dealerMode === '3d'
-                  ? '၃ လုံး ဂဏန်း သီးသန့် လယ်ဂျာ'
+                  ? 'အိုးစည်လေး (3D) သီးသန့် လယ်ဂျာ'
                   : dealerMode === '2d'
-                  ? '၂ လုံး ဂဏန်း သီးသန့် လယ်ဂျာ (00-99)'
-                  : 'ဘော်ဒီ၊ ဂိုးပေါင်း၊ မောင်း သီးသန့် လယ်ဂျာ'}
+                  ? 'ဇီးကွက် (2D) သီးသန့် လယ်ဂျာ (00-99)'
+                  : 'ပစ်တိုင်းထောင် (Football) သီးသန့် လယ်ဂျာ'}
               </p>
             </div>
           </div>
@@ -457,7 +467,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? '၃ လုံး အရောင်းစာရင်းသွင်း' : '3D Quick Entry'}</span>
+                <span>{isMyanmar ? 'အိုးစည်လေး အရောင်းစာရင်းသွင်း' : '3D Quick Entry'}</span>
               </button>
 
               <button
@@ -469,7 +479,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <TrendingUp className="w-4 h-4" />
-                <span>{isMyanmar ? '၃ လုံး စာရင်းချုပ် (၀-၉၉၉)' : '3D Live Ledger'}</span>
+                <span>{isMyanmar ? 'အိုးစည်လေး စာရင်းချုပ် (၀-၉၉၉)' : '3D Live Ledger'}</span>
               </button>
 
               <button
@@ -521,7 +531,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? '၂ လုံး အရောင်းသွင်းရန်' : '2D Quick Entry'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် အရောင်းသွင်းရန်' : '2D Quick Entry'}</span>
               </button>
 
               <button
@@ -533,7 +543,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <TrendingUp className="w-4 h-4" />
-                <span>{isMyanmar ? '၂ လုံး စာရင်းချုပ် (၀၀-၉၉)' : '2D Live Ledger'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် စာရင်းချုပ် (၀၀-၉၉)' : '2D Live Ledger'}</span>
               </button>
 
               <button
@@ -557,7 +567,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isMyanmar ? '၂ လုံး ဘောင်ချာများ' : 'Vouchers'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် ဘောင်ချာများ' : 'Vouchers'}</span>
               </button>
 
               <button
@@ -597,7 +607,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဘောလုံးဘောင်ချာ အရောင်းသွင်း' : 'Ticket Entry'}</span>
+                <span>{isMyanmar ? 'ပစ်တိုင်းထောင် အရောင်းသွင်း' : 'Ticket Entry'}</span>
               </button>
 
               <button

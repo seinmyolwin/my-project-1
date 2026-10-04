@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction } from '../../types';
-import { formatAmount } from '../../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import {
   getTwoDReversal,
   parseTwoDBatchInput,
@@ -471,9 +471,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                     placeholder="24"
                     value={numberInput}
                     onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
+                      const val = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2);
                       setNumberInput(val);
                     }}
+                    onFocus={(e) => e.target.select()}
                     className={`w-full h-13 px-4 text-center font-mono text-2xl font-black rounded-xl border transition-all ${
                       isInputBlocked
                         ? 'border-rose-400 bg-rose-50 text-rose-800'
@@ -492,7 +493,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                     inputMode="numeric"
                     placeholder="1000"
                     value={amountInput}
-                    onChange={(e) => setAmountInput(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     className="w-full h-13 px-4 text-right font-mono text-xl font-bold rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
                   />
                 </div>

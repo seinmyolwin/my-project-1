@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { ForwardSlip, ForwardSlipItem } from '../types';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 
 interface ForwardSlipsModalProps {
   isOpen: boolean;
@@ -162,11 +162,11 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   {isMyanmar ? 'ရရှိမည့် ကော်မရှင် (%)' : 'Commission Rate (%)'}
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  max="100"
+                  type="text"
+                  inputMode="numeric"
                   value={commissionRate}
-                  onChange={(e) => setCommissionRate(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  onChange={(e) => setCommissionRate(Math.max(0, parseInt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''), 10) || 0))}
+                  onFocus={(e) => e.target.select()}
                   className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                 />
               </div>
@@ -182,7 +182,8 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   type="text"
                   maxLength={3}
                   value={numberInput}
-                  onChange={(e) => setNumberInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  onChange={(e) => setNumberInput(convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3))}
+                  onFocus={(e) => e.target.select()}
                   placeholder="000 - 999"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base font-black font-mono text-indigo-900 text-center outline-none focus:border-indigo-500 shadow-2xs"
                 />
@@ -193,9 +194,11 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   {isMyanmar ? 'လွှဲတင်ငွေ' : 'Amount'} ({settings.currency})
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
+                  onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                  onFocus={(e) => e.target.select()}
                   placeholder="10000"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base font-bold font-mono text-slate-900 text-center outline-none focus:border-indigo-500 shadow-2xs"
                 />

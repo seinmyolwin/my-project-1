@@ -46,28 +46,28 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     const json = export3D();
     const filename = getBackupFileName('lottery_3d_backup');
     downloadJSONFile(json, filename);
-    showMsg('၃ လုံး (3D) ဒေတာဖိုင်အား သီးသန့်သိမ်းဆည်းပြီးပါပြီ');
+    showMsg('အိုးစည်လေး (3D) ဒေတာဖိုင်အား သီးသန့်သိမ်းဆည်းပြီးပါပြီ');
   };
 
   const handleExport2D = () => {
     const json = export2D();
     const filename = getBackupFileName('lottery_2d_backup');
     downloadJSONFile(json, filename);
-    showMsg('၂ လုံး (2D) ဒေတာဖိုင်အား သီးသန့်သိမ်းဆည်းပြီးပါပြီ');
+    showMsg('ဇီးကွက် (2D) ဒေတာဖိုင်အား သီးသန့်သိမ်းဆည်းပြီးပါပြီ');
   };
 
   const handleExportFootball = () => {
     const json = exportFB();
     const filename = getBackupFileName('football_betting_backup');
     downloadJSONFile(json, filename);
-    showMsg('ဘောလုံး (Football) ဒေတာဖိုင်အား သီးသန့်သိမ်းဆည်းပြီးပါပြီ');
+    showMsg('ပစ်တိုင်းထောင် (Football) ဒေတာဖိုင်အား သီးသန့်သိမ်းဆည်းပြီးပါပြီ');
   };
 
   const handleExportMaster = () => {
     const json = exportUnifiedMasterBackup();
     const filename = getBackupFileName('master_unified_ledger_all');
     downloadJSONFile(json, filename);
-    showMsg('၃ လုံး + ၂ လုံး + ဘောလုံး အားလုံးပါဝင်သော Master Backup အား သိမ်းဆည်းပြီးပါပြီ');
+    showMsg('အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် အားလုံးပါဝင်သော Master Backup အား သိမ်းဆည်းပြီးပါပြီ');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

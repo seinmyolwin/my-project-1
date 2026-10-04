@@ -12,7 +12,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { formatAmount } from '../../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import {
   TWO_D_DOUBLES,
   TWO_D_POWER,
@@ -119,7 +119,8 @@ export const TwoDLimitsManager: React.FC = () => {
               type="text"
               inputMode="numeric"
               value={globalLimitInput}
-              onChange={(e) => setGlobalLimitInput(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setGlobalLimitInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+              onFocus={(e) => e.target.select()}
               className="flex-1 h-12 px-4 text-right font-mono text-lg font-bold rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50"
             />
             <button
@@ -154,7 +155,8 @@ export const TwoDLimitsManager: React.FC = () => {
                 maxLength={2}
                 placeholder="24"
                 value={singleNum}
-                onChange={(e) => setSingleNum(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setSingleNum(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2))}
+                onFocus={(e) => e.target.select()}
                 className="w-full h-12 px-3 text-center font-mono text-lg font-black rounded-xl border border-slate-300 focus:border-indigo-500 bg-slate-50"
               />
             </div>
@@ -163,7 +165,8 @@ export const TwoDLimitsManager: React.FC = () => {
                 type="text"
                 placeholder="30000"
                 value={singleLimitAmt}
-                onChange={(e) => setSingleLimitAmt(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setSingleLimitAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                onFocus={(e) => e.target.select()}
                 className="w-full h-12 px-3 text-right font-mono text-sm font-bold rounded-xl border border-slate-300 focus:border-indigo-500 bg-slate-50"
               />
             </div>
@@ -205,7 +208,8 @@ export const TwoDLimitsManager: React.FC = () => {
               maxLength={2}
               placeholder="00"
               value={blockNumInput}
-              onChange={(e) => setBlockNumInput(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setBlockNumInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2))}
+              onFocus={(e) => e.target.select()}
               className="w-16 h-10 text-center font-mono text-base font-black rounded-xl border border-slate-300 focus:border-rose-500 bg-slate-50"
             />
             <button

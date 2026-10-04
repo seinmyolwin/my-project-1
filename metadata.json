@@ -1,6 +1,6 @@
 {
-  "name": "3D Ledger Pro (သုံးလုံး ချဲ စာရင်း)",
-  "description": "Professional multi-bookie dealer ledger system featuring segregated 3D Lottery, 2D Lottery (00-99 with Thai SET rounds & Myanmar patterns), and Football Betting (Body, Over/Under & Parlay/Maung) with real-time risk ledger, dealer hedging, and isolated storage backups.",
+  "name": "ရွှေမင်္ဂလာ - စာရင်းစနစ်",
+  "description": "ရွှေမင်္ဂလာ - အိုးစည်လေး (3D Lottery)၊ ဇီးကွက် (2D Lottery 00-99) နှင့် ပစ်တိုင်းထောင် (Football Betting) စာရင်းစနစ်",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
