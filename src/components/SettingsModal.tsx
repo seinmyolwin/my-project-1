@@ -4,15 +4,21 @@ import {
   Settings,
   Store,
   Database,
-  Download,
-  Upload,
   RotateCcw,
   Trash2,
   Check,
   Save,
   Coins,
   Layers,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  KeyRound,
+  CheckCircle2,
+  Lock,
+  Download,
+  Upload,
+  HardDrive,
+  FileCheck2
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -20,12 +26,12 @@ import { useFootball } from '../context/FootballContext';
 import { BookieMode } from '../types';
 
 import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
-import { ShieldCheck, KeyRound, CheckCircle2, Lock } from 'lucide-react';
+import { exportSecureMasterBackup, restoreSecureMasterBackup, downloadFile, getBackupFileName } from '../utils/backupUtils';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: '3d' | '2d' | 'football' | 'general';
+  initialTab?: '3d' | '2d' | 'football' | 'general' | 'backup';
   enabledModes: EnabledModes;
   onUpdateEnabledModes: (modes: EnabledModes) => void;
 }
@@ -41,8 +47,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const lottery2D = useTwoDLottery();
   const football = useFootball();
 
-  const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general' | 'backup'>(initialTab);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const backupFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Enabled Modes State
   const [localModes, setLocalModes] = useState<EnabledModes>(enabledModes);
@@ -154,10 +162,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-white">
-                အက်ပ် အပြင်အဆင်နှင့် ဒိုင်ခေါင်းစဉ်များ စီမံခန့်ခွဲခြင်း
+                အက်ပ် အပြင်အဆင်နှင့် စာရင်းခေါင်းစဉ်များ စီမံခန့်ခွဲခြင်း
               </h3>
               <p className="text-xs text-slate-400">
-                ၃ လုံး၊ ၂ လုံး နှင့် ဘောလုံးဒိုင် အသီးသီးအတွက် အမည်၊ ပေါက်ဆ၊ ကော်မရှင်များ သီးခြား ပြင်ဆင်နိုင်ပါသည်
+                အိုးစည်လေး၊ ဇီးကွက် နှင့် ပစ်တိုင်းထောင် အသီးသီးအတွက် အမည်၊ ပေါက်ဆ၊ ကော်မရှင်များ သီးခြား ပြင်ဆင်နိုင်ပါသည်
               </p>
             </div>
           </div>
@@ -219,6 +227,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <span>အထွေထွေ (General)</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('backup')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'backup'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-200/70'
+            }`}
+          >
+            <HardDrive className="w-3.5 h-3.5" />
+            <span>ဖိုင်သိမ်း/ပြန်သွင်း (Backup)</span>
+          </button>
         </div>
 
         {/* Form Body */}
@@ -229,39 +250,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-indigo-50/60 p-4 rounded-2xl border border-indigo-100 space-y-3">
                 <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
                   <Store className="w-4 h-4 text-indigo-600" />
-                  <span>၃ လုံး ချဲဒိုင် ခေါင်းစဉ်နှင့် အချက်အလက် (3D Profile)</span>
+                  <span>အိုးစည်လေး စာရင်းခေါင်းစဉ်နှင့် အချက်အလက် (Line 1 Profile)</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      ၃ လုံး အက်ပ်ခေါင်းစဉ် (3D App Name):
+                      အက်ပ်ခေါင်းစဉ်အမည်:
                     </label>
                     <input
                       type="text"
                       value={name3D}
                       onChange={(e) => setName3D(e.target.value)}
-                      placeholder="3D Ledger Pro (သုံးလုံး ချဲ စာရင်း)"
+                      placeholder="ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ၃ လုံး ဆိုင်/ဒိုင် အမည်ခွဲ:
+                      ဆိုင်ခွဲ / ဌာနအမည်:
                     </label>
                     <input
                       type="text"
                       value={shop3D}
                       onChange={(e) => setShop3D(e.target.value)}
-                      placeholder="ရွှေမင်္ဂလာ (၃ လုံး ချဲထီ)"
+                      placeholder="ရွှေမင်္ဂလာ စာရင်းဌာန"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ၃ လုံး ဆိုင်ဖုန်း:
+                      ဆက်သွယ်ရန်ဖုန်း:
                     </label>
                     <input
                       type="text"
@@ -274,7 +295,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      လိပ်စာ (ဘောင်ချာတွင် ပြသရန်):
+                      လိပ်စာ (ပြေစာတွင် ပြသရန်):
                     </label>
                     <input
                       type="text"
@@ -288,11 +309,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <span className="text-xs font-bold text-slate-800 block">၃ လုံး ပေါက်ဆနှင့် ကော်မရှင် သတ်မှတ်ချက်များ:</span>
+                <span className="text-xs font-bold text-slate-800 block">အိုးစည်လေး အလျော်ဆနှင့် ကော်မရှင် သတ်မှတ်ချက်များ:</span>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      တည့်ပေါက်ဆ (ဆ)
+                      တည့်အဆ (ဆ)
                     </label>
                     <input
                       type="number"
@@ -304,7 +325,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      ပတ်လည်ပေါက်ဆ (ဆ)
+                      ပတ်လည်အဆ (ဆ)
                     </label>
                     <input
                       type="number"
@@ -316,7 +337,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      ဒိုင်ချုပ်ကော် (%)
+                      ဒိုင်ကော်မရှင် (%)
                     </label>
                     <input
                       type="number"
@@ -341,12 +362,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    ၃ လုံး ဘောင်ချာအောက်ခြေ မှတ်ချက်:
+                    ပြေစာအောက်ခြေ မှတ်ချက်:
                   </label>
                   <input
                     type="text"
                     value={footer3D}
                     onChange={(e) => setFooter3D(e.target.value)}
+                    placeholder="လာဘ်လာဘ ရွှင်လန်းပါစေ။ ကျေးဇူးတင်ပါသည်။"
                     className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900"
                   />
                 </div>
@@ -360,39 +382,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100 space-y-3">
                 <div className="flex items-center gap-2 text-teal-900 font-bold text-xs">
                   <Store className="w-4 h-4 text-teal-600" />
-                  <span>၂ လုံး ထီဒိုင် ခေါင်းစဉ်နှင့် အချက်အလက် (2D Profile)</span>
+                  <span>ဇီးကွက် စာရင်းခေါင်းစဉ်နှင့် အချက်အလက် (Line 2 Profile)</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      ၂ လုံး အက်ပ်ခေါင်းစဉ် (2D App Name):
+                      အက်ပ်ခေါင်းစဉ်အမည်:
                     </label>
                     <input
                       type="text"
                       value={name2D}
                       onChange={(e) => setName2D(e.target.value)}
-                      placeholder="2D Ledger Pro (နှစ်လုံး ချဲ စာရင်း)"
+                      placeholder="ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ၂ လုံး ဆိုင်/ဒိုင် အမည်ခွဲ:
+                      ဆိုင်ခွဲ / ဌာနအမည်:
                     </label>
                     <input
                       type="text"
                       value={shop2D}
                       onChange={(e) => setShop2D(e.target.value)}
-                      placeholder="ရွှေမင်္ဂလာ (၂ လုံး ထီ/ချဲ အရောင်းဒိုင်)"
+                      placeholder="ရွှေမင်္ဂလာ စာရင်းဌာန"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ၂ လုံး ဆိုင်ဖုန်း:
+                      ဆက်သွယ်ရန်ဖုန်း:
                     </label>
                     <input
                       type="text"
@@ -405,7 +427,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      လိပ်စာ (ဘောင်ချာတွင် ပြသရန်):
+                      လိပ်စာ (ပြေစာတွင် ပြသရန်):
                     </label>
                     <input
                       type="text"
@@ -419,11 +441,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <span className="text-xs font-bold text-slate-800 block">၂ လုံး ပေါက်ဆနှင့် သတ်မှတ်ချက်များ:</span>
+                <span className="text-xs font-bold text-slate-800 block">ဇီးကွက် အလျော်ဆနှင့် သတ်မှတ်ချက်များ:</span>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      ၂ လုံး ပေါက်ဆ (ဆ)
+                      အလျော်ဆ (ဆ)
                     </label>
                     <input
                       type="number"
@@ -435,7 +457,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      ဒိုင်ချုပ်ကော် (%)
+                      ဒိုင်ကော်မရှင် (%)
                     </label>
                     <input
                       type="number"
@@ -472,12 +494,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    ၂ လုံး ဘောင်ချာအောက်ခြေ မှတ်ချက်:
+                    ပြေစာအောက်ခြေ မှတ်ချက်:
                   </label>
                   <input
                     type="text"
                     value={footer2D}
                     onChange={(e) => setFooter2D(e.target.value)}
+                    placeholder="လာဘ်လာဘ ရွှင်လန်းပါစေ။ ကျေးဇူးတင်ပါသည်။"
                     className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900"
                   />
                 </div>
@@ -491,39 +514,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 space-y-3">
                 <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
                   <Store className="w-4 h-4 text-emerald-600" />
-                  <span>ဘောလုံးဒိုင် ခေါင်းစဉ်နှင့် အချက်အလက် (Football Profile)</span>
+                  <span>ပစ်တိုင်းထောင် စာရင်းခေါင်းစဉ်နှင့် အချက်အလက် (Line 3 Profile)</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      ဘောလုံး အက်ပ်ခေါင်းစဉ် (Football App Name):
+                      အက်ပ်ခေါင်းစဉ်အမည်:
                     </label>
                     <input
                       type="text"
                       value={nameFB}
                       onChange={(e) => setNameFB(e.target.value)}
-                      placeholder="Football Ledger Pro (ဘောလုံးဒိုင် စာရင်း)"
+                      placeholder="ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500 shadow-2xs"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ဘောလုံး ဆိုင်/ဒိုင် အမည်ခွဲ:
+                      ဆိုင်ခွဲ / ဌာနအမည်:
                     </label>
                     <input
                       type="text"
                       value={shopFB}
                       onChange={(e) => setShopFB(e.target.value)}
-                      placeholder="ရွှေမင်္ဂလာ (ဘောလုံးဒိုင် စာရင်း)"
+                      placeholder="ရွှေမင်္ဂလာ စာရင်းဌာန"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-emerald-500 shadow-2xs"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ဘောလုံး ဆိုင်ဖုန်း:
+                      ဆက်သွယ်ရန်ဖုန်း:
                     </label>
                     <input
                       type="text"
@@ -537,11 +560,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <span className="text-xs font-bold text-slate-800 block">ဘောလုံး မောင်းနှင့် လျော်ကြေး သတ်မှတ်ချက်များ:</span>
+                <span className="text-xs font-bold text-slate-800 block">ပစ်တိုင်းထောင် သတ်မှတ်ချက်များ:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      ဒိုင်ချုပ်ကော် (%)
+                      ဒိုင်ကော်မရှင် (%)
                     </label>
                     <input
                       type="number"
@@ -578,12 +601,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    ဘောလုံး လက်မှတ်အောက်ခြေ မှတ်ချက်:
+                    ပြေစာအောက်ခြေ မှတ်ချက်:
                   </label>
                   <input
                     type="text"
                     value={footerFB}
                     onChange={(e) => setFooterFB(e.target.value)}
+                    placeholder="လာဘ်လာဘ ရွှင်လန်းပါစေ။ ကျေးဇူးတင်ပါသည်။"
                     className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-900"
                   />
                 </div>
@@ -821,6 +845,111 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB: Backup & Restore */}
+          {activeTab === 'backup' && (
+            <div className="space-y-4">
+              
+              {backupMsg && (
+                <div
+                  className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+                    backupMsg.type === 'error'
+                      ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{backupMsg.text}</span>
+                </div>
+              )}
+
+              {/* Encryption Security Badge */}
+              <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-indigo-950 font-bold text-xs">
+                  <Lock className="w-4 h-4 text-indigo-600" />
+                  <span>သီးသန့် လျှို့ဝှက်ကုဒ်သုံး ဒေတာသိမ်းဆည်းမှု (Encrypted Cipher Backup)</span>
+                </div>
+                <p className="text-[11px] text-indigo-900 leading-relaxed">
+                  ဤအက်ပ်မှ ထုတ်ယူသော ဒေတာဖိုင်အား လူတိုင်းဖတ်ရှု၍ မရနိုင်ပါ။ <b>ရွှေမင်္ဂလာ</b> စာရင်းစနစ်ဖြင့်သာ စစ်ဆေးအတည်ပြုပြီး ၁၀၀% ဒေတာအားလုံး ပြန်လည်သွင်းယူနိုင်ပါမည်။
+                </p>
+              </div>
+
+              {/* Export Button */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <span className="text-xs font-bold text-slate-800 block">
+                  ၁။ Master Backup ဖိုင် ထုတ်ယူသိမ်းဆည်းရန်:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pin = getStoredOwnerPin();
+                    const encrypted = exportSecureMasterBackup(pin);
+                    const filename = getBackupFileName('shwemingalar_encrypted_backup', 'rhmg');
+                    downloadFile(encrypted, filename);
+                    setBackupMsg({
+                      type: 'success',
+                      text: 'အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် အားလုံးပါဝင်သော Encrypted Master Backup ဖိုင် ထုတ်ယူပြီးပါပြီ'
+                    });
+                  }}
+                  className="w-full p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-left transition-all cursor-pointer flex items-center justify-between shadow-md active:scale-98"
+                >
+                  <div>
+                    <span className="font-black text-xs block">Encrypted Backup ဖိုင် ထုတ်ယူမည် (.rhmg)</span>
+                    <span className="text-[11px] text-slate-300">
+                      ၃ လုံး၊ ၂ လုံး၊ ဘောလုံး၊ ဆက်တင်၊ Viber ဒေတာ အပြည့်အစုံ
+                    </span>
+                  </div>
+                  <Download className="w-5 h-5 text-indigo-400 shrink-0" />
+                </button>
+              </div>
+
+              {/* Restore Section */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <span className="text-xs font-bold text-slate-800 block">
+                  ၂။ သိမ်းဆည်းထားသော ဖိုင်မှ ပြန်လည်သွင်းယူရန် (Restore from .rhmg / .json):
+                </span>
+
+                <input
+                  ref={backupFileInputRef}
+                  type="file"
+                  accept=".rhmg,.json,.txt,.dat"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const content = event.target?.result as string;
+                      const pin = getStoredOwnerPin();
+                      const res = restoreSecureMasterBackup(content, pin);
+                      if (res.success) {
+                        setBackupMsg({ type: 'success', text: `${res.message}။ အက်ပ်အား Refresh လုပ်ပါမည်...` });
+                        setTimeout(() => window.location.reload(), 1500);
+                      } else {
+                        setBackupMsg({ type: 'error', text: res.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ' });
+                      }
+                    };
+                    reader.readAsText(file);
+                    if (backupFileInputRef.current) backupFileInputRef.current.value = '';
+                  }}
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => backupFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-5 text-center cursor-pointer transition-colors space-y-2 bg-white group"
+                >
+                  <Upload className="w-7 h-7 mx-auto text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                  <div className="text-xs font-bold text-slate-800">
+                    သိမ်းဆည်းထားသော .rhmg ဖိုင်အား ဤနေရာတွင် နှိပ်၍ ရွေးချယ်ပါ
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    စနစ်မှ လျှို့ဝှက်ကုဒ်အား အလိုအလျောက် ဖြည်ချပြီး ဒေတာအားလုံး ပြန်လည်သွင်းပေးပါမည်
+                  </p>
+                </div>
+              </div>
+
             </div>
           )}
 

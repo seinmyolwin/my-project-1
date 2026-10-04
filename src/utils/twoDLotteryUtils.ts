@@ -347,7 +347,7 @@ export function exportTwoDLotteryToExcel(
       };
     });
   const wsLedger = XLSX.utils.json_to_sheet(ledgerData);
-  XLSX.utils.book_append_sheet(wb, wsLedger, '၂ လုံး လယ်ဂျာ (00-99)');
+  XLSX.utils.book_append_sheet(wb, wsLedger, '၂ လုံး စာရင်းချုပ် (00-99)');
 
   // Sheet 2: Vouchers
   const voucherData = vouchers.map(v => ({

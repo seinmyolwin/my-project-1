@@ -518,7 +518,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                             <div>
                               <div className="flex items-center gap-2 mb-1.5">
                                 <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                  ထိုင်း 3D ချဲထီ
+                                  အိုးစည်လေး (3D)
                                 </span>
                                 <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
                                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -1007,7 +1007,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
             <span>
               {mode === '3d' && '၃ လုံး စာရင်းစနစ်နှင့် တိုက်ရိုက်ချိတ်ဆက်ထားသော မှတ်တမ်းများ ဖြစ်ပါသည်။'}
               {mode === '2d' && '၂ လုံး စာရင်းစနစ်နှင့် တိုက်ရိုက်ချိတ်ဆက်ထားသော မှတ်တမ်းများ ဖြစ်ပါသည်။'}
-              {mode === 'football' && 'ဘောလုံးဒိုင် စာရင်းစနစ်နှင့် တိုက်ရိုက်ချိတ်ဆက်ထားသော ပွဲစဉ်များ ဖြစ်ပါသည်။'}
+              {mode === 'football' && 'ပစ်တိုင်းထောင် အားကစား စာရင်းစနစ်နှင့် တိုက်ရိုက်ချိတ်ဆက်ထားသော ပွဲစဉ်များ ဖြစ်ပါသည်။'}
             </span>
           </div>
 

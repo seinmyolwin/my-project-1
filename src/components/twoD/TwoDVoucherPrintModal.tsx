@@ -37,7 +37,7 @@ export const TwoDVoucherPrintModal: React.FC<TwoDVoucherPrintModalProps> = ({ vo
       .map(i => `${i.number} = ${formatAmount(i.amount, settings.currency)}`)
       .join('\n');
 
-    const text = `🧾 ${settings.shopName} (၂ လုံးချဲ)
+    const text = `🧾 ${settings.shopName} (၂ လုံး မှတ်တမ်း)
 ဘောင်ချာအမှတ်: ${voucher.voucherNo}
 ပွဲစဉ်: ${activeRound?.name || '-'}
 ရက်စွဲ: ${new Date(voucher.createdAt).toLocaleString()}
@@ -63,7 +63,7 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-teal-600" />
             <h3 className="text-base font-black text-slate-900">
-              {isMyanmar ? '၂ လုံး ထီဘောင်ချာ' : '2D Lottery Slip'}
+              {isMyanmar ? '၂ လုံး အရောင်းဘောင်ချာ' : '2D Voucher Slip'}
             </h3>
           </div>
           <button

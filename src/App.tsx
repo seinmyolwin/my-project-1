@@ -46,6 +46,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { PreviousResultsModal } from './components/PreviousResultsModal';
 import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
+import { ViberOrdersHubModal } from './components/ViberOrdersHubModal';
 
 // Security & Setup Modals
 import { FirstTimePinSetupModal } from './components/FirstTimePinSetupModal';
@@ -119,6 +120,7 @@ function AppContent() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isPreviousResultsOpen, setIsPreviousResultsOpen] = useState(false);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
+  const [isViberHubOpen, setIsViberHubOpen] = useState(false);
 
   // Check if any modal is active
   const hasActiveModal =
@@ -135,11 +137,13 @@ function AppContent() {
     isBackupModalOpen ||
     isHelpOpen ||
     isPreviousResultsOpen ||
-    isTitleModalOpen;
+    isTitleModalOpen ||
+    isViberHubOpen;
 
   const closeActiveModal = useCallback(() => {
     if (printingVoucher3D) setPrintingVoucher3D(null);
     else if (printingVoucher2D) setPrintingVoucher2D(null);
+    else if (isViberHubOpen) setIsViberHubOpen(false);
     else if (isSettingsOpen) setIsSettingsOpen(false);
     else if (isPinPromptOpen) setIsPinPromptOpen(false);
     else if (isNotificationsOpen) setIsNotificationsOpen(false);
@@ -155,6 +159,7 @@ function AppContent() {
   }, [
     printingVoucher3D,
     printingVoucher2D,
+    isViberHubOpen,
     isSettingsOpen,
     isPinPromptOpen,
     isNotificationsOpen,
@@ -258,12 +263,13 @@ function AppContent() {
         onOpenHelp={() => setIsHelpOpen(true)}
         onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
         onOpenTitleModal={() => setIsTitleModalOpen(true)}
+        onOpenViberHub={() => setIsViberHubOpen(true)}
       />
 
       {/* Main View Area */}
-      <main className="pb-16 pt-2.5">
+      <main className="pb-10 pt-1.5">
         {/* Prominent Quick Results Banner */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 mb-3">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 mb-2">
           <QuickResultsBanner
             mode={dealerMode}
             onOpenHistory={() => setIsPreviousResultsOpen(true)}
@@ -466,6 +472,16 @@ function AppContent() {
         }}
         onGoToFootballSlips={() => {
           setActiveTabFB('slips');
+        }}
+      />
+
+      {/* Viber Orders & Direct Ingest Review Hub Modal */}
+      <ViberOrdersHubModal
+        isOpen={isViberHubOpen}
+        onClose={() => setIsViberHubOpen(false)}
+        onOpenPrintVoucher={(v) => {
+          if (dealerMode === '2d') setPrintingVoucher2D(v);
+          else setPrintingVoucher3D(v);
         }}
       />
 

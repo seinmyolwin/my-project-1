@@ -16,7 +16,8 @@ import {
   Sliders,
   Layers,
   Activity,
-  Edit3
+  Edit3,
+  MessageSquare
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -24,6 +25,8 @@ import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
 import { PWAInstallButton } from './PWAInstallButton';
 import { BookieMode } from '../types';
+import { getViberOrders } from '../utils/viberIntegration';
+import { AppLogo } from './AppLogo';
 
 import { EnabledModes } from '../utils/securityUtils';
 
@@ -42,6 +45,7 @@ interface HeaderProps {
   onOpenHelp: () => void;
   onOpenPreviousResults?: () => void;
   onOpenTitleModal?: () => void;
+  onOpenViberHub?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -58,12 +62,22 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBackupModal,
   onOpenHelp,
   onOpenPreviousResults,
-  onOpenTitleModal
+  onOpenTitleModal,
+  onOpenViberHub
 }) => {
   // Contexts
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
   const football = useFootball();
+
+  const viberPendingCount = React.useMemo(() => {
+    try {
+      const orders = getViberOrders();
+      return orders.filter(o => o.status === 'pending_review').length;
+    } catch {
+      return 0;
+    }
+  }, []);
 
   const isMyanmar =
     dealerMode === '3d'
@@ -142,7 +156,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-indigo-300"></span>
-                <span>{isMyanmar ? 'အိုးစည်လေး (3D)' : '3D Lottery'}</span>
+                <span>{isMyanmar ? 'အိုးစည်လေး' : 'Line 1 (OSL)'}</span>
               </button>
             )}
 
@@ -160,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-teal-300"></span>
-                <span>{isMyanmar ? 'ဇီးကွက် (2D)' : '2D Lottery'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက်' : 'Line 2 (ZKW)'}</span>
               </button>
             )}
 
@@ -178,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
-                <span>{isMyanmar ? 'ပစ်တိုင်းထောင် (Football)' : 'Football Betting'}</span>
+                <span>{isMyanmar ? 'ပစ်တိုင်းထောင်' : 'Line 3 (PTH)'}</span>
               </button>
             )}
           </div>
@@ -240,6 +254,24 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {/* Viber Direct Ingest Hub Button */}
+            {onOpenViberHub && (
+              <button
+                type="button"
+                onClick={onOpenViberHub}
+                className="px-3 py-1.5 bg-purple-900/70 hover:bg-purple-800 border border-purple-500/50 text-purple-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                title="Viber တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden sm:inline">{isMyanmar ? 'Viber စာရင်းများ' : 'Viber Orders'}</span>
+                {viberPendingCount > 0 && (
+                  <span className="bg-purple-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                    {viberPendingCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Backup & Restore Modal Trigger */}
             <button
               type="button"
@@ -261,21 +293,11 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand & Round info */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
-            <div
-              className={`w-10 h-10 rounded-xl text-white flex items-center justify-center font-black text-xl shadow-xs transition-colors ${
-                dealerMode === '3d'
-                  ? 'bg-indigo-600'
-                  : dealerMode === '2d'
-                  ? 'bg-teal-600'
-                  : 'bg-emerald-600'
-              }`}
-            >
-              {dealerMode === '3d' ? '3D' : dealerMode === '2d' ? '2D' : 'FB'}
-            </div>
+            <AppLogo size="md" />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900">
-                  {appTitle}
+                  {appTitle || 'ရွှေမင်္ဂလာ'}
                 </h1>
                 <span
                   className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${
@@ -300,12 +322,12 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 font-medium">
                 {dealerMode === '3d'
-                  ? 'အိုးစည်လေး (3D) သီးသန့် လယ်ဂျာ'
+                  ? 'အိုးစည်လေး စာရင်းစီမံမှု (Line 1)'
                   : dealerMode === '2d'
-                  ? 'ဇီးကွက် (2D) သီးသန့် လယ်ဂျာ (00-99)'
-                  : 'ပစ်တိုင်းထောင် (Football) သီးသန့် လယ်ဂျာ'}
+                  ? 'ဇီးကွက် စာရင်းစီမံမှု (Line 2)'
+                  : 'ပစ်တိုင်းထောင် စာရင်းစီမံမှု (Line 3)'}
               </p>
             </div>
           </div>
@@ -467,7 +489,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? 'အိုးစည်လေး အရောင်းစာရင်းသွင်း' : '3D Quick Entry'}</span>
+                <span>{isMyanmar ? 'အမှာစာ / စာရင်းသွင်း' : 'Order Entry'}</span>
               </button>
 
               <button
@@ -479,7 +501,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <TrendingUp className="w-4 h-4" />
-                <span>{isMyanmar ? 'အိုးစည်လေး စာရင်းချုပ် (၀-၉၉၉)' : '3D Live Ledger'}</span>
+                <span>{isMyanmar ? 'စာရင်းချုပ် (၀၀၀-၉၉၉)' : 'Master Ledger'}</span>
               </button>
 
               <button
@@ -491,7 +513,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isMyanmar ? 'ပေါက်ဂဏန်းနှင့် လျော်ကြေး' : 'Winning & Payouts'}</span>
+                <span>{isMyanmar ? 'ရလဒ်စစ်ဆေး & ရှင်းတမ်း' : 'Verification & Settlement'}</span>
               </button>
 
               <button
@@ -503,7 +525,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဘောင်ချာများ' : 'Vouchers'}</span>
+                <span>{isMyanmar ? 'ပြေစာမှတ်တမ်းများ' : 'Invoices & Slips'}</span>
               </button>
 
               <button
@@ -515,7 +537,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <AlertTriangle className="w-4 h-4" />
-                <span>{isMyanmar ? 'အန္တရာယ်ခွဲခြမ်းစိတ်ဖြာမှု' : 'Risk & Analytics'}</span>
+                <span>{isMyanmar ? 'သုံးသပ်ချက် & ခွဲခြမ်းစိတ်ဖြာမှု' : 'Analytics'}</span>
               </button>
             </nav>
           )}
@@ -531,7 +553,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဇီးကွက် အရောင်းသွင်းရန်' : '2D Quick Entry'}</span>
+                <span>{isMyanmar ? 'အမှာစာ / စာရင်းသွင်း' : 'Order Entry'}</span>
               </button>
 
               <button
@@ -543,7 +565,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <TrendingUp className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဇီးကွက် စာရင်းချုပ် (၀၀-၉၉)' : '2D Live Ledger'}</span>
+                <span>{isMyanmar ? 'စာရင်းချုပ် (၀၀-၉၉)' : 'Master Ledger'}</span>
               </button>
 
               <button
@@ -555,7 +577,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isMyanmar ? 'ပေါက်ဂဏန်းနှင့် အလျော်တွက်' : 'Winning & Payouts'}</span>
+                <span>{isMyanmar ? 'ရလဒ်စစ်ဆေး & ရှင်းတမ်း' : 'Verification & Settlement'}</span>
               </button>
 
               <button
@@ -567,7 +589,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဇီးကွက် ဘောင်ချာများ' : 'Vouchers'}</span>
+                <span>{isMyanmar ? 'ပြေစာမှတ်တမ်းများ' : 'Invoices & Slips'}</span>
               </button>
 
               <button
@@ -579,7 +601,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Sliders className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဒိုင်ကာနှင့် ဘရိတ်သတ်မှတ်ချက်' : 'Blocked & Limits'}</span>
+                <span>{isMyanmar ? 'ကန့်သတ်ချက် သတ်မှတ်ခြင်း' : 'Limits & Quotas'}</span>
               </button>
             </nav>
           )}
@@ -595,7 +617,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Trophy className="w-4 h-4" />
-                <span>{isMyanmar ? 'ပွဲစဉ်ပေါက်ကြေးနှင့် ရလဒ်' : 'Fixtures & Scores'}</span>
+                <span>{isMyanmar ? 'ပွဲစဉ်ဇယားနှင့် ရလဒ်' : 'Fixtures & Scores'}</span>
               </button>
 
               <button
@@ -607,7 +629,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? 'ပစ်တိုင်းထောင် အရောင်းသွင်း' : 'Ticket Entry'}</span>
+                <span>{isMyanmar ? 'အမှာစာ / စာရင်းသွင်း' : 'Ticket Entry'}</span>
               </button>
 
               <button
@@ -619,7 +641,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isMyanmar ? 'လက်မှတ်များနှင့် စာရင်းရှင်း' : 'Tickets & Settlement'}</span>
+                <span>{isMyanmar ? 'ပြေစာမှတ်တမ်းများနှင့် ရှင်းတမ်း' : 'Tickets & Settlement'}</span>
               </button>
             </nav>
           )}

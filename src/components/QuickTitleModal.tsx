@@ -244,57 +244,57 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 type="button"
                 onClick={() => {
                   if (selectedMode === '3d') {
-                    setName3D('3D Ledger Pro (သုံးလုံး ချဲ)');
-                    setShop3D('ရွှေမင်္ဂလာ ချဲထီ အရောင်းဒိုင်');
+                    setName3D('ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်');
+                    setShop3D('ရွှေမင်္ဂလာ (အိုးစည်လေး ဌာန)');
                   } else if (selectedMode === '2d') {
-                    setName2D('2D Ledger Pro (နှစ်လုံး ထီ)');
-                    setShop2D('ရွှေမင်္ဂလာ ၂ လုံး အရောင်းဒိုင်');
+                    setName2D('ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်');
+                    setShop2D('ရွှေမင်္ဂလာ (ဇီးကွက် ဌာန)');
                   } else {
-                    setNameFB('Football Pro (ဘောလုံးဒိုင်)');
-                    setShopFB('ရွှေမင်္ဂလာ ဘောလုံးစာရင်း');
+                    setNameFB('ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်');
+                    setShopFB('ရွှေမင်္ဂလာ (ပစ်တိုင်းထောင် ဌာန)');
                   }
                 }}
                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded-lg font-medium transition-colors cursor-pointer"
               >
-                ရွှေမင်္ဂလာ ဒိုင်
+                ရွှေမင်္ဂလာ ပင်မဌာန
               </button>
 
               <button
                 type="button"
                 onClick={() => {
                   if (selectedMode === '3d') {
-                    setName3D('အောင်သပြေ 3D စာရင်း');
-                    setShop3D('ကိုယ်စားလှယ်အရောင်း');
+                    setName3D('အောင်သပြေ စာရင်းစနစ်');
+                    setShop3D('အောင်သပြေ (အိုးစည်လေး)');
                   } else if (selectedMode === '2d') {
-                    setName2D('အောင်သပြေ 2D စာရင်း');
-                    setShop2D('မနက်/ညနေ အရောင်းဒိုင်');
+                    setName2D('အောင်သပြေ စာရင်းစနစ်');
+                    setShop2D('အောင်သပြေ (ဇီးကွက်)');
                   } else {
-                    setNameFB('အောင်သပြေ ဘောလုံးဒိုင်');
-                    setShopFB('မောင်းနှင့် ဘော်ဒီစာရင်း');
+                    setNameFB('အောင်သပြေ စာရင်းစနစ်');
+                    setShopFB('အောင်သပြေ (ပစ်တိုင်းထောင်)');
                   }
                 }}
                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded-lg font-medium transition-colors cursor-pointer"
               >
-                အောင်သပြေ ဒိုင်
+                အောင်သပြေ စာရင်းဌာန
               </button>
 
               <button
                 type="button"
                 onClick={() => {
                   if (selectedMode === '3d') {
-                    setName3D('3D Master Dealer');
-                    setShop3D('Main Agent Center');
+                    setName3D('အိုးစည်လေး စာရင်းစီမံမှု');
+                    setShop3D('Main Office Center');
                   } else if (selectedMode === '2d') {
-                    setName2D('2D Master Dealer');
-                    setShop2D('Daily 2D Ledger');
+                    setName2D('ဇီးကွက် စာရင်းစီမံမှု');
+                    setShop2D('Daily Line Ledger');
                   } else {
-                    setNameFB('Sports Master Bookie');
-                    setShopFB('VIP Sports Betting');
+                    setNameFB('ပစ်တိုင်းထောင် စာရင်းစီမံမှု');
+                    setShopFB('VIP Sports Ledger');
                   }
                 }}
                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded-lg font-medium transition-colors cursor-pointer"
               >
-                English Master
+                ပင်မ စာရင်းချုပ်
               </button>
             </div>
           </div>

@@ -185,7 +185,7 @@ export function calculateSlipSettlement(
 }
 
 /**
- * Excel export for Football Betting
+ * Excel export for Football Matches and Slips
  */
 export function exportFootballDataToExcel(
   roundDate: string,
@@ -193,7 +193,7 @@ export function exportFootballDataToExcel(
   slips: FootballSlip[],
   forwardSlips: FootballForwardSlip[],
   summary: FootballSummary,
-  shopName: string = 'Football Ledger'
+  shopName: string = 'ပစ်တိုင်းထောင်'
 ) {
   const wb = XLSX.utils.book_new();
 

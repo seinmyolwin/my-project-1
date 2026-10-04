@@ -148,7 +148,7 @@ export interface LowStockAlert {
 }
 
 // ----------------------------------------------------
-// 2D LOTTERY (နှစ်လုံး ချဲထီ ဒိုင်) TYPES
+// 2D (ဇီးကွက် - နှစ်လုံး စာရင်း) TYPES
 // ----------------------------------------------------
 export interface TwoDDrawRound {
   id: string;
@@ -258,7 +258,7 @@ export interface TwoDRoundSummary {
 }
 
 // ----------------------------------------------------
-// FOOTBALL BETTING (ဘောလုံးဒိုင် - မောင်း & ဘော်ဒီ) TYPES
+// FOOTBALL (ပစ်တိုင်းထောင် - အားကစား စာရင်း) TYPES
 // ----------------------------------------------------
 export type FootballBetType = 'body_home' | 'body_away' | 'over' | 'under';
 export type FootballSlipType = 'body_single' | 'maung';
