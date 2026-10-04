@@ -90,7 +90,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-indigo-600" />
             <h3 className="text-base font-black text-slate-900">
-              {isMyanmar ? 'ဒိုင်ကြီးထံ ၂ လုံး လွှဲတင်စာရင်း (Forward Slip)' : '2D Forward Slip to Master Dealer'}
+              {isMyanmar ? 'ဒိုင်ကြီးထံ ဇီးကွက် လွှဲတင်စာရင်း (Forward Slip)' : 'Forward Slip to Master Dealer'}
             </h3>
           </div>
           <button

@@ -410,7 +410,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-indigo-300"></span>
-              <span>အိုးစည်လေး (3D)</span>
+              <span>အိုးစည်လေး</span>
             </button>
           )}
 
@@ -425,7 +425,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-teal-300"></span>
-              <span>ဇီးကွက် (2D)</span>
+              <span>ဇီးကွက်</span>
             </button>
           )}
 
@@ -440,7 +440,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
-              <span>ပစ်တိုင်းထောင် (အားကစား)</span>
+              <span>ပစ်တိုင်းထောင်</span>
             </button>
           )}
 
@@ -628,7 +628,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <form onSubmit={handleAdd3DLimit} className="bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100 flex flex-wrap items-end gap-2">
                     <div className="flex-1 min-w-[120px]">
                       <label className="block text-[10px] font-bold text-indigo-950 mb-1">
-                        ဂဏန်း (၃ လုံး):
+                        ဂဏန်း:
                       </label>
                       <input
                         type="text"
@@ -712,7 +712,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <form onSubmit={handleAdd3DBlocked} className="bg-rose-50/60 p-2.5 rounded-xl border border-rose-100 flex flex-wrap items-end gap-2">
                     <div className="flex-1 min-w-[120px]">
                       <label className="block text-[10px] font-bold text-rose-950 mb-1">
-                        ဒိုင်ကာမည့် ဂဏန်း (၃ လုံး):
+                        ဒိုင်ကာမည့် ဂဏန်း:
                       </label>
                       <input
                         type="text"
@@ -851,7 +851,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="grid grid-cols-3 gap-2 bg-teal-50/60 p-2.5 rounded-xl border border-teal-100">
                     <div>
                       <label className="block text-[11px] font-bold text-teal-950 mb-1">
-                        ၂ လုံး ပေါက်ဆ:
+                        ဇီးကွက် ပေါက်ဆ:
                       </label>
                       <input
                         type="number"
@@ -889,7 +889,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      ၂ လုံး မူလသတ်မှတ်ဘရိတ် (Global Stock Limit):
+                      ဇီးကွက် မူလသတ်မှတ်ဘရိတ် (Global Stock Limit):
                     </label>
                     <input
                       type="number"
@@ -908,7 +908,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <form onSubmit={handleAdd2DLimit} className="bg-teal-50/60 p-2.5 rounded-xl border border-teal-100 flex flex-wrap items-end gap-2">
                     <div className="flex-1 min-w-[120px]">
                       <label className="block text-[10px] font-bold text-teal-950 mb-1">
-                        ဂဏန်း (၂ လုံး - 00 မှ 99):
+                        ဂဏန်း (00 မှ 99):
                       </label>
                       <input
                         type="text"
@@ -942,7 +942,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {/* List */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-700">သီးသန့် သတ်မှတ်ထားသော ၂ လုံးဂဏန်းများ:</span>
+                      <span className="text-[11px] font-bold text-slate-700">သီးသန့် သတ်မှတ်ထားသော ဂဏန်းများ:</span>
                       <input
                         type="text"
                         value={searchLimit2D}
@@ -983,7 +983,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <form onSubmit={handleAdd2DBlocked} className="bg-rose-50/60 p-2.5 rounded-xl border border-rose-100 flex flex-wrap items-end gap-2">
                     <div className="flex-1 min-w-[120px]">
                       <label className="block text-[10px] font-bold text-rose-950 mb-1">
-                        ဒိုင်ကာမည့် ၂ လုံးဂဏန်း:
+                        ဒိုင်ကာမည့် ဂဏန်း:
                       </label>
                       <input
                         type="text"
@@ -1004,7 +1004,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-700">ဒိုင်ကာထားသော ၂ လုံးဂဏန်းများ:</span>
+                      <span className="text-[11px] font-bold text-slate-700">ဒိုင်ကာထားသော ဂဏန်းများ:</span>
                       <input
                         type="text"
                         value={searchBlocked2D}
@@ -1145,7 +1145,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <label className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
                     localModes['3d'] ? 'bg-white border-indigo-500 font-bold text-indigo-950' : 'bg-slate-100 border-slate-200 text-slate-400'
                   }`}>
-                    <span className="text-xs">အိုးစည်လေး (3D)</span>
+                    <span className="text-xs">အိုးစည်လေး</span>
                     <input
                       type="checkbox"
                       checked={localModes['3d']}
@@ -1156,7 +1156,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <label className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
                     localModes['2d'] ? 'bg-white border-teal-500 font-bold text-teal-950' : 'bg-slate-100 border-slate-200 text-slate-400'
                   }`}>
-                    <span className="text-xs">ဇီးကွက် (2D)</span>
+                    <span className="text-xs">ဇီးကွက်</span>
                     <input
                       type="checkbox"
                       checked={localModes['2d']}
@@ -1167,7 +1167,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <label className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
                     localModes['football'] ? 'bg-white border-emerald-500 font-bold text-emerald-950' : 'bg-slate-100 border-slate-200 text-slate-400'
                   }`}>
-                    <span className="text-xs">ပစ်တိုင်းထောင် (အားကစား)</span>
+                    <span className="text-xs">ပစ်တိုင်းထောင်</span>
                     <input
                       type="checkbox"
                       checked={localModes['football']}
@@ -1287,7 +1287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                 <span className="text-xs font-black text-slate-900 block">၁။ Master Encrypted Backup (.rhmg) ဖိုင်သိမ်းဆည်းရန်</span>
                 <p className="text-[11px] text-slate-500">
-                  ၃ လုံး + ၂ လုံး + ဘောလုံး + ဆက်တင် + Viber စာရင်းအားလုံး ပါဝင်ပါသည်။
+                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် + Viber စာရင်းအားလုံး ပါဝင်ပါသည်။
                 </p>
                 <button
                   type="button"

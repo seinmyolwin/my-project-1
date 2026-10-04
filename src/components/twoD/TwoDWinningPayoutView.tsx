@@ -111,7 +111,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
     e.preventDefault();
     const cleanNum = winningInput.trim();
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
-      alert(isMyanmar ? '၂ လုံး ပေါက်ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid 2-digit winning number');
+      alert(isMyanmar ? 'ပေါက်ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid 2-digit winning number');
       return;
     }
 
@@ -135,7 +135,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-900">
-                {isMyanmar ? '၂ လုံး ပေါက်ဂဏန်း ထည့်သွင်းခြင်းနှင့် လျော်ကြေးရှင်းတမ်း' : '2D Winning Result & Payout Settlement'}
+                {isMyanmar ? 'ဇီးကွက် ပေါက်ဂဏန်း ထည့်သွင်းခြင်းနှင့် လျော်ကြေးရှင်းတမ်း' : 'Winning Result & Payout Settlement'}
               </h2>
               <span className="text-xs text-slate-500 font-medium">
                 {activeRound?.name} ({activeRound?.session === 'morning' ? 'မနက် ၁၂:၀၁' : 'ညနေ ၀၄:၃၀'})
@@ -173,7 +173,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
           <div className="sm:col-span-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                {isMyanmar ? 'ပေါက်ဂဏန်း (၂ လုံး - ၀၀ မှ ၉၉)' : 'Winning Number (2-Digit)'}
+                {isMyanmar ? 'ပေါက်ဂဏန်း (၀၀ မှ ၉၉)' : 'Winning Number (00-99)'}
               </label>
               <button
                 type="button"
@@ -233,7 +233,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
             <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
               <span className="flex items-center gap-1.5 text-teal-900">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>{isMyanmar ? '၂ လုံး အရင်ပွဲစဉ်များ၏ ထွက်ပေါက်ဂဏန်း မှတ်တမ်းများ:' : 'Previous 2D Winning Numbers:'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် အရင်ပွဲစဉ်များ၏ ထွက်ပေါက်ဂဏန်း မှတ်တမ်းများ:' : 'Previous Winning Numbers:'}</span>
               </span>
               <span className="text-[11px] text-slate-400">
                 {settled2DRounds.length} {isMyanmar ? 'ကြိမ် ပြီးဆုံး' : 'rounds'}

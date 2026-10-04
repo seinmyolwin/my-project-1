@@ -120,7 +120,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             id: `3d-${round.id}`,
             date: round.drawDate,
             mode: '3d',
-            modeLabel: 'အိုးစည်လေး (3D)',
+            modeLabel: 'အိုးစည်လေး',
             name: round.name,
             winningResult: round.winningNumber || (round.status === 'settled' ? 'မပေါက်' : 'မထွက်သေး'),
             turnover,
@@ -166,7 +166,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             id: `2d-${round.id}`,
             date: round.drawDate,
             mode: '2d',
-            modeLabel: 'ဇီးကွက် (2D)',
+            modeLabel: 'ဇီးကွက်',
             name: round.name,
             session: round.session,
             winningResult: round.winningNumber || (round.status === 'settled' ? 'မပေါက်' : 'မထွက်သေး'),
@@ -211,8 +211,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           id: `football-${startDate}-${endDate}`,
           date: endDate,
           mode: 'football',
-          modeLabel: 'ပစ်တိုင်းထောင် (အားကစား)',
-          name: 'ဘောလုံး မောင်း/ဘော်ဒီ စာရင်းရှင်းတမ်း',
+          modeLabel: 'ပစ်တိုင်းထောင်',
+          name: 'ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ စာရင်းရှင်းတမ်း',
           winningResult: `${winnersCount} စလစ် ပေါက်`,
           turnover,
           payout,
@@ -372,7 +372,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                အိုးစည်လေး (3D)
+                အိုးစည်လေး
               </button>
               <button
                 type="button"
@@ -383,7 +383,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                ဇီးကွက် (2D)
+                ဇီးကွက်
               </button>
               <button
                 type="button"
@@ -394,7 +394,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                ပစ်တိုင်းထောင် (အားကစား)
+                ပစ်တိုင်းထောင်
               </button>
             </div>
 

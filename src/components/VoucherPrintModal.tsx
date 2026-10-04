@@ -101,7 +101,7 @@ ${settings.voucherFooterMessage || 'ကျေးဇူးတင်ပါသည�
               )}
               <div className="pt-1">
                 <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-800 rounded text-[10px] font-bold">
-                  ၃ လုံး (3D) အရောင်းပြေစာ
+                  အိုးစည်လေး အရောင်းပြေစာ
                 </span>
               </div>
             </div>
@@ -137,7 +137,7 @@ ${settings.voucherFooterMessage || 'ကျေးဇူးတင်ပါသည�
             {/* Items Table */}
             <div className="space-y-1.5 border-b border-dashed border-slate-300 pb-3">
               <div className="flex justify-between font-bold text-[11px] text-slate-900 border-b border-slate-200 pb-1">
-                <span>ဂဏန်း (၃ လုံး)</span>
+                <span>ဂဏန်း</span>
                 <span>ထိုးကြေးငွေ</span>
               </div>
 

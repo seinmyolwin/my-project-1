@@ -16,12 +16,15 @@ export default defineConfig(() => {
         },
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
-          name: '3D Ledger Pro - သုံးလုံး ချဲ စာရင်း',
-          short_name: '3D Ledger',
-          description: 'Offline 3-Digit lottery seller ledger & management app with photo OCR',
+          id: '/',
+          name: 'ရွှေမင်္ဂလာ',
+          short_name: 'ရွှေမင်္ဂလာ',
+          description: 'ရွှေမင်္ဂလာ - အိုးစည်လေး၊ ဇီးကွက် နှင့် ပစ်တိုင်းထောင် စာရင်းစီမံခန့်ခွဲမှုစနစ်',
           theme_color: '#4f46e5',
-          background_color: '#f8fafc',
+          background_color: '#0f172a',
           display: 'standalone',
+          start_url: '/',
+          scope: '/',
           orientation: 'portrait-primary',
           icons: [
             {

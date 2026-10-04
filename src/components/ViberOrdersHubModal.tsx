@@ -684,9 +684,9 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
                       onChange={(e) => setNewCategory(e.target.value as any)}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-purple-500"
                     >
-                      <option value="3d">အိုးစည်လေး (3D စာရင်း)</option>
-                      <option value="2d">ဇီးကွက် (2D စာရင်း)</option>
-                      <option value="football">ပစ်တိုင်းထောင် (အားကစား စာရင်း)</option>
+                      <option value="3d">အိုးစည်လေး</option>
+                      <option value="2d">ဇီးကွက်</option>
+                      <option value="football">ပစ်တိုင်းထောင်</option>
                     </select>
                   </div>
 

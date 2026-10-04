@@ -82,7 +82,7 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                 {isMyanmar ? 'ပွဲစဉ်များ စီမံခန့်ခွဲမှု (Draw Rounds)' : 'Manage Lottery Rounds'}
               </h3>
               <p className="text-xs text-slate-500">
-                {isMyanmar ? 'ထိုင်း 3D ပွဲစဉ်အသစ်များ ဖွင့်လှစ်ခြင်းနှင့် ယခင်မှတ်တမ်းများ' : 'Create new 3D draw rounds and switch active ledger'}
+                {isMyanmar ? 'အိုးစည်လေး ပွဲစဉ်အသစ်များ ဖွင့်လှစ်ခြင်းနှင့် ယခင်မှတ်တမ်းများ' : 'Create new draw rounds and switch active ledger'}
               </p>
             </div>
           </div>

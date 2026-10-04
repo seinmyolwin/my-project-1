@@ -17,10 +17,10 @@ export const PWAInstallButton: React.FC = () => {
       <button
         onClick={install}
         className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
-        title="ဖုန်း သို့မဟုတ် ကွန်ပျူတာထဲသို့ အက်ပ် ထည့်သွင်းမည်"
+        title="ဖုန်း သို့မဟုတ် ကွန်ပျူတာထဲသို့ ရွှေမင်္ဂလာ App ထည့်သွင်းမည်"
       >
         <Download className="w-3.5 h-3.5" />
-        <span>App ဒေါင်းလုဒ် (Install)</span>
+        <span>ရွှေမင်္ဂလာ App သွင်းမည်</span>
       </button>
     );
   }
@@ -32,10 +32,10 @@ export const PWAInstallButton: React.FC = () => {
         <button
           onClick={() => setShowIOSGuide(true)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-indigo-700 font-semibold text-xs rounded-xl shadow-2xs transition-colors cursor-pointer"
-          title="iPhone / iPad တွင် App အဖြစ်သွင်းရန်"
+          title="iPhone / iPad တွင် ရွှေမင်္ဂလာ App အဖြစ်သွင်းရန်"
         >
           <Smartphone className="w-3.5 h-3.5" />
-          <span>iOS App သွင်းရန်</span>
+          <span>ရွှေမင်္ဂလာ App သွင်းရန်</span>
         </button>
 
         {showIOSGuide && (
@@ -44,7 +44,7 @@ export const PWAInstallButton: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-indigo-600" />
-                  iPhone / iPad တွင် App သွင်းနည်း
+                  ရွှေမင်္ဂလာ App ကို iPhone / iPad တွင် သွင်းနည်း
                 </h3>
                 <button
                   onClick={() => setShowIOSGuide(false)}
@@ -57,7 +57,7 @@ export const PWAInstallButton: React.FC = () => {
               <div className="text-xs text-slate-600 space-y-2 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <p>၁။ Safari ဘရောက်ဇာ၏ အောက်ခြေရှိ <b>Share ခလုတ် (မျှဝေရန် သင်္ကေတ)</b> ကို နှိပ်ပါ။</p>
                 <p>၂။ အောက်သို့ဆွဲချပြီး <b>"Add to Home Screen (ပင်မစာမျက်နှာသို့ ထည့်ရန်)"</b> ကို ရွေးပါ။</p>
-                <p>၃။ အပေါ်ညာဘက်ရှိ <b>"Add"</b> ကို နှိပ်လိုက်ပါက အင်တာနက်မရှိချိန်တွင်လည်း အလွယ်တကူ ဖွင့်သုံးနိုင်ပါပြီ။</p>
+                <p>၃။ အပေါ်ညာဘက်ရှိ <b>"Add"</b> ကို နှိပ်လိုက်ပါက သင့်ဖုန်း ပင်မမျက်နှာပြင်တွင် <b>ရွှေမင်္ဂလာ</b> လိုဂိုနှင့် အမည်ဖြင့် App အဖြစ် အဆင်သင့် သုံးနိုင်ပါပြီ။</p>
               </div>
 
               <button

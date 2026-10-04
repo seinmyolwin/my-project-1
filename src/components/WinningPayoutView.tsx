@@ -212,7 +212,7 @@ ${settings.shopName} (${settings.shopPhone})`;
             <div className="sm:col-span-4 space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  {isMyanmar ? 'ပေါက်ဂဏန်း (၃ လုံး)' : 'Winning 3D Number'}
+                  {isMyanmar ? 'ပေါက်ဂဏန်း' : 'Winning Number'}
                 </label>
                 <button
                   type="button"
@@ -316,7 +316,7 @@ ${settings.shopName} (${settings.shopPhone})`;
             <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
               <span className="flex items-center gap-1.5 text-indigo-900">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>{isMyanmar ? '၃ လုံး အရင်ပွဲစဉ်များ၏ ထွက်ပေါက်ဂဏန်း မှတ်တမ်းများ:' : 'Previous 3D Winning Numbers:'}</span>
+                <span>{isMyanmar ? 'အိုးစည်လေး အရင်ပွဲစဉ်များ၏ ထွက်ပေါက်ဂဏန်း မှတ်တမ်းများ:' : 'Previous Winning Numbers:'}</span>
               </span>
               <span className="text-[11px] text-slate-400">
                 {settled3DRounds.length} {isMyanmar ? 'ကြိမ် ပြီးဆုံး' : 'rounds'}

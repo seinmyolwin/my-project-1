@@ -29,7 +29,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
             <Trophy className="w-4 h-4" />
           </div>
           <span className="text-xs font-bold text-teal-200">
-            အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (ဇီးကွက် - 2D):
+            အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (ဇီးကွက်):
           </span>
         </div>
 
@@ -82,7 +82,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
             <Trophy className="w-4 h-4" />
           </div>
           <span className="text-xs font-bold text-indigo-200">
-            အရင်ပွဲစဉ် ထွက်ဂဏန်း (အိုးစည်လေး - 3D):
+            အရင်ပွဲစဉ် ထွက်ဂဏန်း (အိုးစည်လေး):
           </span>
           {latest && (
             <div className="flex items-center gap-2 bg-indigo-900/80 border border-indigo-700/60 rounded-xl px-2.5 py-1 text-xs">

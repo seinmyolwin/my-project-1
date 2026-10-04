@@ -50,7 +50,7 @@ export const TwoDVouchersView: React.FC = () => {
         <div>
           <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
             <Receipt className="w-5 h-5 text-teal-600" />
-            <span>{isMyanmar ? '၂ လုံး အရောင်းဘောင်ချာများ စာရင်း' : '2D Sales Vouchers'}</span>
+            <span>{isMyanmar ? 'ဇီးကွက် အရောင်းဘောင်ချာများ စာရင်း' : 'Sales Vouchers'}</span>
             <span className="px-2.5 py-0.5 bg-teal-100 text-teal-800 text-xs font-black rounded-full">
               {filteredVouchers.length}
             </span>

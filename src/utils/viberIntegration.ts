@@ -240,7 +240,7 @@ export function generateViberConfirmationMessage(
 ): string {
   const is3D = order.category === '3d';
   const is2D = order.category === '2d';
-  const categoryTitle = is3D ? 'အိုးစည်လေး (3D)' : is2D ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (Football)';
+  const categoryTitle = is3D ? 'အိုးစည်လေး' : is2D ? 'ဇီးကွက်' : 'ပစ်တိုင်းထောင်';
 
   const lines = [
     `✨ 【 ${appName} - ${categoryTitle} စာရင်းအတည်ပြုလွှာ 】 ✨`,

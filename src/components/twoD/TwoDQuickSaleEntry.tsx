@@ -115,7 +115,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
     const cleanNum = numberInput.trim();
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
-      showToast(isMyanmar ? '၂ လုံးဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ရိုက်ထည့်ပါ' : 'Enter a valid 2-digit number (00-99)', 'error');
+      showToast(isMyanmar ? 'ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ရိုက်ထည့်ပါ' : 'Enter a valid 2-digit number (00-99)', 'error');
       numberInputRef.current?.focus();
       return;
     }
@@ -419,7 +419,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
               <div>
                 <span className="text-xs text-slate-500 font-medium block">
-                  {isMyanmar ? 'လက်ရှိ ၂ လုံးပွဲစဉ်' : 'Active 2D Round'}
+                  {isMyanmar ? 'လက်ရှိ ဇီးကွက်ပွဲစဉ်' : 'Active Round'}
                 </span>
                 <h2 className="text-base font-bold text-slate-900">
                   {activeRound?.name || '02-Sep-2026 (ညနေ 04:30 PM)'}
@@ -441,7 +441,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-teal-600" />
-                <span>{isMyanmar ? '၂ လုံး အမြန်စာရင်းသွင်းရန်' : '2D Quick Bet Entry'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် အမြန်စာရင်းသွင်းရန်' : 'Quick Bet Entry'}</span>
               </h3>
               <div className="flex items-center gap-2">
                 <button
@@ -461,7 +461,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 {/* Number Input */}
                 <div className="sm:col-span-4">
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {isMyanmar ? '၂ လုံးဂဏန်း (၀၀-၉၉)' : '2-Digit (00-99)'}
+                    {isMyanmar ? 'ဂဏန်း (၀၀-၉၉)' : 'Number (00-99)'}
                   </label>
                   <input
                     ref={numberInputRef}
@@ -572,7 +572,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             {/* Popular Myanmar 2D Pattern Shortcuts */}
             <div className="pt-2 border-t border-slate-100">
               <div className="text-xs font-bold text-slate-500 mb-2.5 flex items-center justify-between">
-                <span>{isMyanmar ? 'မြန်မာ့ ၂ လုံး ထိုးကွက် အမြန်ခလုတ်များ' : 'Quick Pattern Pads'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် ထိုးကွက် အမြန်ခလုတ်များ' : 'Quick Pattern Pads'}</span>
                 <span className="text-[11px] text-slate-400">{isMyanmar ? '(သတ်မှတ်ငွေဖြင့် ထည့်မည်)' : ''}</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -785,7 +785,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                 <Layers className="w-5 h-5 text-teal-600" />
-                <span>{isMyanmar ? '၂ လုံး စာသားကူးထည့်ခြင်း (Batch Paste)' : '2D Batch Paste'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက် စာသားကူးထည့်ခြင်း (Batch Paste)' : 'Batch Paste'}</span>
               </h3>
               <button
                 type="button"

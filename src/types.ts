@@ -76,7 +76,7 @@ export interface BlockedNumbers {
 }
 
 export interface AppSettings {
-  appName: string; // Customizable App Name e.g. "ရွှေမင်္ဂလာ ၃ လုံး စာရင်းစနစ်"
+  appName: string; // Customizable App Name e.g. "ရွှေမင်္ဂလာ"
   shopName: string;
   shopPhone: string;
   shopAddress?: string;

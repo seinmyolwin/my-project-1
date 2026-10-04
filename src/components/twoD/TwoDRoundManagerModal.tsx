@@ -48,7 +48,7 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-teal-600" />
             <h3 className="text-base font-black text-slate-900">
-              {isMyanmar ? '၂ လုံး ပွဲစဉ်များ စီမံခန့်ခွဲခြင်း' : 'Manage 2D Draw Rounds'}
+              {isMyanmar ? 'ဇီးကွက် ပွဲစဉ်များ စီမံခန့်ခွဲခြင်း' : 'Manage Draw Rounds'}
             </h3>
           </div>
           <button
