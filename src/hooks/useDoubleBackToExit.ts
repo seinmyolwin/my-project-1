@@ -17,9 +17,17 @@ export function useDoubleBackToExit({
   const lastBackTimeRef = useRef<number>(0);
   const toastTimerRef = useRef<any>(null);
 
+  const safePushState = () => {
+    try {
+      window.history.pushState({ page: 'app-root' }, '', window.location.href);
+    } catch {
+      // ignore iframe security restrictions
+    }
+  };
+
   useEffect(() => {
     // Push an initial dummy history state to trap the back button
-    window.history.pushState({ page: 'app-root' }, '', window.location.href);
+    safePushState();
 
     const handlePopState = (e: PopStateEvent) => {
       const now = Date.now();
@@ -27,14 +35,14 @@ export function useDoubleBackToExit({
       // Case 1: Active modal is open -> Close the modal
       if (hasActiveModal) {
         closeActiveModal();
-        window.history.pushState({ page: 'app-root' }, '', window.location.href);
+        safePushState();
         return;
       }
 
       // Case 2: In a sub-tab (e.g. Ledger, Winning Payouts, Vouchers) -> Go back to Main Sales/Fixtures tab
       if (isSubTab) {
         goToMainTab();
-        window.history.pushState({ page: 'app-root' }, '', window.location.href);
+        safePushState();
         return;
       }
 
@@ -46,7 +54,7 @@ export function useDoubleBackToExit({
       } else {
         // First back press on root home
         lastBackTimeRef.current = now;
-        window.history.pushState({ page: 'app-root' }, '', window.location.href);
+        safePushState();
 
         setShowExitToast(true);
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);

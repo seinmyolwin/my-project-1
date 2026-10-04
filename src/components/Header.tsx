@@ -17,7 +17,8 @@ import {
   Layers,
   Activity,
   Edit3,
-  MessageSquare
+  MessageSquare,
+  Lock
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';

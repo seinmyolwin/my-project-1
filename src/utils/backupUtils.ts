@@ -187,25 +187,35 @@ export async function shareFileDirectly(
   filename: string,
   mimeType: string = 'text/plain'
 ): Promise<{ success: boolean; message: string }> {
-  const blob = new Blob([content], { type: mimeType });
-  const file = new File([blob], filename, { type: mimeType });
-
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  try {
+    const blob = new Blob([content], { type: mimeType });
+    let file: File | null = null;
     try {
-      await navigator.share({
-        files: [file],
-        title: filename,
-        text: `ရွှေမင်္ဂလာ ဒေတာဖိုင်: ${filename}`
-      });
-      return { success: true, message: 'ဖိုင်အား အောင်မြင်စွာ ပို့ဆောင်/သိမ်းဆည်းပြီးပါပြီ' };
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        downloadFile(content, filename, mimeType);
-        return { success: true, message: `"${filename}" အား ဒေါင်းလုဒ်သိမ်းဆည်းပြီးပါပြီ` };
-      }
-      return { success: false, message: 'ဖိုင်မျှဝေမှုကို ပယ်ဖျက်လိုက်ပါသည်' };
+      file = new File([blob], filename, { type: mimeType });
+    } catch {
+      file = null;
     }
-  } else {
+
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: filename,
+          text: `ရွှေမင်္ဂလာ ဒေတာဖိုင်: ${filename}`
+        });
+        return { success: true, message: 'ဖိုင်အား အောင်မြင်စွာ ပို့ဆောင်/သိမ်းဆည်းပြီးပါပြီ' };
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          downloadFile(content, filename, mimeType);
+          return { success: true, message: `"${filename}" အား ဒေါင်းလုဒ်သိမ်းဆည်းပြီးပါပြီ` };
+        }
+        return { success: false, message: 'ဖိုင်မျှဝေမှုကို ပယ်ဖျက်လိုက်ပါသည်' };
+      }
+    } else {
+      downloadFile(content, filename, mimeType);
+      return { success: true, message: `"${filename}" အား ဒေါင်းလုဒ်သိမ်းဆည်းပြီးပါပြီ` };
+    }
+  } catch {
     downloadFile(content, filename, mimeType);
     return { success: true, message: `"${filename}" အား ဒေါင်းလုဒ်သိမ်းဆည်းပြီးပါပြီ` };
   }

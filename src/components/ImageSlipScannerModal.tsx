@@ -150,7 +150,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
   const prepareCanvas = (): HTMLCanvasElement | null => {
     if (!imageSrc) return null;
 
-    const img = new Image();
+    const img = document.createElement('img');
     img.src = imageSrc;
 
     const tempCanvas = document.createElement('canvas');
@@ -183,7 +183,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
     setScanStatusText(isMyanmar ? 'ပုံရိပ်အား စစ်ဆေးနေပါသည်...' : 'Processing image...');
 
     try {
-      const img = new Image();
+      const img = document.createElement('img');
       img.crossOrigin = 'anonymous';
       img.onload = async () => {
         const isRotated = rotation === 90 || rotation === 270;

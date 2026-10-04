@@ -119,7 +119,7 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
     setOcrProgress(15);
 
     try {
-      const img = new Image();
+      const img = document.createElement('img');
       img.src = previewUrl;
       await new Promise((res) => { img.onload = res; });
 
