@@ -43,6 +43,7 @@ interface HeaderProps {
   onOpenForwardModal: () => void;
   onOpenBackupModal: () => void;
   onOpenHelp: () => void;
+  onOpenStatements?: () => void;
   onOpenPreviousResults?: () => void;
   onOpenTitleModal?: () => void;
   onOpenViberHub?: () => void;
@@ -61,6 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenForwardModal,
   onOpenBackupModal,
   onOpenHelp,
+  onOpenStatements,
   onOpenPreviousResults,
   onOpenTitleModal,
   onOpenViberHub
@@ -444,6 +446,19 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {/* Financial Statements & Reports Button */}
+            {onOpenStatements && (
+              <button
+                type="button"
+                onClick={onOpenStatements}
+                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="ကာလအလိုက် စာရင်းရှင်းတမ်းနှင့် အမြတ်/အရှုံး ကြည့်ရန်"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">{isMyanmar ? 'စာရင်းရှင်းတမ်း' : 'Statements'}</span>
+              </button>
+            )}
+
             {/* Excel Export */}
             <button
               onClick={handleExport}
@@ -454,13 +469,16 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden md:inline">{isMyanmar ? 'Excel ထုတ်ရန်' : 'Export Excel'}</span>
             </button>
 
-            {/* Settings */}
+            {/* Settings with Lock Badge */}
             <button
               onClick={onOpenSettings}
-              className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-              title="အပြင်အဆင်"
+              className="relative p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+              title="ဆက်တင် (Password ဖြင့် ကာကွယ်ထားပါသည်)"
             >
               <Settings className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] shadow-2xs">
+                <Lock className="w-2.5 h-2.5" />
+              </span>
             </button>
 
             {/* Help */}

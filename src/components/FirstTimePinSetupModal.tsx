@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, CheckCircle2, Layers, ArrowRight, KeyRound, Sparkles } from 'lucide-react';
+import { ShieldCheck, Lock, CheckCircle2, Layers, ArrowRight, KeyRound, Sparkles, Play, Trash2 } from 'lucide-react';
 import { saveOwnerPin, saveEnabledModes, EnabledModes } from '../utils/securityUtils';
 import { AppLogo } from './AppLogo';
 
 interface FirstTimePinSetupModalProps {
   isOpen: boolean;
-  onCompleted: (modes: EnabledModes) => void;
+  onCompleted: (modes: EnabledModes, isDemo: boolean) => void;
 }
 
 export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
@@ -28,6 +28,7 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
   const handleToggleMode = (key: keyof EnabledModes) => {
     setModes(prev => {
       const next = { ...prev, [key]: !prev[key] };
+      // Ensure at least 1 mode is active
       if (!next['3d'] && !next['2d'] && !next['football']) {
         return prev;
       }
@@ -35,33 +36,32 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
     });
   };
 
-  const handleSaveSetup = (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateAndProceed = (isDemo: boolean) => {
     setErrorMsg('');
 
-    if (pin.length !== 6 || !/^\d{6}$/.test(pin)) {
-      setErrorMsg('PIN နံပါတ်သည် ဂဏန်း ၆ လုံး တိတိကျကျ ဖြစ်ရပါမည်');
+    if (pin.trim().length < 4) {
+      setErrorMsg('Password သည် အနည်းဆုံး ၄ လုံး (စာလုံး သို့မဟုတ် ဂဏန်း) ဖြစ်ရပါမည်');
       return;
     }
 
-    if (pin !== confirmPin) {
-      setErrorMsg('PIN နံပါတ်နှစ်ခု တူညီမှု မရှိပါ! ပြန်လည်စစ်ဆေးပါ');
+    if (pin.trim() !== confirmPin.trim()) {
+      setErrorMsg('Password နှစ်ခု တူညီမှု မရှိပါ! ပြန်လည်စစ်ဆေးပါ');
       return;
     }
 
-    const pinSaved = saveOwnerPin(pin);
+    const pinSaved = saveOwnerPin(pin.trim());
     if (!pinSaved) {
-      setErrorMsg('PIN နံပါတ် သိမ်းဆည်းရာတွင် အမှားအယွင်း ရှိနေပါသည်');
+      setErrorMsg('Password သိမ်းဆည်းရာတွင် အမှားအယွင်း ရှိနေပါသည်');
       return;
     }
 
     saveEnabledModes(modes);
-    onCompleted(modes);
+    onCompleted(modes, isDemo);
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[94vh] flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[95vh] flex flex-col justify-between">
         
         {/* Header - Compact */}
         <div className="bg-slate-900 text-white p-3.5 sm:p-4 border-b border-slate-800 text-center relative shrink-0">
@@ -77,7 +77,7 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSaveSetup} className="p-3.5 sm:p-4 space-y-3 overflow-y-auto">
+        <div className="p-3.5 sm:p-4 space-y-3 overflow-y-auto text-xs">
           
           {errorMsg && (
             <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl p-2.5 flex items-center gap-2">
@@ -86,7 +86,7 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
             </div>
           )}
 
-          {/* Section 1: Business Modes Selection - Compact Grid */}
+          {/* Section 1: Business Modes Selection */}
           <div className="space-y-1.5">
             <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-indigo-600" />
@@ -180,27 +180,26 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Owner PIN */}
+          {/* Section 2: Owner Password */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
               <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
-              <span>၂။ ပိုင်ရှင် လုံခြုံရေး PIN (ဂဏန်း ၆ လုံး) သတ်မှတ်ရန်:</span>
+              <span>၂။ ဆက်တင်ဝင်ရောက်ရန် သီးသန့် Password/PIN သတ်မှတ်ရန်:</span>
             </label>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  PIN နံပါတ်:
+                  Password အသစ်:
                 </label>
                 <input
                   type="password"
-                  inputMode="numeric"
-                  maxLength={6}
+                  maxLength={20}
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setPin(e.target.value)}
                   onFocus={(e) => e.target.select()}
-                  placeholder="123456"
-                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-lg font-black font-mono tracking-widest text-center text-slate-900 outline-none transition-all"
+                  placeholder="Password ထည့်ပါ"
+                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all"
                   required
                 />
               </div>
@@ -211,35 +210,43 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
                 </label>
                 <input
                   type="password"
-                  inputMode="numeric"
-                  maxLength={6}
+                  maxLength={20}
                   value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setConfirmPin(e.target.value)}
                   onFocus={(e) => e.target.select()}
-                  placeholder="123456"
-                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-lg font-black font-mono tracking-widest text-center text-slate-900 outline-none transition-all"
+                  placeholder="အတည်ပြုပါ"
+                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all"
                   required
                 />
               </div>
             </div>
             <p className="text-[10px] text-slate-500 leading-tight">
-              * Account Name မလိုပါ၊ ဆက်တင်နှင့် လုံခြုံရေးနေရာများ ဝင်ရောက်ရန် ဤ PIN Code အား လျှို့ဝှက် မှတ်သားထားပါ။
+              * အဆများ၊ ကော်မရှင်နှင့် ဘရိတ် Limit များအား လူတိုင်း ဝင်မပြင်နိုင်စေရန် ဤ Password ဖြင့် ကာကွယ်မည် ဖြစ်ပါသည်။
             </p>
           </div>
 
-          {/* Submit */}
-          <div className="pt-1">
+          {/* Action Buttons: 1. Production Start (0 Clean Data) vs 2. Demo Try */}
+          <div className="pt-2 border-t border-slate-100 space-y-2">
             <button
-              type="submit"
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+              type="button"
+              onClick={() => validateAndProceed(false)}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-indigo-400" />
-              <span>စနစ် စတင်အသုံးပြုမည်</span>
-              <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-100" />
+              <span>စတင်အသုံးပြုမည် (နမူနာဒေတာအားလုံး ဖျက်ပြီး အသစ်စတင်မည်)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => validateAndProceed(true)}
+              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Play className="w-3.5 h-3.5 text-indigo-600" />
+              <span>အစမ်းသုံးမည် (နမူနာဒေတာများဖြင့် စမ်းသပ်ကြည့်ရှုမည်)</span>
             </button>
           </div>
 
-        </form>
+        </div>
       </div>
     </div>
   );

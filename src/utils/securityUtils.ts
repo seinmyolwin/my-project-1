@@ -6,6 +6,7 @@ export interface EnabledModes {
 
 export const SECURITY_STORAGE_KEYS = {
   OWNER_PIN: 'rhmg_owner_pin_code_v1',
+  OWNER_PASSWORD: 'rhmg_owner_password_v2',
   ENABLED_MODES: 'rhmg_enabled_modes_v1',
   SETUP_COMPLETED: 'rhmg_pin_setup_completed_v1'
 };
@@ -18,21 +19,31 @@ export const DEFAULT_ENABLED_MODES: EnabledModes = {
   'football': true
 };
 
-export function getStoredOwnerPin(): string {
+/**
+ * Get current stored master password (fallback to legacy PIN or default '123456')
+ */
+export function getStoredOwnerPassword(): string {
   try {
-    const pin = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN);
-    return pin || DEFAULT_PIN;
+    const pw = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PASSWORD);
+    if (pw && pw.trim().length >= 4) return pw.trim();
+    const legacyPin = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN);
+    return legacyPin ? legacyPin.trim() : DEFAULT_PIN;
   } catch {
     return DEFAULT_PIN;
   }
 }
 
-export function saveOwnerPin(newPin: string): boolean {
-  if (!newPin || newPin.length !== 6 || !/^\d{6}$/.test(newPin)) {
+/**
+ * Save new owner settings password (minimum 4 characters, supports letters, numbers, symbols)
+ */
+export function saveOwnerPassword(newPassword: string): boolean {
+  const trimmed = newPassword.trim();
+  if (!trimmed || trimmed.length < 4) {
     return false;
   }
   try {
-    localStorage.setItem(SECURITY_STORAGE_KEYS.OWNER_PIN, newPin);
+    localStorage.setItem(SECURITY_STORAGE_KEYS.OWNER_PASSWORD, trimmed);
+    localStorage.setItem(SECURITY_STORAGE_KEYS.OWNER_PIN, trimmed);
     localStorage.setItem(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, 'true');
     return true;
   } catch {
@@ -40,9 +51,29 @@ export function saveOwnerPin(newPin: string): boolean {
   }
 }
 
+/**
+ * Verify input password against stored master password
+ */
+export function verifyOwnerPassword(inputPassword: string): boolean {
+  if (!inputPassword) return false;
+  const current = getStoredOwnerPassword();
+  return inputPassword.trim() === current.trim();
+}
+
+/**
+ * Check if the current password is still the default fallback
+ */
+export function isUsingDefaultPassword(): boolean {
+  return getStoredOwnerPassword() === DEFAULT_PIN;
+}
+
+// Backward-compatible aliases for legacy imports
+export const getStoredOwnerPin = getStoredOwnerPassword;
+export function saveOwnerPin(newPin: string): boolean {
+  return saveOwnerPassword(newPin);
+}
 export function verifyOwnerPin(inputPin: string): boolean {
-  const currentPin = getStoredOwnerPin();
-  return inputPin === currentPin;
+  return verifyOwnerPassword(inputPin);
 }
 
 export function isFirstTimePinSetup(): boolean {

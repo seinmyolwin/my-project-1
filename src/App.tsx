@@ -44,6 +44,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { HelpModal } from './components/HelpModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { PreviousResultsModal } from './components/PreviousResultsModal';
+import { FinancialStatementsModal } from './components/FinancialStatementsModal';
 import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
 import { ViberOrdersHubModal } from './components/ViberOrdersHubModal';
@@ -55,9 +56,13 @@ import { getStoredEnabledModes, isFirstTimePinSetup, EnabledModes } from './util
 import { useDoubleBackToExit } from './hooks/useDoubleBackToExit';
 
 function AppContent() {
-  const { settings: settings3D } = useLottery();
-  const { settings: settings2D } = useTwoDLottery();
-  const { settings: settingsFB } = useFootball();
+  const lottery3D = useLottery();
+  const lottery2D = useTwoDLottery();
+  const football = useFootball();
+
+  const settings3D = lottery3D.settings;
+  const settings2D = lottery2D.settings;
+  const settingsFB = football.settings;
 
   // Active Dealer Mode ('3d' | '2d' | 'football')
   const [dealerMode, setDealerModeState] = useState<BookieMode>(() => {
@@ -119,6 +124,7 @@ function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isPreviousResultsOpen, setIsPreviousResultsOpen] = useState(false);
+  const [isStatementsOpen, setIsStatementsOpen] = useState(false);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [isViberHubOpen, setIsViberHubOpen] = useState(false);
 
@@ -128,6 +134,7 @@ function AppContent() {
     !!printingVoucher2D ||
     isSettingsOpen ||
     isPinPromptOpen ||
+    isStatementsOpen ||
     isNotificationsOpen ||
     isRoundManager3DOpen ||
     isRoundManager2DOpen ||
@@ -153,6 +160,7 @@ function AppContent() {
     else if (isForwardModal3DOpen) setIsForwardModal3DOpen(false);
     else if (isForwardModal2DOpen) setIsForwardModal2DOpen(false);
     else if (isBackupModalOpen) setIsBackupModalOpen(false);
+    else if (isStatementsOpen) setIsStatementsOpen(false);
     else if (isHelpOpen) setIsHelpOpen(false);
     else if (isPreviousResultsOpen) setIsPreviousResultsOpen(false);
     else if (isTitleModalOpen) setIsTitleModalOpen(false);
@@ -162,6 +170,7 @@ function AppContent() {
     isViberHubOpen,
     isSettingsOpen,
     isPinPromptOpen,
+    isStatementsOpen,
     isNotificationsOpen,
     isRoundManager3DOpen,
     isRoundManager2DOpen,
@@ -261,6 +270,7 @@ function AppContent() {
         onOpenForwardModal={() => handleOpenForwardModal()}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenHelp={() => setIsHelpOpen(true)}
+        onOpenStatements={() => setIsStatementsOpen(true)}
         onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
         onOpenTitleModal={() => setIsTitleModalOpen(true)}
         onOpenViberHub={() => setIsViberHubOpen(true)}
@@ -430,9 +440,14 @@ function AppContent() {
       {/* First-Time PIN & Business Setup Modal */}
       <FirstTimePinSetupModal
         isOpen={isFirstTimeSetupOpen}
-        onCompleted={(modes) => {
+        onCompleted={(modes, isDemo) => {
           setEnabledModes(modes);
           setIsFirstTimeSetupOpen(false);
+          if (!isDemo) {
+            lottery3D.clearAllData();
+            lottery2D.clearAllData();
+            football.clearAllData();
+          }
         }}
       />
 
@@ -473,6 +488,13 @@ function AppContent() {
         onGoToFootballSlips={() => {
           setActiveTabFB('slips');
         }}
+      />
+
+      {/* Period Financial Statements & Profit/Loss Modal */}
+      <FinancialStatementsModal
+        isOpen={isStatementsOpen}
+        onClose={() => setIsStatementsOpen(false)}
+        initialMode={dealerMode}
       />
 
       {/* Viber Orders & Direct Ingest Review Hub Modal */}

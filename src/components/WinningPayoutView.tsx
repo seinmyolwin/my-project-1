@@ -33,6 +33,7 @@ export const WinningPayoutView: React.FC = () => {
     exportToExcel,
     updateVoucher,
     rounds,
+    createRound,
     setActiveRoundId
   } = useLottery();
 
@@ -49,6 +50,33 @@ export const WinningPayoutView: React.FC = () => {
 
   const [isFetchingLive, setIsFetchingLive] = useState(false);
   const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
+  const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
+
+  const handleStartNext3DRound = () => {
+    const today = new Date();
+    // Default next draw date ~ 15 days later (1st or 16th)
+    const nextDate = new Date(today);
+    nextDate.setDate(nextDate.getDate() + 15);
+    const dateStr = nextDate.toISOString().slice(0, 10);
+    const roundName = `${dateStr} အိုးစည်လေး ပွဲစဉ်`;
+
+    const newRound = createRound({
+      name: roundName,
+      drawDate: dateStr,
+      status: 'open',
+      multiplier: settings.defaultMultiplier || 600,
+      toddMultiplier: settings.defaultToddMultiplier || 100,
+      targetTime: '15:30'
+    });
+
+    setActiveRoundId(newRound.id);
+    setWinningInput('');
+    setSessionSwitchMsg(`[${newRound.name}] ပွဲစဉ်အသစ် စတင်ဖွင့်လှစ်ပြီးပါပြီ။ ယခင်ပွဲစဉ်အား မှတ်တမ်းထဲသို့ သိမ်းဆည်းပြီး စာရင်းအသစ် စတင်လက်ခံနိုင်ပါပြီ။`);
+
+    setTimeout(() => {
+      setSessionSwitchMsg(null);
+    }, 6000);
+  };
 
   const handleFetchLiveThai = async () => {
     setIsFetchingLive(true);
@@ -338,10 +366,48 @@ ${settings.shopName} (${settings.shopPhone})`;
 
       </div>
 
+      {/* Session Switch Success Banner */}
+      {sessionSwitchMsg && (
+        <div className="bg-emerald-600 text-white rounded-2xl p-4 text-xs font-bold flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+            <span>{sessionSwitchMsg}</span>
+          </div>
+          <button onClick={() => setSessionSwitchMsg(null)} className="text-emerald-200 hover:text-white font-bold cursor-pointer">
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Real-time Settlement Summary Banner */}
       {winningInput.length === 3 && (
         <div className="space-y-4 animate-in fade-in duration-300">
           
+          {/* Prominent Next Round Launcher Banner */}
+          {activeRound?.status === 'settled' && (
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-indigo-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-base font-black text-white">
+                    {activeRound.name} စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ
+                  </h3>
+                </div>
+                <p className="text-xs text-indigo-200 leading-relaxed">
+                  ပေါက်ဂဏန်း [{activeRound.winningNumber}]၊ ရောင်းရငွေ၊ လျော်ကြေးစာရင်းအားလုံးကို မှတ်တမ်းထဲသို့ သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleStartNext3DRound}
+                className="w-full sm:w-auto px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all active:scale-95 shrink-0"
+              >
+                <span>☀️ နောက်ပွဲစဉ်အသစ်အတွက် စာရင်းစတင်မည်</span>
+              </button>
+            </div>
+          )}
+
           {/* Main Profit / Loss Hero Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             

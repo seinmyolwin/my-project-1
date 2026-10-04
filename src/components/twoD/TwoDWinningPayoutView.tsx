@@ -28,6 +28,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
     clearWinningSettlement,
     exportToExcel,
     rounds,
+    createRound,
     setActiveRoundId
   } = useTwoDLottery();
 
@@ -40,6 +41,43 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   const [isFetchingLive, setIsFetchingLive] = useState(false);
   const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
+  const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
+
+  const isMorning = activeRound?.session === 'morning' || activeRound?.name.includes('မနက်');
+
+  const handleStartNextSession = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const targetSession = isMorning ? 'evening' : 'morning';
+    const targetName = isMorning
+      ? `${today} ညနေပိုင်း (၀၄:၃၀)`
+      : `${today} မနက်ပိုင်း (၁၂:၀၁)`;
+
+    const existing = rounds.find(
+      r => r.session === targetSession && r.drawDate === today && r.status === 'open'
+    );
+
+    if (existing) {
+      setActiveRoundId(existing.id);
+      setWinningInput('');
+      setSessionSwitchMsg(`[${existing.name}] သို့ ကူးပြောင်းပြီးပါပြီ။ မနက်ပိုင်းစာရင်းများကို အပြီးသတ် သိမ်းဆည်းထားပြီး ညနေပိုင်းအတွက် စာရင်းအသစ် စတင်ပါပြီ။`);
+    } else {
+      const newRound = createRound({
+        name: targetName,
+        drawDate: today,
+        session: targetSession,
+        status: 'open',
+        multiplier: settings.defaultMultiplier || 85,
+        targetTime: isMorning ? '16:30' : '12:01'
+      });
+      setActiveRoundId(newRound.id);
+      setWinningInput('');
+      setSessionSwitchMsg(`[${newRound.name}] ပွဲစဉ်အသစ် စတင်ဖွင့်လှစ်ပြီးပါပြီ။ ယခင်စာရင်းများကို သိမ်းဆည်းပြီး ညနေပိုင်းအတွက် စာရင်းအသစ် စတင်လက်ခံနိုင်ပါပြီ။`);
+    }
+
+    setTimeout(() => {
+      setSessionSwitchMsg(null);
+    }, 6000);
+  };
 
   const handleFetchLiveThai2D = async () => {
     setIsFetchingLive(true);
@@ -258,6 +296,35 @@ export const TwoDWinningPayoutView: React.FC = () => {
       {/* Settlement Result Cards */}
       {isSettled && (
         <div className="space-y-6">
+          {/* Prominent Next Session Launcher Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-indigo-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-black text-white">
+                  {isMorning
+                    ? 'မနက်ပိုင်း စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ'
+                    : 'ညနေပိုင်း စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ'}
+                </h3>
+              </div>
+              <p className="text-xs text-indigo-200 leading-relaxed">
+                ပေါက်ဂဏန်း [{activeRound.winningNumber}]၊ ရောင်းရငွေ၊ လျော်ကြေးစာရင်းအားလုံးကို မှတ်တမ်းထဲသို့ သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleStartNextSession}
+              className="w-full sm:w-auto px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all active:scale-95 shrink-0"
+            >
+              <span>
+                {isMorning
+                  ? '🌆 ညနေပိုင်း (၀၄:၃၀) အတွက် အသစ်စတင်မည်'
+                  : '☀️ မနက်ဖြန် မနက်ပိုင်း (၁၂:၀၁) အတွက် အသစ်စတင်မည်'}
+              </span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs">
               <span className="text-xs text-slate-500 font-bold block mb-1">
