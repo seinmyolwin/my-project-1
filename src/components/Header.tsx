@@ -100,8 +100,8 @@ export const Header: React.FC<HeaderProps> = ({
   let currency = 'MMK';
 
   if (dealerMode === '3d') {
-    appTitle = lottery3D.settings.appName || 'ရွှေမင်္ဂလာ';
-    shopName = lottery3D.settings.shopName || 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်';
+    appTitle = 'ရွှေမင်္ဂလာ';
+    shopName = lottery3D.settings.shopName || 'မရှိသေးပါ';
     revenue = lottery3D.roundSummary.netRevenue;
     isSettled = lottery3D.activeRound?.status === 'settled';
     isProfit = lottery3D.roundSummary.isProfit;
@@ -109,8 +109,8 @@ export const Header: React.FC<HeaderProps> = ({
     alertCount = lottery3D.lowStockAlerts.length;
     currency = lottery3D.settings.currency;
   } else if (dealerMode === '2d') {
-    appTitle = lottery2D.settings.appName || 'ရွှေမင်္ဂလာ';
-    shopName = lottery2D.settings.shopName || 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်';
+    appTitle = 'ရွှေမင်္ဂလာ';
+    shopName = lottery2D.settings.shopName || 'မရှိသေးပါ';
     revenue = lottery2D.roundSummary.netRevenue;
     isSettled = lottery2D.activeRound?.status === 'settled';
     isProfit = lottery2D.roundSummary.isProfit;
@@ -118,8 +118,8 @@ export const Header: React.FC<HeaderProps> = ({
     alertCount = lottery2D.lowStockAlerts.length;
     currency = lottery2D.settings.currency;
   } else {
-    appTitle = football.settings.appName || 'ရွှေမင်္ဂလာ';
-    shopName = football.settings.shopName || 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်';
+    appTitle = 'ရွှေမင်္ဂလာ';
+    shopName = football.settings.shopName || 'မရှိသေးပါ';
     revenue = football.summary.netRevenue;
     isSettled = football.summary.wonTicketsCount > 0 || football.summary.lostTicketsCount > 0;
     isProfit = football.summary.isProfit;
@@ -159,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-indigo-300"></span>
-                <span>{isMyanmar ? 'အိုးစည်လေး' : 'Line 1 (OSL)'}</span>
+                <span>{isMyanmar ? 'အိုးစည်လေး' : '1'}</span>
               </button>
             )}
 
@@ -177,7 +177,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-teal-300"></span>
-                <span>{isMyanmar ? 'ဇီးကွက်' : 'Line 2 (ZKW)'}</span>
+                <span>{isMyanmar ? 'ဇီးကွက်' : '2'}</span>
               </button>
             )}
 
@@ -195,7 +195,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
-                <span>{isMyanmar ? 'ပစ်တိုင်းထောင်' : 'Line 3 (PTH)'}</span>
+                <span>{isMyanmar ? 'ပစ်တိုင်းထောင်' : '3'}</span>
               </button>
             )}
           </div>
@@ -303,15 +303,15 @@ export const Header: React.FC<HeaderProps> = ({
                   {appTitle || 'ရွှေမင်္ဂလာ'}
                 </h1>
                 <span
-                  className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${
+                  className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-black ${
                     dealerMode === '3d'
-                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
                       : dealerMode === '2d'
-                      ? 'bg-teal-50 text-teal-700 border border-teal-100'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                      ? 'bg-teal-100 text-teal-900 border border-teal-200'
+                      : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                   }`}
                 >
-                  {shopName}
+                  ဆိုင်အမည်: {shopName}
                 </span>
 
                 {onOpenTitleModal && (
@@ -325,12 +325,12 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
               </div>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 font-medium font-bold">
                 {dealerMode === '3d'
-                  ? 'အိုးစည်လေး စာရင်းစီမံမှု (Line 1)'
+                  ? 'အိုးစည် စားရင်း စီမံမှု 1'
                   : dealerMode === '2d'
-                  ? 'ဇီးကွက် စာရင်းစီမံမှု (Line 2)'
-                  : 'ပစ်တိုင်းထောင် စာရင်းစီမံမှု (Line 3)'}
+                  ? 'ဇီးကွက်စားရင်းစီမံမှု 2'
+                  : 'ပစ်တိုင်ထောင်စားရင် စီမံမှု 3'}
               </p>
             </div>
           </div>

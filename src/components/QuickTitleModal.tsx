@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Edit3, Check, Store, Sparkles, Layers } from 'lucide-react';
+import { X, Check, Store } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
@@ -18,16 +18,9 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
 
   const [selectedMode, setSelectedMode] = useState<BookieMode>(activeMode);
 
-  // 3D form state
-  const [name3D, setName3D] = useState(lottery3D.settings.appName || 'ရွှေမင်္ဂလာ');
+  // Shop names form state (App name is strictly fixed as 'ရွှေမင်္ဂလာ' and not editable)
   const [shop3D, setShop3D] = useState(lottery3D.settings.shopName || '');
-
-  // 2D form state
-  const [name2D, setName2D] = useState(lottery2D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop2D, setShop2D] = useState(lottery2D.settings.shopName || '');
-
-  // Football form state
-  const [nameFB, setNameFB] = useState(football.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shopFB, setShopFB] = useState(football.settings.shopName || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -37,21 +30,21 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Save 3D
+    // Save 3D (Keep appName strictly as 'ရွှေမင်္ဂလာ')
     lottery3D.updateSettings({
-      appName: name3D.trim() || 'ရွှေမင်္ဂလာ',
+      appName: 'ရွှေမင်္ဂလာ',
       shopName: shop3D.trim()
     });
 
-    // Save 2D
+    // Save 2D (Keep appName strictly as 'ရွှေမင်္ဂလာ')
     lottery2D.updateSettings({
-      appName: name2D.trim() || 'ရွှေမင်္ဂလာ',
+      appName: 'ရွှေမင်္ဂလာ',
       shopName: shop2D.trim()
     });
 
-    // Save Football
+    // Save Football (Keep appName strictly as 'ရွှေမင်္ဂလာ')
     football.updateSettings({
-      appName: nameFB.trim() || 'ရွှေမင်္ဂလာ',
+      appName: 'ရွှေမင်္ဂလာ',
       shopName: shopFB.trim()
     });
 
@@ -64,19 +57,19 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-400 flex items-center justify-center">
-              <Edit3 className="w-5 h-5" />
+              <Store className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-black tracking-tight">
-                အက်ပ်ခေါင်းစဉ်နှင့် ဆိုင်အမည် ပြင်ဆင်ခြင်း
+                ဆိုင်အမည် ပြင်ဆင်ခြင်း
               </h3>
               <p className="text-xs text-slate-400">
-                အိုးစည်လေး၊ ဇီးကွက်နှင့် ပစ်တိုင်းထောင် အသီးသီးအတွက် ခေါင်းစဉ်များ ပြောင်းလဲနိုင်ပါသည်
+                လုပ်ငန်းအသီးသီးအတွက် ဆိုင်အမည်ကို ပြင်ဆင်သတ်မှတ်နိုင်ပါသည်
               </p>
             </div>
           </div>
@@ -100,7 +93,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>အိုးစည်လေး (3D)</span>
+            <span>အိုးစည်လေး</span>
           </button>
 
           <button
@@ -112,7 +105,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>ဇီးကွက် (2D)</span>
+            <span>ဇီးကွက်</span>
           </button>
 
           <button
@@ -124,7 +117,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>ပစ်တိုင်းထောင် (Football)</span>
+            <span>ပစ်တိုင်းထောင်</span>
           </button>
         </div>
 
@@ -132,172 +125,52 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
         <form onSubmit={handleSave} className="p-5 space-y-4">
           {/* Active Mode Form Field */}
           {selectedMode === '3d' && (
-            <div className="space-y-3.5 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
-              <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
-                <Layers className="w-4 h-4 text-indigo-600" />
-                <span>အိုးစည်လေး (3D) ခေါင်းစဉ်</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  အက်ပ် ခေါင်းစဉ် (App Name):
-                </label>
-                <input
-                  type="text"
-                  value={name3D}
-                  onChange={(e) => setName3D(e.target.value)}
-                  placeholder="အိုးစည်လေး Pro"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  ဆိုင်/ဒိုင် အမည် သို့မဟုတ် စာတန်းခွဲ (Shop / Subtitle):
-                </label>
-                <input
-                  type="text"
-                  value={shop3D}
-                  onChange={(e) => setShop3D(e.target.value)}
-                  placeholder="ရွှေမင်္ဂလာ (အိုးစည်လေး အရောင်းဒိုင်)"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+            <div className="space-y-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+              <label className="block text-xs font-bold text-slate-700">
+                အိုးစည်လေး လုပ်ငန်း ဆိုင်အမည်:
+              </label>
+              <input
+                type="text"
+                value={shop3D}
+                onChange={(e) => setShop3D(e.target.value)}
+                placeholder="ဆိုင်အမည် ရိုက်ထည့်ပါ"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
             </div>
           )}
 
           {selectedMode === '2d' && (
-            <div className="space-y-3.5 bg-teal-50/50 p-4 rounded-2xl border border-teal-100">
-              <div className="flex items-center gap-2 text-teal-900 font-bold text-xs">
-                <Layers className="w-4 h-4 text-teal-600" />
-                <span>ဇီးကွက် (2D) ခေါင်းစဉ်</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  အက်ပ် ခေါင်းစဉ် (App Name):
-                </label>
-                <input
-                  type="text"
-                  value={name2D}
-                  onChange={(e) => setName2D(e.target.value)}
-                  placeholder="ဇီးကွက် Pro"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  ဆိုင်/ဒိုင် အမည် သို့မဟုတ် စာတန်းခွဲ (Shop / Subtitle):
-                </label>
-                <input
-                  type="text"
-                  value={shop2D}
-                  onChange={(e) => setShop2D(e.target.value)}
-                  placeholder="ရွှေမင်္ဂလာ (ဇီးကွက် အရောင်းဒိုင်)"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
+            <div className="space-y-3 bg-teal-50/50 p-4 rounded-2xl border border-teal-100">
+              <label className="block text-xs font-bold text-slate-700">
+                ဇီးကွက် လုပ်ငန်း ဆိုင်အမည်:
+              </label>
+              <input
+                type="text"
+                value={shop2D}
+                onChange={(e) => setShop2D(e.target.value)}
+                placeholder="ဆိုင်အမည် ရိုက်ထည့်ပါ"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                required
+              />
             </div>
           )}
 
           {selectedMode === 'football' && (
-            <div className="space-y-3.5 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
-              <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
-                <Layers className="w-4 h-4 text-emerald-600" />
-                <span>ပစ်တိုင်းထောင် (Football) ခေါင်းစဉ်</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  အက်ပ် ခေါင်းစဉ် (App Name):
-                </label>
-                <input
-                  type="text"
-                  value={nameFB}
-                  onChange={(e) => setNameFB(e.target.value)}
-                  placeholder="ပစ်တိုင်းထောင် Pro"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  ဆိုင်/ဒိုင် အမည် သို့မဟုတ် စာတန်းခွဲ (Shop / Subtitle):
-                </label>
-                <input
-                  type="text"
-                  value={shopFB}
-                  onChange={(e) => setShopFB(e.target.value)}
-                  placeholder="ရွှေမင်္ဂလာ (ပစ်တိုင်းထောင် စာရင်းဒိုင်)"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+            <div className="space-y-3 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
+              <label className="block text-xs font-bold text-slate-700">
+                ပစ်တိုင်းထောင် လုပ်ငန်း ဆိုင်အမည်:
+              </label>
+              <input
+                type="text"
+                value={shopFB}
+                onChange={(e) => setShopFB(e.target.value)}
+                placeholder="ဆိုင်အမည် ရိုက်ထည့်ပါ"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
+              />
             </div>
           )}
-
-          {/* Quick presets for common names */}
-          <div className="space-y-1.5 pt-1">
-            <span className="text-[11px] font-bold text-slate-500 block">အမြန်ရွေးချယ်ရန် ပုံစံများ:</span>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedMode === '3d') {
-                    setName3D('ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်');
-                    setShop3D('ရွှေမင်္ဂလာ (အိုးစည်လေး ဌာန)');
-                  } else if (selectedMode === '2d') {
-                    setName2D('ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်');
-                    setShop2D('ရွှေမင်္ဂလာ (ဇီးကွက် ဌာန)');
-                  } else {
-                    setNameFB('ရွှေမင်္ဂလာ စီမံခန့်ခွဲမှုစနစ်');
-                    setShopFB('ရွှေမင်္ဂလာ (ပစ်တိုင်းထောင် ဌာန)');
-                  }
-                }}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded-lg font-medium transition-colors cursor-pointer"
-              >
-                ရွှေမင်္ဂလာ ပင်မဌာန
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedMode === '3d') {
-                    setName3D('အောင်သပြေ စာရင်းစနစ်');
-                    setShop3D('အောင်သပြေ (အိုးစည်လေး)');
-                  } else if (selectedMode === '2d') {
-                    setName2D('အောင်သပြေ စာရင်းစနစ်');
-                    setShop2D('အောင်သပြေ (ဇီးကွက်)');
-                  } else {
-                    setNameFB('အောင်သပြေ စာရင်းစနစ်');
-                    setShopFB('အောင်သပြေ (ပစ်တိုင်းထောင်)');
-                  }
-                }}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded-lg font-medium transition-colors cursor-pointer"
-              >
-                အောင်သပြေ စာရင်းဌာန
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedMode === '3d') {
-                    setName3D('အိုးစည်လေး စာရင်းစီမံမှု');
-                    setShop3D('Main Office Center');
-                  } else if (selectedMode === '2d') {
-                    setName2D('ဇီးကွက် စာရင်းစီမံမှု');
-                    setShop2D('Daily Line Ledger');
-                  } else {
-                    setNameFB('ပစ်တိုင်းထောင် စာရင်းစီမံမှု');
-                    setShopFB('VIP Sports Ledger');
-                  }
-                }}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] rounded-lg font-medium transition-colors cursor-pointer"
-              >
-                ပင်မ စာရင်းချုပ်
-              </button>
-            </div>
-          </div>
 
           {/* Action buttons */}
           <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
@@ -319,7 +192,7 @@ export const QuickTitleModal: React.FC<QuickTitleModalProps> = ({ isOpen, onClos
                   <span>သိမ်းဆည်းပြီးပါပြီ</span>
                 </>
               ) : (
-                <span>သိမ်းဆည်းမည် (Save Changes)</span>
+                <span>သိမ်းဆည်းမည်</span>
               )}
             </button>
           </div>
