@@ -646,6 +646,16 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
               type="text"
               value={detectedCustomerName}
               onChange={(e) => setDetectedCustomerName(e.target.value)}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
               placeholder="အမည် ရိုက်ထည့်ပါ"
               className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
             />
@@ -656,9 +666,21 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
               {isMyanmar ? 'ဖုန်းနံပါတ်' : 'Phone'}
             </label>
             <input
-              type="text"
+              type="tel"
+              inputMode="tel"
+              pattern="[0-9+]*"
               value={detectedCustomerPhone}
               onChange={(e) => setDetectedCustomerPhone(e.target.value)}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
               placeholder="09-xxxxxxx"
               className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
             />
@@ -825,11 +847,22 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         step="100"
                         min="100"
                         value={row.amount}
                         onChange={(e) => handleUpdateRow(row.id, 'amount', e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-24 px-2 py-1 text-right font-mono font-bold text-xs rounded border border-slate-300 bg-white text-emerald-700"
                       />
                       <span className="text-[11px] text-slate-400">{settings.currency}</span>
@@ -858,17 +891,41 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
           </span>
           <input
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             maxLength={mode === '2d' ? 2 : 3}
             value={manualNumber}
             onChange={(e) => setManualNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, mode === '2d' ? 2 : 3))}
+            onFocus={(e) => {
+              const target = e.currentTarget;
+              target.select();
+              setTimeout(() => target.select(), 20);
+            }}
+            onClick={(e) => {
+              const target = e.currentTarget;
+              target.select();
+              setTimeout(() => target.select(), 20);
+            }}
             placeholder={mode === '2d' ? '00' : '000'}
             className="w-16 px-2 py-1 text-center font-mono font-bold rounded border border-slate-200 bg-white"
           />
           <input
             type="number"
+            inputMode="numeric"
+            pattern="[0-9]*"
             step="100"
             value={manualAmount}
             onChange={(e) => setManualAmount(e.target.value)}
+            onFocus={(e) => {
+              const target = e.currentTarget;
+              target.select();
+              setTimeout(() => target.select(), 20);
+            }}
+            onClick={(e) => {
+              const target = e.currentTarget;
+              target.select();
+              setTimeout(() => target.select(), 20);
+            }}
             placeholder="1000"
             className="w-20 px-2 py-1 text-right font-mono font-bold rounded border border-slate-200 bg-white text-emerald-700"
           />

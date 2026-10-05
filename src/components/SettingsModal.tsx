@@ -659,9 +659,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={mult3D}
                         onChange={(e) => setMult3D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
                       />
                     </div>
@@ -671,9 +682,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={todd3D}
                         onChange={(e) => setTodd3D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
                       />
                     </div>
@@ -683,9 +705,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={comm3D}
                         onChange={(e) => setComm3D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
                       />
                     </div>
@@ -695,9 +728,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={disc3D}
                         onChange={(e) => setDisc3D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
                       />
                     </div>
@@ -710,9 +754,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={globalLimit3D}
                         onChange={(e) => setGlobalLimit3D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-900 text-center"
                       />
                     </div>
@@ -722,9 +777,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={alertPct3D}
                         onChange={(e) => setAlertPct3D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-900 text-center"
                       />
                     </div>
@@ -742,9 +808,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={numLimit3DInput}
                         onChange={(e) => setNumLimit3DInput(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         placeholder="123 သို့မဟုတ် 123, 456"
                         className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-1 text-xs font-bold"
                       />
@@ -755,9 +832,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={amtLimit3DInput}
                         onChange={(e) => setAmtLimit3DInput(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-1 text-xs font-bold text-center"
                       />
                     </div>
@@ -965,9 +1053,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={mult2D}
                         onChange={(e) => setMult2D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-teal-200 rounded-lg p-1.5 text-xs font-bold text-teal-900 text-center"
                       />
                     </div>
@@ -977,9 +1076,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={comm2D}
                         onChange={(e) => setComm2D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-teal-200 rounded-lg p-1.5 text-xs font-bold text-teal-900 text-center"
                       />
                     </div>
@@ -989,9 +1099,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={disc2D}
                         onChange={(e) => setDisc2D(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-teal-200 rounded-lg p-1.5 text-xs font-bold text-teal-900 text-center"
                       />
                     </div>
@@ -1003,9 +1124,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </label>
                     <input
                       type="number"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={globalLimit2D}
                       onChange={(e) => setGlobalLimit2D(e.target.value)}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-xs font-bold text-slate-900"
                     />
                   </div>
@@ -1022,9 +1154,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={numLimit2DInput}
                         onChange={(e) => setNumLimit2DInput(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         placeholder="05 သို့မဟုတ် 05, 50"
                         className="w-full bg-white border border-teal-200 rounded-lg px-2 py-1 text-xs font-bold"
                       />
@@ -1035,9 +1178,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </label>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={amtLimit2DInput}
                         onChange={(e) => setAmtLimit2DInput(e.target.value)}
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full bg-white border border-teal-200 rounded-lg px-2 py-1 text-xs font-bold text-center"
                       />
                     </div>
@@ -1192,9 +1346,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={commFB}
                     onChange={(e) => setCommFB(e.target.value)}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-bold text-emerald-900 text-center"
                   />
                 </div>
@@ -1204,9 +1369,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={discFB}
                     onChange={(e) => setDiscFB(e.target.value)}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-bold text-emerald-900 text-center"
                   />
                 </div>
@@ -1216,9 +1392,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={maxPayoutFB}
                     onChange={(e) => setMaxPayoutFB(e.target.value)}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-bold text-emerald-900 text-center"
                   />
                 </div>

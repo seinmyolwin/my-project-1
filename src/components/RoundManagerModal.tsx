@@ -168,8 +168,20 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={multiplier}
                   onChange={(e) => setMultiplier(e.target.value)}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   placeholder="600"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                 />
@@ -181,8 +193,20 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={toddMultiplier}
                   onChange={(e) => setToddMultiplier(e.target.value)}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   placeholder="100"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                 />

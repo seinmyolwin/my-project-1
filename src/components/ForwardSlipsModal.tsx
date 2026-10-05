@@ -164,9 +164,19 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                 <input
                   type="text"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   value={commissionRate}
                   onChange={(e) => setCommissionRate(Math.max(0, parseInt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''), 10) || 0))}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                 />
               </div>
@@ -180,10 +190,21 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={3}
                   value={numberInput}
                   onChange={(e) => setNumberInput(convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3))}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   placeholder="000 - 999"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base font-black font-mono text-indigo-900 text-center outline-none focus:border-indigo-500 shadow-2xs"
                 />
@@ -196,9 +217,19 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                 <input
                   type="text"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   value={amountInput}
                   onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   placeholder="10000"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base font-bold font-mono text-slate-900 text-center outline-none focus:border-indigo-500 shadow-2xs"
                 />

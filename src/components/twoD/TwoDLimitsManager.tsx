@@ -118,9 +118,19 @@ export const TwoDLimitsManager: React.FC = () => {
             <input
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
               value={globalLimitInput}
               onChange={(e) => setGlobalLimitInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-              onFocus={(e) => e.target.select()}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
               className="flex-1 h-12 px-4 text-right font-mono text-lg font-bold rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50"
             />
             <button
@@ -152,21 +162,43 @@ export const TwoDLimitsManager: React.FC = () => {
             <div className="col-span-4">
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={2}
                 placeholder="24"
                 value={singleNum}
                 onChange={(e) => setSingleNum(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2))}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                onClick={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
                 className="w-full h-12 px-3 text-center font-mono text-lg font-black rounded-xl border border-slate-300 focus:border-indigo-500 bg-slate-50"
               />
             </div>
             <div className="col-span-5">
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="30000"
                 value={singleLimitAmt}
                 onChange={(e) => setSingleLimitAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                onClick={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
                 className="w-full h-12 px-3 text-right font-mono text-sm font-bold rounded-xl border border-slate-300 focus:border-indigo-500 bg-slate-50"
               />
             </div>

@@ -211,10 +211,22 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min="0"
                     max="30"
                     value={commissionRate}
                     onChange={(e) => setCommissionRate(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-bold font-mono outline-none focus:border-indigo-500 shadow-2xs"
                   />
                 </div>

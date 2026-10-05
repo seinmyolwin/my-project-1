@@ -460,9 +460,20 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={numberInput}
                       onChange={(e) => setNumberInput(convertMyanmarToEnglishDigits(e.target.value))}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
                       placeholder={isMyanmar ? 'ဥပမာ: 789 သို့ 123, 456' : 'e.g. 789 or 123, 456'}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-indigo-900 outline-none focus:border-indigo-500 shadow-2xs"
                     />
@@ -475,9 +486,19 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                     <input
                       type="text"
                       inputMode="numeric"
+                      pattern="[0-9]*"
                       value={limitInput}
                       onChange={(e) => setLimitInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
                       placeholder="50000"
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-emerald-800 outline-none focus:border-indigo-500 shadow-2xs"
                     />
@@ -652,9 +673,21 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     step="5000"
                     value={globalLimitInput}
                     onChange={(e) => setGlobalLimitInput(e.target.value)}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-emerald-700 outline-none focus:border-indigo-500 shadow-2xs"
                   />
                   <span className="text-[11px] text-slate-500 block">
@@ -670,10 +703,22 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min="50"
                     max="100"
                     value={alertPctInput}
                     onChange={(e) => setAlertPctInput(e.target.value)}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-mono text-amber-800 outline-none focus:border-indigo-500 shadow-2xs"
                   />
                   <span className="text-[11px] text-slate-500 block">

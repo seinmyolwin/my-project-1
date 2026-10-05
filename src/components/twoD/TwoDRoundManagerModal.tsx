@@ -139,8 +139,20 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
             <label className="block font-bold text-slate-700 mb-1">အလျော်ဆ (Multiplier)</label>
             <input
               type="number"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={multiplier}
               onChange={(e) => setMultiplier(e.target.value)}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
               className="w-full h-10 px-3 rounded-xl border border-slate-300 font-mono font-bold text-right"
             />
           </div>

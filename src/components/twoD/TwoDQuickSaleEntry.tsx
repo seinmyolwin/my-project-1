@@ -692,15 +692,37 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   placeholder={isMyanmar ? 'ထိုးသူအမည် (ဥပမာ- ကိုညီညီ)' : 'Customer name'}
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   className="w-full h-11 px-3.5 text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
                 />
               </div>
               <div className="sm:col-span-4">
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="tel"
+                  pattern="[0-9+]*"
                   placeholder={isMyanmar ? 'ဖုန်းနံပါတ် (မဖြစ်မနေ မဟုတ်ပါ)' : 'Phone number'}
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   className="w-full h-11 px-3.5 text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
                 />
               </div>
@@ -708,11 +730,23 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 <div className="relative">
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min={0}
                     max={30}
                     placeholder="0"
                     value={discountPercent || ''}
                     onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full h-11 pl-3.5 pr-8 text-sm font-bold text-right rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
                   />
                   <span className="absolute right-3 top-3 text-xs font-bold text-slate-500">% လျှော့</span>
@@ -857,8 +891,20 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 </span>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={batchDefaultAmount}
                   onChange={(e) => setBatchDefaultAmount(e.target.value.replace(/\D/g, ''))}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   className="w-24 h-8 px-2 text-right text-xs font-bold rounded-lg border border-slate-300"
                 />
               </div>

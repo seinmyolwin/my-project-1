@@ -193,11 +193,21 @@ export const TwoDWinningPayoutView: React.FC = () => {
             <input
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
               maxLength={2}
               placeholder="82"
               value={winningInput}
               onChange={(e) => setWinningInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2))}
-              onFocus={(e) => e.target.select()}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
               className="w-full h-14 px-4 text-center font-mono text-3xl font-black rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all text-amber-950"
             />
           </div>
@@ -209,9 +219,19 @@ export const TwoDWinningPayoutView: React.FC = () => {
             <input
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
               value={multiplierInput}
               onChange={(e) => setMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-              onFocus={(e) => e.target.select()}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                target.select();
+                setTimeout(() => target.select(), 20);
+              }}
               className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
             />
           </div>

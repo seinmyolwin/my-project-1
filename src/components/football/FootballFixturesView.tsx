@@ -1154,11 +1154,22 @@ export const FootballFixturesView: React.FC = () => {
                     <div className="flex gap-1.5">
                       <input
                         type="number"
+                        inputMode="decimal"
                         step="0.01"
                         min="1.0"
                         max="5.0"
                         value={bodyOdds}
                         onChange={(e) => setBodyOdds(e.target.value)}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full h-10 px-3 rounded-xl border border-slate-300 font-mono font-bold bg-white"
                       />
                     </div>
@@ -1171,11 +1182,22 @@ export const FootballFixturesView: React.FC = () => {
                     <div className="flex gap-1.5">
                       <input
                         type="number"
+                        inputMode="decimal"
                         step="0.01"
                         min="1.0"
                         max="5.0"
                         value={goalOdds}
                         onChange={(e) => setGoalOdds(e.target.value)}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
                         className="w-full h-10 px-3 rounded-xl border border-slate-300 font-mono font-bold bg-white"
                       />
                     </div>
@@ -1237,10 +1259,22 @@ export const FootballFixturesView: React.FC = () => {
                   </span>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min="0"
                     max="20"
                     value={hScore}
                     onChange={(e) => setHScore(e.target.value)}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-16 h-14 text-center font-mono text-2xl font-black rounded-2xl border border-slate-300 focus:border-emerald-500 bg-slate-50"
                   />
                 </div>
@@ -1253,10 +1287,22 @@ export const FootballFixturesView: React.FC = () => {
                   </span>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min="0"
                     max="20"
                     value={aScore}
                     onChange={(e) => setAScore(e.target.value)}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-16 h-14 text-center font-mono text-2xl font-black rounded-2xl border border-slate-300 focus:border-emerald-500 bg-slate-50"
                   />
                 </div>

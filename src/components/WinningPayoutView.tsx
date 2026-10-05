@@ -232,13 +232,23 @@ ${settings.shopName} (${settings.shopPhone})`;
               <input
                 type="text"
                 inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={3}
                 value={winningInput}
                 onChange={(e) => {
                   const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3);
                   setWinningInput(val);
                 }}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                onClick={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
                 placeholder="000 - 999"
                 className="w-full bg-slate-50 focus:bg-white border-2 border-amber-300 focus:border-amber-500 rounded-xl px-4 py-3 text-3xl font-black text-amber-900 font-mono tracking-widest text-center outline-none shadow-2xs transition-colors"
               />
@@ -252,9 +262,19 @@ ${settings.shopName} (${settings.shopPhone})`;
               <input
                 type="text"
                 inputMode="numeric"
+                pattern="[0-9]*"
                 value={multiplierInput}
                 onChange={(e) => setMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                onClick={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
                 placeholder="600"
                 className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-3 text-xl font-bold text-slate-900 font-mono text-center outline-none transition-colors shadow-2xs"
               />
@@ -268,9 +288,19 @@ ${settings.shopName} (${settings.shopPhone})`;
               <input
                 type="text"
                 inputMode="numeric"
+                pattern="[0-9]*"
                 value={toddMultiplierInput}
                 onChange={(e) => setToddMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                onClick={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
                 placeholder="100"
                 className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-3 text-xl font-bold text-slate-900 font-mono text-center outline-none transition-colors shadow-2xs"
               />
