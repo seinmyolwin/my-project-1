@@ -434,32 +434,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         </div>
       )}
 
-      {/* Prominent Viber / Photo OCR Banner */}
-      <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-900 text-white rounded-2xl p-4 sm:p-5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-amber-300 font-bold shrink-0">
-            <Camera className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-sm sm:text-base font-black">
-              {isMyanmar ? '📷 Viber ဓါတ်ပုံ / စလစ်တင်၍ AI ဖြင့် အလိုအလျောက် စကင်ဖတ်ရန်' : 'Scan Viber Slip Photo'}
-            </h3>
-            <p className="text-xs text-teal-200">
-              {isMyanmar ? 'လက်ရေးစလစ် သို့မဟုတ် Viber စကရင်ရှော့ခ်များကို တင်လိုက်ရုံဖြင့် ဂဏန်းနှင့် ထိုးကြေးများ အလိုအလျောက် ဝင်မည်' : 'Upload photos or screenshots to instantly extract bets'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsScannerModalOpen(true)}
-          className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-teal-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-transform active:scale-95 cursor-pointer shrink-0"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>{isMyanmar ? 'ဓါတ်ပုံစကင်ဖတ်မည် (Scan Now)' : 'Scan Photo Now'}</span>
-        </button>
-      </div>
-
       {/* Main Grid: Input Form & Cart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Input Form (7 cols) */}
@@ -495,6 +469,15 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 <span>{isMyanmar ? 'ဇီးကွက် အမြန်စာရင်းသွင်းရန်' : 'Quick Bet Entry'}</span>
               </h3>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsScannerModalOpen(true)}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို အလိုအလျောက် ဖတ်ယူရန်"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{isMyanmar ? 'စကင်ဖတ်မည်' : 'Scan'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsBatchOpen(true)}

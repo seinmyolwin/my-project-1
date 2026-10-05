@@ -55,6 +55,29 @@ import { FirstTimePinSetupModal } from './components/FirstTimePinSetupModal';
 import { PinPromptModal } from './components/PinPromptModal';
 import { getStoredEnabledModes, isFirstTimePinSetup, EnabledModes } from './utils/securityUtils';
 import { useDoubleBackToExit } from './hooks/useDoubleBackToExit';
+import { useSwipeGesture } from './hooks/useSwipeGesture';
+
+const TABS_3D: ('sales' | 'ledger' | 'winning' | 'vouchers' | 'analytics')[] = [
+  'sales',
+  'ledger',
+  'winning',
+  'vouchers',
+  'analytics'
+];
+
+const TABS_2D: ('sales' | 'ledger' | 'winning' | 'vouchers' | 'limits')[] = [
+  'sales',
+  'ledger',
+  'winning',
+  'vouchers',
+  'limits'
+];
+
+const TABS_FB: ('fixtures' | 'slip_entry' | 'slips_list')[] = [
+  'fixtures',
+  'slip_entry',
+  'slips_list'
+];
 
 function AppContent() {
   const lottery3D = useLottery();
@@ -258,6 +281,52 @@ function AppContent() {
     }
   };
 
+  // Swipe left/right gesture to switch tabs on mobile & touch devices
+  const handleSwipeLeft = useCallback(() => {
+    if (dealerMode === '3d') {
+      const idx = TABS_3D.indexOf(activeTab3D);
+      if (idx !== -1 && idx < TABS_3D.length - 1) {
+        setActiveTab3D(TABS_3D[idx + 1]);
+      }
+    } else if (dealerMode === '2d') {
+      const idx = TABS_2D.indexOf(activeTab2D);
+      if (idx !== -1 && idx < TABS_2D.length - 1) {
+        setActiveTab2D(TABS_2D[idx + 1]);
+      }
+    } else if (dealerMode === 'football') {
+      const idx = TABS_FB.indexOf(activeTabFB);
+      if (idx !== -1 && idx < TABS_FB.length - 1) {
+        setActiveTabFB(TABS_FB[idx + 1]);
+      }
+    }
+  }, [dealerMode, activeTab3D, activeTab2D, activeTabFB]);
+
+  const handleSwipeRight = useCallback(() => {
+    if (dealerMode === '3d') {
+      const idx = TABS_3D.indexOf(activeTab3D);
+      if (idx > 0) {
+        setActiveTab3D(TABS_3D[idx - 1]);
+      }
+    } else if (dealerMode === '2d') {
+      const idx = TABS_2D.indexOf(activeTab2D);
+      if (idx > 0) {
+        setActiveTab2D(TABS_2D[idx - 1]);
+      }
+    } else if (dealerMode === 'football') {
+      const idx = TABS_FB.indexOf(activeTabFB);
+      if (idx > 0) {
+        setActiveTabFB(TABS_FB[idx - 1]);
+      }
+    }
+  }, [dealerMode, activeTab3D, activeTab2D, activeTabFB]);
+
+  const swipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    threshold: 45,
+    disabled: hasActiveModal
+  });
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-500 selection:text-white">
       {/* Universal Multi-Bookie Header */}
@@ -281,8 +350,8 @@ function AppContent() {
         onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
       />
 
-      {/* Main View Area */}
-      <main className="pb-10 pt-1.5">
+      {/* Main View Area with Mobile Swipe Gestures */}
+      <main className="pb-10 pt-1.5 min-h-[75vh]" {...swipeHandlers}>
         {/* Prominent Quick Results Banner */}
         <div className="max-w-7xl mx-auto px-2 sm:px-4 mb-2">
           <QuickResultsBanner

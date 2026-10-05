@@ -45,6 +45,7 @@ import {
   downloadFile,
   getBackupFileName
 } from '../utils/backupUtils';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -125,6 +126,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Enabled Modes State
   const [localModes, setLocalModes] = useState<EnabledModes>(enabledModes);
+
+  // Settings Tabs List for Swiping
+  const settingsTabList: ('3d' | '2d' | 'football' | 'general' | 'backup' | 'statements' | 'excel')[] = [
+    ...(localModes['3d'] ? ['3d' as const] : []),
+    ...(localModes['2d'] ? ['2d' as const] : []),
+    ...(localModes['football'] ? ['football' as const] : []),
+    'general',
+    'backup',
+    'statements',
+    'excel'
+  ];
+
+  const handleSettingsSwipeLeft = () => {
+    const idx = settingsTabList.indexOf(activeTab);
+    if (idx !== -1 && idx < settingsTabList.length - 1) {
+      setActiveTab(settingsTabList[idx + 1]);
+    }
+  };
+
+  const handleSettingsSwipeRight = () => {
+    const idx = settingsTabList.indexOf(activeTab);
+    if (idx > 0) {
+      setActiveTab(settingsTabList[idx - 1]);
+    }
+  };
+
+  const settingsSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleSettingsSwipeLeft,
+    onSwipeRight: handleSettingsSwipeRight,
+    threshold: 45
+  });
 
   // Security PIN Change State
   const [oldPin, setOldPin] = useState('');
@@ -549,8 +581,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body - Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 text-xs">
+        {/* Modal Body - Scrollable Content with Mobile Swipe Gestures */}
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 text-xs" {...settingsSwipeHandlers}>
           
           {/* ==================================================== */}
           {/* TAB 1: 3D (အိုးစည်လေး) SETTINGS & LIMITS */}

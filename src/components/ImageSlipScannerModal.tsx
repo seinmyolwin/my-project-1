@@ -82,9 +82,113 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Real Live Camera Stream state
+  const [isLiveCameraActive, setIsLiveCameraActive] = useState<boolean>(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopLiveCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsLiveCameraActive(false);
+    setCameraError(null);
+  }, []);
+
+  const startLiveCamera = async (facing: 'environment' | 'user' = 'environment') => {
+    setCameraError(null);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+
+      streamRef.current = stream;
+      setCameraFacingMode(facing);
+      setIsLiveCameraActive(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch((e) => console.error('Video play error:', e));
+      }
+    } catch (err: any) {
+      console.warn('getUserMedia error, falling back to camera input:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraError(isMyanmar ? 'ကင်မရာ အသုံးပြုခွင့် (Camera Permission) ကို Browser တွင် Allow ပေးပါ' : 'Camera permission was denied in browser');
+      } else {
+        setCameraError(isMyanmar ? 'ကင်မရာ ချိတ်ဆက်မရပါ (ဖိုင်ရွေးချယ်မှုကို အသုံးပြုနိုင်ပါသည်)' : 'Camera not accessible');
+      }
+      cameraInputRef.current?.click();
+    }
+  };
+
+  const capturePhotoFromCamera = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+    stopLiveCamera();
+    loadImage(dataUrl);
+  };
+
+  const switchCameraFacingMode = () => {
+    const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
+    startLiveCamera(nextFacing);
+  };
+
+  // Connect video element when live camera turns active
+  useEffect(() => {
+    if (isLiveCameraActive && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch((e) => console.error('Video play error:', e));
+    }
+  }, [isLiveCameraActive]);
+
+  // Clean up stream on modal close or unmount
+  useEffect(() => {
+    if (!isOpen) {
+      stopLiveCamera();
+    }
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isOpen, stopLiveCamera]);
+
   // Reset state when opened or closed
   useEffect(() => {
     if (!isOpen) {
+      stopLiveCamera();
       setImageSrc(null);
       setExtractedRows([]);
       setRawOcrText('');
@@ -92,7 +196,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
       setIsScanning(false);
       setRotation(0);
     }
-  }, [isOpen]);
+  }, [isOpen, stopLiveCamera]);
 
   // Handle Clipboard Paste for instant image pasting (Ctrl + V)
   useEffect(() => {
@@ -127,6 +231,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
 
   // Load image into canvas and auto-enhance
   const loadImage = (src: string) => {
+    stopLiveCamera();
     setImageSrc(src);
     setRotation(0);
     setExtractedRows([]);
@@ -425,65 +530,135 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
         {/* Modal Body */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
           
-          {/* Top Stage: Photo Upload / Capture Controls */}
+          {/* Top Stage: Photo Upload / Live Camera Capture Controls */}
           {!imageSrc ? (
-            <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50/70 hover:bg-indigo-50/20 rounded-2xl p-8 text-center transition-all flex flex-col items-center justify-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shadow-xs">
-                <ImageIcon className="w-8 h-8" />
-              </div>
+            isLiveCameraActive ? (
+              /* Live Camera Stream Viewfinder */
+              <div className="bg-slate-950 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center gap-4 relative overflow-hidden border border-slate-800 shadow-xl">
+                <div className="relative w-full max-w-lg mx-auto overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center aspect-[4/3] sm:aspect-[16/9]">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
 
-              <div className="space-y-1">
-                <h4 className="text-base font-bold text-slate-900">
-                  {isMyanmar ? 'စလစ်ဓါတ်ပုံ တင်သွင်းရန် သို့မဟုတ် ဓါတ်ပုံရိုက်ရန်' : 'Upload or Capture Slip Photo'}
-                </h4>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  {isMyanmar
-                    ? 'ကင်မရာဖြင့် ဓါတ်ပုံရိုက်နိုင်သည် သို့မဟုတ် ဖုန်း/ကွန်ပျူတာထဲမှ ပုံရွေးချယ်ပါ (Ctrl+V ဖြင့်လည်း ပုံကူးထည့်နိုင်ပါသည်)'
-                    : 'Take a photo with your device camera or pick from gallery (or paste with Ctrl+V)'}
-                </p>
-              </div>
+                  {/* Corner Alignment Guides for Slip Framing */}
+                  <div className="absolute inset-5 sm:inset-7 border-2 border-emerald-400/70 rounded-xl pointer-events-none flex flex-col justify-between p-2">
+                    <div className="flex justify-between">
+                      <span className="w-5 h-5 border-t-3 border-l-3 border-emerald-400"></span>
+                      <span className="w-5 h-5 border-t-3 border-r-3 border-emerald-400"></span>
+                    </div>
+                    <div className="text-center">
+                      <span className="px-3 py-1 bg-black/75 text-emerald-300 text-xs font-black rounded-full backdrop-blur-xs border border-emerald-500/30">
+                        {isMyanmar ? 'စလစ် သို့မဟုတ် စာရွက်ကို ဘောင်အတွင်း ချိန်ပါ' : 'Align slip inside frame'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="w-5 h-5 border-b-3 border-l-3 border-emerald-400"></span>
+                      <span className="w-5 h-5 border-b-3 border-r-3 border-emerald-400"></span>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                {/* Camera Capture Input */}
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-transform active:scale-95 cursor-pointer"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>{isMyanmar ? 'ကင်မရာဖြင့် ဓါတ်ပုံရိုက်မည်' : 'Take Photo (Camera)'}</span>
-                </button>
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                {/* Live Camera Controls */}
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={stopLiveCamera}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  >
+                    {isMyanmar ? 'ပိတ်မည်' : 'Close Camera'}
+                  </button>
 
-                {/* File Picker */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-2xs flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Upload className="w-4 h-4 text-indigo-600" />
-                  <span>{isMyanmar ? 'ဖိုင်/ပုံ ရွေးချယ်မည် (Browse)' : 'Browse Files'}</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </div>
+                  {/* Shutter / Capture Button */}
+                  <button
+                    type="button"
+                    onClick={capturePhotoFromCamera}
+                    className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center gap-2 transition-transform active:scale-95 cursor-pointer ring-4 ring-emerald-500/20"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>{isMyanmar ? 'ဓါတ်ပုံရိုက်ယူမည် (Capture)' : 'Capture Photo'}</span>
+                  </button>
 
-              <div className="pt-2 text-[11px] text-slate-500 flex items-center gap-1.5 font-mono">
-                <span>💡 အကြံပြုချက်: ဓါတ်ပုံအား ရှင်းလင်းစွာ ရိုက်ကူးပေးပါက ပိုမိုတိကျစွာ ဖတ်ယူနိုင်ပါသည်</span>
+                  {/* Switch Camera Button (Front/Back) */}
+                  <button
+                    type="button"
+                    onClick={switchCameraFacingMode}
+                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer"
+                    title="ကင်မရာ ရှေ့/နောက် ပြောင်းမည်"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50/70 hover:bg-indigo-50/20 rounded-2xl p-8 text-center transition-all flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shadow-xs">
+                  <ImageIcon className="w-8 h-8" />
+                </div>
+
+                <div className="space-y-1">
+                  <h4 className="text-base font-bold text-slate-900">
+                    {isMyanmar ? 'စလစ်ဓါတ်ပုံ တင်သွင်းရန် သို့မဟုတ် ဓါတ်ပုံရိုက်ရန်' : 'Upload or Capture Slip Photo'}
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {isMyanmar
+                      ? 'ကွန်ပျူတာ Webcam သို့မဟုတ် ဖုန်းကင်မရာဖြင့် တိုက်ရိုက်ရိုက်နိုင်သည် (သို့မဟုတ်) ဖိုင်ရွေးချယ်ပါ'
+                      : 'Take a photo with live camera or pick from device files'}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {/* Live Camera Capture Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => startLiveCamera('environment')}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-transform active:scale-95 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>{isMyanmar ? 'ကင်မရာဖြင့် ဓါတ်ပုံရိုက်မည်' : 'Take Photo (Camera)'}</span>
+                  </button>
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {/* File Picker */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-2xs flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4 text-indigo-600" />
+                    <span>{isMyanmar ? 'ဖိုင်/ပုံ ရွေးချယ်မည် (Browse)' : 'Browse Files'}</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </div>
+
+                {cameraError && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 max-w-md text-left">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>{cameraError}</span>
+                  </div>
+                )}
+
+                <div className="pt-2 text-[11px] text-slate-500 flex items-center gap-1.5 font-mono">
+                  <span>💡 အကြံပြုချက်: ဓါတ်ပုံအား ရှင်းလင်းစွာ ရိုက်ကူးပေးပါက ပိုမိုတိကျစွာ ဖတ်ယူနိုင်ပါသည်</span>
+                </div>
+              </div>
+            )
           ) : (
             /* Image Preview & Pre-processing Toolbar */
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
