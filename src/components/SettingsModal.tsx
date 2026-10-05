@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   X,
   Settings,
@@ -27,7 +28,8 @@ import {
   Percent,
   TrendingUp,
   FolderDown,
-  Share2
+  Share2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -47,7 +49,7 @@ import {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: '3d' | '2d' | 'football' | 'general' | 'backup';
+  initialTab?: '3d' | '2d' | 'football' | 'general' | 'backup' | 'statements' | 'excel';
   enabledModes: EnabledModes;
   onUpdateEnabledModes: (modes: EnabledModes) => void;
 }
@@ -63,13 +65,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const lottery2D = useTwoDLottery();
   const football = useFootball();
 
-  const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general' | 'backup'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general' | 'backup' | 'statements' | 'excel'>(initialTab);
   const [subTab3D, setSubTab3D] = useState<'rates' | 'limits' | 'blocked'>('rates');
   const [subTab2D, setSubTab2D] = useState<'rates' | 'limits' | 'blocked'>('rates');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Excel Export Handlers
+  const handleExport3DExcel = () => {
+    const data = lottery3D.vouchers.map((v, i) => ({
+      'စဉ်': i + 1,
+      'ဘောင်ချာအမှတ်': v.id,
+      'ဝယ်သူအမည်': v.customerName,
+      'ဖုန်း': v.customerPhone || '-',
+      'စုစုပေါင်းထိုးငွေ': v.totalAmount,
+      'ကော်မရှင်': v.commissionAmount,
+      'ပေးငွေ': v.netAmount,
+      'ရက်စွဲ': new Date(v.timestamp).toLocaleString()
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '3D Sales');
+    XLSX.writeFile(wb, `3D_Sales_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExport2DExcel = () => {
+    const data = lottery2D.vouchers.map((v, i) => ({
+      'စဉ်': i + 1,
+      'ဘောင်ချာအမှတ်': v.id,
+      'ဝယ်သူအမည်': v.customerName,
+      'ဖုန်း': v.customerPhone || '-',
+      'စုစုပေါင်းထိုးငွေ': v.totalAmount,
+      'ကော်မရှင်': v.commissionAmount,
+      'ပေးငွေ': v.netAmount,
+      'ရက်စွဲ': new Date(v.timestamp).toLocaleString()
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '2D Sales');
+    XLSX.writeFile(wb, `2D_Sales_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExportFootballExcel = () => {
+    const data = football.slips.map((s, i) => ({
+      'စဉ်': i + 1,
+      'ဘောင်ချာအမှတ်': s.id,
+      'ဝယ်သူအမည်': s.customerName,
+      'စုစုပေါင်းထိုးငွေ': s.totalStake,
+      'အခြေအနေ': s.status,
+      'ရက်စွဲ': new Date(s.timestamp).toLocaleString()
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Football Slips');
+    XLSX.writeFile(wb, `Football_Slips_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   // Enabled Modes State
   const [localModes, setLocalModes] = useState<EnabledModes>(enabledModes);
@@ -468,6 +520,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Database className="w-3.5 h-3.5 text-teal-400" />
             <span>ဖိုင်သိမ်းဆည်းမှု</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('statements')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'statements'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span>စားရင်းရှင်းတမ်း</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('excel')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'excel'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-sky-400" />
+            <span>Excel ထုတ်ရန်</span>
           </button>
         </div>
 
@@ -1315,6 +1393,108 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   <Upload className="w-4 h-4" />
                   <span>ဖိုင်ရွေးချယ်ပြီး ပြန်သွင်းမည်</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ==================================================== */}
+          {/* TAB 6: FINANCIAL STATEMENTS (စားရင်းရှင်းတမ်း) */}
+          {/* ==================================================== */}
+          {activeTab === 'statements' && (
+            <div className="space-y-4">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+                <h4 className="text-xs font-black text-emerald-900 uppercase flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>လက်ရှိလုပ်ငန်းလိုင်းများ၏ စားရင်းရှင်းတမ်းချုပ်</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">အိုးစည်လေး (3D) စုစုပေါင်းအရောင်း</span>
+                    <span className="text-sm font-mono font-black text-slate-900 mt-1 block">
+                      {formatAmount(lottery3D.vouchers.reduce((acc, v) => acc + v.totalAmount, 0), currency)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">ဇီးကွက် (2D) စုစုပေါင်းအရောင်း</span>
+                    <span className="text-sm font-mono font-black text-slate-900 mt-1 block">
+                      {formatAmount(lottery2D.vouchers.reduce((acc, v) => acc + v.totalAmount, 0), currency)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">ပစ်တိုင်းထောင် စုစုပေါင်းထိုးငွေ</span>
+                    <span className="text-sm font-mono font-black text-slate-900 mt-1 block">
+                      {formatAmount(football.slips.reduce((acc, s) => acc + s.totalStake, 0), currency)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                <span className="text-xs font-black text-slate-900 block">အသေးစိတ် စားရင်းရှင်းတမ်းများနှင့် အမြတ်/အရှုံး တွက်ချက်မှုများ</span>
+                <p className="text-[11px] text-slate-500">
+                  ရက်စွဲအလိုက်၊ ပွဲစဉ်အလိုက် အသေးစိတ် အမြတ်အစွန်းနှင့် ကော်မရှင်ရှင်းတမ်းများကို အပြည့်အစုံ ကြည့်ရှုနိုင်ပါသည်။
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ==================================================== */}
+          {/* TAB 7: EXCEL EXPORT (EXCEL ထုတ်ရန်) */}
+          {/* ==================================================== */}
+          {activeTab === 'excel' && (
+            <div className="space-y-4">
+              <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 space-y-3">
+                <h4 className="text-xs font-black text-sky-900 uppercase flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-sky-600" />
+                  <span>ရုံးသုံးအတွက် Excel ဖိုင် (.xlsx) ထုတ်ယူရန်</span>
+                </h4>
+                <p className="text-[11px] text-slate-600">
+                  အောက်ပါခလုတ်များကို နှိပ်၍ အရောင်းစာရင်းဇယားများနှင့် ဘောင်ချာများကို Excel ဖိုင်ဖြင့် တိုက်ရိုက် ထုတ်ယူနိုင်ပါသည်။
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleExport3DExcel}
+                  className="p-4 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">အိုးစည်လေး (3D) Excel</span>
+                    <span className="text-[11px] text-slate-500">ဘောင်ချာများနှင့် အရောင်းစာရင်း</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExport2DExcel}
+                  className="p-4 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">ဇီးကွက် (2D) Excel</span>
+                    <span className="text-[11px] text-slate-500">2D အရောင်းစာရင်းနှင့် ရှင်းတမ်း</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportFootballExcel}
+                  className="p-4 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">ပစ်တိုင်းထောင် (Football) Excel</span>
+                    <span className="text-[11px] text-slate-500">ဘောလုံးဘောင်ချာနှင့် ထိုးငွေများ</span>
+                  </div>
                 </button>
               </div>
             </div>

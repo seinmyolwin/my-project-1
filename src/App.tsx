@@ -48,6 +48,7 @@ import { FinancialStatementsModal } from './components/FinancialStatementsModal'
 import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
 import { ViberOrdersHubModal } from './components/ViberOrdersHubModal';
+import { TelegramOrdersHubModal } from './components/TelegramOrdersHubModal';
 
 // Security & Setup Modals
 import { FirstTimePinSetupModal } from './components/FirstTimePinSetupModal';
@@ -127,6 +128,7 @@ function AppContent() {
   const [isStatementsOpen, setIsStatementsOpen] = useState(false);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [isViberHubOpen, setIsViberHubOpen] = useState(false);
+  const [isTelegramHubOpen, setIsTelegramHubOpen] = useState(false);
 
   // Check if any modal is active
   const hasActiveModal =
@@ -145,12 +147,14 @@ function AppContent() {
     isHelpOpen ||
     isPreviousResultsOpen ||
     isTitleModalOpen ||
-    isViberHubOpen;
+    isViberHubOpen ||
+    isTelegramHubOpen;
 
   const closeActiveModal = useCallback(() => {
     if (printingVoucher3D) setPrintingVoucher3D(null);
     else if (printingVoucher2D) setPrintingVoucher2D(null);
     else if (isViberHubOpen) setIsViberHubOpen(false);
+    else if (isTelegramHubOpen) setIsTelegramHubOpen(false);
     else if (isSettingsOpen) setIsSettingsOpen(false);
     else if (isPinPromptOpen) setIsPinPromptOpen(false);
     else if (isNotificationsOpen) setIsNotificationsOpen(false);
@@ -274,6 +278,7 @@ function AppContent() {
         onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
         onOpenTitleModal={() => setIsTitleModalOpen(true)}
         onOpenViberHub={() => setIsViberHubOpen(true)}
+        onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
       />
 
       {/* Main View Area */}
@@ -505,6 +510,12 @@ function AppContent() {
           if (dealerMode === '2d') setPrintingVoucher2D(v);
           else setPrintingVoucher3D(v);
         }}
+      />
+
+      {/* Telegram Orders & Bot Hub Modal */}
+      <TelegramOrdersHubModal
+        isOpen={isTelegramHubOpen}
+        onClose={() => setIsTelegramHubOpen(false)}
       />
 
       {/* Help Modal */}

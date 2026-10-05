@@ -18,7 +18,9 @@ import {
   Activity,
   Edit3,
   MessageSquare,
-  Lock
+  Lock,
+  Bot,
+  RotateCcw
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -27,6 +29,7 @@ import { formatAmount } from '../utils/lotteryUtils';
 import { PWAInstallButton } from './PWAInstallButton';
 import { BookieMode } from '../types';
 import { getViberOrders } from '../utils/viberIntegration';
+import { getTelegramOrders } from '../utils/telegramIntegration';
 import { AppLogo } from './AppLogo';
 
 import { EnabledModes } from '../utils/securityUtils';
@@ -48,6 +51,7 @@ interface HeaderProps {
   onOpenPreviousResults?: () => void;
   onOpenTitleModal?: () => void;
   onOpenViberHub?: () => void;
+  onOpenTelegramHub?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -66,7 +70,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenStatements,
   onOpenPreviousResults,
   onOpenTitleModal,
-  onOpenViberHub
+  onOpenViberHub,
+  onOpenTelegramHub
 }) => {
   // Contexts
   const lottery3D = useLottery();
@@ -76,6 +81,15 @@ export const Header: React.FC<HeaderProps> = ({
   const viberPendingCount = React.useMemo(() => {
     try {
       const orders = getViberOrders();
+      return orders.filter(o => o.status === 'pending_review').length;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  const telegramPendingCount = React.useMemo(() => {
+    try {
+      const orders = getTelegramOrders();
       return orders.filter(o => o.status === 'pending_review').length;
     } catch {
       return 0;
@@ -272,6 +286,37 @@ export const Header: React.FC<HeaderProps> = ({
                     {viberPendingCount}
                   </span>
                 )}
+              </button>
+            )}
+
+            {/* Telegram Direct Ingest Hub Button */}
+            {onOpenTelegramHub && (
+              <button
+                type="button"
+                onClick={onOpenTelegramHub}
+                className="px-3 py-1.5 bg-sky-900/70 hover:bg-sky-800 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                title="Telegram Bot တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
+              >
+                <Bot className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden sm:inline">{isMyanmar ? 'Telegram စာရင်းများ' : 'Telegram Orders'}</span>
+                {telegramPendingCount > 0 && (
+                  <span className="bg-sky-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                    {telegramPendingCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* New Round / Reset Button */}
+            {onOpenRoundManager && (
+              <button
+                type="button"
+                onClick={onOpenRoundManager}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                title="မနက် / ညနေ အလုပ်ပြီး၍ ပွဲစဉ်အသစ်စတင်ရန် (သို့မဟုတ်) Reset လုပ်ရန်"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-200" />
+                <span className="hidden sm:inline">{isMyanmar ? 'ပွဲစဉ်အသစ် / Reset' : 'New Round'}</span>
               </button>
             )}
 

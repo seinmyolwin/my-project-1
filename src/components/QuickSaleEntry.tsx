@@ -552,6 +552,32 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
         </div>
       )}
 
+      {/* Prominent Viber / Photo OCR Banner */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-4 sm:p-5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-amber-300 font-bold shrink-0">
+            <Camera className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-black">
+              {isMyanmar ? '📷 Viber ဓါတ်ပုံ / စလစ်တင်၍ AI ဖြင့် အလိုအလျောက် စကင်ဖတ်ရန်' : 'Scan Viber Slip Photo'}
+            </h3>
+            <p className="text-xs text-indigo-200">
+              {isMyanmar ? 'လက်ရေးစလစ် သို့မဟုတ် Viber စကရင်ရှော့ခ်များကို တင်လိုက်ရုံဖြင့် ဂဏန်းနှင့် ထိုးကြေးများ အလိုအလျောက် ဝင်မည်' : 'Upload photos or screenshots to instantly extract bets'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsScannerModalOpen(true)}
+          className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-indigo-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-transform active:scale-95 cursor-pointer shrink-0"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>{isMyanmar ? 'ဓါတ်ပုံစကင်ဖတ်မည် (Scan Now)' : 'Scan Photo Now'}</span>
+        </button>
+      </div>
+
       {/* Main Grid: Left = Entry Controls, Right = Slip Preview / Items Cart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         

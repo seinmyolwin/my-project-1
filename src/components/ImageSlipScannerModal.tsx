@@ -21,7 +21,7 @@ import {
   Ban
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { formatAmount, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
+import { formatAmount, convertMyanmarToEnglishDigits, getPermutations } from '../utils/lotteryUtils';
 import {
   preprocessCanvas,
   parseSlipImageText,
@@ -174,13 +174,13 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
     });
   };
 
-  // Start OCR & Smart Parse
+  // Start OCR & Smart Parse via Gemini AI Vision API (with offline Tesseract fallback)
   const handleStartOCR = async () => {
     if (!imageSrc) return;
 
     setIsScanning(true);
-    setScanProgress(5);
-    setScanStatusText(isMyanmar ? 'ပုံရိပ်အား စစ်ဆေးနေပါသည်...' : 'Processing image...');
+    setScanProgress(10);
+    setScanStatusText(isMyanmar ? 'Gemini AI ဖြင့် ဓါတ်ပုံအား လျင်မြန်စွာ ဖတ်ယူနေပါသည်...' : 'Analyzing image with Gemini AI...');
 
     try {
       const img = document.createElement('img');
@@ -208,9 +208,82 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
           grayscale: isGrayscale
         });
 
+        const dataUrl = processed.toDataURL('image/jpeg', 0.85);
+
         try {
+          setScanProgress(40);
+          const res = await fetch('/api/ocr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: dataUrl, mimeType: 'image/jpeg' })
+          });
+
+          if (!res.ok) {
+            throw new Error('Server OCR failed');
+          }
+
+          setScanProgress(80);
+          const data = await res.json();
+
+          setRawOcrText(data.rawText || JSON.stringify(data.items));
+
+          if (data.customerName && data.customerName !== 'အထွေထွေ (Photo Entry)') {
+            setDetectedCustomerName(data.customerName);
+          }
+          if (data.customerPhone) {
+            setDetectedCustomerPhone(data.customerPhone);
+          }
+
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            let idCounter = 1;
+            const geminiRows: ExtractedBetRow[] = [];
+
+            data.items.forEach((item: any) => {
+              const num = convertMyanmarToEnglishDigits(String(item.number || '')).replace(/[^0-9]/g, '').slice(0, 3);
+              const amt = parseInt(convertMyanmarToEnglishDigits(String(item.amount || '0')), 10) || 0;
+              const isR = !!item.isRumble;
+
+              if (num.length === 3 && amt > 0) {
+                if (isR) {
+                  // Expand rumble if needed or mark as rumble
+                  const perms = getPermutations(num);
+                  perms.forEach((p, idx) => {
+                    geminiRows.push({
+                      id: `gemini-${Date.now()}-${idCounter++}`,
+                      number: p,
+                      amount: amt,
+                      isRumble: true,
+                      originalRaw: `${num} R (${perms.length} ခွေ - ${idx + 1})`,
+                      isValid: true
+                    });
+                  });
+                } else {
+                  geminiRows.push({
+                    id: `gemini-${Date.now()}-${idCounter++}`,
+                    number: num,
+                    amount: amt,
+                    isRumble: false,
+                    originalRaw: item.originalRaw || `${num}=${amt}`,
+                    isValid: true
+                  });
+                }
+              }
+            });
+
+            setExtractedRows(geminiRows);
+            setScanProgress(100);
+            setIsScanning(false);
+            return;
+          }
+
+          throw new Error('No items detected by Gemini');
+        } catch (apiErr) {
+          console.warn('Gemini OCR fallback to offline Tesseract:', apiErr);
+          setScanProgress(30);
+          setScanStatusText(isMyanmar ? 'အော့ဖ်လိုင်း Tesseract ဖြင့် ဖတ်ယူနေပါသည်...' : 'Falling back to offline OCR...');
+
           const text = await performOfflineOCR(processed, (pct, status) => {
-            setScanProgress(pct);
+            setScanProgress(30 + Math.round(pct * 0.7));
             setScanStatusText(status);
           });
 
@@ -227,10 +300,6 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
           setExtractedRows(parsed.extractedItems);
           setWarnings(parsed.warnings);
           setIsScanning(false);
-        } catch (err) {
-          console.error('OCR Error:', err);
-          setIsScanning(false);
-          setScanStatusText('OCR ဖတ်ယူရာတွင် အခက်အခဲရှိပါသည်။ ကျေးဇူးပြု၍ စာသားများ ရှင်းလင်းစွာပါသော ပုံကို ရွေးချယ်ပေးပါ');
         }
       };
 

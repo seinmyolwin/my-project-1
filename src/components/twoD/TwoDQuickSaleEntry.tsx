@@ -15,10 +15,11 @@ import {
   ShieldAlert,
   Sliders,
   ChevronDown,
-  X
+  X,
+  Camera
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction } from '../../types';
+import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem } from '../../types';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import {
   getTwoDReversal,
@@ -34,6 +35,7 @@ import {
   getTwoDOddOdd
 } from '../../utils/twoDLotteryUtils';
 import { OverLimitConfirmModal } from '../OverLimitConfirmModal';
+import { ImageSlipScannerModal } from '../ImageSlipScannerModal';
 
 interface TwoDQuickSaleEntryProps {
   onVoucherCreated: (voucher: TwoDVoucher) => void;
@@ -87,6 +89,29 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
   // Toast notification
   const [toastNotification, setToastNotification] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+
+  // Photo Slip Scanner Modal state
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+
+  const handleAddFromScanner = (scannedItems: BetItem[], scannedCustomerName: string, scannedPhone: string) => {
+    if (scannedCustomerName && !customerName) {
+      setCustomerName(scannedCustomerName);
+    }
+    if (scannedPhone && !customerPhone) {
+      setCustomerPhone(scannedPhone);
+    }
+
+    const newTwoDItems: TwoDBetItem[] = scannedItems.map((it, idx) => ({
+      id: `twoD-scan-${Date.now()}-${idx}`,
+      number: it.number.slice(0, 2),
+      amount: it.amount,
+      isRumble: it.isRumble,
+      originalInput: it.originalInput || it.number
+    }));
+
+    setItems(prev => [...prev, ...newTwoDItems]);
+    showToast(isMyanmar ? `ဓါတ်ပုံမှ ဂဏန်း ${newTwoDItems.length} လုံး အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ` : `Added ${newTwoDItems.length} items from photo`, 'success');
+  };
 
   const numberInputRef = useRef<HTMLInputElement>(null);
 
@@ -408,6 +433,32 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           </button>
         </div>
       )}
+
+      {/* Prominent Viber / Photo OCR Banner */}
+      <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-900 text-white rounded-2xl p-4 sm:p-5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-amber-300 font-bold shrink-0">
+            <Camera className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-black">
+              {isMyanmar ? '📷 Viber ဓါတ်ပုံ / စလစ်တင်၍ AI ဖြင့် အလိုအလျောက် စကင်ဖတ်ရန်' : 'Scan Viber Slip Photo'}
+            </h3>
+            <p className="text-xs text-teal-200">
+              {isMyanmar ? 'လက်ရေးစလစ် သို့မဟုတ် Viber စကရင်ရှော့ခ်များကို တင်လိုက်ရုံဖြင့် ဂဏန်းနှင့် ထိုးကြေးများ အလိုအလျောက် ဝင်မည်' : 'Upload photos or screenshots to instantly extract bets'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsScannerModalOpen(true)}
+          className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-teal-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-transform active:scale-95 cursor-pointer shrink-0"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>{isMyanmar ? 'ဓါတ်ပုံစကင်ဖတ်မည် (Scan Now)' : 'Scan Photo Now'}</span>
+        </button>
+      </div>
 
       {/* Main Grid: Input Form & Cart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -853,6 +904,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         overLimitItems={pendingOverLimitItems}
         customerName={customerName}
         onConfirm={handleConfirmOverLimit}
+      />
+
+      {/* Image Slip Scanner Modal */}
+      <ImageSlipScannerModal
+        isOpen={isScannerModalOpen}
+        onClose={() => setIsScannerModalOpen(false)}
+        onAddBetsToCart={handleAddFromScanner}
       />
     </div>
   );
