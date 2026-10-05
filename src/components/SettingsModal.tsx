@@ -1333,36 +1333,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="block text-[10px] text-slate-400 mb-1 font-bold">လက်ရှိ Password:</label>
                     <input
                       type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength={20}
                       value={oldPin}
                       onChange={(e) => setOldPin(e.target.value)}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
                       placeholder="လက်ရှိ Password"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs"
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] text-slate-400 mb-1 font-bold">Password အသစ်:</label>
                     <input
                       type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength={20}
                       value={newPin}
                       onChange={(e) => setNewPin(e.target.value)}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
                       placeholder="အနည်းဆုံး ၄ လုံး"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs"
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] text-slate-400 mb-1 font-bold">အတည်ပြုပါ:</label>
                     <input
                       type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength={20}
                       value={confirmNewPin}
                       onChange={(e) => setConfirmNewPin(e.target.value)}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
                       placeholder="အတည်ပြုပါ"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs"
                     />
                   </div>
                 </div>

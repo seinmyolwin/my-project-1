@@ -42,8 +42,7 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations } from '../utils/lotteryUtils';
-import { parseSlipImageText, preprocessCanvas } from '../utils/imageOcrUtils';
-import { createWorker } from 'tesseract.js';
+import { parseSlipImageText, preprocessCanvas, performOfflineOCR } from '../utils/imageOcrUtils';
 
 interface ViberOrdersHubModalProps {
   isOpen: boolean;
@@ -137,23 +136,24 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
       });
 
       setOcrProgress(40);
-      const worker = await createWorker(['mya', 'eng']);
-      setOcrProgress(70);
-
-      const ret = await worker.recognize(processedCanvas);
-      await worker.terminate();
+      const ocrText = await performOfflineOCR(processedCanvas, (pct) => {
+        setOcrProgress(40 + Math.round(pct * 0.5));
+      });
       setOcrProgress(90);
-
-      const ocrText = ret.data.text;
       setNewRawText(ocrText);
 
       // Auto parse
-      const parsedRes = parseSlipImageText(ocrText);
-      if (parsedRes.customerName && !newSenderName) {
+      const parsedRes = parseSlipImageText(ocrText, newCategory);
+      if (parsedRes.customerName && parsedRes.customerName !== 'အထွေထွေ (Photo / Chat Entry)' && !newSenderName) {
         setNewSenderName(parsedRes.customerName);
       }
       if (parsedRes.customerPhone && !newSenderPhone) {
         setNewSenderPhone(parsedRes.customerPhone);
+      }
+
+      if (parsedRes.extractedItems && parsedRes.extractedItems.length > 0) {
+        const linesStr = parsedRes.extractedItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+        setNewRawText(linesStr);
       }
 
       setOcrProgress(100);

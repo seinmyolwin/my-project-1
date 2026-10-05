@@ -32,38 +32,45 @@ export function useSwipeGesture({
 
   const onTouchStart = useCallback(
     (e: TouchEvent) => {
-      if (disabled) return;
-      if (e.touches.length !== 1) return;
+      try {
+        if (disabled) return;
+        if (!e.touches || e.touches.length !== 1) return;
 
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        // Don't trigger if interacting with form controls or sliders
-        const tagName = target.tagName.toLowerCase();
-        if (
-          tagName === 'input' ||
-          tagName === 'textarea' ||
-          tagName === 'select' ||
-          target.isContentEditable ||
-          target.closest('[data-no-swipe="true"]') ||
-          target.closest('input[type="range"]')
-        ) {
-          touchStartX.current = null;
-          touchStartY.current = null;
-          return;
+        const rawTarget = e.target as Node | null;
+        const target = rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement;
+
+        if (target) {
+          // Don't trigger if interacting with form controls or sliders
+          const tagName = (target.tagName || '').toLowerCase();
+          if (
+            tagName === 'input' ||
+            tagName === 'textarea' ||
+            tagName === 'select' ||
+            (target as HTMLElement).isContentEditable ||
+            target.closest?.('[data-no-swipe="true"]') ||
+            target.closest?.('input[type="range"]')
+          ) {
+            touchStartX.current = null;
+            touchStartY.current = null;
+            return;
+          }
+
+          // Avoid triggering if inside a dedicated horizontally scrollable container
+          const scrollableX = target.closest?.('.overflow-x-auto, [data-scrollable="x"]');
+          if (scrollableX) {
+            touchStartX.current = null;
+            touchStartY.current = null;
+            return;
+          }
         }
 
-        // Avoid triggering if inside a dedicated horizontally scrollable container
-        const scrollableX = target.closest('.overflow-x-auto, [data-scrollable="x"]');
-        if (scrollableX) {
-          touchStartX.current = null;
-          touchStartY.current = null;
-          return;
-        }
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+        touchStartTime.current = Date.now();
+      } catch {
+        touchStartX.current = null;
+        touchStartY.current = null;
       }
-
-      touchStartX.current = e.touches[0].clientX;
-      touchStartY.current = e.touches[0].clientY;
-      touchStartTime.current = Date.now();
     },
     [disabled]
   );
@@ -74,32 +81,37 @@ export function useSwipeGesture({
 
   const onTouchEnd = useCallback(
     (e: TouchEvent) => {
-      if (disabled || touchStartX.current === null || touchStartY.current === null) return;
-      if (e.changedTouches.length === 0) return;
+      try {
+        if (disabled || touchStartX.current === null || touchStartY.current === null) return;
+        if (!e.changedTouches || e.changedTouches.length === 0) return;
 
-      const endX = e.changedTouches[0].clientX;
-      const endY = e.changedTouches[0].clientY;
-      const diffX = endX - touchStartX.current;
-      const diffY = endY - touchStartY.current;
-      const duration = Date.now() - touchStartTime.current;
+        const endX = e.changedTouches[0].clientX;
+        const endY = e.changedTouches[0].clientY;
+        const diffX = endX - touchStartX.current;
+        const diffY = endY - touchStartY.current;
+        const duration = Date.now() - touchStartTime.current;
 
-      touchStartX.current = null;
-      touchStartY.current = null;
+        touchStartX.current = null;
+        touchStartY.current = null;
 
-      // Ignore if gesture took too long (over 800ms)
-      if (duration > 800) return;
+        // Ignore if gesture took too long (over 800ms)
+        if (duration > 800) return;
 
-      const absX = Math.abs(diffX);
-      const absY = Math.abs(diffY);
+        const absX = Math.abs(diffX);
+        const absY = Math.abs(diffY);
 
-      if (absX >= threshold && absY / absX <= maxVerticalRatio) {
-        if (diffX < 0) {
-          // Swiped Left -> go to Next Tab
-          onSwipeLeft?.();
-        } else {
-          // Swiped Right -> go to Previous Tab
-          onSwipeRight?.();
+        if (absX >= threshold && absY / absX <= maxVerticalRatio) {
+          if (diffX < 0) {
+            // Swiped Left -> go to Next Tab
+            onSwipeLeft?.();
+          } else {
+            // Swiped Right -> go to Previous Tab
+            onSwipeRight?.();
+          }
         }
+      } catch {
+        touchStartX.current = null;
+        touchStartY.current = null;
       }
     },
     [disabled, threshold, maxVerticalRatio, onSwipeLeft, onSwipeRight]

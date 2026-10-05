@@ -194,12 +194,23 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
                 </label>
                 <input
                   type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={20}
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   placeholder="Password ထည့်ပါ"
-                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all"
+                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all shadow-2xs"
                   required
                 />
               </div>
@@ -210,12 +221,23 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
                 </label>
                 <input
                   type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={20}
                   value={confirmPin}
                   onChange={(e) => setConfirmPin(e.target.value)}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
                   placeholder="အတည်ပြုပါ"
-                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all"
+                  className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all shadow-2xs"
                   required
                 />
               </div>

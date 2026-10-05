@@ -98,13 +98,24 @@ export const PinPromptModal: React.FC<PinPromptModalProps> = ({
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                placeholder="Password ရိုက်ထည့်ပါ"
+                onFocus={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                onClick={(e) => {
+                  const target = e.currentTarget;
+                  target.select();
+                  setTimeout(() => target.select(), 20);
+                }}
+                placeholder="Password / PIN ရိုက်ထည့်ပါ"
                 autoFocus
                 autoComplete="current-password"
-                className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-2xl px-4 py-3 text-lg font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all shadow-2xs"
+                className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-2xl px-4 py-3 text-xl font-black font-mono tracking-widest text-center text-slate-900 outline-none transition-all shadow-2xs"
               />
             </div>
 

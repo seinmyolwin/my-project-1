@@ -501,6 +501,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                     ref={numberInputRef}
                     type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     maxLength={2}
                     placeholder="24"
                     value={numberInput}
@@ -508,7 +509,16 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                       const val = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2);
                       setNumberInput(val);
                     }}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className={`w-full h-13 px-4 text-center font-mono text-2xl font-black rounded-xl border transition-all ${
                       isInputBlocked
                         ? 'border-rose-400 bg-rose-50 text-rose-800'
@@ -525,10 +535,20 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   <input
                     type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="1000"
                     value={amountInput}
                     onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                    onFocus={(e) => e.target.select()}
+                    onFocus={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
+                    onClick={(e) => {
+                      const target = e.currentTarget;
+                      target.select();
+                      setTimeout(() => target.select(), 20);
+                    }}
                     className="w-full h-13 px-4 text-right font-mono text-xl font-bold rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
                   />
                 </div>
@@ -894,6 +914,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         isOpen={isScannerModalOpen}
         onClose={() => setIsScannerModalOpen(false)}
         onAddBetsToCart={handleAddFromScanner}
+        mode="2d"
       />
     </div>
   );

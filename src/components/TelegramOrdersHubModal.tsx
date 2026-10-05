@@ -34,7 +34,7 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations, parseQuickBetText } from '../utils/lotteryUtils';
-import { preprocessCanvas } from '../utils/imageOcrUtils';
+import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../utils/imageOcrUtils';
 import { BetItem } from '../types';
 
 interface TelegramOrdersHubModalProps {
@@ -122,31 +122,24 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         threshold: false
       });
 
-      setOcrProgress(50);
-      const dataUrl = processedCanvas.toDataURL('image/jpeg', 0.85);
-
-      const res = await fetch('/api/ocr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl, mimeType: 'image/jpeg' })
+      setOcrProgress(40);
+      const text = await performOfflineOCR(processedCanvas, (pct) => {
+        setOcrProgress(40 + Math.round(pct * 0.5));
       });
-
-      if (!res.ok) throw new Error('OCR failed');
-      const data = await res.json();
       setOcrProgress(90);
+      setNewRawText(text);
 
-      if (data.customerName && data.customerName !== 'အထွေထွေ (Photo Entry)') {
-        setNewSenderName(data.customerName);
+      const parsed = parseSlipImageText(text, newCategory);
+      if (parsed.customerName && parsed.customerName !== 'အထွေထွေ (Photo / Chat Entry)' && parsed.customerName !== 'အထွေထွေ (Photo Entry)') {
+        setNewSenderName(parsed.customerName);
       }
-      if (data.customerPhone) {
-        setNewSenderPhone(data.customerPhone);
+      if (parsed.customerPhone) {
+        setNewSenderPhone(parsed.customerPhone);
       }
 
-      if (data.items && data.items.length > 0) {
-        const linesStr = data.items.map((it: any) => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+      if (parsed.extractedItems && parsed.extractedItems.length > 0) {
+        const linesStr = parsed.extractedItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
         setNewRawText(linesStr);
-      } else if (data.rawText) {
-        setNewRawText(data.rawText);
       }
 
       setOcrProgress(100);
