@@ -16,11 +16,12 @@ export const PWAInstallButton: React.FC = () => {
     return (
       <button
         onClick={install}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
+        className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
         title="ဖုန်း သို့မဟုတ် ကွန်ပျူတာထဲသို့ ရွှေမင်္ဂလာ App ထည့်သွင်းမည်"
       >
-        <Download className="w-3.5 h-3.5" />
-        <span>ရွှေမင်္ဂလာ App သွင်းမည်</span>
+        <Download className="w-3.5 h-3.5 shrink-0" />
+        <span className="hidden md:inline">ရွှေမင်္ဂလာ App သွင်းမည်</span>
+        <span className="md:hidden">App သွင်းမည်</span>
       </button>
     );
   }
@@ -31,11 +32,12 @@ export const PWAInstallButton: React.FC = () => {
       <>
         <button
           onClick={() => setShowIOSGuide(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-indigo-700 font-semibold text-xs rounded-xl shadow-2xs transition-colors cursor-pointer"
+          className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
           title="iPhone / iPad တွင် ရွှေမင်္ဂလာ App အဖြစ်သွင်းရန်"
         >
-          <Smartphone className="w-3.5 h-3.5" />
-          <span>ရွှေမင်္ဂလာ App သွင်းရန်</span>
+          <Smartphone className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden md:inline">ရွှေမင်္ဂလာ App သွင်းရန်</span>
+          <span className="md:hidden">App သွင်းမည်</span>
         </button>
 
         {showIOSGuide && (

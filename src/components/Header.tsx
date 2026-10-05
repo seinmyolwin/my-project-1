@@ -155,10 +155,10 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-30 shadow-xs">
       {/* Top Dealer Mode Switcher Bar */}
-      <div className="bg-slate-900 text-white px-3 sm:px-6 py-2">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
+      <div className="bg-slate-900 text-white px-2.5 sm:px-6 py-1.5 sm:py-2">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
           {/* Multi-Bookie Dealer Mode Switcher Tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-800/90 rounded-2xl border border-slate-700">
+          <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-800/90 rounded-2xl border border-slate-700 shrink-0">
             {enabledModes['3d'] && (
               <button
                 type="button"
@@ -166,13 +166,13 @@ export const Header: React.FC<HeaderProps> = ({
                   setDealerMode('3d');
                   setActiveTab('sales');
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
                   dealerMode === '3d'
                     ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-indigo-300"></span>
+                <span className="w-2 h-2 rounded-full bg-indigo-300 shrink-0"></span>
                 <span>{isMyanmar ? 'အိုးစည်လေး' : '1'}</span>
               </button>
             )}
@@ -184,13 +184,13 @@ export const Header: React.FC<HeaderProps> = ({
                   setDealerMode('2d');
                   setActiveTab('sales');
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
                   dealerMode === '2d'
                     ? 'bg-teal-600 text-white shadow-md ring-2 ring-teal-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-teal-300"></span>
+                <span className="w-2 h-2 rounded-full bg-teal-300 shrink-0"></span>
                 <span>{isMyanmar ? 'ဇီးကွက်' : '2'}</span>
               </button>
             )}
@@ -202,25 +202,25 @@ export const Header: React.FC<HeaderProps> = ({
                   setDealerMode('football');
                   setActiveTab('fixtures');
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
                   dealerMode === 'football'
                     ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0"></span>
                 <span>{isMyanmar ? 'ပစ်တိုင်းထောင်' : '3'}</span>
               </button>
             )}
           </div>
 
           {/* Previous Results Ticker & Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {onOpenPreviousResults && (
               <button
                 type="button"
                 onClick={onOpenPreviousResults}
-                className={`px-3 py-1.5 border text-xs font-black rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+                className={`px-2.5 sm:px-3 py-1.5 border text-xs font-black rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0 ${
                   dealerMode === '3d'
                     ? 'bg-indigo-950/80 hover:bg-indigo-900 border-indigo-400/60 text-indigo-200 ring-1 ring-indigo-400/20'
                     : dealerMode === '2d'
@@ -236,7 +236,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }
               >
                 <Trophy
-                  className={`w-3.5 h-3.5 ${
+                  className={`w-3.5 h-3.5 shrink-0 ${
                     dealerMode === '3d'
                       ? 'text-amber-400'
                       : dealerMode === '2d'
@@ -249,9 +249,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {dealerMode === '2d' && 'ဇီးကွက် ထွက်ဂဏန်းမှတ်တမ်း'}
                   {dealerMode === 'football' && 'ပစ်တိုင်းထောင် ပွဲပြီးရလဒ်မှတ်တမ်း'}
                 </span>
-                <span className="sm:hidden">
-                  {dealerMode === '3d' ? 'အိုးစည်လေး ရလဒ်' : dealerMode === '2d' ? 'ဇီးကွက် ရလဒ်' : 'ပစ်တိုင်းထောင် ရလဒ်'}
-                </span>
+                <span className="sm:hidden">ရလဒ်</span>
 
                 {dealerMode === '3d' && latestSettled3D?.winningNumber && (
                   <span className="bg-amber-400 text-amber-950 px-1.5 py-0.2 rounded font-mono font-black text-xs">
@@ -276,10 +274,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenViberHub}
-                className="px-3 py-1.5 bg-purple-900/70 hover:bg-purple-800 border border-purple-500/50 text-purple-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                className="px-2.5 sm:px-3 py-1.5 bg-purple-900/70 hover:bg-purple-800 border border-purple-500/50 text-purple-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
                 title="Viber တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
               >
-                <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+                <MessageSquare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                 <span className="hidden sm:inline">{isMyanmar ? 'Viber စာရင်းများ' : 'Viber Orders'}</span>
                 {viberPendingCount > 0 && (
                   <span className="bg-purple-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
@@ -294,10 +292,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenTelegramHub}
-                className="px-3 py-1.5 bg-sky-900/70 hover:bg-sky-800 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                className="px-2.5 sm:px-3 py-1.5 bg-sky-900/70 hover:bg-sky-800 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
                 title="Telegram Bot တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
               >
-                <Bot className="w-3.5 h-3.5 text-sky-400" />
+                <Bot className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                 <span className="hidden sm:inline">{isMyanmar ? 'Telegram စာရင်းများ' : 'Telegram Orders'}</span>
                 {telegramPendingCount > 0 && (
                   <span className="bg-sky-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
@@ -312,10 +310,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenRoundManager}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                className="px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
                 title="မနက် / ညနေ အလုပ်ပြီး၍ ပွဲစဉ်အသစ်စတင်ရန် (သို့မဟုတ်) Reset လုပ်ရန်"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-200" />
+                <RotateCcw className="w-3.5 h-3.5 text-amber-200 shrink-0" />
                 <span className="hidden sm:inline">{isMyanmar ? 'ပွဲစဉ်အသစ် / Reset' : 'New Round'}</span>
               </button>
             )}
@@ -324,10 +322,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenBackupModal}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer shrink-0"
               title="ဖိုင်သီးသန့် သိမ်းဆည်းရန်/ပြန်သွင်းရန်"
             >
-              <Database className="w-3.5 h-3.5 text-teal-400" />
+              <Database className="w-3.5 h-3.5 text-teal-400 shrink-0" />
               <span className="hidden sm:inline">{isMyanmar ? 'ဖိုင်သိမ်းဆည်းမှု (Backup)' : 'Backup & Restore'}</span>
             </button>
 
