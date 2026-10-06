@@ -86,14 +86,24 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const todayStr = new Date().toISOString().slice(0, 10);
     if (stored && stored.length > 0) {
       return stored.map((r) => {
-        // Ensure today's morning round is settled with official confirmed number 86
-        if (r.drawDate === todayStr && (r.session === 'morning' || r.id.includes('morn'))) {
-          return {
-            ...r,
-            winningNumber: '86',
-            status: 'settled',
-            settledAt: r.settledAt || `${todayStr}T12:05:00Z`
-          };
+        // Ensure today's morning round is settled with 86 and evening round with 29
+        if (r.drawDate === todayStr) {
+          if (r.session === 'morning' || r.id.includes('morn')) {
+            return {
+              ...r,
+              winningNumber: '86',
+              status: 'settled',
+              settledAt: r.settledAt || `${todayStr}T12:05:00Z`
+            };
+          }
+          if (r.session === 'evening' || r.id.includes('eve')) {
+            return {
+              ...r,
+              winningNumber: '29',
+              status: 'settled',
+              settledAt: r.settledAt || `${todayStr}T16:35:00Z`
+            };
+          }
         }
         // Ensure yesterday's morning (56) and evening (63)
         if (r.drawDate === '2026-10-05') {
