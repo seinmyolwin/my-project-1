@@ -33,7 +33,11 @@ import {
   getTwoDHeadNumbers,
   getTwoDTailNumbers,
   getTwoDEvenEven,
-  getTwoDOddOdd
+  getTwoDOddOdd,
+  getTwoDKhway,
+  getTwoDKhwayPuu,
+  getTwoDKhwayRumble,
+  getTwoDKhwayPuuRumble
 } from '../../utils/twoDLotteryUtils';
 import { OverLimitConfirmModal } from '../OverLimitConfirmModal';
 import { ImageSlipScannerModal } from '../ImageSlipScannerModal';
@@ -144,6 +148,37 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   const parsedPreviewNumbers = useMemo(() => {
     const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
     if (!rawInput) return [];
+
+    // Check if user typed any of the 4 Khway keywords directly
+    // 1. ခွေပူးအာ / ခွေပူးr
+    if (/ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        return getTwoDKhwayPuuRumble(nums[0]);
+      }
+    }
+    // 2. ခွေအာ / ခွေr
+    if (/ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(rawInput) && !/ပူး/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        return getTwoDKhwayRumble(nums[0]);
+      }
+    }
+    // 3. ခွေပူး
+    if (/ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(rawInput) && !/[rအာ]/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        return getTwoDKhwayPuu(nums[0]);
+      }
+    }
+    // 4. ခွေ (ရိုးရိုးခွေ)
+    if (/ခွေ/i.test(rawInput) && !/ပူး|[rအာ]/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        return getTwoDKhway(nums[0]);
+      }
+    }
+
     const hasR = isRumble || /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
     const cleanForNumbers = rawInput.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
     const rawTokens = cleanForNumbers.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
@@ -189,11 +224,16 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     let amt = parseFloat(amountInput);
-    // Support embedded amount in number input like "35=500" or "35-500" if amount box is empty
+    // Support embedded amount in number input like "35=500", "35-500", "1234 ခွေ 500", "1234.ခွေ.500" if amount box is empty
     if (isNaN(amt) || amt <= 0) {
-      const matchAmt = rawInput.match(/[=:\-_/,*+](\d+)/);
+      const matchAmt = rawInput.match(/[=:\-_/,*+\s](\d+)$/);
       if (matchAmt && matchAmt[1]) {
         amt = parseFloat(matchAmt[1]);
+      } else {
+        const allNums = rawInput.match(/\d+/g);
+        if (allNums && allNums.length > 1) {
+          amt = parseFloat(allNums[allNums.length - 1]);
+        }
       }
     }
 
@@ -202,6 +242,75 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       showToast(isMyanmar ? 'ထိုးကြေးငွေ ထည့်သွင်းပါ (ဥပမာ- ၅၀၀)' : 'Enter bet amount (e.g., 500)', 'warning');
       amountInputRef.current?.focus();
       return;
+    }
+
+    // Helper to insert generated Khway items
+    const insertKhwayItems = (generatedNumbers: string[], label: string) => {
+      if (generatedNumbers.length === 0) return false;
+      const newItems: TwoDBetItem[] = [];
+      const blockedFound: string[] = [];
+      generatedNumbers.forEach((n) => {
+        if (isNumberBlocked(n)) {
+          blockedFound.push(n);
+        } else {
+          newItems.push({
+            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            number: n,
+            amount: amt,
+            originalInput: label
+          });
+        }
+      });
+      if (blockedFound.length > 0) {
+        playWarningSound();
+        showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${blockedFound.join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers`, 'warning');
+      }
+      if (newItems.length > 0) {
+        playAddSound();
+        setItems((prev) => [...prev, ...newItems]);
+        setNumberInput('');
+        setAmountInput('');
+        setIsRumble(false);
+        numberInputRef.current?.focus();
+        showToast(
+          isMyanmar ? `${label} (${newItems.length} ကွက်) စာရင်းသွင်းပြီးပါပြီ` : `Added ${label} (${newItems.length} bets)`,
+          'success'
+        );
+      }
+      return true;
+    };
+
+    // Direct typed keyword support for the 4 Khway variations:
+    // 1. ခွေပူးအာ / ခွေပူးr
+    if (/ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        if (insertKhwayItems(getTwoDKhwayPuuRumble(nums[0]), `${nums[0]} ခွေပူးr`)) return;
+      }
+    }
+
+    // 2. ခွေအာ / ခွေr
+    if (/ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(rawInput) && !/ပူး/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        if (insertKhwayItems(getTwoDKhwayRumble(nums[0]), `${nums[0]} ခွေr`)) return;
+      }
+    }
+
+    // 3. ခွေပူး
+    if (/ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(rawInput) && !/[rအာ]/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        if (insertKhwayItems(getTwoDKhwayPuu(nums[0]), `${nums[0]} ခွေပူး`)) return;
+      }
+    }
+
+    // 4. ခွေ (ရိုးရိုးခွေ)
+    if (/ခွေ/i.test(rawInput) && !/ပူး|[rအာ]/i.test(rawInput)) {
+      const nums = rawInput.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        if (insertKhwayItems(getTwoDKhway(nums[0]), `${nums[0]} ခွေ`)) return;
+      }
     }
 
     const hasRInInput = /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
@@ -427,7 +536,137 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     );
   };
 
-  // 6-9. Preset Patterns (အပူး, ပါဝါ, နက္ခတ်, ညီကို: fills numbers into number box)
+  // 6. ခွေ (ရိုးရိုးခွေ / အရှေ့မှအနောက်သို့သာတွဲ / အာမပါ / အပူးမပါ)
+  // ဥပမာ- "၁၂၃၄" ခွေ -> 12 13 14 23 24 34 (၆ ကွက်)
+  // ဥပမာ- "၂၃၄၅၆" ခွေ -> (၁၀ ကွက်)
+  const handleAddKhwayClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    const digitsOnly = cleanNum.replace(/\D/g, '');
+    const uniqueDigits = Array.from(new Set(digitsOnly.split('')));
+
+    if (uniqueDigits.length < 2) {
+      playWarningSound();
+      showToast(
+        isMyanmar
+          ? 'ခွေရန် အနည်းဆုံး မတူသော ဂဏန်း ၂ လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၁၂၃၄ သို့ ၂၃၄၅၆)'
+          : 'Enter at least 2 distinct digits (e.g., 1234)',
+        'warning'
+      );
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const khwayNumbers = getTwoDKhway(digitsOnly);
+    setNumberInput(khwayNumbers.join(' '));
+    setIsRumble(false);
+    amountInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `[${uniqueDigits.join('')}] ခွေ (${khwayNumbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
+        : `Khway: [${uniqueDigits.join('')}] (${khwayNumbers.length} bets). Enter amount and tap Add.`,
+      'success'
+    );
+  };
+
+  // 7. ခွေပူး (ရိုးရိုးခွေ + အပူးပါ / အာမပါ)
+  // ဥပမာ- "၁၂၃၄" ခွေပူး -> ခွေ ၆ ကွက် + အပူး ၄ ကွက် = စုစုပေါင်း ၁၀ ကွက်
+  // ဥပမာ- "၂၃၄၅၆" ခွေပူး -> ခွေ ၁၀ ကွက် + အပူး ၅ ကွက် = စုစုပေါင်း ၁၅ ကွက်
+  const handleAddKhwayPuuClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    const digitsOnly = cleanNum.replace(/\D/g, '');
+    const uniqueDigits = Array.from(new Set(digitsOnly.split('')));
+
+    if (uniqueDigits.length < 2) {
+      playWarningSound();
+      showToast(
+        isMyanmar
+          ? 'ခွေပူးရန် အနည်းဆုံး မတူသော ဂဏန်း ၂ လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၁၂၃၄ သို့ ၂၃၄၅၆)'
+          : 'Enter at least 2 distinct digits for Khway Puu (e.g., 1234)',
+        'warning'
+      );
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const khwayPuuNumbers = getTwoDKhwayPuu(digitsOnly);
+    setNumberInput(khwayPuuNumbers.join(' '));
+    setIsRumble(false);
+    amountInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `[${uniqueDigits.join('')}] ခွေပူး (${khwayPuuNumbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
+        : `Khway Puu: [${uniqueDigits.join('')}] (${khwayPuuNumbers.length} bets with doubles). Enter amount and tap Add.`,
+      'success'
+    );
+  };
+
+  // 8. ခွေr (ခွေပြီး အာပါ လှည့်တွဲခြင်း / အပူးမပါ)
+  // ဥပမာ- "၁၂၃၄" ခွေr -> ၁၂ ကွက်
+  const handleAddKhwayRumbleClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    const digitsOnly = cleanNum.replace(/\D/g, '');
+    const uniqueDigits = Array.from(new Set(digitsOnly.split('')));
+
+    if (uniqueDigits.length < 2) {
+      playWarningSound();
+      showToast(
+        isMyanmar
+          ? 'ခွေr အတွက် အနည်းဆုံး မတူသော ဂဏန်း ၂ လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၁၂၃၄)'
+          : 'Enter at least 2 distinct digits for Khway R (e.g., 1234)',
+        'warning'
+      );
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const khwayRumbleNumbers = getTwoDKhwayRumble(digitsOnly);
+    setNumberInput(khwayRumbleNumbers.join(' '));
+    setIsRumble(false);
+    amountInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `[${uniqueDigits.join('')}] ခွေr (${khwayRumbleNumbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
+        : `Khway R: [${uniqueDigits.join('')}] (${khwayRumbleNumbers.length} bets). Enter amount and tap Add.`,
+      'success'
+    );
+  };
+
+  // 9. ခွေပူးr (ခွေ + အပူး + အာ အကုန်လုံးပါ)
+  // ဥပမာ- "၁၂၃၄" ခွေပူးr -> ခွေအာ ၁၂ ကွက် + အပူး ၄ ကွက် = စုစုပေါင်း ၁၆ ကွက်
+  const handleAddKhwayPuuRumbleClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    const digitsOnly = cleanNum.replace(/\D/g, '');
+    const uniqueDigits = Array.from(new Set(digitsOnly.split('')));
+
+    if (uniqueDigits.length < 2) {
+      playWarningSound();
+      showToast(
+        isMyanmar
+          ? 'ခွေပူးr အတွက် အနည်းဆုံး မတူသော ဂဏန်း ၂ လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၁၂၃၄)'
+          : 'Enter at least 2 distinct digits for Khway Puu R (e.g., 1234)',
+        'warning'
+      );
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const khwayPuuRumbleNumbers = getTwoDKhwayPuuRumble(digitsOnly);
+    setNumberInput(khwayPuuRumbleNumbers.join(' '));
+    setIsRumble(false);
+    amountInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `[${uniqueDigits.join('')}] ခွေပူးr (အကုန်ပါ ${khwayPuuRumbleNumbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
+        : `Khway Puu R: [${uniqueDigits.join('')}] (${khwayPuuRumbleNumbers.length} bets all-inclusive). Enter amount and tap Add.`,
+      'success'
+    );
+  };
+
+  // 10-13. Preset Patterns (အပူး, ပါဝါ, နက္ခတ်, ညီကို: fills numbers into number box)
   const handleAddPattern = (numbers: string[], label: string) => {
     playTapSound();
     setNumberInput(numbers.join(' '));
@@ -727,16 +966,16 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 />
               </div>
 
-              {/* 2. 9 Action Buttons below Number: အာ, ဘရိတ်, အပါ, ထိပ်, နောက်ပိတ်, အပူး, ပါဝါ, နက္ခတ်, ညီကို */}
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {/* Action Buttons below Number Input: အာ, ရိတ်, အပါ, ထိပ်, ပိတ်, ပူး, ပါဝါ, နက္ခတ်, ညီကို, ခွေ, ခွေပူး, ခွေr, ခွေပူးr */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 {/* 1. အာ (Rumble / Reversal) */}
                 <button
                   type="button"
                   onClick={handleAddRumbleClick}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
                     isRumble
-                      ? 'bg-teal-600 text-white shadow-2xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                      ? 'bg-teal-600 text-white ring-1 ring-teal-500'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
                   }`}
                   title={isMyanmar ? 'အာ / ပတ်လည် (R)' : 'Rumble (R)'}
                 >
@@ -744,61 +983,61 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   <span>{isMyanmar ? 'အာ' : 'R'}</span>
                 </button>
 
-                {/* 2. ဘရိတ် (Break) */}
+                {/* 2. ရိတ် (Break / ဘရိတ်) */}
                 <button
                   type="button"
                   onClick={handleAddBreakDigit}
-                  className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ရိုက်ထည့်ထားသော ဂဏန်း၏ ဘရိတ် (၁၀ ကွက်) ထည့်မည်' : 'Break'}
+                  className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ရိတ် (ဘရိတ် ၁၀ ကွက်)' : 'Break'}
                 >
-                  <span>{isMyanmar ? 'ဘရိတ်' : 'Break'}</span>
+                  <span>{isMyanmar ? 'ရိတ်' : 'Break'}</span>
                 </button>
 
-                {/* 3. အပါ (Includes) */}
+                {/* 3. အပါ (Includes / အပါ) */}
                 <button
                   type="button"
                   onClick={handleAddIncludesDigit}
-                  className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ရိုက်ထည့်ထားသော ဂဏန်းပါဝင်သည့် အကွက် ၁၉ ကွက်လုံး ထည့်မည်' : 'Includes'}
+                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'အပါ (၁၉ ကွက်)' : 'Includes'}
                 >
                   <span>{isMyanmar ? 'အပါ' : 'Includes'}</span>
                 </button>
 
-                {/* 4. ထိပ် (Head / ရှေ့ပိတ်) */}
+                {/* 4. ထိပ် (Head / ထိပ်စီး) */}
                 <button
                   type="button"
                   onClick={handleAddHeadDigit}
-                  className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ထိပ်စီး (၁၀ ကွက်) - ဥပမာ ၁ ထိပ်ဆိုလျှင် ၁၀ မှ ၁၉ အထိ' : 'Head'}
+                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ထိပ် (ထိပ်စီး ၁၀ ကွက်)' : 'Head'}
                 >
                   <span>{isMyanmar ? 'ထိပ်' : 'Head'}</span>
                 </button>
 
-                {/* 5. နောက်ပိတ် (Tail) */}
+                {/* 5. ပိတ် (Tail / နောက်ပိတ်) */}
                 <button
                   type="button"
                   onClick={handleAddTailDigit}
-                  className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'နောက်ပိတ် (၁၀ ကွက်) - ဥပမာ ၂ နောက်ပိတ်ဆိုလျှင် ၀၂ မှ ၉၂ အထိ' : 'Tail'}
+                  className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ပိတ် (နောက်ပိတ် ၁၀ ကွက်)' : 'Tail'}
                 >
-                  <span>{isMyanmar ? 'နောက်ပိတ်' : 'Tail'}</span>
+                  <span>{isMyanmar ? 'ပိတ်' : 'Tail'}</span>
                 </button>
 
-                {/* 6. အပူး (Doubles) */}
+                {/* 6. ပူး (Doubles / အပူး) */}
                 <button
                   type="button"
-                  onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'အပူး' : 'Doubles')}
-                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'အပူး (၀၀ မှ ၉၉ - ၁၀ ကွက်)' : 'Doubles'}
+                  onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'ပူး' : 'Doubles')}
+                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ပူး (အပူး ၁၀ ကွက်)' : 'Doubles'}
                 >
-                  <span>{isMyanmar ? 'အပူး' : 'Doubles'}</span>
+                  <span>{isMyanmar ? 'ပူး' : 'Doubles'}</span>
                 </button>
 
                 {/* 7. ပါဝါ (Power) */}
                 <button
                   type="button"
                   onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ' : 'Power')}
-                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
                   title={isMyanmar ? 'ပါဝါ (၁၀ ကွက်)' : 'Power'}
                 >
                   <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
@@ -808,7 +1047,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 <button
                   type="button"
                   onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
                   title={isMyanmar ? 'နက္ခတ် (၁၀ ကွက်)' : 'Natkhat'}
                 >
                   <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
@@ -818,10 +1057,50 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 <button
                   type="button"
                   onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို' : 'Brothers')}
-                  className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
                   title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
                 >
                   <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
+                </button>
+
+                {/* 10. ခွေ (Khway - ရိုးရိုးခွေ) */}
+                <button
+                  type="button"
+                  onClick={handleAddKhwayClick}
+                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ခွေ (ရိုးရိုးခွေ - ဥပမာ ၁၂၃၄ -> ၆ ကွက်၊ ၂၃၄၅၆ -> ၁၀ ကွက်)' : 'Khway'}
+                >
+                  <span>{isMyanmar ? 'ခွေ' : 'Khway'}</span>
+                </button>
+
+                {/* 11. ခွေပူး (Khway Puu - ရိုးရိုးခွေ + အပူး) */}
+                <button
+                  type="button"
+                  onClick={handleAddKhwayPuuClick}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ခွေပူး (ခွေ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၀ ကွက်၊ ၂၃၄၅၆ -> ၁၅ ကွက်)' : 'Khway Puu'}
+                >
+                  <span>{isMyanmar ? 'ခွေပူး' : 'Khway Puu'}</span>
+                </button>
+
+                {/* 12. ခွေr (Khway Rumble - လှည့်တွဲ / အပြန်အလှန်) */}
+                <button
+                  type="button"
+                  onClick={handleAddKhwayRumbleClick}
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ခွေr (ခွေအာ လှည့်တွဲ - ဥပမာ ၁၂၃၄ -> ၁၂ ကွက်၊ ၂၃၄၅၆ -> ၂၀ ကွက်)' : 'Khway R'}
+                >
+                  <span>{isMyanmar ? 'ခွေr' : 'Khway R'}</span>
+                </button>
+
+                {/* 13. ခွေပူးr (Khway Puu Rumble - ခွေအာ + အပူးပါ အကုန်ပါ) */}
+                <button
+                  type="button"
+                  onClick={handleAddKhwayPuuRumbleClick}
+                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                  title={isMyanmar ? 'ခွေပူးr (ခွေအာ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၆ ကွက်၊ ၂၃၄၅၆ -> ၂၅ ကွက်)' : 'Khway Puu R'}
+                >
+                  <span>{isMyanmar ? 'ခွေပူးr' : 'Khway Puu R'}</span>
                 </button>
               </div>
 
@@ -1214,13 +1493,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 rows={6}
                 value={batchText}
                 onChange={(e) => setBatchText(e.target.value)}
-                placeholder={`ဥပမာ-\n24 1000\n42 1000\n24R 500\nအပူး 1000\n5 ဘရိတ် 2000`}
+                placeholder={`ဥပမာ-\n1234 ခွေ 500\n1234 ခွေပူး 500\n1234 ခွေအာ 500\n1234 ခွေပူးအာ 500\n24 1000\n24R 500\nအပူး 1000\n5 ဘရိတ် 2000`}
                 className="w-full p-3 font-mono text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
               ></textarea>
               <p className="text-[11px] text-slate-500">
                 {isMyanmar
-                  ? 'Format: ဂဏန်းနှင့် ငွေပမာဏကို ခြား၍ ရိုက်ထည့်နိုင်ပါသည် (ဥပမာ- 24 1000, 24R 1000, အပူး 1000, 0 ဘရိတ် 2000)'
-                  : 'Enter numbers with amounts separated by spaces or newlines.'}
+                  ? 'Format: ဂဏန်းနှင့် ငွေပမာဏကို ခြား၍ ရိုက်ထည့်နိုင်ပါသည် (ဥပမာ- 1234 ခွေ 500, 1234 ခွေပူး 500, 1234 ခွေအာ 500, 1234 ခွေပူးအာ 500, 24R 1000, အပူး 1000)'
+                  : 'Enter numbers with amounts separated by spaces or newlines (e.g., 1234 Khway 500).'}
               </p>
             </div>
 

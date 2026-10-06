@@ -157,6 +157,68 @@ export function getTwoDReversal(num: string): string[] {
 }
 
 // ====================================================
+// MYANMAR 2D KHWAY (ခွေ) RULES - (၄) မျိုးစလုံး တိကျစွာ တွက်ချက်ခြင်း
+// ====================================================
+
+// ၁။ ခွေ (ရိုးရိုးခွေ / အရှေ့မှအနောက်သို့သာတွဲ / အာမပါ / အပူးမပါ)
+// ဥပမာ- "1234" -> 12, 13, 14, 23, 24, 34 (၆ ကွက်)
+// ဥပမာ- "23456" -> 23, 24, 25, 26, 34, 35, 36, 45, 46, 56 (၁၀ ကွက်)
+export function getTwoDKhway(input: string): string[] {
+  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  if (digits.length < 2) return [];
+
+  const result: string[] = [];
+  for (let i = 0; i < digits.length; i++) {
+    for (let j = i + 1; j < digits.length; j++) {
+      result.push(`${digits[i]}${digits[j]}`);
+    }
+  }
+  return result;
+}
+
+// ၂။ ခွေပူး (ရိုးရိုးခွေ + အပူးပါ / အာမပါ)
+// ဥပမာ- "1234" -> ခွေ (၆ ကွက်) + အပူး 11, 22, 33, 44 (၄ ကွက်) = ၁၀ ကွက်
+// ဥပမာ- "23456" -> ခွေ (၁၀ ကွက်) + အပူး 22, 33, 44, 55, 66 (၅ ကွက်) = ၁၅ ကွက်
+export function getTwoDKhwayPuu(input: string): string[] {
+  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  if (digits.length < 2) return [];
+
+  const khwayList = getTwoDKhway(input);
+  const doublesList = digits.map((d) => `${d}${d}`);
+
+  return [...khwayList, ...doublesList];
+}
+
+// ၃။ ခွေအာ (ခွေပြီး အာပါ လှည့်တွဲခြင်း / အပြန်အလှန် / အပူးမပါ)
+// ဥပမာ- "1234" -> 12, 13, 14, 21, 23, 24, 31, 32, 34, 41, 42, 43 (၁၂ ကွက်)
+export function getTwoDKhwayRumble(input: string): string[] {
+  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  if (digits.length < 2) return [];
+
+  const result: string[] = [];
+  for (let i = 0; i < digits.length; i++) {
+    for (let j = 0; j < digits.length; j++) {
+      if (i !== j) {
+        result.push(`${digits[i]}${digits[j]}`);
+      }
+    }
+  }
+  return result;
+}
+
+// ၄။ ခွေပူးအာ (ခွေအာ + အပူးပါ အကုန်လုံးပါ)
+// ဥပမာ- "1234" -> ခွေအာ (၁၂ ကွက်) + အပူး 11, 22, 33, 44 (၄ ကွက်) = ၁၆ ကွက်
+export function getTwoDKhwayPuuRumble(input: string): string[] {
+  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  if (digits.length < 2) return [];
+
+  const khwayRumbleList = getTwoDKhwayRumble(input);
+  const doublesList = digits.map((d) => `${d}${d}`);
+
+  return [...khwayRumbleList, ...doublesList];
+}
+
+// ====================================================
 // 2D BATCH TEXT / SLIP PARSER
 // ====================================================
 export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000): TwoDBetItem[] {
@@ -166,6 +228,82 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
+
+    // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble) - e.g. "1234 ခွေပူးr 1000", "1234.ခွေပူးအာ"
+    if (/ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const rawDigits = nums[0];
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        const generated = getTwoDKhwayPuuRumble(rawDigits);
+        generated.forEach((num) => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: amt,
+            originalInput: `${rawDigits} ခွေပူးr`
+          });
+        });
+        continue;
+      }
+    }
+
+    // Pattern 2: ခွေအာ / ခွေr (Khway + Rumble, no doubles) - e.g. "1234 ခွေr 1000", "1234.ခွေအာ"
+    if (/ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(line) && !/ပူး/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const rawDigits = nums[0];
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        const generated = getTwoDKhwayRumble(rawDigits);
+        generated.forEach((num) => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: amt,
+            originalInput: `${rawDigits} ခွေr`
+          });
+        });
+        continue;
+      }
+    }
+
+    // Pattern 3: ခွေပူး (Khway + Puu, no rumble) - e.g. "1234 ခွေပူး 1000", "1234.ခွေပူး"
+    if (/ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(line) && !/[rအာ]/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const rawDigits = nums[0];
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        const generated = getTwoDKhwayPuu(rawDigits);
+        generated.forEach((num) => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: amt,
+            originalInput: `${rawDigits} ခွေပူး`
+          });
+        });
+        continue;
+      }
+    }
+
+    // Pattern 4: ခွေ (ရိုးရိုးခွေ, no doubles, no rumble) - e.g. "1234 ခွေ 1000", "1234.ခွေ"
+    if (/ခွေ/i.test(line) && !/ပူး|[rအာ]/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const rawDigits = nums[0];
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        const generated = getTwoDKhway(rawDigits);
+        generated.forEach((num) => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: amt,
+            originalInput: `${rawDigits} ခွေ`
+          });
+        });
+        continue;
+      }
+    }
 
     // Pattern: "အပူး 1000"
     if (/အပူး/i.test(line)) {
