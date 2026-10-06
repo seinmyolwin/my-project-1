@@ -2,12 +2,76 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '15mb' }));
+
+  // Live Thai 2D / 3D Results proxy endpoint
+  app.get('/api/lottery/live-results', async (req, res) => {
+    try {
+      let live2DData: any = null;
+      let live3DData: any = null;
+      let history2DData: any[] = [];
+
+      // 1. Attempt to fetch Thai 2D live from official ThaiStock2D
+      try {
+        const response2D = await fetch('https://api.thaistock2d.com/live', {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (response2D.ok) {
+          live2DData = await response2D.json();
+        }
+      } catch (err2d) {
+        // Fallback
+      }
+
+      // 2. Attempt to fetch Thai 2D history
+      try {
+        const responseHistory = await fetch('https://api.thaistock2d.com/history', {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (responseHistory.ok) {
+          history2DData = await responseHistory.json();
+        }
+      } catch (errHist) {
+        // Fallback
+      }
+
+      // 3. Attempt to fetch Thai 3D latest from Thai Lottery API
+      try {
+        const response3D = await fetch('https://thai-lottery-api.vercel.app/latest', {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (response3D.ok) {
+          live3DData = await response3D.json();
+        }
+      } catch (err3d) {
+        // Fallback
+      }
+
+      res.json({
+        success: true,
+        source: 'Thai Stock Exchange (SET) & Official Thai GLO Lottery',
+        timestamp: new Date().toISOString(),
+        live2D: live2DData,
+        history2D: history2DData,
+        live3D: live3DData
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to fetch live results' });
+    }
+  });
 
   // Gemini AI Vision OCR endpoint for Lottery Slips, Viber/Telegram Screenshots & Photos
   app.post('/api/ocr', async (req, res) => {
@@ -163,13 +227,19 @@ Instructions:
     }
   });
 
-  // Vite middleware for development
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa'
-  });
-
-  app.use(vite.middlewares);
+  // Vite middleware for development or static serving for production
+  if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.get('*', (req, res) => {
+      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+    });
+  } else {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa'
+    });
+    app.use(vite.middlewares);
+  }
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
   app.listen(PORT, '0.0.0.0', () => {

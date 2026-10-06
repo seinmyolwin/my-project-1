@@ -28,9 +28,14 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center font-bold border border-amber-400/30 shrink-0">
             <Trophy className="w-4 h-4" />
           </div>
-          <span className="text-xs font-bold text-teal-200">
-            အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (ဇီးကွက်):
-          </span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
+            <span className="text-xs font-bold text-teal-200">
+              အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (ဇီးကွက်):
+            </span>
+            <span className="text-[10px] text-teal-400/90 font-mono">
+              [ဒီနေ့: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}]
+            </span>
+          </div>
         </div>
 
         {/* Badges of past winning numbers */}
@@ -81,9 +86,14 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center font-bold border border-amber-400/30 shrink-0">
             <Trophy className="w-4 h-4" />
           </div>
-          <span className="text-xs font-bold text-indigo-200">
-            အရင်ပွဲစဉ် ထွက်ဂဏန်း (အိုးစည်လေး):
-          </span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
+            <span className="text-xs font-bold text-indigo-200">
+              အရင်ပွဲစဉ် ထွက်ဂဏန်း (အိုးစည်လေး):
+            </span>
+            <span className="text-[10px] text-indigo-300/80 font-mono">
+              [ဒီနေ့: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}]
+            </span>
+          </div>
           {latest && (
             <div className="flex items-center gap-2 bg-indigo-900/80 border border-indigo-700/60 rounded-xl px-2.5 py-1 text-xs">
               <span className="text-[11px] text-indigo-300">{latest.name.split(' ')[0]}:</span>

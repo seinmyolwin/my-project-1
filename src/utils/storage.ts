@@ -15,6 +15,7 @@ import {
   FootballForwardSlip,
   FootballLeague
 } from '../types';
+import { generateUpToDate2DRounds, generateUpToDate3DRounds } from './thaiLotteryApi';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   appName: 'ရွှေမင်္ဂလာ',
@@ -36,55 +37,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMasterAgentPhone: '09-970001111'
 };
 
-export const INITIAL_ROUNDS: DrawRound[] = [
-  {
-    id: 'round-2026-09-01',
-    name: '01-Sep-2026 (ထိုင်း 3D ပွဲစဉ်)',
-    drawDate: '2026-09-01',
-    closingTime: '15:00',
-    status: 'open',
-    winningNumber: undefined,
-    multiplier: 600,
-    toddMultiplier: 100,
-    commissionRate: 10
-  },
-  {
-    id: 'round-2026-08-16',
-    name: '16-Aug-2026 (ထိုင်း 3D ပြီးဆုံး)',
-    drawDate: '2026-08-16',
-    closingTime: '15:00',
-    status: 'settled',
-    winningNumber: '782',
-    multiplier: 600,
-    toddMultiplier: 100,
-    commissionRate: 10,
-    settledAt: '2026-08-16T16:00:00Z'
-  },
-  {
-    id: 'round-2026-08-01',
-    name: '01-Aug-2026 (ထိုင်း 3D ပြီးဆုံး)',
-    drawDate: '2026-08-01',
-    closingTime: '15:00',
-    status: 'settled',
-    winningNumber: '519',
-    multiplier: 600,
-    toddMultiplier: 100,
-    commissionRate: 10,
-    settledAt: '2026-08-01T16:00:00Z'
-  },
-  {
-    id: 'round-2026-07-16',
-    name: '16-Jul-2026 (ထိုင်း 3D ပြီးဆုံး)',
-    drawDate: '2026-07-16',
-    closingTime: '15:00',
-    status: 'settled',
-    winningNumber: '460',
-    multiplier: 600,
-    toddMultiplier: 100,
-    commissionRate: 10,
-    settledAt: '2026-07-16T16:00:00Z'
-  }
-];
+export const INITIAL_ROUNDS: DrawRound[] = generateUpToDate3DRounds();
 
 export const INITIAL_LIMITS: NumberLimit = {
   '789': 60000,
@@ -224,67 +177,7 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   defaultMasterAgentPhone: '09-970001111'
 };
 
-export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = [
-  {
-    id: 'round-2d-2026-09-02-eve',
-    name: '02-Sep-2026 (ညနေ 04:30 PM)',
-    drawDate: '2026-09-02',
-    session: 'evening',
-    closingTime: '16:25',
-    status: 'open',
-    winningNumber: undefined,
-    multiplier: 85,
-    commissionRate: 12
-  },
-  {
-    id: 'round-2d-2026-09-02-morn',
-    name: '02-Sep-2026 (မနက် 12:01 PM)',
-    drawDate: '2026-09-02',
-    session: 'morning',
-    closingTime: '12:00',
-    status: 'settled',
-    winningNumber: '82',
-    multiplier: 85,
-    commissionRate: 12,
-    settledAt: '2026-09-02T12:05:00Z'
-  },
-  {
-    id: 'round-2d-2026-09-01-eve',
-    name: '01-Sep-2026 (ညနေ 04:30 PM)',
-    drawDate: '2026-09-01',
-    session: 'evening',
-    closingTime: '16:25',
-    status: 'settled',
-    winningNumber: '79',
-    multiplier: 85,
-    commissionRate: 12,
-    settledAt: '2026-09-01T16:35:00Z'
-  },
-  {
-    id: 'round-2d-2026-09-01-morn',
-    name: '01-Sep-2026 (မနက် 12:01 PM)',
-    drawDate: '2026-09-01',
-    session: 'morning',
-    closingTime: '12:00',
-    status: 'settled',
-    winningNumber: '34',
-    multiplier: 85,
-    commissionRate: 12,
-    settledAt: '2026-09-01T12:05:00Z'
-  },
-  {
-    id: 'round-2d-2026-08-31-eve',
-    name: '31-Aug-2026 (ညနေ 04:30 PM)',
-    drawDate: '2026-08-31',
-    session: 'evening',
-    closingTime: '16:25',
-    status: 'settled',
-    winningNumber: '15',
-    multiplier: 85,
-    commissionRate: 12,
-    settledAt: '2026-08-31T16:35:00Z'
-  }
-];
+export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds();
 
 export const INITIAL_2D_LIMITS: NumberLimit = {
   '82': 100000,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   Calendar,
@@ -20,7 +20,9 @@ import {
   MessageSquare,
   Lock,
   Bot,
-  RotateCcw
+  RotateCcw,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -96,6 +98,26 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, []);
 
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bookie_header_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleHeaderCollapse = () => {
+    setIsHeaderCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('bookie_header_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const isMyanmar =
     dealerMode === '3d'
       ? lottery3D.settings.language === 'my'
@@ -154,388 +176,402 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-30 shadow-xs">
-      {/* Top Dealer Mode Switcher Bar */}
-      <div className="bg-slate-900 text-white px-2.5 sm:px-6 py-1.5 sm:py-2">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          {/* Multi-Bookie Dealer Mode Switcher Tabs */}
-          <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-800/90 rounded-2xl border border-slate-700 shrink-0">
-            {enabledModes['3d'] && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDealerMode('3d');
-                  setActiveTab('sales');
-                }}
-                className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
-                  dealerMode === '3d'
-                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-indigo-300 shrink-0"></span>
-                <span>{isMyanmar ? 'အိုးစည်လေး' : '1'}</span>
-              </button>
-            )}
-
-            {enabledModes['2d'] && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDealerMode('2d');
-                  setActiveTab('sales');
-                }}
-                className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
-                  dealerMode === '2d'
-                    ? 'bg-teal-600 text-white shadow-md ring-2 ring-teal-400/40'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-teal-300 shrink-0"></span>
-                <span>{isMyanmar ? 'ဇီးကွက်' : '2'}</span>
-              </button>
-            )}
-
-            {enabledModes['football'] && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDealerMode('football');
-                  setActiveTab('fixtures');
-                }}
-                className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
-                  dealerMode === 'football'
-                    ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0"></span>
-                <span>{isMyanmar ? 'ပစ်တိုင်းထောင်' : '3'}</span>
-              </button>
-            )}
-          </div>
-
-          {/* Previous Results Ticker & Action Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            {onOpenPreviousResults && (
-              <button
-                type="button"
-                onClick={onOpenPreviousResults}
-                className={`px-2.5 sm:px-3 py-1.5 border text-xs font-black rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0 ${
-                  dealerMode === '3d'
-                    ? 'bg-indigo-950/80 hover:bg-indigo-900 border-indigo-400/60 text-indigo-200 ring-1 ring-indigo-400/20'
-                    : dealerMode === '2d'
-                    ? 'bg-teal-950/80 hover:bg-teal-900 border-teal-400/60 text-teal-200 ring-1 ring-teal-400/20'
-                    : 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-400/60 text-emerald-200 ring-1 ring-emerald-400/20'
-                }`}
-                title={
-                  dealerMode === '3d'
-                    ? 'အိုးစည်လေး အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
-                    : dealerMode === '2d'
-                    ? 'ဇီးကွက် အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
-                    : 'ပစ်တိုင်းထောင် ပြီးဆုံးခဲ့သော ပွဲစဉ်ရလဒ်များနှင့် အဖြေများ'
-                }
-              >
-                <Trophy
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    dealerMode === '3d'
-                      ? 'text-amber-400'
-                      : dealerMode === '2d'
-                      ? 'text-amber-300'
-                      : 'text-emerald-400'
-                  }`}
-                />
-                <span className="hidden sm:inline">
-                  {dealerMode === '3d' && 'အိုးစည်လေး ထွက်ဂဏန်းမှတ်တမ်း'}
-                  {dealerMode === '2d' && 'ဇီးကွက် ထွက်ဂဏန်းမှတ်တမ်း'}
-                  {dealerMode === 'football' && 'ပစ်တိုင်းထောင် ပွဲပြီးရလဒ်မှတ်တမ်း'}
-                </span>
-                <span className="sm:hidden">ရလဒ်</span>
-
-                {dealerMode === '3d' && latestSettled3D?.winningNumber && (
-                  <span className="bg-amber-400 text-amber-950 px-1.5 py-0.2 rounded font-mono font-black text-xs">
-                    {latestSettled3D.winningNumber}
-                  </span>
-                )}
-                {dealerMode === '2d' && latestSettled2D?.winningNumber && (
-                  <span className="bg-amber-400 text-amber-950 px-1.5 py-0.2 rounded font-mono font-black text-xs">
-                    {latestSettled2D.winningNumber}
-                  </span>
-                )}
-                {dealerMode === 'football' && latestFinishedFB && (
-                  <span className="bg-emerald-500 text-slate-950 px-1.5 py-0.2 rounded font-mono font-black text-[11px]">
-                    {latestFinishedFB.homeScore}-{latestFinishedFB.awayScore}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Viber Direct Ingest Hub Button */}
-            {onOpenViberHub && (
-              <button
-                type="button"
-                onClick={onOpenViberHub}
-                className="px-2.5 sm:px-3 py-1.5 bg-purple-900/70 hover:bg-purple-800 border border-purple-500/50 text-purple-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
-                title="Viber တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                <span className="hidden sm:inline">{isMyanmar ? 'Viber စာရင်းများ' : 'Viber Orders'}</span>
-                {viberPendingCount > 0 && (
-                  <span className="bg-purple-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
-                    {viberPendingCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Telegram Direct Ingest Hub Button */}
-            {onOpenTelegramHub && (
-              <button
-                type="button"
-                onClick={onOpenTelegramHub}
-                className="px-2.5 sm:px-3 py-1.5 bg-sky-900/70 hover:bg-sky-800 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
-                title="Telegram Bot တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
-              >
-                <Bot className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span className="hidden sm:inline">{isMyanmar ? 'Telegram စာရင်းများ' : 'Telegram Orders'}</span>
-                {telegramPendingCount > 0 && (
-                  <span className="bg-sky-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
-                    {telegramPendingCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* New Round / Reset Button */}
-            {onOpenRoundManager && (
-              <button
-                type="button"
-                onClick={onOpenRoundManager}
-                className="px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
-                title="မနက် / ညနေ အလုပ်ပြီး၍ ပွဲစဉ်အသစ်စတင်ရန် (သို့မဟုတ်) Reset လုပ်ရန်"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-                <span className="hidden sm:inline">{isMyanmar ? 'ပွဲစဉ်အသစ် / Reset' : 'New Round'}</span>
-              </button>
-            )}
-
-            {/* Backup & Restore Modal Trigger */}
-            <button
-              type="button"
-              onClick={onOpenBackupModal}
-              className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer shrink-0"
-              title="ဖိုင်သီးသန့် သိမ်းဆည်းရန်/ပြန်သွင်းရန်"
-            >
-              <Database className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-              <span className="hidden sm:inline">{isMyanmar ? 'ဖိုင်သိမ်းဆည်းမှု (Backup)' : 'Backup & Restore'}</span>
-            </button>
-
-            <PWAInstallButton />
-          </div>
-        </div>
-      </div>
-
-      {/* Mode Sub-Banner with Brand, Round Switcher & Mini Stats */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
-        {/* Brand & Round info */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <AppLogo size="md" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900">
-                  {appTitle || 'ရွှေမင်္ဂလာ'}
-                </h1>
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-black ${
-                    dealerMode === '3d'
-                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                      : dealerMode === '2d'
-                      ? 'bg-teal-100 text-teal-900 border border-teal-200'
-                      : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                  }`}
-                >
-                  ဆိုင်အမည်: {shopName}
-                </span>
-
-                {onOpenTitleModal && (
+      {!isHeaderCollapsed && (
+        <>
+          {/* Top Dealer Mode Switcher Bar */}
+          <div className="bg-slate-900 text-white px-2 sm:px-6 py-1.5 sm:py-2">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar">
+              {/* Multi-Bookie Dealer Mode Switcher Tabs */}
+              <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-800/90 rounded-2xl border border-slate-700 shrink-0">
+                {enabledModes['3d'] && (
                   <button
                     type="button"
-                    onClick={onOpenTitleModal}
-                    className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                    title="အက်ပ်ခေါင်းစဉ်နှင့် ဆိုင်အမည် ပြောင်းမည်"
+                    onClick={() => {
+                      setDealerMode('3d');
+                      setActiveTab('sales');
+                    }}
+                    className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
+                      dealerMode === '3d'
+                        ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    }`}
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
+                    <span className="w-2 h-2 rounded-full bg-indigo-300 shrink-0"></span>
+                    <span>{isMyanmar ? 'အိုးစည်လေး' : '1'}</span>
+                  </button>
+                )}
+
+                {enabledModes['2d'] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDealerMode('2d');
+                      setActiveTab('sales');
+                    }}
+                    className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
+                      dealerMode === '2d'
+                        ? 'bg-teal-600 text-white shadow-md ring-2 ring-teal-400/40'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-teal-300 shrink-0"></span>
+                    <span>{isMyanmar ? 'ဇီးကွက်' : '2'}</span>
+                  </button>
+                )}
+
+                {enabledModes['football'] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDealerMode('football');
+                      setActiveTab('fixtures');
+                    }}
+                    className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
+                      dealerMode === 'football'
+                        ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0"></span>
+                    <span>{isMyanmar ? 'ပစ်တိုင်းထောင်' : '3'}</span>
                   </button>
                 )}
               </div>
-              <p className="text-xs text-slate-500 font-medium font-bold">
-                {dealerMode === '3d'
-                  ? 'အိုးစည် စားရင်း စီမံမှု 1'
-                  : dealerMode === '2d'
-                  ? 'ဇီးကွက်စားရင်းစီမံမှု 2'
-                  : 'ပစ်တိုင်ထောင်စားရင် စီမံမှု 3'}
-              </p>
-            </div>
-          </div>
 
-          {/* Active Round Switcher (3D or 2D) */}
-          {dealerMode === '3d' && (
-            <div className="hidden lg:flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-1 shadow-2xs">
-              <Calendar className="w-4 h-4 text-indigo-600 ml-2 shrink-0" />
-              <select
-                value={lottery3D.activeRoundId}
-                onChange={(e) => lottery3D.setActiveRoundId(e.target.value)}
-                className="bg-transparent text-xs text-slate-800 font-semibold px-2 py-1 outline-none cursor-pointer"
-              >
-                {lottery3D.rounds.map((r) => (
-                  <option key={r.id} value={r.id} className="bg-white text-slate-800">
-                    {r.name} {r.status === 'settled' ? '✓ (ပေါက်ပြီး)' : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={onOpenRoundManager}
-                title="ပွဲစဉ်အသစ်ဖွင့်ရန်"
-                className="p-1 hover:bg-white rounded-lg text-slate-500 hover:text-indigo-600 transition-colors"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+              {/* Previous Results Ticker & Action Buttons */}
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {onOpenPreviousResults && (
+                  <button
+                    type="button"
+                    onClick={onOpenPreviousResults}
+                    className={`px-2 sm:px-3 py-1.5 border text-xs font-black rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0 ${
+                      dealerMode === '3d'
+                        ? 'bg-indigo-950/80 hover:bg-indigo-900 border-indigo-400/60 text-indigo-200 ring-1 ring-indigo-400/20'
+                        : dealerMode === '2d'
+                        ? 'bg-teal-950/80 hover:bg-teal-900 border-teal-400/60 text-teal-200 ring-1 ring-teal-400/20'
+                        : 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-400/60 text-emerald-200 ring-1 ring-emerald-400/20'
+                    }`}
+                    title={
+                      dealerMode === '3d'
+                        ? 'အိုးစည်လေး အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
+                        : dealerMode === '2d'
+                        ? 'ဇီးကွက် အရင်ပွဲစဉ်များ ထွက်ဂဏန်းနှင့် ရလဒ်မှတ်တမ်း'
+                        : 'ပစ်တိုင်းထောင် ပြီးဆုံးခဲ့သော ပွဲစဉ်ရလဒ်များနှင့် အဖြေများ'
+                    }
+                  >
+                    <Trophy
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        dealerMode === '3d'
+                          ? 'text-amber-400'
+                          : dealerMode === '2d'
+                          ? 'text-amber-300'
+                          : 'text-emerald-400'
+                      }`}
+                    />
+                    <span className="hidden sm:inline">
+                      {dealerMode === '3d' && 'အိုးစည်လေး ထွက်ဂဏန်းမှတ်တမ်း'}
+                      {dealerMode === '2d' && 'ဇီးကွက် ထွက်ဂဏန်းမှတ်တမ်း'}
+                      {dealerMode === 'football' && 'ပစ်တိုင်းထောင် ပွဲပြီးရလဒ်မှတ်တမ်း'}
+                    </span>
+                    <span className="sm:hidden">ရလဒ်</span>
 
-          {dealerMode === '2d' && (
-            <div className="hidden lg:flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-1 shadow-2xs">
-              <Calendar className="w-4 h-4 text-teal-600 ml-2 shrink-0" />
-              <select
-                value={lottery2D.activeRoundId}
-                onChange={(e) => lottery2D.setActiveRoundId(e.target.value)}
-                className="bg-transparent text-xs text-slate-800 font-semibold px-2 py-1 outline-none cursor-pointer"
-              >
-                {lottery2D.rounds.map((r) => (
-                  <option key={r.id} value={r.id} className="bg-white text-slate-800">
-                    {r.name} {r.status === 'settled' ? `✓ (${r.winningNumber})` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={onOpenRoundManager}
-                title="၂ လုံး ပွဲစဉ်အသစ်ဖွင့်ရန်"
-                className="p-1 hover:bg-white rounded-lg text-slate-500 hover:text-teal-600 transition-colors"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {dealerMode === 'football' && (
-            <div className="hidden lg:flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-1 shadow-2xs">
-              <Calendar className="w-4 h-4 text-emerald-600 ml-2 shrink-0" />
-              <input
-                type="date"
-                value={football.activeDate}
-                onChange={(e) => football.setActiveDate(e.target.value)}
-                className="bg-transparent text-xs text-slate-800 font-semibold px-2 py-1 outline-none cursor-pointer"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Real-time Stats & Action Buttons */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs">
-          {/* Revenue */}
-          <div className="bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs">
-            <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-              {isMyanmar ? 'စုစုပေါင်း ရောင်းရငွေ' : 'Total Revenue'}
-            </span>
-            <span className="font-bold text-emerald-600 text-sm font-mono">
-              {formatAmount(revenue, currency)}
-            </span>
-          </div>
-
-          {/* Net Outcome */}
-          {isSettled ? (
-            <div
-              className={`border px-3 py-1.5 rounded-xl shadow-2xs ${
-                isProfit ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'
-              }`}
-            >
-              <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                {isMyanmar ? 'အသားတင် အမြတ်/ရှုံး' : 'Net Outcome'}
-              </span>
-              <span
-                className={`font-bold text-sm font-mono ${
-                  isProfit ? 'text-emerald-700' : 'text-rose-700'
-                }`}
-              >
-                {isProfit ? '+' : '-'}{formatAmount(Math.abs(netOutcome), currency)}
-              </span>
-            </div>
-          ) : null}
-
-          {/* Quick Action Icons */}
-          <div className="flex items-center gap-1.5">
-            {/* Bell Notifications */}
-            {dealerMode !== 'football' && (
-              <button
-                onClick={onOpenNotifications}
-                className="relative p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-                title="သတိပေးချက်များ"
-              >
-                <Bell className="w-4 h-4" />
-                {alertCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
-                    {alertCount > 9 ? '9+' : alertCount}
-                  </span>
+                    {dealerMode === '3d' && latestSettled3D?.winningNumber && (
+                      <span className="bg-amber-400 text-amber-950 px-1.5 py-0.2 rounded font-mono font-black text-xs">
+                        {latestSettled3D.winningNumber}
+                      </span>
+                    )}
+                    {dealerMode === '2d' && latestSettled2D?.winningNumber && (
+                      <span className="bg-amber-400 text-amber-950 px-1.5 py-0.2 rounded font-mono font-black text-xs">
+                        {latestSettled2D.winningNumber}
+                      </span>
+                    )}
+                    {dealerMode === 'football' && latestFinishedFB && (
+                      <span className="bg-emerald-500 text-slate-950 px-1.5 py-0.2 rounded font-mono font-black text-[11px]">
+                        {latestFinishedFB.homeScore}-{latestFinishedFB.awayScore}
+                      </span>
+                    )}
+                  </button>
                 )}
-              </button>
-            )}
 
-            {/* Financial Statements & Reports Button */}
-            {onOpenStatements && (
-              <button
-                type="button"
-                onClick={onOpenStatements}
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="ကာလအလိုက် စာရင်းရှင်းတမ်းနှင့် အမြတ်/အရှုံး ကြည့်ရန်"
-              >
-                <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="hidden sm:inline">{isMyanmar ? 'စာရင်းရှင်းတမ်း' : 'Statements'}</span>
-              </button>
-            )}
+                {/* Viber Direct Ingest Hub Button */}
+                {onOpenViberHub && (
+                  <button
+                    type="button"
+                    onClick={onOpenViberHub}
+                    className="px-2 sm:px-3 py-1.5 bg-purple-900/70 hover:bg-purple-800 border border-purple-500/50 text-purple-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    title="Viber တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <span className="hidden sm:inline">{isMyanmar ? 'Viber စာရင်းများ' : 'Viber Orders'}</span>
+                    {viberPendingCount > 0 && (
+                      <span className="bg-purple-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                        {viberPendingCount}
+                      </span>
+                    )}
+                  </button>
+                )}
 
-            {/* Excel Export */}
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
-              title="Excel စာရင်း အကုန်ထုတ်ယူမည်"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{isMyanmar ? 'Excel ထုတ်ရန်' : 'Export Excel'}</span>
-            </button>
+                {/* Telegram Direct Ingest Hub Button */}
+                {onOpenTelegramHub && (
+                  <button
+                    type="button"
+                    onClick={onOpenTelegramHub}
+                    className="px-2 sm:px-3 py-1.5 bg-sky-900/70 hover:bg-sky-800 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    title="Telegram Bot တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    <span className="hidden sm:inline">{isMyanmar ? 'Telegram စာရင်းများ' : 'Telegram Orders'}</span>
+                    {telegramPendingCount > 0 && (
+                      <span className="bg-sky-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                        {telegramPendingCount}
+                      </span>
+                    )}
+                  </button>
+                )}
 
-            {/* Settings with Lock Badge */}
-            <button
-              onClick={onOpenSettings}
-              className="relative p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-              title="ဆက်တင် (Password ဖြင့် ကာကွယ်ထားပါသည်)"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] shadow-2xs">
-                <Lock className="w-2.5 h-2.5" />
-              </span>
-            </button>
+                {/* New Round / Reset Button */}
+                {onOpenRoundManager && (
+                  <button
+                    type="button"
+                    onClick={onOpenRoundManager}
+                    className="px-2 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    title="မနက် / ညနေ အလုပ်ပြီး၍ ပွဲစဉ်အသစ်စတင်ရန် (သို့မဟုတ်) Reset လုပ်ရန်"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                    <span className="hidden sm:inline">{isMyanmar ? 'ပွဲစဉ်အသစ်' : 'New Round'}</span>
+                  </button>
+                )}
 
-            {/* Help */}
-            <button
-              onClick={onOpenHelp}
-              className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-              title="အသုံးပြုနည်း လမ်းညွှန်ချက်"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
+                {/* Backup & Restore Modal Trigger */}
+                <button
+                  type="button"
+                  onClick={onOpenBackupModal}
+                  className="px-2 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer shrink-0"
+                  title="ဖိုင်သီးသန့် သိမ်းဆည်းရန်/ပြန်သွင်းရန်"
+                >
+                  <Database className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <span className="hidden sm:inline">{isMyanmar ? 'Backup' : 'Backup'}</span>
+                </button>
+
+                <PWAInstallButton />
+
+                {/* Hide Header Button */}
+                <button
+                  type="button"
+                  onClick={toggleHeaderCollapse}
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors cursor-pointer shrink-0"
+                  title="ခေါင်းစဉ်ဘား ဝှက်မည်"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+
+          {/* Mode Sub-Banner with Brand, Round Switcher & Mini Stats */}
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+            {/* Brand & Round info */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
+                <AppLogo size="md" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900">
+                      {appTitle || 'ရွှေမင်္ဂလာ'}
+                    </h1>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-black ${
+                        dealerMode === '3d'
+                          ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                          : dealerMode === '2d'
+                          ? 'bg-teal-100 text-teal-900 border border-teal-200'
+                          : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                      }`}
+                    >
+                      ဆိုင်အမည်: {shopName}
+                    </span>
+
+                    {onOpenTitleModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenTitleModal}
+                        className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="အက်ပ်ခေါင်းစဉ်နှင့် ဆိုင်အမည် ပြောင်းမည်"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium font-bold">
+                    {dealerMode === '3d'
+                      ? 'အိုးစည် စားရင်း စီမံမှု 1'
+                      : dealerMode === '2d'
+                      ? 'ဇီးကွက်စားရင်းစီမံမှု 2'
+                      : 'ပစ်တိုင်ထောင်စားရင် စီမံမှု 3'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Active Round Switcher (3D or 2D) */}
+              {dealerMode === '3d' && (
+                <div className="hidden lg:flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-1 shadow-2xs">
+                  <Calendar className="w-4 h-4 text-indigo-600 ml-2 shrink-0" />
+                  <select
+                    value={lottery3D.activeRoundId}
+                    onChange={(e) => lottery3D.setActiveRoundId(e.target.value)}
+                    className="bg-transparent text-xs text-slate-800 font-semibold px-2 py-1 outline-none cursor-pointer"
+                  >
+                    {lottery3D.rounds.map((r) => (
+                      <option key={r.id} value={r.id} className="bg-white text-slate-800">
+                        {r.name} {r.status === 'settled' ? '✓ (ပေါက်ပြီး)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={onOpenRoundManager}
+                    title="ပွဲစဉ်အသစ်ဖွင့်ရန်"
+                    className="p-1 hover:bg-white rounded-lg text-slate-500 hover:text-indigo-600 transition-colors"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {dealerMode === '2d' && (
+                <div className="hidden lg:flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-1 shadow-2xs">
+                  <Calendar className="w-4 h-4 text-teal-600 ml-2 shrink-0" />
+                  <select
+                    value={lottery2D.activeRoundId}
+                    onChange={(e) => lottery2D.setActiveRoundId(e.target.value)}
+                    className="bg-transparent text-xs text-slate-800 font-semibold px-2 py-1 outline-none cursor-pointer"
+                  >
+                    {lottery2D.rounds.map((r) => (
+                      <option key={r.id} value={r.id} className="bg-white text-slate-800">
+                        {r.name} {r.status === 'settled' ? `✓ (${r.winningNumber})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={onOpenRoundManager}
+                    title="၂ လုံး ပွဲစဉ်အသစ်ဖွင့်ရန်"
+                    className="p-1 hover:bg-white rounded-lg text-slate-500 hover:text-teal-600 transition-colors"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {dealerMode === 'football' && (
+                <div className="hidden lg:flex items-center bg-slate-100/90 border border-slate-200 rounded-xl p-1 shadow-2xs">
+                  <Calendar className="w-4 h-4 text-emerald-600 ml-2 shrink-0" />
+                  <input
+                    type="date"
+                    value={football.activeDate}
+                    onChange={(e) => football.setActiveDate(e.target.value)}
+                    className="bg-transparent text-xs text-slate-800 font-semibold px-2 py-1 outline-none cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Real-time Stats & Action Buttons */}
+            <div className="flex items-center gap-2 sm:gap-3 text-xs">
+              {/* Revenue */}
+              <div className="bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs">
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  {isMyanmar ? 'စုစုပေါင်း ရောင်းရငွေ' : 'Total Revenue'}
+                </span>
+                <span className="font-bold text-emerald-600 text-sm font-mono">
+                  {formatAmount(revenue, currency)}
+                </span>
+              </div>
+
+              {/* Net Outcome */}
+              {isSettled ? (
+                <div
+                  className={`border px-3 py-1.5 rounded-xl shadow-2xs ${
+                    isProfit ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'
+                  }`}
+                >
+                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                    {isMyanmar ? 'အသားတင် အမြတ်/ရှုံး' : 'Net Outcome'}
+                  </span>
+                  <span
+                    className={`font-bold text-sm font-mono ${
+                      isProfit ? 'text-emerald-700' : 'text-rose-700'
+                    }`}
+                  >
+                    {isProfit ? '+' : '-'}{formatAmount(Math.abs(netOutcome), currency)}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Quick Action Icons */}
+              <div className="flex items-center gap-1.5">
+                {/* Bell Notifications */}
+                {dealerMode !== 'football' && (
+                  <button
+                    onClick={onOpenNotifications}
+                    className="relative p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+                    title="သတိပေးချက်များ"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {alertCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                        {alertCount > 9 ? '9+' : alertCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* Financial Statements & Reports Button */}
+                {onOpenStatements && (
+                  <button
+                    type="button"
+                    onClick={onOpenStatements}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
+                    title="ကာလအလိုက် စာရင်းရှင်းတမ်းနှင့် အမြတ်/အရှုံး ကြည့်ရန်"
+                  >
+                    <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="hidden sm:inline">{isMyanmar ? 'စာရင်းရှင်းတမ်း' : 'Statements'}</span>
+                  </button>
+                )}
+
+                {/* Excel Export */}
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                  title="Excel စာရင်း အကုန်ထုတ်ယူမည်"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">{isMyanmar ? 'Excel ထုတ်ရန်' : 'Export Excel'}</span>
+                </button>
+
+                {/* Settings with Lock Badge */}
+                <button
+                  onClick={onOpenSettings}
+                  className="relative p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+                  title="ဆက်တင် (Password ဖြင့် ကာကွယ်ထားပါသည်)"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] shadow-2xs">
+                    <Lock className="w-2.5 h-2.5" />
+                  </span>
+                </button>
+
+                {/* Help */}
+                <button
+                  onClick={onOpenHelp}
+                  className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+                  title="အသုံးပြုနည်း လမ်းညွှန်ချက်"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Mode-Specific Navigation Tabs */}
       <div className="bg-slate-50/80 border-t border-slate-200 px-3 sm:px-6">
@@ -708,14 +744,89 @@ export const Header: React.FC<HeaderProps> = ({
             </nav>
           )}
 
-          {/* Mobile Round Switcher */}
-          <div className="lg:hidden py-1 pl-2">
+          {/* Header Toggle & Fast Controls */}
+          <div className="flex items-center gap-1.5 py-1 pl-2 shrink-0">
+            {/* When collapsed, provide quick mode switch pills */}
+            {isHeaderCollapsed && (
+              <div className="flex items-center gap-0.5 p-0.5 bg-slate-200/80 rounded-xl border border-slate-300">
+                {enabledModes['3d'] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDealerMode('3d');
+                      setActiveTab('sales');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      dealerMode === '3d'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    3D
+                  </button>
+                )}
+                {enabledModes['2d'] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDealerMode('2d');
+                      setActiveTab('sales');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      dealerMode === '2d'
+                        ? 'bg-teal-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    2D
+                  </button>
+                )}
+                {enabledModes['football'] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDealerMode('football');
+                      setActiveTab('fixtures');
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      dealerMode === 'football'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    FB
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Mobile Round Switcher */}
+            <div className="lg:hidden">
+              <button
+                onClick={onOpenRoundManager}
+                className="text-xs bg-white text-indigo-700 px-2 py-1 rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs font-medium cursor-pointer"
+              >
+                <Calendar className="w-3 h-3" />
+                <span className="hidden sm:inline">{isMyanmar ? 'ပွဲစဉ်' : 'Round'}</span>
+              </button>
+            </div>
+
+            {/* Hide / Show Header Toggle Button (Clean icon only) */}
             <button
-              onClick={onOpenRoundManager}
-              className="text-xs bg-white text-indigo-700 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs font-medium"
+              type="button"
+              onClick={toggleHeaderCollapse}
+              className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                isHeaderCollapsed
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 shadow-2xs'
+                  : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200 shadow-2xs'
+              }`}
+              title={isHeaderCollapsed ? (isMyanmar ? 'ခေါင်းစဉ်ဘား ဖော်မည်' : 'Show Header') : (isMyanmar ? 'ခေါင်းစဉ်ဘား ဝှက်မည်' : 'Hide Header')}
             >
-              <Calendar className="w-3 h-3" />
-              <span>{isMyanmar ? 'ပွဲစဉ်' : 'Round'}</span>
+              {isHeaderCollapsed ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronUp className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>

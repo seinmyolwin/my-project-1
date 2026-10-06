@@ -12,23 +12,52 @@
   }
 }
 
+@page {
+  size: A6 portrait;
+  margin: 3mm;
+}
+
 @media print {
+  html, body {
+    width: 105mm !important;
+    height: 148mm !important;
+    max-height: 148mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: white !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body * {
     visibility: hidden;
   }
-  #printable-voucher, #printable-voucher * {
+
+  #printable-voucher,
+  #printable-voucher * {
     visibility: visible;
   }
+
   #printable-voucher {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100% !important;
-    max-width: 320px !important;
-    margin: 0 auto;
-    padding: 10px;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 99mm !important;
+    max-width: 99mm !important;
+    max-height: 142mm !important;
+    margin: 0 auto !important;
+    padding: 2.5mm 3.5mm !important;
     box-shadow: none !important;
-    border: none !important;
+    border: 1px solid #0f172a !important;
+    border-radius: 4px !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

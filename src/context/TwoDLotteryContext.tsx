@@ -23,6 +23,7 @@ import {
   saveStoredData
 } from '../utils/storage';
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel } from '../utils/twoDLotteryUtils';
+import { fetchLiveOfficialFeed, generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -34,6 +35,7 @@ interface TwoDLotteryContextType {
   createRound: (round: Omit<TwoDDrawRound, 'id'>) => TwoDDrawRound;
   updateRound: (roundId: string, data: Partial<TwoDDrawRound>) => void;
   deleteRound: (roundId: string) => void;
+  syncLiveRounds: () => Promise<void>;
 
   vouchers: TwoDVoucher[];
   activeRoundVouchers: TwoDVoucher[];
@@ -145,6 +147,39 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const activeRoundForwardSlips = useMemo(() => {
     return forwardSlips.filter(f => f.roundId === activeRoundId);
   }, [forwardSlips, activeRoundId]);
+
+  const syncLiveRounds = useCallback(async () => {
+    try {
+      const liveFeed = await fetchLiveOfficialFeed();
+      const freshRounds = generateUpToDate2DRounds(liveFeed);
+      setRounds(prev => {
+        const merged = freshRounds.map(fresh => {
+          const existing = prev.find(p => p.id === fresh.id);
+          if (existing) {
+            return {
+              ...fresh,
+              ...existing,
+              winningNumber: existing.winningNumber || fresh.winningNumber,
+              status: existing.status || fresh.status
+            };
+          }
+          return fresh;
+        });
+        return merged;
+      });
+    } catch {
+      // Fallback
+    }
+  }, []);
+
+  // Auto-sync outdated records on first load
+  useEffect(() => {
+    const todayPrefix = new Date().toISOString().slice(0, 7);
+    const hasCurrentMonth = rounds.some(r => r.drawDate && r.drawDate.startsWith(todayPrefix));
+    if (!hasCurrentMonth) {
+      syncLiveRounds();
+    }
+  }, [syncLiveRounds, rounds]);
 
   const updateSettings = useCallback((newSettings: Partial<TwoDAppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
@@ -614,6 +649,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         createRound,
         updateRound,
         deleteRound,
+        syncLiveRounds,
         vouchers,
         activeRoundVouchers,
         addVoucher,
