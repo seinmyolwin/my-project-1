@@ -70,8 +70,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
   const currency = lottery3D.settings.currency || 'Ks';
 
-  if (!isOpen) return null;
-
   // Determine active date boundaries
   const { startDate, endDate } = useMemo(() => {
     if (periodPreset === 'today') {
@@ -307,6 +305,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const handlePrint = () => {
     window.print();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">

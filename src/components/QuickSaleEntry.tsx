@@ -36,9 +36,10 @@ import {
 
 interface QuickSaleEntryProps {
   onVoucherCreated: (voucher: Voucher) => void;
+  onOpenForwardModal?: (num?: string, amt?: number) => void;
 }
 
-export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated }) => {
+export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated, onOpenForwardModal }) => {
   const {
     activeRound,
     settings,
@@ -274,6 +275,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     }
 
     setNumberInput('');
+    setAmountInput('');
     setIsRumble(false);
     numberInputRef.current?.focus();
   };
@@ -404,36 +406,24 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       cartTotals[item.number] = (cartTotals[item.number] || 0) + item.amount;
     });
 
-    const overLimits: OverLimitItemInfo[] = [];
+    let hasOverLimit = false;
     Object.entries(cartTotals).forEach(([num, totalInCart]) => {
       const limit = getNumberLimit(num);
       const existingSold = aggregates[num]?.totalSold || 0;
       if (limit > 0 && (existingSold + totalInCart > limit)) {
-        const remainingQuota = Math.max(0, limit - existingSold);
-        const excessAmount = (existingSold + totalInCart) - limit;
-
-        overLimits.push({
-          id: `over-${num}`,
-          number: num,
-          originalAmount: totalInCart,
-          existingSold,
-          limit,
-          remainingQuota,
-          excessAmount,
-          action: 'forward_excess'
-        });
+        hasOverLimit = true;
       }
     });
 
-    // If any item exceeds limit, open the confirmation modal!
-    if (overLimits.length > 0) {
-      setPendingOverLimitItems(overLimits);
-      setIsOverLimitModalOpen(true);
-      return;
-    }
-
-    // If no limits exceeded, save immediately
+    // Save voucher directly
     finalizeAndSaveVoucher(stagedItems);
+
+    if (hasOverLimit) {
+      setToastNotification({
+        type: 'success',
+        message: 'ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ (သတ်မှတ်ချက် ကျော်လွန်သော ဂဏန်းများကို "ဒိုင်ကြီးဆီ ပြန်တင်ရန်" စာရင်းထဲသို့ အလိုအလျောက် စုစည်းပေးထားပါသည်)'
+      });
+    }
   };
 
   // Confirm over-limit resolution from OverLimitConfirmModal
@@ -930,6 +920,34 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
             
             {/* Voucher Header & Customer Info */}
             <div className="space-y-4">
+              {/* Batch Master Agent Forwarding Trigger */}
+              {onOpenForwardModal && (
+                <div className="bg-gradient-to-r from-indigo-50 to-slate-50 border border-indigo-200 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                      <ShieldAlert className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-black text-indigo-950 block">
+                        {isMyanmar ? 'ဒိုင်ကြီးဆီ ပြန်တင်မည်' : 'Forward to Master'}
+                      </span>
+                      <span className="text-[10px] text-indigo-700 font-medium">
+                        {(Object.values(aggregates) as any[]).filter((a: any) => a.limit > 0 && a.totalSold > a.limit).length > 0
+                          ? `သတ်မှတ်ချက်ကျော် ပိုနေ: ${(Object.values(aggregates) as any[]).filter((a: any) => a.limit > 0 && a.totalSold > a.limit).length} လုံး`
+                          : 'ပိုနေသော 3D ဂဏန်းများကို စုစည်းလွှဲတင်ရန်'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenForwardModal()}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {isMyanmar ? 'ပြန်တင်မည်' : 'Forward'}
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-indigo-600" />

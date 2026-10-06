@@ -217,6 +217,18 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
             />
           </div>
 
+          {onOpenForwardModal && (
+            <button
+              type="button"
+              onClick={() => onOpenForwardModal()}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
+              title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isMyanmar ? 'ဒိုင်ကြီးဆီ ပြန်တင်မည်' : 'Batch Forward'}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={exportToExcel}

@@ -65,12 +65,11 @@ const TABS_3D: ('sales' | 'ledger' | 'winning' | 'vouchers' | 'analytics')[] = [
   'analytics'
 ];
 
-const TABS_2D: ('sales' | 'ledger' | 'winning' | 'vouchers' | 'limits')[] = [
+const TABS_2D: ('sales' | 'ledger' | 'winning' | 'vouchers')[] = [
   'sales',
   'ledger',
   'winning',
-  'vouchers',
-  'limits'
+  'vouchers'
 ];
 
 const TABS_FB: ('fixtures' | 'slip_entry' | 'slips_list')[] = [
@@ -112,7 +111,7 @@ function AppContent() {
 
   // Mode-Specific Active Tabs
   const [activeTab3D, setActiveTab3D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers' | 'analytics'>('sales');
-  const [activeTab2D, setActiveTab2D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers' | 'limits'>('sales');
+  const [activeTab2D, setActiveTab2D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers'>('sales');
   const [activeTabFB, setActiveTabFB] = useState<'fixtures' | 'slip_entry' | 'slips_list'>('fixtures');
 
   // Security & Business Switch State
@@ -277,7 +276,7 @@ function AppContent() {
       setLimitInitialNumber3D(num);
       setIsLimitsModal3DOpen(true);
     } else if (dealerMode === '2d') {
-      setActiveTab2D('limits');
+      setIsPinPromptOpen(true);
     }
   };
 
@@ -364,7 +363,10 @@ function AppContent() {
         {dealerMode === '3d' && (
           <>
             {activeTab3D === 'sales' && (
-              <QuickSaleEntry onVoucherCreated={(v) => setPrintingVoucher3D(v)} />
+              <QuickSaleEntry
+                onVoucherCreated={(v) => setPrintingVoucher3D(v)}
+                onOpenForwardModal={handleOpenForwardModal}
+              />
             )}
 
             {activeTab3D === 'ledger' && (
@@ -390,15 +392,18 @@ function AppContent() {
 
         {/* ======================= 2D LOTTERY VIEWS ======================= */}
         {dealerMode === '2d' && (
-          <>
+           <>
             {activeTab2D === 'sales' && (
-              <TwoDQuickSaleEntry onVoucherCreated={(v) => setPrintingVoucher2D(v)} />
+              <TwoDQuickSaleEntry
+                onVoucherCreated={(v) => setPrintingVoucher2D(v)}
+                onOpenForwardModal={handleOpenForwardModal}
+              />
             )}
 
             {activeTab2D === 'ledger' && (
               <TwoDLiveLedgerView
                 onOpenForwardModal={handleOpenForwardModal}
-                onOpenLimitsManager={() => setActiveTab2D('limits')}
+                onOpenLimitsManager={() => setIsPinPromptOpen(true)}
               />
             )}
 
@@ -408,10 +413,6 @@ function AppContent() {
 
             {activeTab2D === 'vouchers' && (
               <TwoDVouchersView onOpenPrintVoucher={(v) => setPrintingVoucher2D(v)} />
-            )}
-
-            {activeTab2D === 'limits' && (
-              <TwoDLimitsManager />
             )}
           </>
         )}

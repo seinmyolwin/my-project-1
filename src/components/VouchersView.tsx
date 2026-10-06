@@ -288,6 +288,16 @@ ${settings.voucherFooterMessage || 'ကျေးဇူးတင်ပါသည�
                 {/* Card Action Buttons */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1 font-sans">
                   <div className="flex items-center gap-1">
+                    {/* View on screen button */}
+                    <button
+                      onClick={() => onOpenPrintVoucher(v)}
+                      className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="ဘောင်ချာ အသေးစိတ် ကြည့်ရှုမည်"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>{isMyanmar ? 'ကြည့်မည်' : 'View'}</span>
+                    </button>
+
                     {/* Print Receipt Modal Button */}
                     <button
                       onClick={() => onOpenPrintVoucher(v)}

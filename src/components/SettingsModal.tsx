@@ -29,12 +29,13 @@ import {
   TrendingUp,
   FolderDown,
   Share2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Printer
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { BookieMode } from '../types';
+import { BookieMode, TwoDNumberAggregate, NumberAggregate } from '../types';
 import { formatAmount, getPermutations } from '../utils/lotteryUtils';
 import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
 import {
@@ -122,6 +123,275 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Football Slips');
     XLSX.writeFile(wb, `Football_Slips_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // 2D Master Ledger Matrix Export
+  const handleExport2DLedgerMatrix = () => {
+    const aggs = Object.values(lottery2D.aggregates) as TwoDNumberAggregate[];
+    const data = aggs.map((a, i) => ({
+      'စဉ်': i + 1,
+      'ဂဏန်း': a.number,
+      'စုစုပေါင်းအရောင်း (ကျပ်)': a.totalSold,
+      'ဒိုင်လက်ကျန်ယူငွေ (ကျပ်)': a.retainedAmount,
+      'ဒိုင်ကြီးဆီလွှဲငွေ (ကျပ်)': a.forwardedAmount,
+      'ကန့်သတ်ငွေ (Limit)': a.limit,
+      'ဒိုင်ကာ/အခြေအနေ': a.isBlocked ? 'ဒိုင်ကာ (Blocked)' : a.totalSold >= a.limit && a.limit > 0 ? 'ဘရိတ်ပြည့် (Full)' : 'ပုံမှန် (Safe)'
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '2D Master Ledger');
+    XLSX.writeFile(wb, `2D_Master_Ledger_Matrix_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // 3D Master Ledger Matrix Export
+  const handleExport3DLedgerMatrix = () => {
+    const aggs = Object.values(lottery3D.aggregates) as NumberAggregate[];
+    const data = aggs.map((a, i) => ({
+      'စဉ်': i + 1,
+      'ဂဏန်း': a.number,
+      'စုစုပေါင်းအရောင်း (ကျပ်)': a.totalSold,
+      'ဒိုင်လက်ကျန်ယူငွေ (ကျပ်)': a.retainedAmount,
+      'ဒိုင်ကြီးဆီလွှဲငွေ (ကျပ်)': a.forwardedAmount,
+      'ကန့်သတ်ငွေ (Limit)': a.limit,
+      'ဒိုင်ကာ/အခြေအနေ': a.isBlocked ? 'ဒိုင်ကာ (Blocked)' : a.totalSold >= a.limit && a.limit > 0 ? 'ဘရိတ်ပြည့် (Full)' : 'ပုံမှန် (Safe)'
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '3D Master Ledger');
+    XLSX.writeFile(wb, `3D_Master_Ledger_Matrix_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // Financial Statements State & Calculations
+  const [statementPeriod, setStatementPeriod] = useState<'today' | 'week' | 'month' | 'custom'>('week');
+  const [statementMode, setStatementMode] = useState<'all' | '3d' | '2d' | 'football'>('all');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const oneWeekAgoStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const oneMonthAgoStr = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [stmtCustomStart, setStmtCustomStart] = useState(oneWeekAgoStr);
+  const [stmtCustomEnd, setStmtCustomEnd] = useState(todayStr);
+
+  const { stmtStartDate, stmtEndDate } = React.useMemo(() => {
+    if (statementPeriod === 'today') return { stmtStartDate: todayStr, stmtEndDate: todayStr };
+    if (statementPeriod === 'week') return { stmtStartDate: oneWeekAgoStr, stmtEndDate: todayStr };
+    if (statementPeriod === 'month') return { stmtStartDate: oneMonthAgoStr, stmtEndDate: todayStr };
+    return { stmtStartDate: stmtCustomStart, stmtEndDate: stmtCustomEnd };
+  }, [statementPeriod, todayStr, oneWeekAgoStr, oneMonthAgoStr, stmtCustomStart, stmtCustomEnd]);
+
+  // Aggregate Statement Records
+  const stmtRecords = React.useMemo(() => {
+    const list: Array<{
+      id: string;
+      date: string;
+      mode: '3d' | '2d' | 'football';
+      modeLabel: string;
+      name: string;
+      winningResult: string;
+      turnover: number;
+      payout: number;
+      commission: number;
+      netProfit: number;
+      isProfit: boolean;
+      winnersCount: number;
+      vouchersCount: number;
+      status: 'settled' | 'open';
+    }> = [];
+
+    // 1. 3D
+    if (statementMode === 'all' || statementMode === '3d') {
+      lottery3D.rounds.forEach((round) => {
+        if (round.drawDate >= stmtStartDate && round.drawDate <= stmtEndDate) {
+          const rVouchers = lottery3D.vouchers.filter(v => v.roundId === round.id && v.status !== 'cancelled');
+          let turnover = 0;
+          let payout = 0;
+          let commission = 0;
+          let winnersCount = 0;
+
+          rVouchers.forEach(v => {
+            turnover += v.netPayable || v.totalAmount;
+            commission += v.totalCommission || v.commissionAmount || 0;
+            v.items.forEach(it => {
+              if (it.isWon) {
+                payout += it.winningAmount || 0;
+                winnersCount += 1;
+              }
+            });
+          });
+
+          const netProfit = turnover - payout + commission;
+          list.push({
+            id: `3d-${round.id}`,
+            date: round.drawDate,
+            mode: '3d',
+            modeLabel: 'အိုးစည်လေး',
+            name: round.name,
+            winningResult: round.winningNumber || (round.status === 'settled' ? 'မပေါက်' : 'မထွက်သေး'),
+            turnover,
+            payout,
+            commission,
+            netProfit,
+            isProfit: netProfit >= 0,
+            winnersCount,
+            vouchersCount: rVouchers.length,
+            status: round.status
+          });
+        }
+      });
+    }
+
+    // 2. 2D
+    if (statementMode === 'all' || statementMode === '2d') {
+      lottery2D.rounds.forEach((round) => {
+        if (round.drawDate >= stmtStartDate && round.drawDate <= stmtEndDate) {
+          const rVouchers = lottery2D.vouchers.filter(v => v.roundId === round.id && v.status !== 'cancelled');
+          let turnover = 0;
+          let payout = 0;
+          let commission = 0;
+          let winnersCount = 0;
+
+          rVouchers.forEach(v => {
+            turnover += v.netPayable || v.totalAmount;
+            commission += v.totalCommission || v.commissionAmount || 0;
+            v.items.forEach(it => {
+              if (it.isWon) {
+                payout += it.winningAmount || 0;
+                winnersCount += 1;
+              }
+            });
+          });
+
+          const netProfit = turnover - payout + commission;
+          list.push({
+            id: `2d-${round.id}`,
+            date: round.drawDate,
+            mode: '2d',
+            modeLabel: 'ဇီးကွက်',
+            name: round.name,
+            winningResult: round.winningNumber || (round.status === 'settled' ? 'မပေါက်' : 'မထွက်သေး'),
+            turnover,
+            payout,
+            commission,
+            netProfit,
+            isProfit: netProfit >= 0,
+            winnersCount,
+            vouchersCount: rVouchers.length,
+            status: round.status
+          });
+        }
+      });
+    }
+
+    // 3. Football
+    if (statementMode === 'all' || statementMode === 'football') {
+      const slips = football.slips.filter(s => {
+        const d = (s.createdAt || s.timestamp || '').slice(0, 10);
+        return d >= stmtStartDate && d <= stmtEndDate && s.status !== 'cancelled';
+      });
+
+      if (slips.length > 0) {
+        let turnover = 0;
+        let payout = 0;
+        let commission = 0;
+        let winnersCount = 0;
+
+        slips.forEach(s => {
+          turnover += s.netPayable || s.totalStake;
+          commission += s.commissionAmount || 0;
+          if (s.status === 'won') {
+            payout += s.payoutAmount || 0;
+            winnersCount += 1;
+          }
+        });
+
+        const netProfit = turnover - payout + commission;
+        list.push({
+          id: `fb-${stmtStartDate}-${stmtEndDate}`,
+          date: stmtEndDate,
+          mode: 'football',
+          modeLabel: 'ပစ်တိုင်းထောင်',
+          name: 'ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း',
+          winningResult: `${winnersCount} စလစ် ပေါက်`,
+          turnover,
+          payout,
+          commission,
+          netProfit,
+          isProfit: netProfit >= 0,
+          winnersCount,
+          vouchersCount: slips.length,
+          status: 'settled'
+        });
+      }
+    }
+
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [statementMode, stmtStartDate, stmtEndDate, lottery3D.rounds, lottery3D.vouchers, lottery2D.rounds, lottery2D.vouchers, football.slips]);
+
+  // Grand Totals for Statements
+  const stmtGrandTotals = React.useMemo(() => {
+    let totalTurnover = 0;
+    let totalPayout = 0;
+    let totalCommission = 0;
+    let totalVouchers = 0;
+    let totalWinners = 0;
+
+    stmtRecords.forEach(r => {
+      totalTurnover += r.turnover;
+      totalPayout += r.payout;
+      totalCommission += r.commission;
+      totalVouchers += r.vouchersCount;
+      totalWinners += r.winnersCount;
+    });
+
+    const netProfit = totalTurnover - totalPayout + totalCommission;
+    const profitMargin = totalTurnover > 0 ? ((netProfit / totalTurnover) * 100).toFixed(1) : '0';
+
+    return {
+      totalTurnover,
+      totalPayout,
+      totalCommission,
+      netProfit,
+      isProfit: netProfit >= 0,
+      profitMargin,
+      totalVouchers,
+      totalWinners
+    };
+  }, [stmtRecords]);
+
+  // Export Statements to Excel
+  const handleExportStatementsExcel = () => {
+    const data = stmtRecords.map((r, i) => ({
+      'စဉ်': i + 1,
+      'ရက်စွဲ': r.date,
+      'လုပ်ငန်းလိုင်း': r.modeLabel,
+      'ပွဲစဉ်အမည်': r.name,
+      'ပေါက်ဂဏန်း/ရလဒ်': r.winningResult,
+      'ထိုးကြေး/ရောင်းရငွေ (ကျပ်)': r.turnover,
+      'ပေးလျော်ငွေ (ကျပ်)': r.payout,
+      'ကော်မရှင် (ကျပ်)': r.commission,
+      'အသားတင် အမြတ်/အရှုံး (ကျပ်)': r.netProfit,
+      'ပေါက်သူဦးရေ': r.winnersCount,
+      'ဘောင်ချာစောင်ရေ': r.vouchersCount,
+      'အခြေအနေ': r.status === 'settled' ? 'ရှင်းတမ်းပြီး' : 'ဖွင့်လှစ်ဆဲ'
+    }));
+
+    data.push({
+      'စဉ်': 0 as any,
+      'ရက်စွဲ': 'စုစုပေါင်း ချုပ်',
+      'လုပ်ငန်းလိုင်း': '-',
+      'ပွဲစဉ်အမည်': `${stmtStartDate} မှ ${stmtEndDate} အထိ`,
+      'ပေါက်ဂဏန်း/ရလဒ်': '-',
+      'ထိုးကြေး/ရောင်းရငွေ (ကျပ်)': stmtGrandTotals.totalTurnover,
+      'ပေးလျော်ငွေ (ကျပ်)': stmtGrandTotals.totalPayout,
+      'ကော်မရှင် (ကျပ်)': stmtGrandTotals.totalCommission,
+      'အသားတင် အမြတ်/အရှုံး (ကျပ်)': stmtGrandTotals.netProfit,
+      'ပေါက်သူဦးရေ': stmtGrandTotals.totalWinners,
+      'ဘောင်ချာစောင်ရေ': stmtGrandTotals.totalVouchers,
+      'အခြေအနေ': stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'စာရင်းရှင်းတမ်း');
+    XLSX.writeFile(wb, `စာရင်းရှင်းတမ်း_${statementMode}_${stmtStartDate}_${stmtEndDate}.xlsx`);
   };
 
   // Enabled Modes State
@@ -452,6 +722,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const filteredBlocked2D = Object.keys(lottery2D.blockedNumbers).filter(
     (num) => lottery2D.blockedNumbers[num] && (!searchBlocked2D || num.includes(searchBlocked2D))
   );
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
@@ -1655,38 +1927,201 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ==================================================== */}
           {activeTab === 'statements' && (
             <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
-                <h4 className="text-xs font-black text-emerald-900 uppercase flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  <span>လက်ရှိလုပ်ငန်းလိုင်းများ၏ စားရင်းရှင်းတမ်းချုပ်</span>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
-                    <span className="text-[11px] text-slate-500 font-semibold block">အိုးစည်လေး (3D) စုစုပေါင်းအရောင်း</span>
-                    <span className="text-sm font-mono font-black text-slate-900 mt-1 block">
-                      {formatAmount(lottery3D.vouchers.reduce((acc, v) => acc + v.totalAmount, 0), currency)}
-                    </span>
+              {/* Filter Controls: Period & Mode */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-500 mr-1">ကာလ:</span>
+                    {[
+                      { id: 'today', label: 'ဒီနေ့' },
+                      { id: 'week', label: 'ဒီတစ်ပတ်' },
+                      { id: 'month', label: 'ဒီတစ်လ' },
+                      { id: 'custom', label: 'စိတ်ကြိုက်' }
+                    ].map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setStatementPeriod(p.id as any)}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          statementPeriod === p.id
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
-                    <span className="text-[11px] text-slate-500 font-semibold block">ဇီးကွက် (2D) စုစုပေါင်းအရောင်း</span>
-                    <span className="text-sm font-mono font-black text-slate-900 mt-1 block">
-                      {formatAmount(lottery2D.vouchers.reduce((acc, v) => acc + v.totalAmount, 0), currency)}
-                    </span>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-500 mr-1">လိုင်း:</span>
+                    {[
+                      { id: 'all', label: 'အားလုံး' },
+                      { id: '3d', label: 'အိုးစည်လေး' },
+                      { id: '2d', label: 'ဇီးကွက်' },
+                      { id: 'football', label: 'ပစ်တိုင်းထောင်' }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setStatementMode(m.id as any)}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          statementMode === m.id
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
-                    <span className="text-[11px] text-slate-500 font-semibold block">ပစ်တိုင်းထောင် စုစုပေါင်းထိုးငွေ</span>
-                    <span className="text-sm font-mono font-black text-slate-900 mt-1 block">
-                      {formatAmount(football.slips.reduce((acc, s) => acc + s.totalStake, 0), currency)}
-                    </span>
+                </div>
+
+                {statementPeriod === 'custom' && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 font-bold">မှ:</span>
+                      <input
+                        type="date"
+                        value={stmtCustomStart}
+                        onChange={(e) => setStmtCustomStart(e.target.value)}
+                        className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 font-bold">ထိ:</span>
+                      <input
+                        type="date"
+                        value={stmtCustomEnd}
+                        onChange={(e) => setStmtCustomEnd(e.target.value)}
+                        className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                      />
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {/* Summary Stats Overview Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">စုစုပေါင်း အရောင်းရငွေ</span>
+                  <div className="text-base sm:text-lg font-black font-mono text-slate-900 mt-0.5">
+                    {formatAmount(stmtGrandTotals.totalTurnover, currency)}
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {stmtGrandTotals.totalVouchers} စောင်
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-rose-600 font-bold block uppercase">စုစုပေါင်း ပေးလျော်ငွေ</span>
+                  <div className="text-base sm:text-lg font-black font-mono text-rose-700 mt-0.5">
+                    {formatAmount(stmtGrandTotals.totalPayout, currency)}
+                  </div>
+                  <span className="text-[10px] text-rose-500 font-medium">
+                    {stmtGrandTotals.totalWinners} ဦး ပေါက်
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">စုစုပေါင်း ကော်မရှင်</span>
+                  <div className="text-base sm:text-lg font-black font-mono text-indigo-700 mt-0.5">
+                    +{formatAmount(stmtGrandTotals.totalCommission, currency)}
+                  </div>
+                  <span className="text-[10px] text-indigo-500 font-medium">
+                    အသားတင် ရရှိ
+                  </span>
+                </div>
+
+                <div className={`p-3 rounded-2xl border shadow-2xs ${
+                  stmtGrandTotals.isProfit ? 'bg-emerald-50/80 border-emerald-200' : 'bg-rose-50/80 border-rose-200'
+                }`}>
+                  <span className="text-[10px] text-slate-600 font-bold block uppercase">အသားတင် အမြတ်/အရှုံး</span>
+                  <div className={`text-base sm:text-lg font-black font-mono mt-0.5 ${
+                    stmtGrandTotals.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
+                    {stmtGrandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(stmtGrandTotals.netProfit), currency)}
+                  </div>
+                  <span className={`text-[10px] font-bold ${
+                    stmtGrandTotals.isProfit ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    {stmtGrandTotals.isProfit ? 'မြတ်' : 'ရှုံး'} ({stmtGrandTotals.profitMargin}%)
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                <span className="text-xs font-black text-slate-900 block">အသေးစိတ် စားရင်းရှင်းတမ်းများနှင့် အမြတ်/အရှုံး တွက်ချက်မှုများ</span>
-                <p className="text-[11px] text-slate-500">
-                  ရက်စွဲအလိုက်၊ ပွဲစဉ်အလိုက် အသေးစိတ် အမြတ်အစွန်းနှင့် ကော်မရှင်ရှင်းတမ်းများကို အပြည့်အစုံ ကြည့်ရှုနိုင်ပါသည်။
-                </p>
+              {/* Records List Table */}
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                <div className="bg-slate-900 text-white px-3.5 py-2 flex items-center justify-between">
+                  <span className="text-xs font-bold">
+                    ပွဲစဉ်အလိုက် အသေးစိတ် စာရင်းရှင်းတမ်း ({stmtRecords.length} ခု)
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleExportStatementsExcel}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Excel ထုတ်</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print</span>
+                    </button>
+                  </div>
+                </div>
+
+                {stmtRecords.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 space-y-1">
+                    <CheckCircle2 className="w-7 h-7 text-slate-300 mx-auto" />
+                    <p className="text-xs font-bold text-slate-600">ရွေးချယ်ထားသော ကာလအတွင်း ရှင်းတမ်းမှတ်တမ်း မရှိပါ</p>
+                  </div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 text-xs">
+                    {stmtRecords.map((r) => (
+                      <div key={r.id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 text-[10px] font-black rounded ${
+                              r.mode === '3d'
+                                ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                                : r.mode === '2d'
+                                ? 'bg-teal-100 text-teal-900 border border-teal-200'
+                                : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                            }`}>
+                              {r.modeLabel}
+                            </span>
+                            <span className="font-bold text-slate-900">{r.name}</span>
+                            <span className="text-[11px] font-mono text-slate-500">({r.date})</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                            <span>ပေါက်ဂဏန်း: <b className="font-mono text-amber-700">{r.winningResult}</b></span>
+                            <span>•</span>
+                            <span>အရောင်း: {formatAmount(r.turnover, currency)}</span>
+                            <span>•</span>
+                            <span>လျော်ကြေး: {formatAmount(r.payout, currency)}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right font-mono">
+                          <span className={`text-xs font-black block ${
+                            r.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                          }`}>
+                            {r.isProfit ? '+' : ''}{formatAmount(r.netProfit, currency)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {r.status === 'settled' ? 'ရှင်းတမ်းပြီး ✓' : 'ဖွင့်လှစ်ဆဲ'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1696,56 +2131,104 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ==================================================== */}
           {activeTab === 'excel' && (
             <div className="space-y-4">
-              <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 space-y-3">
-                <h4 className="text-xs font-black text-sky-900 uppercase flex items-center gap-2">
+              <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 space-y-2">
+                <h4 className="text-xs font-black text-sky-950 uppercase flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-sky-600" />
-                  <span>ရုံးသုံးအတွက် Excel ဖိုင် (.xlsx) ထုတ်ယူရန်</span>
+                  <span>ရုံးသုံးအတွက် Excel ဖိုင် (.xlsx) ထုတ်ယူရန် နေရာ</span>
                 </h4>
-                <p className="text-[11px] text-slate-600">
-                  အောက်ပါခလုတ်များကို နှိပ်၍ အရောင်းစာရင်းဇယားများနှင့် ဘောင်ချာများကို Excel ဖိုင်ဖြင့် တိုက်ရိုက် ထုတ်ယူနိုင်ပါသည်။
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  အရောင်းဘောင်ချာများ၊ ဂဏန်းအချုပ်စာရင်းဇယား (Master Ledger) များနှင့် ရှင်းတမ်းများကို Excel ဖိုင်အဖြစ် တိုက်ရိုက် ထုတ်ယူသိမ်းဆည်းနိုင်ပါသည်။
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={handleExport3DExcel}
-                  className="p-4 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-black text-slate-900 block">အိုးစည်လေး (3D) Excel</span>
-                    <span className="text-[11px] text-slate-500">ဘောင်ချာများနှင့် အရောင်းစာရင်း</span>
-                  </div>
-                </button>
-
+                {/* 2D Sales Vouchers */}
                 <button
                   type="button"
                   onClick={handleExport2DExcel}
-                  className="p-4 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left"
+                  className="p-3.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
                     <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-xs font-black text-slate-900 block">ဇီးကွက် (2D) Excel</span>
-                    <span className="text-[11px] text-slate-500">2D အရောင်းစာရင်းနှင့် ရှင်းတမ်း</span>
+                    <span className="text-xs font-black text-slate-900 block">ဇီးကွက် (2D) အရောင်းဘောင်ချာများ</span>
+                    <span className="text-[11px] text-slate-500">2D ဘောင်ချာစောင်ရေ {lottery2D.vouchers.length} စောင် စာရင်း</span>
                   </div>
                 </button>
 
+                {/* 2D Master Ledger Matrix */}
                 <button
                   type="button"
-                  onClick={handleExportFootballExcel}
-                  className="p-4 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left"
+                  onClick={handleExport2DLedgerMatrix}
+                  className="p-3.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">ဇီးကွက် (00-99) ဂဏန်းအချုပ်စာရင်း</span>
+                    <span className="text-[11px] text-slate-500">ဂဏန်း ၁၀၀ လုံး ရောင်းရငွေ၊ Limit နှင့် ဒိုင်လွှဲငွေ</span>
+                  </div>
+                </button>
+
+                {/* 3D Sales Vouchers */}
+                <button
+                  type="button"
+                  onClick={handleExport3DExcel}
+                  className="p-3.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
                     <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-xs font-black text-slate-900 block">ပစ်တိုင်းထောင် (Football) Excel</span>
-                    <span className="text-[11px] text-slate-500">ဘောလုံးဘောင်ချာနှင့် ထိုးငွေများ</span>
+                    <span className="text-xs font-black text-slate-900 block">အိုးစည်လေး (3D) အရောင်းဘောင်ချာများ</span>
+                    <span className="text-[11px] text-slate-500">3D ဘောင်ချာစောင်ရေ {lottery3D.vouchers.length} စောင် စာရင်း</span>
+                  </div>
+                </button>
+
+                {/* 3D Master Ledger Matrix */}
+                <button
+                  type="button"
+                  onClick={handleExport3DLedgerMatrix}
+                  className="p-3.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">အိုးစည်လေး (000-999) ဂဏန်းအချုပ်စာရင်း</span>
+                    <span className="text-[11px] text-slate-500">ဂဏန်း ၁,၀၀၀ လုံး ရောင်းရငွေနှင့် အန္တရာယ်ခွဲခြမ်းမှု</span>
+                  </div>
+                </button>
+
+                {/* Football Slips */}
+                <button
+                  type="button"
+                  onClick={handleExportFootballExcel}
+                  className="p-3.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">ပစ်တိုင်းထောင် (Football) စလစ်များ</span>
+                    <span className="text-[11px] text-slate-500">ဘောလုံးမောင်း/ဘော်ဒီ ထိုးငွေနှင့် ရလဒ်များ</span>
+                  </div>
+                </button>
+
+                {/* Combined Financial Statements */}
+                <button
+                  type="button"
+                  onClick={handleExportStatementsExcel}
+                  className="p-3.5 bg-white hover:bg-purple-50 border border-slate-200 hover:border-purple-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">ကာလချုပ် စာရင်းရှင်းတမ်း Excel</span>
+                    <span className="text-[11px] text-slate-500">အရောင်း၊ လျော်ကြေးနှင့် အသားတင် အမြတ်/အရှုံး</span>
                   </div>
                 </button>
               </div>

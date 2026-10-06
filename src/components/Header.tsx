@@ -524,39 +524,15 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
-                {/* Financial Statements & Reports Button */}
-                {onOpenStatements && (
-                  <button
-                    type="button"
-                    onClick={onOpenStatements}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
-                    title="ကာလအလိုက် စာရင်းရှင်းတမ်းနှင့် အမြတ်/အရှုံး ကြည့်ရန်"
-                  >
-                    <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
-                    <span className="hidden sm:inline">{isMyanmar ? 'စာရင်းရှင်းတမ်း' : 'Statements'}</span>
-                  </button>
-                )}
-
-                {/* Excel Export */}
-                <button
-                  onClick={handleExport}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
-                  title="Excel စာရင်း အကုန်ထုတ်ယူမည်"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">{isMyanmar ? 'Excel ထုတ်ရန်' : 'Export Excel'}</span>
-                </button>
-
-                {/* Settings with Lock Badge */}
+                {/* Settings with Lock Badge (Contains Limits, Statements, Excel & Security) */}
                 <button
                   onClick={onOpenSettings}
-                  className="relative p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-                  title="ဆက်တင် (Password ဖြင့် ကာကွယ်ထားပါသည်)"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                  title="ဆက်တင် (ကန့်သတ်ချက်၊ စာရင်းရှင်းတမ်း၊ Excel ထုတ်ရန် နှင့် Password)"
                 >
                   <Settings className="w-4 h-4" />
-                  <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] shadow-2xs">
-                    <Lock className="w-2.5 h-2.5" />
-                  </span>
+                  <span>{isMyanmar ? 'ဆက်တင်' : 'Settings'}</span>
+                  <Lock className="w-2.5 h-2.5 opacity-70" />
                 </button>
 
                 {/* Help */}
@@ -688,18 +664,6 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isMyanmar ? 'ပြေစာမှတ်တမ်းများ' : 'Invoices & Slips'}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('limits')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeTab === 'limits'
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
-              >
-                <Sliders className="w-4 h-4" />
-                <span>{isMyanmar ? 'ကန့်သတ်ချက် သတ်မှတ်ခြင်း' : 'Limits & Quotas'}</span>
               </button>
             </nav>
           )}

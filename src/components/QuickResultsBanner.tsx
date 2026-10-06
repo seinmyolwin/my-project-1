@@ -16,57 +16,147 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
   const football = useFootball();
 
   if (mode === '2d') {
-    const settled = lottery2D.rounds
-      .filter((r) => r.status === 'settled' || !!r.winningNumber)
-      .slice(0, 4);
+    // Determine the 2 target dates: Today and Yesterday (or recent 2 draw dates)
+    const uniqueDates: string[] = Array.from(new Set<string>(lottery2D.rounds.map((r) => r.drawDate))).sort((a: string, b: string) =>
+      b.localeCompare(a)
+    );
 
-    if (settled.length === 0) return null;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDateStr = uniqueDates.includes(todayStr) ? todayStr : (uniqueDates[0] || todayStr);
+    const yesterdayDateStr = uniqueDates.find((d) => d < todayDateStr) || uniqueDates[1] || '';
+
+    // Today rounds (Morning 12:01 & Evening 04:30)
+    const todayMorn = lottery2D.rounds.find(
+      (r) =>
+        r.drawDate === todayDateStr &&
+        (r.session === 'morning' || r.name.includes('မနက်') || r.name.includes('12:01'))
+    );
+    const todayEve = lottery2D.rounds.find(
+      (r) =>
+        r.drawDate === todayDateStr &&
+        (r.session === 'evening' || r.name.includes('ညနေ') || r.name.includes('04:30') || r.name.includes('16:30'))
+    );
+
+    // Yesterday rounds (Morning 12:01 & Evening 04:30)
+    const yesterdayMorn = lottery2D.rounds.find(
+      (r) =>
+        r.drawDate === yesterdayDateStr &&
+        (r.session === 'morning' || r.name.includes('မနက်') || r.name.includes('12:01'))
+    );
+    const yesterdayEve = lottery2D.rounds.find(
+      (r) =>
+        r.drawDate === yesterdayDateStr &&
+        (r.session === 'evening' || r.name.includes('ညနေ') || r.name.includes('04:30') || r.name.includes('16:30'))
+    );
+
+    const formatDisplayDate = (dStr: string) => {
+      if (!dStr) return '';
+      try {
+        const parts = dStr.split('-');
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        }
+      } catch {
+        // fallback
+      }
+      return dStr;
+    };
+
+    const multiplierVal =
+      lottery2D.activeRound?.multiplier || lottery2D.settings.defaultMultiplier || 80;
 
     return (
-      <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-teal-950 text-white rounded-2xl p-2.5 sm:px-4 shadow-sm border border-teal-800/60 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center font-bold border border-amber-400/30 shrink-0">
-            <Trophy className="w-4 h-4" />
+      <div className="bg-gradient-to-r from-teal-950 via-slate-900 to-teal-950 text-white rounded-2xl p-2.5 sm:px-4 shadow-sm border border-teal-800/60 flex flex-wrap items-center justify-between gap-3">
+        {/* Title: ဇီးကွက်ဂဏန်း and အဆ */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold border border-teal-500/30 shrink-0">
+            <Trophy className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-            <span className="text-xs font-bold text-teal-200">
-              အရင်ပွဲစဉ် ထွက်ဂဏန်းများ (ဇီးကွက်):
-            </span>
-            <span className="text-[10px] text-teal-400/90 font-mono">
-              [ဒီနေ့: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}]
+          <div>
+            <h3 className="text-sm font-black text-white tracking-wide">
+              ဇီးကွက်ဂဏန်း
+            </h3>
+            <span className="text-[11px] font-bold text-teal-300 block">
+              အဆ - {multiplierVal} ဆ
             </span>
           </div>
         </div>
 
-        {/* Badges of past winning numbers */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-          {settled.map((r) => {
-            const isMorning = r.session === 'morning' || r.name.includes('မနက်') || r.name.includes('12:01');
-            return (
-              <div
-                key={r.id}
-                className="flex items-center gap-1.5 bg-slate-800/90 border border-teal-700/50 rounded-xl px-2.5 py-1 text-xs shadow-2xs shrink-0"
-              >
-                <span className="text-[10px] text-teal-300 font-medium">
-                  {isMorning ? 'မနက်' : 'ညနေ'}:
-                </span>
-                <span className="font-mono font-black text-amber-400 text-sm px-1.5 py-0.2 bg-amber-950/60 border border-amber-500/40 rounded">
-                  {r.winningNumber}
+        {/* 2 Days Display (Yesterday & Today) */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* 1. Yesterday (အရင်ရက် / မနေ့က) */}
+          {yesterdayDateStr && (
+            <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-2xs">
+              <div className="text-[10px] font-bold text-slate-300 mb-1 flex items-center justify-between gap-2">
+                <span>မနေ့က</span>
+                <span className="text-slate-400 font-mono text-[9px]">({formatDisplayDate(yesterdayDateStr)})</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700/60 rounded-lg px-2 py-0.5">
+                  <span className="text-[10px] text-teal-300 font-medium">မနက်:</span>
+                  <span className="font-mono font-black text-amber-400 text-xs sm:text-sm">
+                    {yesterdayMorn?.winningNumber || '--'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700/60 rounded-lg px-2 py-0.5">
+                  <span className="text-[10px] text-indigo-300 font-medium">ညနေ:</span>
+                  <span className="font-mono font-black text-amber-400 text-xs sm:text-sm">
+                    {yesterdayEve?.winningNumber || '--'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. Today (ဒီနေ့) */}
+          <div className="bg-teal-950/80 border border-teal-700/70 rounded-xl px-2.5 py-1.5 shadow-2xs">
+            <div className="text-[10px] font-bold text-teal-200 mb-1 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>ဒီနေ့</span>
+              </div>
+              <span className="text-teal-400 font-mono text-[9px]">({formatDisplayDate(todayDateStr)})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 bg-slate-900/90 border border-teal-700/60 rounded-lg px-2 py-0.5">
+                <span className="text-[10px] text-teal-300 font-medium">မနက်:</span>
+                <span
+                  className={`font-mono font-black text-xs sm:text-sm ${
+                    todayMorn?.winningNumber
+                      ? 'text-amber-400'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {todayMorn?.winningNumber || '--'}
                 </span>
               </div>
-            );
-          })}
-        </div>
+              <div className="flex items-center gap-1 bg-slate-900/90 border border-teal-700/60 rounded-lg px-2 py-0.5">
+                <span className="text-[10px] text-indigo-300 font-medium">ညနေ:</span>
+                <span
+                  className={`font-mono font-black text-xs sm:text-sm ${
+                    todayEve?.winningNumber
+                      ? 'text-amber-400'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {todayEve?.winningNumber || '--'}
+                </span>
+              </div>
+            </div>
+          </div>
 
-        {/* View All Button */}
-        <button
-          type="button"
-          onClick={onOpenHistory}
-          className="text-xs font-bold text-teal-300 hover:text-white flex items-center gap-1 hover:underline ml-auto cursor-pointer"
-        >
-          <span>ဇီးကွက် မှတ်တမ်းအားလုံး</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+          {/* View History Button */}
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="text-xs font-bold text-teal-300 hover:text-white flex items-center gap-0.5 hover:underline cursor-pointer ml-auto pl-1"
+            title="ရလဒ်မှတ်တမ်းအားလုံး ကြည့်ရန်"
+          >
+            <span>မှတ်တမ်း</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     );
   }

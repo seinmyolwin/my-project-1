@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   ShieldAlert,
@@ -9,10 +9,15 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   User,
-  Phone
+  Phone,
+  Copy,
+  Printer,
+  CheckSquare,
+  Square,
+  Send
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { ForwardSlip, ForwardSlipItem } from '../types';
+import { ForwardSlip, ForwardSlipItem, NumberAggregate } from '../types';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 
 interface ForwardSlipsModalProps {
@@ -20,6 +25,16 @@ interface ForwardSlipsModalProps {
   onClose: () => void;
   initialNumber?: string;
   initialAmount?: number;
+}
+
+interface DraftForwardItem {
+  id: string;
+  number: string;
+  totalSold: number;
+  limit: number;
+  excessAmount: number;
+  forwardAmount: number;
+  selected: boolean;
 }
 
 export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
@@ -31,6 +46,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   const {
     activeRound,
     settings,
+    aggregates,
     forwardSlips,
     activeRoundForwardSlips,
     addForwardSlip,
@@ -40,319 +56,477 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   const isMyanmar = settings.language === 'my';
 
   // Form State
-  const [masterAgentName, setMasterAgentName] = useState('ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
-  const [masterAgentPhone, setMasterAgentPhone] = useState('09-970001111');
+  const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
+  const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate || 10);
   const [notes, setNotes] = useState('');
 
-  // Staged items
-  const [numberInput, setNumberInput] = useState(initialNumber || '');
-  const [amountInput, setAmountInput] = useState(String(initialAmount || 10000));
-  const [stagedItems, setStagedItems] = useState<ForwardSlipItem[]>(() => {
-    if (initialNumber && initialAmount && initialAmount > 0) {
-      return [{ number: initialNumber, amount: initialAmount }];
+  // Draft items
+  const [draftItems, setDraftItems] = useState<DraftForwardItem[]>([]);
+  const [manualNum, setManualNum] = useState('');
+  const [manualAmt, setManualAmt] = useState('10000');
+
+  // Completed Slip for receipt / copy / print
+  const [createdSlip, setCreatedSlip] = useState<ForwardSlip | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  // Compute all excess 3D numbers from active round aggregates
+  const excessList: DraftForwardItem[] = useMemo(() => {
+    const list: DraftForwardItem[] = [];
+    const allAggs = Object.values(aggregates) as NumberAggregate[];
+
+    allAggs.forEach((agg) => {
+      const netSold = Math.max(0, agg.totalSold - (agg.forwardedAmount || 0));
+      if (agg.limit > 0 && netSold > agg.limit) {
+        const excess = netSold - agg.limit;
+        list.push({
+          id: `excess-3d-${agg.number}`,
+          number: agg.number,
+          totalSold: agg.totalSold,
+          limit: agg.limit,
+          excessAmount: excess,
+          forwardAmount: excess,
+          selected: true
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.excessAmount - a.excessAmount);
+  }, [aggregates]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setCreatedSlip(null);
+      setCopySuccess(false);
+      return;
     }
-    return [];
-  });
+
+    if (initialNumber && initialAmount && initialAmount > 0) {
+      const clean = initialNumber.padStart(3, '0');
+      const agg = aggregates[clean];
+      setDraftItems([
+        {
+          id: `init-3d-${clean}`,
+          number: clean,
+          totalSold: agg?.totalSold || initialAmount,
+          limit: agg?.limit || 0,
+          excessAmount: initialAmount,
+          forwardAmount: initialAmount,
+          selected: true
+        }
+      ]);
+    } else {
+      setDraftItems(excessList);
+    }
+  }, [isOpen, initialNumber, initialAmount, excessList, aggregates]);
 
   if (!isOpen) return null;
 
-  const handleAddItem = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!numberInput || numberInput.length !== 3) return;
-    const amount = parseInt(amountInput, 10);
-    if (isNaN(amount) || amount <= 0) return;
-
-    setStagedItems(prev => [...prev, { number: numberInput, amount }]);
-    setNumberInput('');
+  // Toggle selection
+  const toggleSelect = (id: string) => {
+    setDraftItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, selected: !i.selected } : i))
+    );
   };
 
-  const handleRemoveItem = (index: number) => {
-    setStagedItems(prev => prev.filter((_, i) => i !== index));
+  const handleToggleSelectAll = () => {
+    const allSelected = draftItems.length > 0 && draftItems.every((i) => i.selected);
+    setDraftItems((prev) => prev.map((i) => ({ ...i, selected: !allSelected })));
   };
 
-  const totalAmount = stagedItems.reduce((acc, item) => acc + item.amount, 0);
+  const handleAmountChange = (id: string, newAmtStr: string) => {
+    const cleaned = convertMyanmarToEnglishDigits(newAmtStr).replace(/\D/g, '');
+    const val = parseInt(cleaned, 10) || 0;
+    setDraftItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, forwardAmount: val } : i))
+    );
+  };
+
+  const handleRemoveDraft = (id: string) => {
+    setDraftItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleAddManual = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = manualNum.trim().padStart(3, '0');
+    const amt = parseFloat(manualAmt);
+    if (clean.length === 3 && !isNaN(amt) && amt > 0) {
+      const existing = draftItems.find((i) => i.number === clean);
+      if (existing) {
+        setDraftItems((prev) =>
+          prev.map((i) =>
+            i.number === clean ? { ...i, forwardAmount: i.forwardAmount + amt, selected: true } : i
+          )
+        );
+      } else {
+        const agg = aggregates[clean];
+        setDraftItems((prev) => [
+          ...prev,
+          {
+            id: `manual-3d-${clean}-${Date.now()}`,
+            number: clean,
+            totalSold: agg?.totalSold || amt,
+            limit: agg?.limit || 0,
+            excessAmount: amt,
+            forwardAmount: amt,
+            selected: true
+          }
+        ]);
+      }
+      setManualNum('');
+    }
+  };
+
+  const activeSelected = draftItems.filter((i) => i.selected && i.forwardAmount > 0);
+  const totalAmount = activeSelected.reduce((acc, i) => acc + i.forwardAmount, 0);
   const commissionAmount = Math.round((totalAmount * commissionRate) / 100);
   const netPaid = totalAmount - commissionAmount;
 
   const handleSaveForwardSlip = () => {
-    if (stagedItems.length === 0) return;
+    if (activeSelected.length === 0) {
+      alert(isMyanmar ? 'လွှဲတင်မည့် ဂဏန်းစာရင်း ရွေးချယ်ပါ' : 'Select at least one number');
+      return;
+    }
 
-    addForwardSlip({
+    const payload = {
       roundId: activeRound?.id || 'default',
       masterAgentName: masterAgentName.trim() || 'ဒိုင်ချုပ်ကြီး',
       masterAgentPhone: masterAgentPhone.trim(),
-      items: stagedItems,
+      items: activeSelected.map((i) => ({ number: i.number, amount: i.forwardAmount })),
       totalAmount,
       commissionRate,
       commissionAmount,
       netPaid,
-      notes: notes.trim()
-    });
+      notes: notes.trim() || undefined
+    };
 
-    setStagedItems([]);
-    onClose();
+    const newSlip = addForwardSlip(payload);
+    setCreatedSlip(newSlip);
+  };
+
+  const handleCopyViber = () => {
+    if (!createdSlip) return;
+    const lines = createdSlip.items.map((it) => `${it.number}=${it.amount}`);
+    const text = `【3D ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nပွဲစဉ်: ${activeRound?.name}\nဒိုင်ချုပ်: ${createdSlip.masterAgentName}\n----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nဒိုင်သို့ အမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
+
+    navigator.clipboard.writeText(text);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2500);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-indigo-900 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold border border-indigo-100">
-              <ShieldAlert className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold">
+              <ShieldAlert className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">
-                {isMyanmar ? 'အထက်တင် / ပွဲစား အပို့စာရင်း (Hedging & Forwarding)' : 'Forward & Offload Ledger'}
+              <h3 className="text-base font-black text-white leading-tight">
+                {isMyanmar ? 'အိုးစည်လေး ဒိုင်ကြီးဆီ ပြန်တင်စာရင်း (3D Batch Forward Hub)' : '3D Master Agent Forwarding Hub'}
               </h3>
-              <p className="text-xs text-slate-500">
-                {isMyanmar ? 'အန္တရာယ်ရှိသော ဂဏန်းများကို အဓိကဒိုင်ကြီးထံသို့ လွှဲတင်ပြီး ကော်မရှင်ရယူခြင်း' : 'Offload excess liability to master bookmaker and lock in commission'}
+              <p className="text-[11px] text-indigo-200/80">
+                {isMyanmar ? 'သတ်မှတ်ချက်ကျော် ပိုနေသော 3D ဂဏန်းများကို စုစည်းလွှဲတင်ခြင်း' : 'Batch offload 3D excess liability'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          
-          {/* New Forward Slip Entry Card */}
-          <div className="bg-slate-50 border border-indigo-100 rounded-xl p-4 space-y-4 shadow-2xs">
-            <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
-              <ArrowUpRight className="w-4 h-4" />
-              <span>{isMyanmar ? 'အထက်သို့ လွှဲတင်မည့် စလစ်အသစ် ရေးသွင်းရန်' : 'New Forward Slip Entry'}</span>
-            </h4>
+        {createdSlip ? (
+          <div className="p-6 space-y-5 overflow-y-auto">
+            <div className="text-center space-y-2 py-2">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h4 className="text-base font-black text-slate-900">
+                {isMyanmar ? '3D ဒိုင်ကြီးဆီ လွှဲတင်စာရင်း အောင်မြင်စွာ မှတ်တမ်းတင်ပြီးပါပြီ' : '3D Forward Slip Created Successfully'}
+              </h4>
+              <p className="text-xs text-slate-500 font-mono">
+                {createdSlip.slipNo} • {createdSlip.masterAgentName}
+              </p>
+            </div>
 
-            {/* Master Agent Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700">
-                  {isMyanmar ? 'ဒိုင်ချုပ်ကြီး အမည်' : 'Master Agent Name'}
-                </label>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 font-mono text-xs space-y-3">
+              <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-2">
+                <span>ပွဲစဉ်: {activeRound?.name}</span>
+                <span>ဂဏန်း {createdSlip.items.length} တွဲ</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 divide-y divide-slate-100">
+                {createdSlip.items.map((it, idx) => (
+                  <div key={idx} className="pt-1.5 flex justify-between items-center text-slate-800">
+                    <span className="font-bold text-sm bg-indigo-50 border border-indigo-200 text-indigo-900 px-2 py-0.5 rounded">
+                      {it.number}
+                    </span>
+                    <span className="font-bold">{formatAmount(it.amount, settings.currency)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-200 pt-2 space-y-1">
+                <div className="flex justify-between text-slate-600">
+                  <span>လွှဲတင်ငွေ စုစုပေါင်း:</span>
+                  <span className="font-bold">{formatAmount(createdSlip.totalAmount, settings.currency)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>ရရှိမည့် ကော်မရှင် ({createdSlip.commissionRate}%):</span>
+                  <span className="font-bold">+{formatAmount(createdSlip.commissionAmount, settings.currency)}</span>
+                </div>
+                <div className="flex justify-between text-slate-900 font-bold text-sm pt-1 border-t border-slate-200">
+                  <span>ဒိုင်ကြီးသို့ ပေးရန်:</span>
+                  <span className="text-indigo-700">{formatAmount(createdSlip.netPaid, settings.currency)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCopyViber}
+                className="py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+              >
+                <Copy className="w-4 h-4" />
+                <span>{copySuccess ? 'Copied ✓' : 'Viber စာသား ကူးယူမည်'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>ဘောင်ချာ ပရင့်ထုတ်မည်</span>
+              </button>
+            </div>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+              >
+                ပိတ်မည် (Done)
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+            {/* Master Agent Info */}
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ဒိုင်ချုပ် အမည်</label>
                 <input
                   type="text"
                   value={masterAgentName}
                   onChange={(e) => setMasterAgentName(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
+                  className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-indigo-500"
                 />
               </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700">
-                  {isMyanmar ? 'ဖုန်းနံပါတ်' : 'Phone'}
-                </label>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ဖုန်းနံပါတ်</label>
                 <input
                   type="text"
                   value={masterAgentPhone}
                   onChange={(e) => setMasterAgentPhone(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
+                  className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-mono text-slate-900 outline-none focus:border-indigo-500"
                 />
               </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700">
-                  {isMyanmar ? 'ရရှိမည့် ကော်မရှင် (%)' : 'Commission Rate (%)'}
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={commissionRate}
-                  onChange={(e) => setCommissionRate(Math.max(0, parseInt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''), 10) || 0))}
-                  onFocus={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  onClick={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
-                />
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ကော်မရှင် (%)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={commissionRate}
+                    onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
+                    className="w-full h-9 px-3 pr-7 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 outline-none focus:border-indigo-500"
+                  />
+                  <Percent className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
+                </div>
               </div>
             </div>
 
-            {/* Item Input Row */}
-            <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end pt-2 border-t border-slate-200">
-              <div className="sm:col-span-4 space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  {isMyanmar ? 'လွှဲတင်မည့် ဂဏန်း' : 'Number (3-Digit)'}
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={3}
-                  value={numberInput}
-                  onChange={(e) => setNumberInput(convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3))}
-                  onFocus={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  onClick={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  placeholder="000 - 999"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base font-black font-mono text-indigo-900 text-center outline-none focus:border-indigo-500 shadow-2xs"
-                />
-              </div>
-
-              <div className="sm:col-span-5 space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  {isMyanmar ? 'လွှဲတင်ငွေ' : 'Amount'} ({settings.currency})
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                  onFocus={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  onClick={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  placeholder="10000"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base font-bold font-mono text-slate-900 text-center outline-none focus:border-indigo-500 shadow-2xs"
-                />
-              </div>
-
-              <div className="sm:col-span-3">
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{isMyanmar ? 'စာရင်းထည့်' : 'Add Item'}</span>
-                </button>
-              </div>
+            {/* Quick Add Custom 3D Number */}
+            <form onSubmit={handleAddManual} className="flex items-center gap-2 text-xs">
+              <input
+                type="text"
+                maxLength={3}
+                placeholder="ဂဏန်း (123)"
+                value={manualNum}
+                onChange={(e) =>
+                  setManualNum(
+                    convertMyanmarToEnglishDigits(e.target.value)
+                      .replace(/\D/g, '')
+                      .slice(0, 3)
+                  )
+                }
+                className="w-24 h-9 px-2 text-center font-mono font-bold rounded-xl border border-slate-300 bg-white"
+              />
+              <input
+                type="text"
+                placeholder="ငွေပမာဏ"
+                value={manualAmt}
+                onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                className="flex-1 h-9 px-3 text-right font-mono font-bold rounded-xl border border-slate-300 bg-white"
+              />
+              <button
+                type="submit"
+                className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs cursor-pointer shrink-0"
+              >
+                + ထပ်ထည့်
+              </button>
             </form>
 
-            {/* Staged Items List */}
-            {stagedItems.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-slate-200">
-                <div className="flex flex-wrap gap-2">
-                  {stagedItems.map((item, idx) => (
+            {/* Draft Items Selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 cursor-pointer"
+                  >
+                    {draftItems.length > 0 && draftItems.every((i) => i.selected) ? (
+                      <CheckSquare className="w-4 h-4 text-indigo-600" />
+                    ) : (
+                      <Square className="w-4 h-4 text-slate-400" />
+                    )}
+                    <span>
+                      {draftItems.length > 0 && draftItems.every((i) => i.selected)
+                        ? 'အားလုံး ရွေးထားသည်'
+                        : 'အားလုံး ရွေးမည်'}
+                    </span>
+                  </button>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    ({activeSelected.length} / {draftItems.length} လုံး ရွေးချယ်ထား)
+                  </span>
+                </div>
+
+                {excessList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDraftItems(excessList)}
+                    className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                  >
+                    ပိုနေသောဂဏန်းများ အကုန်ပြန်ယူမည်
+                  </button>
+                )}
+              </div>
+
+              {draftItems.length === 0 ? (
+                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-300 space-y-2">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">
+                    {isMyanmar ? 'လက်ရှိတွင် သတ်မှတ်ကန့်သတ်ငွေ ကျော်လွန်နေသော 3D ဂဏန်း မရှိပါ' : 'No over-limit 3D numbers currently'}
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 text-xs">
+                  {draftItems.map((item) => (
                     <div
-                      key={idx}
-                      className="bg-white border border-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-mono shadow-2xs"
+                      key={item.id}
+                      className={`p-2.5 flex items-center justify-between gap-2 transition-colors ${
+                        item.selected ? 'bg-indigo-50/40' : 'bg-slate-50/60 opacity-60'
+                      }`}
                     >
-                      <span className="font-bold text-indigo-900 text-sm">{item.number}</span>
-                      <span className="text-slate-800">={formatAmount(item.amount, settings.currency)}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(idx)}
-                        className="text-slate-400 hover:text-rose-600 ml-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(item.id)}
+                          className="cursor-pointer text-indigo-600"
+                        >
+                          {item.selected ? (
+                            <CheckSquare className="w-4 h-4 text-indigo-600" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400" />
+                          )}
+                        </button>
+                        <span className="font-mono text-base font-black px-2 py-0.5 bg-white border border-slate-300 text-slate-900 rounded-lg shadow-2xs">
+                          {item.number}
+                        </span>
+                        <div className="hidden sm:block text-[11px] text-slate-500">
+                          <span>ရောင်းရ: {formatAmount(item.totalSold, settings.currency)}</span>
+                          {item.limit > 0 && (
+                            <span className="ml-1.5 text-slate-400">(ကန့်သတ်: {formatAmount(item.limit, settings.currency)})</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={item.forwardAmount}
+                          onChange={(e) => handleAmountChange(item.id, e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          disabled={!item.selected}
+                          className="w-28 sm:w-32 h-8 px-2 text-right font-mono font-bold text-xs bg-white rounded-lg border border-slate-300 focus:border-indigo-500 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDraft(item.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
 
-                {/* Totals & Submit */}
-                <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-600 block">
-                      စုစုပေါင်း: <b className="text-slate-900 font-mono">{formatAmount(totalAmount, settings.currency)}</b> | ရရှိမည့် ကော်မရှင်: <b className="text-indigo-700 font-mono">+{formatAmount(commissionAmount, settings.currency)}</b>
-                    </span>
-                    <span className="text-emerald-700 font-bold block">
-                      ဒိုင်ချုပ်သို့ ပေးချေငွေ: {formatAmount(netPaid, settings.currency)}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveForwardSlip}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
-                  >
-                    {isMyanmar ? 'အပေါ်လွှဲစလစ် အတည်ပြုသိမ်းမည်' : 'Save Forward Slip'}
-                  </button>
-                </div>
+            {/* Financial Summary */}
+            <div className="bg-slate-900 text-white p-4 rounded-2xl font-mono text-xs space-y-1.5 shadow-md">
+              <div className="flex justify-between text-slate-300">
+                <span className="font-sans">ရွေးချယ်ထားသော ဂဏန်း စုစုပေါင်း ({activeSelected.length} လုံး):</span>
+                <span className="font-bold">{formatAmount(totalAmount, settings.currency)}</span>
               </div>
-            )}
+              <div className="flex justify-between text-emerald-400">
+                <span className="font-sans">ရရှိမည့် ကော်မရှင် ({commissionRate}%):</span>
+                <span className="font-bold">+{formatAmount(commissionAmount, settings.currency)}</span>
+              </div>
+              <div className="flex justify-between text-amber-400 font-bold border-t border-slate-800 pt-1.5 text-sm">
+                <span className="font-sans">ဒိုင်ကြီးသို့ အမှန်ပေးချေရမည့်ငွေ:</span>
+                <span>{formatAmount(netPaid, settings.currency)}</span>
+              </div>
+            </div>
 
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                မလုပ်တော့ပါ
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveForwardSlip}
+                disabled={activeSelected.length === 0}
+                className={`px-5 py-2.5 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-md transition-all cursor-pointer ${
+                  activeSelected.length > 0
+                    ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'
+                    : 'bg-slate-300 cursor-not-allowed text-slate-500'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+                <span>
+                  {isMyanmar
+                    ? `ရွေးချယ်ထားသော (${activeSelected.length} လုံး) စာရင်း ဘောင်ချာထုတ်ပြီး ပြန်တင်မည်`
+                    : 'Confirm & Forward Selected'}
+                </span>
+              </button>
+            </div>
           </div>
-
-          {/* Existing Forwarded Slips History */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              {isMyanmar ? 'လက်ရှိပွဲစဉ် အပေါ်လွှဲတင်ထားသော စလစ်များ' : 'Active Round Forwarded Slips History'}
-            </h4>
-
-            {activeRoundForwardSlips.length === 0 ? (
-              <div className="py-8 text-center text-slate-500 text-xs bg-slate-50 rounded-xl border border-slate-200">
-                {isMyanmar ? 'အထက်သို့ လွှဲတင်ထားသော စာရင်းမရှိသေးပါ' : 'No forward slips created for this round yet'}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {activeRoundForwardSlips.map((slip) => (
-                  <div
-                    key={slip.id}
-                    className="bg-white border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-indigo-700">{slip.slipNo}</span>
-                        <span className="text-slate-900 font-semibold">{slip.masterAgentName}</span>
-                        {slip.masterAgentPhone && (
-                          <span className="text-slate-500 font-mono">({slip.masterAgentPhone})</span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1 text-slate-600 font-mono">
-                        {slip.items.map((it, i) => (
-                          <span key={i} className="bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                            {it.number}={formatAmount(it.amount, settings.currency)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-4 font-mono border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0">
-                      <div className="text-right">
-                        <span className="text-indigo-700 font-bold block">
-                          ကော်မရှင်: +{formatAmount(slip.commissionAmount, settings.currency)}
-                        </span>
-                        <span className="text-slate-500 text-[11px] block">
-                          ပေးငွေ: {formatAmount(slip.netPaid, settings.currency)}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => deleteForwardSlip(slip.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                        title="စလစ်ဖျက်မည်"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-
+        )}
       </div>
     </div>
   );
 };
+

@@ -94,10 +94,12 @@ export const TwoDWinningPayoutView: React.FC = () => {
         setWinningInput(res.result.twod);
         setLiveStatusMsg(res.message);
       } else {
-        setLiveStatusMsg('ထိုင်း 2D ရလဒ် ရယူရာတွင် အဆင်မပြေပါ၊ စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
+        setWinningInput('');
+        setLiveStatusMsg(res.message || 'ထိုင်း SET ဖိုင်နယ် အတည်ပြုဂဏန်း မထွက်သေးပါ (အလွတ်ထားရှိပါသည်)');
       }
     } catch {
-      setLiveStatusMsg('အင်တာနက် ချိတ်ဆက်မှု စစ်ဆေးပြီး စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
+      setWinningInput('');
+      setLiveStatusMsg('အင်တာနက် ချိတ်ဆက်မှု စစ်ဆေးပါ (ဖိုင်နယ် အတည်ပြုဂဏန်း မထွက်သေးပါက အလွတ်ထားရှိပါသည်)');
     } finally {
       setIsFetchingLive(false);
     }
