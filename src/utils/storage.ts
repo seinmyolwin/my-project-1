@@ -696,20 +696,43 @@ const STORAGE_KEYS = {
   LEAGUES_FOOTBALL: 'football_ledger_leagues_v1'
 };
 
+// Request browser to keep storage persistent (prevents eviction on iOS Safari & Android Chrome)
+if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().catch(() => {});
+}
+
 export function loadStoredData<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return defaultValue;
-    return JSON.parse(raw);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+    // Secondary fallback to safety backup copy if primary was null
+    const backupRaw = localStorage.getItem(`${key}_backup`);
+    if (backupRaw) {
+      return JSON.parse(backupRaw);
+    }
+    return defaultValue;
   } catch (err) {
-    console.error(`Failed to load ${key} from storage:`, err);
+    console.error(`Failed to load ${key} from storage, attempting backup recovery:`, err);
+    try {
+      const backupRaw = localStorage.getItem(`${key}_backup`);
+      if (backupRaw) {
+        return JSON.parse(backupRaw);
+      }
+    } catch {
+      // ignore
+    }
     return defaultValue;
   }
 }
 
 export function saveStoredData<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    const str = JSON.stringify(data);
+    localStorage.setItem(key, str);
+    // Maintain secondary safety snapshot to protect against accidental browser eviction
+    localStorage.setItem(`${key}_backup`, str);
   } catch (err) {
     console.error(`Failed to save ${key} to storage:`, err);
   }
