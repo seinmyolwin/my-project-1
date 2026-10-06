@@ -6,6 +6,11 @@ export const VIBER_STORAGE_KEYS = {
   ORDERS: 'rhmg_viber_orders_v1'
 };
 
+export const TELEGRAM_STORAGE_KEYS = {
+  CONFIG: 'shwe_mingalar_telegram_config',
+  ORDERS: 'shwe_mingalar_telegram_orders'
+};
+
 const CIPHER_HEADER = '-----BEGIN SHWE MINGALAR SECURE ENCRYPTED LEDGER ARCHIVE v3-----';
 const CIPHER_FOOTER = '-----END SHWE MINGALAR SECURE ENCRYPTED LEDGER ARCHIVE-----';
 const SECRET_SEED = 'SHWE_MINGALAR_PRO_BOOKIE_SECURE_KEY_2026_!@#$%^&*()';
@@ -278,6 +283,11 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       'viber': {
         config: localStorage.getItem(VIBER_STORAGE_KEYS.CONFIG),
         orders: localStorage.getItem(VIBER_STORAGE_KEYS.ORDERS)
+      },
+      // Telegram Integration Orders & Config
+      'telegram': {
+        config: localStorage.getItem(TELEGRAM_STORAGE_KEYS.CONFIG),
+        orders: localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS)
       }
     }
   };
@@ -408,6 +418,13 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       if (pvib) {
         if (pvib.config) localStorage.setItem(VIBER_STORAGE_KEYS.CONFIG, pvib.config);
         if (pvib.orders) localStorage.setItem(VIBER_STORAGE_KEYS.ORDERS, pvib.orders);
+      }
+
+      // Restore Telegram
+      const ptg = parsed.payload['telegram'];
+      if (ptg) {
+        if (ptg.config) localStorage.setItem(TELEGRAM_STORAGE_KEYS.CONFIG, ptg.config);
+        if (ptg.orders) localStorage.setItem(TELEGRAM_STORAGE_KEYS.ORDERS, ptg.orders);
       }
 
       return {
