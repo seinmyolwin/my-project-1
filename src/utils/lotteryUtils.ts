@@ -94,34 +94,16 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
         .replace(/\s+/g, ' ')
         .trim();
 
-      // Check for Rumble / R / ပတ် patterns
-      // Examples: "123 R 1000", "123r1000", "123 R1000", "123 r 1000", "123ပတ် 1000"
-      const rMatch = line.match(/^([0-9]{3})\s*(?:r|R|ပတ်|ပတ်လည်)\s*[=:\-_]?\s*([0-9]+)$/i) ||
-                    line.match(/^([0-9]{3})(?:r|R)([0-9]+)$/i);
+      // Check for Rumble / R / ပတ် patterns (supports single "123 R 1000" and multiple "123 456 789 R 1000" / "123,456 R 500")
+      const isRumble = /r|R|အာ|ပတ်လည်|ပတ်/i.test(line);
+      const cleanForTokens = convertMyanmarToEnglishDigits(line)
+        .replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ')
+        .replace(/[=:\-_/,*+]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-      if (rMatch) {
-        const baseNum = rMatch[1];
-        const amount = parseInt(rMatch[2], 10);
-        if (isNaN(amount) || amount <= 0) {
-          errors.push(`ပမာဏ မှားယွင်းနေပါသည်: "${line}"`);
-          continue;
-        }
-        const perms = getPermutations(baseNum);
-        perms.forEach(p => {
-          items.push({
-            id: `item-${Date.now()}-${idCounter++}`,
-            number: p,
-            amount: amount,
-            isRumble: true,
-            originalInput: `${baseNum} R (${perms.length} ခွေ)`
-          });
-        });
-        continue;
-      }
+      const parts = cleanForTokens.split(' ').filter(Boolean);
 
-      // Check standard format: "123 1000" or "123,456,789 1000"
-      // Split tokens
-      const parts = normalized.split(' ');
       if (parts.length >= 2) {
         const amountStr = parts[parts.length - 1];
         const amount = parseInt(amountStr, 10);
@@ -133,22 +115,57 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
 
         const numbersPart = parts.slice(0, parts.length - 1);
         for (const numToken of numbersPart) {
-          // Check if it is a 3-digit number
           const cleanNum = numToken.replace(/[^0-9]/g, '');
           if (cleanNum.length === 3) {
-            items.push({
-              id: `item-${Date.now()}-${idCounter++}`,
-              number: cleanNum,
-              amount: amount,
-              isRumble: false,
-              originalInput: cleanNum
-            });
+            if (isRumble) {
+              const perms = getPermutations(cleanNum);
+              perms.forEach(p => {
+                items.push({
+                  id: `item-${Date.now()}-${idCounter++}`,
+                  number: p,
+                  amount: amount,
+                  isRumble: true,
+                  originalInput: `${cleanNum} R (${perms.length} ခွေ)`
+                });
+              });
+            } else {
+              items.push({
+                id: `item-${Date.now()}-${idCounter++}`,
+                number: cleanNum,
+                amount: amount,
+                isRumble: false,
+                originalInput: cleanNum
+              });
+            }
           } else {
             errors.push(`ဂဏန်း ၃ လုံး မပြည့်ပါ: "${numToken}" (မူရင်း: "${line}")`);
           }
         }
+      } else if (parts.length === 1 && parts[0].length === 3) {
+        // Single 3-digit number with default 1000
+        const cleanNum = parts[0];
+        if (isRumble) {
+          const perms = getPermutations(cleanNum);
+          perms.forEach(p => {
+            items.push({
+              id: `item-${Date.now()}-${idCounter++}`,
+              number: p,
+              amount: 1000,
+              isRumble: true,
+              originalInput: `${cleanNum} R`
+            });
+          });
+        } else {
+          items.push({
+            id: `item-${Date.now()}-${idCounter++}`,
+            number: cleanNum,
+            amount: 1000,
+            isRumble: false,
+            originalInput: cleanNum
+          });
+        }
       } else {
-        errors.push(`ပုံစံ မမှန်ကန်ပါ: "${line}" (ဥပမာ: 123=1000 သို့မဟုတ် 123R=500)`);
+        errors.push(`ပုံစံ မမှန်ကန်ပါ: "${line}" (ဥပမာ: 123=1000 သို့မဟုတ် 123 456 R 500)`);
       }
     } catch {
       errors.push(`နားမလည်နိုင်သော စာသား: "${line}"`);

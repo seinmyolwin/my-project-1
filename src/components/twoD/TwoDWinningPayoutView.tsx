@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Trophy,
   CheckCircle2,
@@ -36,8 +36,13 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
   const [multiplierInput, setMultiplierInput] = useState(
-    String(activeRound?.multiplier || settings.defaultMultiplier || 85)
+    String(activeRound?.multiplier || settings.defaultMultiplier || 80)
   );
+
+  useEffect(() => {
+    setWinningInput(activeRound?.winningNumber || '');
+    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || 80));
+  }, [activeRound?.id, activeRound?.winningNumber, activeRound?.multiplier, settings.defaultMultiplier]);
 
   const [isFetchingLive, setIsFetchingLive] = useState(false);
   const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
@@ -66,7 +71,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
         drawDate: today,
         session: targetSession,
         status: 'open',
-        multiplier: settings.defaultMultiplier || 85,
+        multiplier: settings.defaultMultiplier || 80,
         targetTime: isMorning ? '16:30' : '12:01'
       });
       setActiveRoundId(newRound.id);
@@ -115,7 +120,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
       return;
     }
 
-    const mult = parseFloat(multiplierInput) || 85;
+    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80;
     settleWinningNumber(cleanNum, mult);
   };
 
@@ -214,7 +219,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
           <div className="sm:col-span-4">
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {isMyanmar ? 'အလျော်ဆ (ဥပမာ- 85 ဆ)' : 'Multiplier (e.g. 85x)'}
+              {isMyanmar ? `အလျော်ဆ (ဥပမာ- ${settings.defaultMultiplier || 80} ဆ)` : `Multiplier (e.g. ${settings.defaultMultiplier || 80}x)`}
             </label>
             <input
               type="text"

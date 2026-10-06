@@ -183,6 +183,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const updateSettings = useCallback((newSettings: Partial<TwoDAppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
+    if (newSettings.defaultMultiplier !== undefined && !isNaN(newSettings.defaultMultiplier)) {
+      const newMult = Number(newSettings.defaultMultiplier);
+      setRounds(prev =>
+        prev.map(r => (r.status === 'open' ? { ...r, multiplier: newMult } : r))
+      );
+    }
   }, []);
 
   const setActiveRoundId = useCallback((id: string) => {
@@ -496,7 +502,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Settle winning number
   const settleWinningNumber = useCallback((winningNum: string, multiplier?: number) => {
     if (!activeRound) return;
-    const mult = multiplier || activeRound.multiplier || 85;
+    const mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 80;
     const formattedNum = winningNum.padStart(2, '0');
 
     const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);

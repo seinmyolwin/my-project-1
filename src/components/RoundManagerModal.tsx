@@ -48,8 +48,8 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
       drawDate,
       closingTime,
       status: 'open',
-      multiplier: parseInt(multiplier, 10) || 600,
-      toddMultiplier: parseInt(toddMultiplier, 10) || 100,
+      multiplier: parseInt(multiplier, 10) || settings.defaultMultiplier || 600,
+      toddMultiplier: parseInt(toddMultiplier, 10) || settings.defaultToddMultiplier || 100,
       commissionRate: settings.defaultCommissionRate || 10
     });
 

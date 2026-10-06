@@ -23,6 +23,7 @@ import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem }
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import {
   getTwoDReversal,
+  getTwoDIncludesNumbers,
   parseTwoDBatchInput,
   TWO_D_DOUBLES,
   TWO_D_POWER,
@@ -36,6 +37,13 @@ import {
 } from '../../utils/twoDLotteryUtils';
 import { OverLimitConfirmModal } from '../OverLimitConfirmModal';
 import { ImageSlipScannerModal } from '../ImageSlipScannerModal';
+import {
+  playTapSound,
+  playAddSound,
+  playSuccessSound,
+  playWarningSound,
+  playDeleteSound
+} from '../../utils/audioUtils';
 
 interface TwoDQuickSaleEntryProps {
   onVoucherCreated: (voucher: TwoDVoucher) => void;
@@ -134,12 +142,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   const discountAmount = Math.round((subtotal * discountPercent) / 100);
   const netPayable = subtotal - discountAmount;
 
-  // Add items from single form
+  // Add items from single form (supports single number "24" or multiple numbers "35 56 54" with R)
   const handleAddItem = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    const cleanNum = numberInput.trim();
-    if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
+    const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
+    if (!rawInput) {
+      playWarningSound();
       showToast(isMyanmar ? 'ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ရိုက်ထည့်ပါ' : 'Enter a valid 2-digit number (00-99)', 'error');
       numberInputRef.current?.focus();
       return;
@@ -147,50 +156,374 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
     const amt = parseFloat(amountInput);
     if (isNaN(amt) || amt <= 0) {
+      playWarningSound();
       showToast(isMyanmar ? 'ထိုးကြေးငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid bet amount', 'error');
       return;
     }
 
-    // Blocked check
-    if (isNumberBlocked(cleanNum)) {
-      showToast(isMyanmar ? `ဂဏန်း [${cleanNum}] သည် ဒိုင်ကာဂဏန်းအဖြစ် သတ်မှတ်ထားသဖြင့် လုံးဝလက်မခံပါ` : `Number [${cleanNum}] is blocked by dealer!`, 'error');
+    const hasRInInput = /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
+    const effectiveRumble = isRumble || hasRInInput;
+
+    const cleanForNumbers = rawInput.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const targetNumbers = rawTokens.map(t => t.padStart(2, '0')).filter(n => /^\d{2}$/.test(n));
+
+    if (targetNumbers.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ရိုက်ထည့်ပါ' : 'Enter a valid 2-digit number (00-99)', 'error');
+      numberInputRef.current?.focus();
       return;
     }
 
     const newItems: TwoDBetItem[] = [];
+    const blockedFound: string[] = [];
 
-    if (isRumble) {
-      const revs = getTwoDReversal(cleanNum);
-      const blockedRevs = revs.filter(r => isNumberBlocked(r));
-      const allowedRevs = revs.filter(r => !isNumberBlocked(r));
-
-      if (blockedRevs.length > 0) {
-        showToast(isMyanmar ? `[${blockedRevs.join(', ')}] သည် ဒိုင်ကာဂဏန်းဖြစ်သဖြင့် အလိုအလျောက် ပယ်ဖျက်ထားပါသည်` : `Blocked numbers removed`, 'warning');
-      }
-
-      allowedRevs.forEach(r => {
-        newItems.push({
-          id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          number: r,
-          amount: amt,
-          isRumble: true,
-          originalInput: `${cleanNum} R`
+    targetNumbers.forEach(cleanNum => {
+      if (effectiveRumble) {
+        const revs = getTwoDReversal(cleanNum);
+        revs.forEach(r => {
+          if (isNumberBlocked(r)) {
+            blockedFound.push(r);
+          } else {
+            newItems.push({
+              id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              number: r,
+              amount: amt,
+              isRumble: true,
+              originalInput: `${cleanNum} R`
+            });
+          }
         });
-      });
-    } else {
-      newItems.push({
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        number: cleanNum,
-        amount: amt,
-        isRumble: false,
-        originalInput: cleanNum
-      });
+      } else {
+        if (isNumberBlocked(cleanNum)) {
+          blockedFound.push(cleanNum);
+        } else {
+          newItems.push({
+            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: cleanNum,
+            amount: amt,
+            isRumble: false,
+            originalInput: cleanNum
+          });
+        }
+      }
+    });
+
+    if (blockedFound.length > 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${Array.from(new Set(blockedFound)).join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers`, 'warning');
     }
 
+    if (newItems.length > 0) {
+      playAddSound();
+      setItems(prev => [...prev, ...newItems]);
+      setNumberInput('');
+      setIsRumble(false);
+      numberInputRef.current?.focus();
+      showToast(
+        isMyanmar
+          ? `ဂဏန်းပေါင်း (${newItems.length}) ကွက် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ`
+          : `Added ${newItems.length} items`,
+        'success'
+      );
+    }
+  };
+
+  // Add Rumble/Reversal (အာ: e.g. 24 -> 24, 42)
+  const handleAddRumbleClick = () => {
+    const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
+    if (rawInput) {
+      const amt = parseFloat(amountInput);
+      if (isNaN(amt) || amt <= 0) {
+        playWarningSound();
+        showToast(isMyanmar ? 'ထိုးကြေးငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid bet amount', 'error');
+        return;
+      }
+      const rawTokens = rawInput.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ').replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
+      const targetNumbers = rawTokens.map(t => t.padStart(2, '0')).filter(n => /^\d{2}$/.test(n));
+      if (targetNumbers.length === 0) {
+        playWarningSound();
+        showToast(isMyanmar ? 'အာထိုးရန် ဂဏန်း (၀၀ မှ ၉၉) ထည့်ပါ' : 'Enter valid 2-digit numbers to rumble', 'error');
+        numberInputRef.current?.focus();
+        return;
+      }
+      const newItems: TwoDBetItem[] = [];
+      const blockedFound: string[] = [];
+      targetNumbers.forEach(cleanNum => {
+        const revs = getTwoDReversal(cleanNum);
+        revs.forEach(r => {
+          if (isNumberBlocked(r)) {
+            blockedFound.push(r);
+          } else {
+            newItems.push({
+              id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              number: r,
+              amount: amt,
+              isRumble: true,
+              originalInput: `${cleanNum} R`
+            });
+          }
+        });
+      });
+      if (blockedFound.length > 0) {
+        playWarningSound();
+        showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${Array.from(new Set(blockedFound)).join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers`, 'warning');
+      }
+      if (newItems.length > 0) {
+        playAddSound();
+        setItems(prev => [...prev, ...newItems]);
+        setNumberInput('');
+        setIsRumble(false);
+        numberInputRef.current?.focus();
+        showToast(isMyanmar ? `အာ/ပတ်လည် (${newItems.length} ကွက်) အောင်မြင်စွာ ထည့်ပြီးပါပြီ` : `Added ${newItems.length} rumble items`, 'success');
+      }
+    } else {
+      playTapSound();
+      const nextState = !isRumble;
+      setIsRumble(nextState);
+      showToast(isMyanmar ? (nextState ? 'အာ (R) ဖွင့်ထားပါသည်' : 'အာ (R) ပိတ်ထားပါသည်') : (nextState ? 'Rumble ON' : 'Rumble OFF'), nextState ? 'success' : 'warning');
+    }
+  };
+
+  // Add Break numbers for digit (ဘရိတ်: e.g. 5 -> 05, 14, 23, 32, 41, 50, 69, 78, 87, 96)
+  const handleAddBreakDigit = () => {
+    const cleanNum = numberInput.trim();
+    if (!cleanNum) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဘရိတ်အတွက် ဂဏန်း (၀ မှ ၉) တစ်လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၅)' : 'Enter a single digit (0-9) for break (e.g., 5)', 'warning');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const digitChar = cleanNum[cleanNum.length - 1];
+    if (!/^\d$/.test(digitChar)) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဂဏန်း (၀ မှ ၉) တစ်လုံး မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid digit (0-9)', 'error');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const amt = parseFloat(amountInput);
+    if (isNaN(amt) || amt <= 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထိုးကြေးငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid bet amount', 'error');
+      return;
+    }
+
+    const breakNumbers = getTwoDBreakNumbers(parseInt(digitChar, 10));
+    const allowed = breakNumbers.filter(n => !isNumberBlocked(n));
+    const blocked = breakNumbers.filter(n => isNumberBlocked(n));
+
+    if (blocked.length > 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] ဘရိတ် ထဲမှ ဒိုင်ကာဂဏန်း [${blocked.join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers from break list`, 'warning');
+    }
+
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] ဘရိတ် ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်` : `All numbers for this break are blocked`, 'error');
+      return;
+    }
+
+    const newItems: TwoDBetItem[] = allowed.map(n => ({
+      id: `brk-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      number: n,
+      amount: amt,
+      originalInput: `${digitChar} ဘရိတ်`
+    }));
+
+    playAddSound();
     setItems(prev => [...prev, ...newItems]);
     setNumberInput('');
     setIsRumble(false);
     numberInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `ဂဏန်း [${digitChar}] ဘရိတ် (${newItems.length} ကွက်) အား တစ်ကွက်လျှင် ${formatAmount(amt, settings.currency)} ဖြင့် စာရင်းထဲသို့ ထည့်သွင်းပြီးပါပြီ`
+        : `Added ${newItems.length} break numbers for [${digitChar}] at ${formatAmount(amt, settings.currency)} each`,
+      'success'
+    );
+  };
+
+  // Add all 2D numbers containing the specified single digit (e.g. 5 ပါ -> 19 numbers: 05, 15, 25, 35, 45, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 65, 75, 85, 95)
+  const handleAddIncludesDigit = () => {
+    const cleanNum = numberInput.trim();
+    if (!cleanNum) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ပါဝင်မည့် ဂဏန်း (၀ မှ ၉) တစ်လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၅)' : 'Enter a single digit (0-9) to include (e.g., 5)', 'warning');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    // Take the digit entered
+    const digitChar = cleanNum[cleanNum.length - 1];
+    if (!/^\d$/.test(digitChar)) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဂဏန်း (၀ မှ ၉) တစ်လုံး မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid digit (0-9)', 'error');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const amt = parseFloat(amountInput);
+    if (isNaN(amt) || amt <= 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထိုးကြေးငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid bet amount', 'error');
+      return;
+    }
+
+    const includeNumbers = getTwoDIncludesNumbers(digitChar);
+    const allowed = includeNumbers.filter(n => !isNumberBlocked(n));
+    const blocked = includeNumbers.filter(n => isNumberBlocked(n));
+
+    if (blocked.length > 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] အပါ ထဲမှ ဒိုင်ကာဂဏန်း [${blocked.join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers from includes list`, 'warning');
+    }
+
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] အပါ ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်` : `All numbers for this digit are blocked`, 'error');
+      return;
+    }
+
+    const newItems: TwoDBetItem[] = allowed.map(n => ({
+      id: `inc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      number: n,
+      amount: amt,
+      originalInput: `${digitChar} ပါ`
+    }));
+
+    playAddSound();
+    setItems(prev => [...prev, ...newItems]);
+    setNumberInput('');
+    setIsRumble(false);
+    numberInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `ဂဏန်း [${digitChar}] အပါ (${newItems.length} ကွက်) အား တစ်ကွက်လျှင် ${formatAmount(amt, settings.currency)} ဖြင့် စာရင်းထဲသို့ ထည့်သွင်းပြီးပါပြီ`
+        : `Added ${newItems.length} numbers containing [${digitChar}] at ${formatAmount(amt, settings.currency)} each`,
+      'success'
+    );
+  };
+
+  // Add Head/Front numbers for digit (ရှေ့ပိတ် / ထိပ်စီး: e.g. 1 -> 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+  const handleAddHeadDigit = () => {
+    const cleanNum = numberInput.trim();
+    if (!cleanNum) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ရှေ့ပိတ်အတွက် ဂဏန်း (၀ မှ ၉) တစ်လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၁)' : 'Enter a single digit (0-9) for head/front (e.g., 1)', 'warning');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const digitChar = cleanNum[cleanNum.length - 1];
+    if (!/^\d$/.test(digitChar)) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဂဏန်း (၀ မှ ၉) တစ်လုံး မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid digit (0-9)', 'error');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const amt = parseFloat(amountInput);
+    if (isNaN(amt) || amt <= 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထိုးကြေးငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid bet amount', 'error');
+      return;
+    }
+
+    const headNumbers = getTwoDHeadNumbers(parseInt(digitChar, 10));
+    const allowed = headNumbers.filter(n => !isNumberBlocked(n));
+    const blocked = headNumbers.filter(n => isNumberBlocked(n));
+
+    if (blocked.length > 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] ရှေ့ပိတ် ထဲမှ ဒိုင်ကာဂဏန်း [${blocked.join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers from head list`, 'warning');
+    }
+
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] ရှေ့ပိတ် ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်` : `All head numbers for this digit are blocked`, 'error');
+      return;
+    }
+
+    const newItems: TwoDBetItem[] = allowed.map(n => ({
+      id: `head-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      number: n,
+      amount: amt,
+      originalInput: `${digitChar} ရှေ့ပိတ်`
+    }));
+
+    playAddSound();
+    setItems(prev => [...prev, ...newItems]);
+    setNumberInput('');
+    setIsRumble(false);
+    numberInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `ဂဏန်း [${digitChar}] ရှေ့ပိတ် (${newItems.length} ကွက်) အား တစ်ကွက်လျှင် ${formatAmount(amt, settings.currency)} ဖြင့် စာရင်းထဲသို့ ထည့်သွင်းပြီးပါပြီ`
+        : `Added ${newItems.length} head numbers for [${digitChar}] at ${formatAmount(amt, settings.currency)} each`,
+      'success'
+    );
+  };
+
+  // Add Tail/Back numbers for digit (နောက်ပိတ်: e.g. 2 -> 02, 12, 22, 32, 42, 52, 62, 72, 82, 92)
+  const handleAddTailDigit = () => {
+    const cleanNum = numberInput.trim();
+    if (!cleanNum) {
+      playWarningSound();
+      showToast(isMyanmar ? 'နောက်ပိတ်အတွက် ဂဏန်း (၀ မှ ၉) တစ်လုံး ရိုက်ထည့်ပါ (ဥပမာ- ၂)' : 'Enter a single digit (0-9) for tail/back (e.g., 2)', 'warning');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const digitChar = cleanNum[cleanNum.length - 1];
+    if (!/^\d$/.test(digitChar)) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဂဏန်း (၀ မှ ၉) တစ်လုံး မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid digit (0-9)', 'error');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const amt = parseFloat(amountInput);
+    if (isNaN(amt) || amt <= 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထိုးကြေးငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid bet amount', 'error');
+      return;
+    }
+
+    const tailNumbers = getTwoDTailNumbers(parseInt(digitChar, 10));
+    const allowed = tailNumbers.filter(n => !isNumberBlocked(n));
+    const blocked = tailNumbers.filter(n => isNumberBlocked(n));
+
+    if (blocked.length > 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] နောက်ပိတ် ထဲမှ ဒိုင်ကာဂဏန်း [${blocked.join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers from tail list`, 'warning');
+    }
+
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `[${digitChar}] နောက်ပိတ် ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်` : `All tail numbers for this digit are blocked`, 'error');
+      return;
+    }
+
+    const newItems: TwoDBetItem[] = allowed.map(n => ({
+      id: `tail-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      number: n,
+      amount: amt,
+      originalInput: `${digitChar} နောက်ပိတ်`
+    }));
+
+    playAddSound();
+    setItems(prev => [...prev, ...newItems]);
+    setNumberInput('');
+    setIsRumble(false);
+    numberInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `ဂဏန်း [${digitChar}] နောက်ပိတ် (${newItems.length} ကွက်) အား တစ်ကွက်လျှင် ${formatAmount(amt, settings.currency)} ဖြင့် စာရင်းထဲသို့ ထည့်သွင်းပြီးပါပြီ`
+        : `Added ${newItems.length} tail numbers for [${digitChar}] at ${formatAmount(amt, settings.currency)} each`,
+      'success'
+    );
   };
 
   // Add preset pattern
@@ -200,7 +533,14 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const blocked = numbers.filter(n => isNumberBlocked(n));
 
     if (blocked.length > 0) {
+      playWarningSound();
       showToast(isMyanmar ? `${label} ထဲမှ ဒိုင်ကာဂဏန်း [${blocked.join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers from pattern`, 'warning');
+    }
+
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? `${label} ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်` : `All numbers for ${label} are blocked`, 'error');
+      return;
     }
 
     const newItems: TwoDBetItem[] = allowed.map(n => ({
@@ -210,6 +550,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       originalInput: label
     }));
 
+    playAddSound();
     setItems(prev => [...prev, ...newItems]);
     setIsPatternOpen(false);
     showToast(isMyanmar ? `${label} (${newItems.length} ကွက်) ထည့်ပြီးပါပြီ` : `Added ${label} (${newItems.length} items)`, 'success');
@@ -221,6 +562,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const parsed = parseTwoDBatchInput(batchText, defAmt);
 
     if (parsed.length === 0) {
+      playWarningSound();
       showToast(isMyanmar ? 'ဖတ်ရှု၍ရသော ဂဏန်းမရှိပါ' : 'No valid 2D bets found', 'error');
       return;
     }
@@ -229,10 +571,18 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const allowed = parsed.filter(p => !isNumberBlocked(p.number));
 
     if (blocked.length > 0) {
+      playWarningSound();
       const list = Array.from(new Set(blocked.map(b => b.number))).join(', ');
       showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${list}] များကို အလိုအလျောက် ပယ်ဖျက်ထားပါသည်` : `Removed blocked numbers`, 'warning');
     }
 
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထည့်သွင်းထားသော ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်' : 'All entered numbers are blocked', 'error');
+      return;
+    }
+
+    playAddSound();
     setItems(prev => [...prev, ...allowed]);
     setBatchText('');
     setIsBatchOpen(false);
@@ -242,6 +592,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   // Handle Checkout & Over-Limit Check
   const handleSaveSale = () => {
     if (items.length === 0) {
+      playWarningSound();
       showToast(isMyanmar ? 'အရောင်းစာရင်းတွင် ဂဏန်းများ ထည့်သွင်းပါ' : 'Cart is empty', 'error');
       return;
     }
@@ -340,8 +691,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         notes: `ဘောင်ချာ [${voucher.voucherNo}] မှ ဘရိတ်ကျော်ဂဏန်းများ လွှဲတင်ခြင်း`
       });
 
+      playSuccessSound();
       showToast(isMyanmar ? `ဘောင်ချာနှင့် ဒိုင်ကြီးလွှဲစာရင်း (${formatAmount(fwdTotal, settings.currency)}) အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ` : 'Voucher & Forward Slip created', 'success');
     } else {
+      playSuccessSound();
       showToast(isMyanmar ? `ဘောင်ချာ [${voucher.voucherNo}] ထုတ်ပြီးပါပြီ` : `Voucher created`, 'success');
     }
 
@@ -500,13 +853,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   <input
                     ref={numberInputRef}
                     type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={2}
-                    placeholder="24"
+                    placeholder="24 သို့ 35 56 54"
                     value={numberInput}
                     onChange={(e) => {
-                      const val = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '').slice(0, 2);
+                      const val = convertMyanmarToEnglishDigits(e.target.value);
                       setNumberInput(val);
                     }}
                     onFocus={(e) => {
@@ -519,7 +869,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                       target.select();
                       setTimeout(() => target.select(), 20);
                     }}
-                    className={`w-full h-13 px-4 text-center font-mono text-2xl font-black rounded-xl border transition-all ${
+                    className={`w-full h-13 px-4 text-center font-mono text-xl sm:text-2xl font-black rounded-xl border transition-all ${
                       isInputBlocked
                         ? 'border-rose-400 bg-rose-50 text-rose-800'
                         : 'border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white'
@@ -579,30 +929,120 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 </div>
               </div>
 
-              {/* R Toggle & Quick Amount Badges */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                {/* R (Permutation) toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsRumble(!isRumble)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    isRumble
-                      ? 'bg-teal-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>{isMyanmar ? 'အာ / ပတ်လည် (R)' : 'Rumble (R)'}</span>
-                </button>
+              {/* Compact 9 Action Buttons & Quick Amounts (Optimized for Mobile) */}
+              <div className="pt-2 space-y-2.5">
+                {/* 9 Action Buttons: အာ, ဘရိတ်, အပါ, ရှေ့ပိတ်, နောက်ပိတ်, အပူး, ပါဝါ, နက္ခတ်, ညီကို */}
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  {/* 1. အာ (Rumble / Reversal) */}
+                  <button
+                    type="button"
+                    onClick={handleAddRumbleClick}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                      isRumble
+                        ? 'bg-teal-600 text-white shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                    }`}
+                    title={isMyanmar ? 'အာ / ပတ်လည် (R)' : 'Rumble (R)'}
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>{isMyanmar ? 'အာ' : 'R'}</span>
+                  </button>
 
-                {/* Quick amount chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {/* 2. ဘရိတ် (Break) */}
+                  <button
+                    type="button"
+                    onClick={handleAddBreakDigit}
+                    className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'ရိုက်ထည့်ထားသော ဂဏန်း၏ ဘရိတ် (၁၀ ကွက်) ထည့်မည်' : 'Break'}
+                  >
+                    <span>{isMyanmar ? 'ဘရိတ်' : 'Break'}</span>
+                  </button>
+
+                  {/* 3. အပါ (Includes) */}
+                  <button
+                    type="button"
+                    onClick={handleAddIncludesDigit}
+                    className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'ရိုက်ထည့်ထားသော ဂဏန်းပါဝင်သည့် အကွက် ၁၉ ကွက်လုံး ထည့်မည်' : 'Includes'}
+                  >
+                    <span>{isMyanmar ? 'အပါ' : 'Includes'}</span>
+                  </button>
+
+                  {/* 4. ရှေ့ပိတ် (Head) */}
+                  <button
+                    type="button"
+                    onClick={handleAddHeadDigit}
+                    className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'ရှေ့ပိတ် (၁၀ ကွက်) - ဥပမာ ၁ ရှေ့ပိတ်ဆိုလျှင် ၁၀ မှ ၁၉ အထိ' : 'Head'}
+                  >
+                    <span>{isMyanmar ? 'ရှေ့ပိတ်' : 'Head'}</span>
+                  </button>
+
+                  {/* 5. နောက်ပိတ် (Tail) */}
+                  <button
+                    type="button"
+                    onClick={handleAddTailDigit}
+                    className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'နောက်ပိတ် (၁၀ ကွက်) - ဥပမာ ၂ နောက်ပိတ်ဆိုလျှင် ၀၂ မှ ၉၂ အထိ' : 'Tail'}
+                  >
+                    <span>{isMyanmar ? 'နောက်ပိတ်' : 'Tail'}</span>
+                  </button>
+
+                  {/* 6. အပူး (Doubles) */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'အပူး' : 'Doubles')}
+                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'အပူး (၀၀ မှ ၉၉ - ၁၀ ကွက်)' : 'Doubles'}
+                  >
+                    <span>{isMyanmar ? 'အပူး' : 'Doubles'}</span>
+                  </button>
+
+                  {/* 7. ပါဝါ (Power) */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ' : 'Power')}
+                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'ပါဝါ (၁၀ ကွက်)' : 'Power'}
+                  >
+                    <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
+                  </button>
+
+                  {/* 8. နက္ခတ် (Natkhat) */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'နက္ခတ် (၁၀ ကွက်)' : 'Natkhat'}
+                  >
+                    <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
+                  </button>
+
+                  {/* 9. ညီကို (Brothers) */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို' : 'Brothers')}
+                    className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
+                  >
+                    <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
+                  </button>
+                </div>
+
+                {/* Quick Amount Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pt-0.5">
+                  <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1">
+                    {isMyanmar ? 'အမြန်ငွေ:' : 'Quick:'}
+                  </span>
                   {[500, 1000, 2000, 5000, 10000].map(amt => (
                     <button
                       key={amt}
                       type="button"
-                      onClick={() => setAmountInput(String(amt))}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                      onClick={() => {
+                        playTapSound();
+                        setAmountInput(String(amt));
+                      }}
+                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-md transition-colors cursor-pointer"
                     >
                       {amt >= 1000 ? `${amt / 1000}K` : amt}
                     </button>
@@ -622,61 +1062,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 </div>
               )}
             </form>
-
-            {/* Popular Myanmar 2D Pattern Shortcuts */}
-            <div className="pt-2 border-t border-slate-100">
-              <div className="text-xs font-bold text-slate-500 mb-2.5 flex items-center justify-between">
-                <span>{isMyanmar ? 'ဇီးကွက် ထိုးကွက် အမြန်ခလုတ်များ' : 'Quick Pattern Pads'}</span>
-                <span className="text-[11px] text-slate-400">{isMyanmar ? '(သတ်မှတ်ငွေဖြင့် ထည့်မည်)' : ''}</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'အပူး (၁၀ ကွက်)' : 'Doubles')}
-                  className="px-3 py-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 transition-all text-center cursor-pointer"
-                >
-                  {isMyanmar ? 'အပူး (00-99)' : 'Doubles'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ (၁၀ ကွက်)' : 'Power')}
-                  className="px-3 py-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 transition-all text-center cursor-pointer"
-                >
-                  {isMyanmar ? 'ပါဝါ (Power)' : 'Power'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ် (၁၀ ကွက်)' : 'Natkhat')}
-                  className="px-3 py-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 transition-all text-center cursor-pointer"
-                >
-                  {isMyanmar ? 'နက္ခတ် (Natkhat)' : 'Natkhat'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers')}
-                  className="px-3 py-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 transition-all text-center cursor-pointer"
-                >
-                  {isMyanmar ? 'ညီကို (Brothers)' : 'Brothers'}
-                </button>
-              </div>
-
-              {/* Breaks (ဘရိတ် 0-9) Quick Bar */}
-              <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
-                <span className="text-xs font-bold text-slate-600 shrink-0 mr-1">
-                  {isMyanmar ? 'ဘရိတ်:' : 'Break:'}
-                </span>
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(b => (
-                  <button
-                    key={b}
-                    type="button"
-                    onClick={() => handleAddPattern(getTwoDBreakNumbers(b), `${b} ဘရိတ်`)}
-                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-teal-100 hover:text-teal-800 text-slate-700 text-xs font-mono font-bold rounded-lg transition-colors cursor-pointer shrink-0"
-                  >
-                    {b}B
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Customer & Discount Card */}
@@ -772,7 +1157,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               {items.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setItems([])}
+                  onClick={() => {
+                    playDeleteSound();
+                    setItems([]);
+                  }}
                   className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -815,7 +1203,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
+                        onClick={() => {
+                          playDeleteSound();
+                          setItems(prev => prev.filter(i => i.id !== item.id));
+                        }}
                         className="text-slate-300 hover:text-rose-600 p-1 cursor-pointer transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />

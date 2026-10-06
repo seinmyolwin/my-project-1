@@ -360,6 +360,19 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Actions
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
+    if (newSettings.defaultMultiplier !== undefined || newSettings.defaultToddMultiplier !== undefined) {
+      setRounds(prev =>
+        prev.map(r =>
+          r.status === 'open'
+            ? {
+                ...r,
+                multiplier: newSettings.defaultMultiplier !== undefined ? Number(newSettings.defaultMultiplier) : r.multiplier,
+                toddMultiplier: newSettings.defaultToddMultiplier !== undefined ? Number(newSettings.defaultToddMultiplier) : r.toddMultiplier
+              }
+            : r
+        )
+      );
+    }
   }, []);
 
   const setActiveRoundId = useCallback((id: string) => {

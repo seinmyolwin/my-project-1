@@ -82,6 +82,21 @@ export function getTwoDTailNumbers(tailDigit: number): string[] {
   return result;
 }
 
+// အပါ (Numbers containing a specific digit 0-9: e.g. 5 ပါ -> 19 numbers: 05, 15, 25, 35, 45, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 65, 75, 85, 95)
+export function getTwoDIncludesNumbers(digit: number | string): string[] {
+  const dStr = String(digit).trim();
+  if (!dStr) return [];
+  const target = dStr[dStr.length - 1];
+  const result: string[] = [];
+  for (let i = 0; i <= 99; i++) {
+    const s = i.toString().padStart(2, '0');
+    if (s[0] === target || s[1] === target) {
+      result.push(s);
+    }
+  }
+  return result;
+}
+
 // စုံစုံ (Even - Even: 25 numbers)
 export function getTwoDEvenEven(): string[] {
   const evens = ['0', '2', '4', '6', '8'];
@@ -230,35 +245,172 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Standard pattern: "24 1000", "24R 1000", "24-42 1000", "24*1000", "24=1000"
-    const isRumble = /r|R|အာ/i.test(line);
-    const cleaned = line.replace(/r|R|အာ/gi, ' ');
-    const parts = cleaned.split(/[\s=*:-]+/).filter(Boolean);
-
-    if (parts.length >= 1) {
-      const numCandidate = parts[0];
-      if (/^\d{1,2}$/.test(numCandidate)) {
-        const formattedNum = numCandidate.padStart(2, '0');
-        const amt = parts.length > 1 && !isNaN(Number(parts[1])) ? Number(parts[1]) : defaultAmount;
-
-        if (isRumble) {
-          const revs = getTwoDReversal(formattedNum);
-          revs.forEach(r => {
-            items.push({
-              id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-              number: r,
-              amount: amt,
-              isRumble: true,
-              originalInput: `${formattedNum} R`
-            });
-          });
-        } else {
+    // Pattern: "5 ပါ 1000", "5ပါ 500", "၅ပါ ၅၀၀", "အပါ 5 1000"
+    if (/အပါ|ပါ/i.test(line) && !/ပါဝါ/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const targetDigit = nums[0].slice(-1);
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        getTwoDIncludesNumbers(targetDigit).forEach(num => {
           items.push({
             id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            number: formattedNum,
+            number: num,
             amount: amt,
-            originalInput: formattedNum
+            originalInput: `${targetDigit} ပါ`
           });
+        });
+        continue;
+      }
+    }
+
+    // Pattern: "1 ရှေ့ပိတ် 1000", "1ရှေ့ပိတ် 500", "5 ထိပ် 1000", "ထိပ် 5 1000"
+    if (/ရှေ့ပိတ်|ရှေ့စီး|ထိပ်/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const headDigit = parseInt(nums[0].slice(-1), 10);
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        getTwoDHeadNumbers(headDigit).forEach(num => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: amt,
+            originalInput: `${headDigit} ရှေ့ပိတ်`
+          });
+        });
+        continue;
+      }
+    }
+
+    // Pattern: "2 နောက်ပိတ် 1000", "2နောက်ပိတ် 500", "5 နောက် 1000", "5 ပိတ် 1000"
+    if (/နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်/i.test(line) && !/ရှေ့ပိတ်|ရှေ့စီး/i.test(line)) {
+      const nums = line.match(/\d+/g);
+      if (nums && nums.length >= 1) {
+        const tailDigit = parseInt(nums[0].slice(-1), 10);
+        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        getTwoDTailNumbers(tailDigit).forEach(num => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: amt,
+            originalInput: `${tailDigit} နောက်ပိတ်`
+          });
+        });
+        continue;
+      }
+    }
+
+    // Pattern: "စုံစုံ 1000", "မမ 1000", "စုံမ 1000", "မစုံ 1000"
+    if (/စုံစုံ/i.test(line)) {
+      const amtMatch = line.match(/\d+/g);
+      const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      getTwoDEvenEven().forEach(num => {
+        items.push({
+          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          number: num,
+          amount: amt,
+          originalInput: 'စုံစုံ'
+        });
+      });
+      continue;
+    }
+    if (/မမ/i.test(line)) {
+      const amtMatch = line.match(/\d+/g);
+      const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      getTwoDOddOdd().forEach(num => {
+        items.push({
+          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          number: num,
+          amount: amt,
+          originalInput: 'မမ'
+        });
+      });
+      continue;
+    }
+    if (/စုံမ/i.test(line)) {
+      const amtMatch = line.match(/\d+/g);
+      const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      getTwoDEvenOdd().forEach(num => {
+        items.push({
+          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          number: num,
+          amount: amt,
+          originalInput: 'စုံမ'
+        });
+      });
+      continue;
+    }
+    if (/မစုံ/i.test(line)) {
+      const amtMatch = line.match(/\d+/g);
+      const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      getTwoDOddEven().forEach(num => {
+        items.push({
+          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          number: num,
+          amount: amt,
+          originalInput: 'မစုံ'
+        });
+      });
+      continue;
+    }
+
+    // 2. Standard and Multi-number lines with R or Straight
+    // E.g.: "35 56 54 R 500", "35 56 54 အာ 500", "35, 56, 54 R 500", "35-56-54 R 500", "35/56/54=500"
+    // Also e.g. "35R500, 56R500", "35=500, 56=1000", "35 500"
+
+    const commaSegments = line.split(',').map(s => s.trim()).filter(Boolean);
+    const isIndependentSegments = commaSegments.length > 1 && commaSegments.every(seg => {
+      const numMatch = seg.match(/\d+/g);
+      return numMatch && numMatch.length >= 2;
+    });
+
+    const segmentsToProcess = isIndependentSegments ? commaSegments : [line];
+
+    for (const segment of segmentsToProcess) {
+      const isRumble = /r|R|အာ|ပတ်လည်|ပတ်/i.test(segment);
+      const cleanSeg = segment.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
+      const rawTokens = cleanSeg.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
+
+      if (rawTokens.length === 0) continue;
+
+      let betAmount = defaultAmount;
+      let numbers: string[] = [];
+
+      if (rawTokens.length === 1) {
+        numbers.push(rawTokens[0].padStart(2, '0'));
+      } else {
+        const lastToken = rawTokens[rawTokens.length - 1];
+        const parsedAmt = parseInt(lastToken, 10);
+        
+        if (!isNaN(parsedAmt) && parsedAmt > 0) {
+          betAmount = parsedAmt;
+          numbers = rawTokens.slice(0, rawTokens.length - 1).map(n => n.padStart(2, '0'));
+        } else {
+          numbers = rawTokens.map(n => n.padStart(2, '0'));
+        }
+      }
+
+      for (const numStr of numbers) {
+        if (/^\d{2}$/.test(numStr)) {
+          if (isRumble) {
+            const revs = getTwoDReversal(numStr);
+            revs.forEach(r => {
+              items.push({
+                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                number: r,
+                amount: betAmount,
+                isRumble: true,
+                originalInput: `${numStr} R`
+              });
+            });
+          } else {
+            items.push({
+              id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              number: numStr,
+              amount: betAmount,
+              isRumble: false,
+              originalInput: numStr
+            });
+          }
         }
       }
     }

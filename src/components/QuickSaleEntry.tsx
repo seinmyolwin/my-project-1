@@ -26,6 +26,13 @@ import { BetItem, VoucherItem, Voucher } from '../types';
 import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import { ImageSlipScannerModal } from './ImageSlipScannerModal';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
+import {
+  playTapSound,
+  playAddSound,
+  playSuccessSound,
+  playWarningSound,
+  playDeleteSound
+} from '../utils/audioUtils';
 
 interface QuickSaleEntryProps {
   onVoucherCreated: (voucher: Voucher) => void;
@@ -192,12 +199,14 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     if (e) e.preventDefault();
 
     if (!numberInput || numberInput.length !== 3) {
+      playWarningSound();
       numberInputRef.current?.focus();
       return;
     }
 
     const amount = parseInt(amountInput, 10);
     if (isNaN(amount) || amount <= 0) {
+      playWarningSound();
       amountInputRef.current?.focus();
       return;
     }
@@ -205,6 +214,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     // Check if dealer protected number
     if (!isRumble) {
       if (isNumberBlocked(numberInput)) {
+        playWarningSound();
         setToastNotification({
           type: 'error',
           message: `⛔ ဂဏန်း [${numberInput}] သည် ဒိုင်ကာဂဏန်းအဖြစ် သတ်မှတ်ထားသဖြင့် ထိုးကြေးတက်လာသော်လည်း လုံးဝလက်မခံပါ!`
@@ -219,6 +229,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
         isRumble: false,
         originalInput: numberInput
       };
+      playAddSound();
       setStagedItems(prev => [...prev, newItem]);
     } else {
       const perms = getPermutations(numberInput);
@@ -234,6 +245,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       });
 
       if (blockedPerms.length > 0) {
+        playWarningSound();
         setToastNotification({
           type: 'warning',
           message: `သတိပြုရန်: ဒိုင်ကာဂဏန်းအဖြစ် သတ်မှတ်ထားသော [${blockedPerms.join(', ')}] များအား ထိုးကြေးလက်မခံဘဲ ချန်လှပ်ထားပါသည်`
@@ -241,6 +253,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       }
 
       if (allowedPerms.length === 0) {
+        playWarningSound();
         setToastNotification({
           type: 'error',
           message: `⛔ ရွေးချယ်ထားသော ပတ်လည်ဂဏန်းအားလုံးသည် ဒိုင်ကာဂဏန်းများဖြစ်သဖြင့် ထိုးကြေးလုံးဝလက်မခံပါ!`
@@ -256,6 +269,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
         originalInput: `${numberInput} R`
       }));
 
+      playAddSound();
       setStagedItems(prev => [...prev, ...newItems]);
     }
 
@@ -266,6 +280,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
   // Remove Item
   const handleRemoveItem = (id: string) => {
+    playDeleteSound();
     setStagedItems(prev => prev.filter(item => item.id !== id));
   };
 
@@ -276,13 +291,17 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     const blocked = numbers.filter(n => isNumberBlocked(n));
 
     if (blocked.length > 0) {
+      playWarningSound();
       setToastNotification({
         type: 'warning',
         message: `သတိပြုရန်: [${name}] အတွင်းမှ ဒိုင်ကာဂဏန်း [${blocked.join(', ')}] များအား ထိုးကြေးလက်မခံဘဲ ချန်လှပ်ထားပါသည်`
       });
     }
 
-    if (allowed.length === 0) return;
+    if (allowed.length === 0) {
+      playWarningSound();
+      return;
+    }
 
     const newItems: BetItem[] = allowed.map((num, idx) => ({
       id: `item-pat-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 3)}`,
@@ -291,6 +310,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       isRumble: false,
       originalInput: `${name} (${num})`
     }));
+    playAddSound();
     setStagedItems(prev => [...prev, ...newItems]);
   };
 
@@ -312,11 +332,14 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     setBatchErrors([...errors, ...blockedErrors]);
 
     if (allowedItems.length > 0) {
+      playAddSound();
       setStagedItems(prev => [...prev, ...allowedItems]);
       setRawBatchText('');
       if (errors.length === 0 && blockedErrors.length === 0) {
         setShowBatchModal(false);
       }
+    } else {
+      playWarningSound();
     }
   };
 
@@ -351,6 +374,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     // Clear Staging
     setStagedItems([]);
     setNotes('');
+    playSuccessSound();
     setToastNotification({
       type: 'success',
       message: `ဘောင်ချာ ${newVoucher.voucherNumber} အား အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ`
@@ -360,7 +384,10 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
   // Submit Voucher - checks for Blocked & Over-limit numbers
   const handleSaveVoucher = () => {
-    if (stagedItems.length === 0) return;
+    if (stagedItems.length === 0) {
+      playWarningSound();
+      return;
+    }
 
     // 1. Strict Fail-Safe: Check for any Blocked Numbers (ဒိုင်ကာဂဏန်း)
     const blockedFound = stagedItems.filter(item => isNumberBlocked(item.number));
@@ -882,7 +909,10 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
             {stagedItems.length > 0 && (
               <button
                 type="button"
-                onClick={() => setStagedItems([])}
+                onClick={() => {
+                  playDeleteSound();
+                  setStagedItems([]);
+                }}
                 className="text-rose-600 hover:text-rose-700 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   Award,
@@ -47,6 +47,19 @@ export const WinningPayoutView: React.FC = () => {
     String(activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100)
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWinningInput(activeRound?.winningNumber || '');
+    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || 600));
+    setToddMultiplierInput(String(activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100));
+  }, [
+    activeRound?.id,
+    activeRound?.winningNumber,
+    activeRound?.multiplier,
+    activeRound?.toddMultiplier,
+    settings.defaultMultiplier,
+    settings.defaultToddMultiplier
+  ]);
 
   const [isFetchingLive, setIsFetchingLive] = useState(false);
   const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);

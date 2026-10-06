@@ -20,7 +20,7 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
 
   const [dateStr, setDateStr] = useState(new Date().toISOString().slice(0, 10));
   const [session, setSession] = useState<'morning' | 'evening'>('morning');
-  const [multiplier, setMultiplier] = useState('85');
+  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || 80));
 
   if (!isOpen) return null;
 
@@ -33,9 +33,10 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
       name,
       drawDate: dateStr,
       session,
-      closeTime: session === 'morning' ? '12:00' : '16:25',
-      multiplier: parseFloat(multiplier) || 85,
-      status: 'open'
+      closingTime: session === 'morning' ? '12:00' : '16:25',
+      multiplier: parseFloat(multiplier) || settings.defaultMultiplier || 80,
+      status: 'open',
+      commissionRate: settings.defaultCommissionRate || 12
     });
 
     onClose();

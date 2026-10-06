@@ -91,9 +91,11 @@ async function startServer() {
       const modeInstruction = mode === '2d'
         ? `Target Mode: 2D ONLY. Extract 2-digit numbers (00 to 99) and amounts.
 Also support:
-- 2D reversals / R / အာ / ပတ် (e.g. "24R 1000", "24 အာ 500", "24-42 1000" -> produce 24=1000 and 42=1000).
+- 2D reversals / R / အာ / ပတ် / ပတ်လည် (e.g. "24R 1000", "24 အာ 500", "24-42 1000" -> produce 24=1000 and 42=1000).
+- Multiple 2D numbers with R / အာ / ပတ် (e.g. "35 56 54 R 500" or "35 56 ၅၄ R ၅၀၀" -> produce all reversals: 35=500, 53=500, 56=500, 65=500, 54=500, 45=500).
 - Special Myanmar 2D lottery groups:
   * အပူး (Doubles): 00, 11, 22, 33, 44, 55, 66, 77, 88, 99.
+  * အပါ (Contains digit): e.g. 5 ပါ / 5 အပါ -> 05, 15, 25, 35, 45, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 65, 75, 85, 95 (19 numbers).
   * ဘရိတ် (Breaks): e.g. 5 ဘရိတ် -> 05, 14, 23, 32, 41, 50, 69, 78, 87, 96.
   * ထိပ် (Head): e.g. 8 ထိပ် -> 80, 81, 82, 83, 84, 85, 86, 87, 88, 89.
   * နောက် (Tail): e.g. 3 နောက် -> 03, 13, 23, 33, 43, 53, 63, 73, 83, 93.
@@ -130,7 +132,7 @@ Your goals:
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-2.5-flash',
         contents: [
           {
             inlineData: {
@@ -175,9 +177,9 @@ Your goals:
       const ai = new GoogleGenAI(apiKey ? { apiKey } : {});
 
       const modeInstruction = mode === '2d'
-        ? `Target Mode: 2D ONLY. Extract 2-digit numbers and amounts. Also support 2D reversals/R (24R, 24 အာ), and special Myanmar 2D groups (အပူး doubles, ဘရိတ် breaks, ထိပ် heads, နောက် tails, ပါဝါ, နက္ခတ်, ညီကို).`
+        ? `Target Mode: 2D ONLY. Extract 2-digit numbers and amounts. Also support 2D reversals/R (24R, 24 အာ), multiple 2D numbers with R (e.g. "35 56 54 R 500" -> produce 35=500, 53=500, 56=500, 65=500, 54=500, 45=500), and special Myanmar 2D groups (အပါ contains digit e.g. 5ပါ 500 -> 19 numbers, အပူး doubles, ဘရိတ် breaks, ထိပ် heads, နောက် tails, ပါဝါ, နက္ခတ်, ညီကို).`
         : mode === '3d'
-        ? `Target Mode: 3D ONLY. Extract 3-digit numbers and amounts. Support 3D permutations/R (123R, 123 ပတ်, 123 ခွေ).`
+        ? `Target Mode: 3D ONLY. Extract 3-digit numbers and amounts. Support 3D permutations/R (123R, 123 ပတ်, 123 ခွေ, and multiple numbers e.g. "123 456 R 500").`
         : `Target Mode: AUTO (both 2D and 3D).`;
 
       const prompt = `You are an expert data parser for Myanmar 2D/3D lottery bets sent via Viber, Telegram, or SMS.
@@ -202,7 +204,7 @@ Instructions:
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt
       });
 
