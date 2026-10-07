@@ -23,7 +23,7 @@ import {
   saveStoredData
 } from '../utils/storage';
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel } from '../utils/twoDLotteryUtils';
-import { fetchLiveOfficialFeed, generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
+import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -83,39 +83,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rounds, setRounds] = useState<TwoDDrawRound[]>(() => {
     const stored = loadStoredData<TwoDDrawRound[]>(STORAGE_KEYS.ROUNDS_2D, []);
-    const todayStr = new Date().toISOString().slice(0, 10);
     if (stored && stored.length > 0) {
-      return stored.map((r) => {
-        // Ensure today's morning round is settled with 86 and evening round with 29
-        if (r.drawDate === todayStr) {
-          if (r.session === 'morning' || r.id.includes('morn')) {
-            return {
-              ...r,
-              winningNumber: '86',
-              status: 'settled',
-              settledAt: r.settledAt || `${todayStr}T12:05:00Z`
-            };
-          }
-          if (r.session === 'evening' || r.id.includes('eve')) {
-            return {
-              ...r,
-              winningNumber: '29',
-              status: 'settled',
-              settledAt: r.settledAt || `${todayStr}T16:35:00Z`
-            };
-          }
-        }
-        // Ensure yesterday's morning (56) and evening (63)
-        if (r.drawDate === '2026-10-05') {
-          if (r.session === 'morning' || r.id.includes('morn')) {
-            return { ...r, winningNumber: r.winningNumber || '56', status: 'settled' };
-          }
-          if (r.session === 'evening' || r.id.includes('eve')) {
-            return { ...r, winningNumber: r.winningNumber || '63', status: 'settled' };
-          }
-        }
-        return r;
-      });
+      return stored;
     }
     return generateUpToDate2DRounds();
   });
@@ -197,39 +166,6 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return forwardSlips.filter(f => f.roundId === activeRoundId);
   }, [forwardSlips, activeRoundId]);
 
-  const syncLiveRounds = useCallback(async () => {
-    try {
-      const liveFeed = await fetchLiveOfficialFeed();
-      const freshRounds = generateUpToDate2DRounds(liveFeed);
-      setRounds(prev => {
-        const merged = freshRounds.map(fresh => {
-          const existing = prev.find(p => p.id === fresh.id);
-          if (existing) {
-            return {
-              ...fresh,
-              ...existing,
-              winningNumber: existing.winningNumber || fresh.winningNumber,
-              status: existing.status || fresh.status
-            };
-          }
-          return fresh;
-        });
-        return merged;
-      });
-    } catch {
-      // Fallback
-    }
-  }, []);
-
-  // Auto-sync outdated records on first load
-  useEffect(() => {
-    const todayPrefix = new Date().toISOString().slice(0, 7);
-    const hasCurrentMonth = rounds.some(r => r.drawDate && r.drawDate.startsWith(todayPrefix));
-    if (!hasCurrentMonth) {
-      syncLiveRounds();
-    }
-  }, [syncLiveRounds, rounds]);
-
   const updateSettings = useCallback((newSettings: Partial<TwoDAppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
     if (newSettings.defaultMultiplier !== undefined && !isNaN(newSettings.defaultMultiplier)) {
@@ -271,6 +207,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setVouchers(prev => prev.filter(v => v.roundId !== roundId));
     setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
   }, [activeRoundId]);
+
+  const syncLiveRounds = useCallback(async () => {
+    // Manual sync preserves owner-confirmed numbers
+  }, []);
 
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
     const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');

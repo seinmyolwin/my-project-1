@@ -14,14 +14,11 @@ import {
   User,
   Share2,
   DollarSign,
-  AlertCircle,
-  Globe,
-  Loader2
+  AlertCircle
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
-import { fetchLiveThai3D } from '../utils/thaiLotteryApi';
 
 export const WinningPayoutView: React.FC = () => {
   const {
@@ -62,8 +59,6 @@ export const WinningPayoutView: React.FC = () => {
     settings.defaultToddMultiplier
   ]);
 
-  const [isFetchingLive, setIsFetchingLive] = useState(false);
-  const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
   const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
 
   const handleStartNext3DRound = () => {
@@ -92,24 +87,6 @@ export const WinningPayoutView: React.FC = () => {
     }, 6000);
   };
 
-  const handleFetchLiveThai = async () => {
-    setIsFetchingLive(true);
-    setLiveStatusMsg('ထိုင်းနိုင်ငံ တရားဝင် 3D ဝက်ဘ်ဆိုက်မှ ရလဒ် ရယူနေပါသည်...');
-    try {
-      const res = await fetchLiveThai3D();
-      if (res.success && res.result) {
-        setWinningInput(res.result.threed);
-        setLiveStatusMsg(res.message);
-      } else {
-        setLiveStatusMsg('ထိုင်း 3D ရလဒ် ရယူရာတွင် အဆင်မပြေပါ၊ စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
-      }
-    } catch {
-      setLiveStatusMsg('အင်တာနက် ချိတ်ဆက်မှု စစ်ဆေးပြီး စိတ်ကြိုက် ရိုက်ထည့်နိုင်ပါသည်');
-    } finally {
-      setIsFetchingLive(false);
-    }
-  };
-
   // Settled 3D rounds history strictly for 3D
   const settled3DRounds = useMemo(() => {
     return rounds
@@ -117,69 +94,108 @@ export const WinningPayoutView: React.FC = () => {
       .sort((a, b) => new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime());
   }, [rounds]);
 
+  const isSettled = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
+
+  const [isTestingMode, setIsTestingMode] = useState(false);
+  const [testedWinningNumber, setTestedWinningNumber] = useState('');
+  const [isEnteringPassword, setIsEnteringPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [settledSuccessMsg, setSettledSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeRound?.status === 'settled') {
+      setIsTestingMode(false);
+      setTestedWinningNumber('');
+    }
+  }, [activeRound?.status]);
+
+  // Preview results temporarily without storing anything (No data saved!)
+  const handleTryWinning = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanNum = convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
+    if (!cleanNum || cleanNum.length !== 3) {
+      alert(isMyanmar ? 'ပေါက်ဂဏန်း ဂဏန်း ၃ လုံး (၀၀၀ မှ ၉၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid 3-digit winning number (000-999)');
+      return;
+    }
+    setWinningInput(cleanNum);
+    setTestedWinningNumber(cleanNum);
+    setIsTestingMode(true);
+    setIsEnteringPassword(false);
+    setConfirmError(null);
+  };
+
+  // Open password dialog for confirming official 3D winning number
+  const handleOpenConfirm = () => {
+    const cleanNum = convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
+    if (!cleanNum || cleanNum.length !== 3) {
+      alert(isMyanmar ? 'ပေါက်ဂဏန်း ဂဏန်း ၃ လုံး (၀၀၀ မှ ၉၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid 3-digit winning number (000-999)');
+      return;
+    }
+    setWinningInput(cleanNum);
+    setIsEnteringPassword(true);
+    setConfirmPassword('');
+    setConfirmError(null);
+  };
+
+  const activeEvalNumber = useMemo(() => {
+    if (isTestingMode) return (testedWinningNumber || winningInput).trim();
+    if (isSettled) return activeRound?.winningNumber || '';
+    return winningInput.trim();
+  }, [isTestingMode, testedWinningNumber, winningInput, isSettled, activeRound?.winningNumber]);
+
   // Evaluate winners based on winning number & multipliers
   const winningResults = useMemo(() => {
     const mult = parseInt(multiplierInput, 10) || 600;
     const toddMult = parseInt(toddMultiplierInput, 10) || 100;
-    const num = winningInput.trim();
+    const num = activeEvalNumber.trim();
 
     if (!num || num.length !== 3) {
       return { winners: [], totalPayout: 0, winningBetsCount: 0, toddWinningBetsCount: 0 };
     }
 
     return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
-  }, [activeRoundVouchers, winningInput, multiplierInput, toddMultiplierInput]);
+  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, toddMultiplierInput]);
 
-  const [isWinningConfirmed, setIsWinningConfirmed] = useState(() => activeRound?.status === 'settled');
-  const [isTestingMode, setIsTestingMode] = useState(false);
-  const [isEnteringPassword, setIsEnteringPassword] = useState(false);
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [confirmError, setConfirmError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIsWinningConfirmed(activeRound?.status === 'settled');
-    if (activeRound?.status === 'settled') {
-      setIsTestingMode(false);
-    }
-  }, [activeRound?.status]);
-
-  // Preview results temporarily without storing anything
-  const handleTryWinning = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!winningInput || winningInput.length !== 3) return;
-    setIsTestingMode(true);
-    setIsWinningConfirmed(true);
-  };
-
-  // Officially confirm with Password and Settle
+  // Officially confirm with Password and Settle (saves to DB and auto-downloads Excel)
   const handleSettleWithPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!winningInput || winningInput.length !== 3) return;
+    const cleanNum = convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
+    if (!cleanNum || cleanNum.length !== 3) {
+      setConfirmError(isMyanmar ? 'ပေါက်ဂဏန်း ဂဏန်း ၃ လုံး မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid 3-digit number');
+      return;
+    }
     
     if (!verifyOwnerPassword(confirmPassword)) {
       setConfirmError('လျှို့ဝှက်နံပါတ် (Password) မှားယွင်းနေပါသည်!');
       return;
     }
 
-    // Set local state to indicate confirmed winning number, but do NOT settle in context yet!
+    const mult = parseInt(multiplierInput, 10) || 600;
+    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
+
+    // 1. Auto-save comprehensive Excel report to device first!
+    try {
+      exportToExcel();
+    } catch (err) {
+      console.warn('Auto Excel export error:', err);
+    }
+
+    // 2. Officially settle and save in context/localStorage
+    settleWinningNumber(cleanNum, mult, toddMult);
+
+    // 3. Update local state
+    setWinningInput(cleanNum);
     setIsTestingMode(false);
-    setIsWinningConfirmed(true);
+    setTestedWinningNumber('');
     setIsEnteringPassword(false);
     setConfirmPassword('');
     setConfirmError(null);
-  };
+    setSettledSuccessMsg(`ပေါက်မဲ [${cleanNum}] အား အတည်ပြုသိမ်းဆည်းပြီး စာရင်းချုပ် Excel ဖိုင်ကို အောင်မြင်စွာ ဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
 
-  const handleCloseRound = () => {
-    if (!winningInput || winningInput.length !== 3) return;
-    const mult = parseInt(multiplierInput, 10) || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
-    
-    // Auto-save the comprehensive data report to the device first!
-    exportToExcel();
-    
-    // Officially settle/close round in the context
-    settleWinningNumber(winningInput, mult, toddMult);
-    setIsWinningConfirmed(true);
+    setTimeout(() => {
+      setSettledSuccessMsg(null);
+    }, 8000);
   };
 
   // Copy Winning Message for Customer
@@ -234,9 +250,16 @@ ${settings.shopName} (${settings.shopPhone})`;
             </div>
           </div>
 
-          {activeRound?.status === 'settled' && (
+          {isSettled && (
             <button
-              onClick={clearWinningSettlement}
+              onClick={() => {
+                if (confirm(isMyanmar ? 'အတည်ပြုထားသော ပေါက်ဂဏန်းအား ပြန်လည်ဖျက်သိမ်းပြီး ပွဲစဉ်အား ပြန်လည်ဖွင့်လှစ်လိုပါသလား?' : 'Are you sure you want to reset this settled round?')) {
+                  clearWinningSettlement();
+                  setWinningInput('');
+                  setIsTestingMode(false);
+                  setTestedWinningNumber('');
+                }
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -244,22 +267,6 @@ ${settings.shopName} (${settings.shopPhone})`;
             </button>
           )}
         </div>
-
-        {/* Live Official Thai Result Status Banner */}
-        {liveStatusMsg && (
-          <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-xl p-3 text-xs font-bold flex items-center justify-between shadow-2xs">
-            <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-indigo-600 animate-pulse shrink-0" />
-              <span>{liveStatusMsg}</span>
-            </div>
-            <button
-              onClick={() => setLiveStatusMsg(null)}
-              className="text-slate-400 hover:text-slate-700 font-bold"
-            >
-              ✕
-            </button>
-          </div>
-        )}
 
         {/* Input Form */}
         <form onSubmit={handleTryWinning} className="space-y-4">
@@ -271,6 +278,11 @@ ${settings.shopName} (${settings.shopPhone})`;
                 <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider">
                   {isMyanmar ? 'ပေါက်ဂဏန်း' : 'Winning Number'}
                 </label>
+                {isTestingMode && (
+                  <span className="text-[11px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                    စမ်းသပ်နေဆဲ (Preview)
+                  </span>
+                )}
               </div>
               <input
                 type="text"
@@ -281,6 +293,9 @@ ${settings.shopName} (${settings.shopPhone})`;
                 onChange={(e) => {
                   const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3);
                   setWinningInput(val);
+                  if (isTestingMode) {
+                    setTestedWinningNumber(val);
+                  }
                 }}
                 onFocus={(e) => {
                   const target = e.currentTarget;
@@ -355,21 +370,16 @@ ${settings.shopName} (${settings.shopPhone})`;
                 <button
                   type="button"
                   onClick={handleTryWinning}
-                  disabled={winningInput.length !== 3}
-                  className="flex-1 h-[50px] bg-sky-600 hover:bg-sky-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  className={`flex-1 h-[50px] ${isTestingMode ? 'bg-sky-700 ring-2 ring-sky-400 shadow-md' : 'bg-sky-600 hover:bg-sky-700'} text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer`}
                   title="ပေါက်မဲဂဏန်းကို အစမ်းတွက်ချက်ကြည့်မည် (ဒေတာမသိမ်းပါ)"
                 >
                   <Sparkles className="w-4 h-4 text-sky-200" />
-                  <span>အစမ်းထည့်မည်</span>
+                  <span>{isTestingMode ? 'အစမ်းစစ်နေသည် (Preview)' : 'အစမ်းထည့်မည်'}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsEnteringPassword(true);
-                    setConfirmError(null);
-                  }}
-                  disabled={winningInput.length !== 3}
-                  className="flex-1 h-[50px] bg-amber-600 hover:bg-amber-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  onClick={handleOpenConfirm}
+                  className="flex-1 h-[50px] bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
                   title="ပေါက်မဲဂဏန်းကို လျှို့ဝှက်နံပါတ်ဖြင့် အတည်ပြုသိမ်းဆည်းမည်"
                 >
                   <CheckCircle2 className="w-4 h-4 text-amber-200" />
@@ -382,28 +392,35 @@ ${settings.shopName} (${settings.shopPhone})`;
 
           {/* Password Prompt Area */}
           {isEnteringPassword && (
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 space-y-3 animate-in fade-in slide-in-from-top-4 duration-150">
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-3 animate-in fade-in slide-in-from-top-4 duration-150">
               <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
                 <AlertCircle className="w-4 h-4 text-amber-600 animate-bounce" />
-                <span>ပေါက်မဲအတည်ပြုရန် ပိုင်ရှင် လျှို့ဝှက်နံပါတ် (Owner Password) ထည့်သွင်းပါ</span>
+                <span>ပေါက်မဲဂဏန်း [{winningInput}] အား အတည်ပြုသိမ်းဆည်းရန် ပိုင်ရှင် လျှို့ဝှက်နံပါတ် (Owner Password) ထည့်ပါ</span>
               </div>
               <div className="flex items-center gap-2">
                 <input
                   type="password"
-                  placeholder="လျှို့ဝှက်နံပါတ် ရိုက်ထည့်ပါ"
+                  placeholder="လျှို့ဝှက်နံပါတ် (Default: 123456)"
                   value={confirmPassword}
                   onChange={(e) => {
                     setConfirmPassword(e.target.value);
                     setConfirmError(null);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSettleWithPassword(e);
+                    }
+                  }}
+                  autoFocus
                   className="flex-1 bg-white border border-slate-300 focus:border-amber-500 rounded-xl px-3 py-2 outline-none font-bold text-slate-900 shadow-2xs font-mono"
                 />
                 <button
                   type="button"
                   onClick={handleSettleWithPassword}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl cursor-pointer shadow-xs active:scale-95 transition-all"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
                 >
-                  အတည်ပြုသိမ်းဆည်းမည်
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>အတည်ပြုသိမ်းဆည်းမည်</span>
                 </button>
                 <button
                   type="button"
@@ -414,7 +431,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                   }}
                   className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
                 >
-                  ဖျက်သိမ်းမည်
+                  မလုပ်တော့ပါ
                 </button>
               </div>
               {confirmError && (
@@ -445,52 +462,85 @@ ${settings.shopName} (${settings.shopPhone})`;
           </div>
         </form>
 
-        {isWinningConfirmed && activeRound?.status === 'open' && (
-          isTestingMode ? (
-            <div className="bg-sky-50 border-2 border-sky-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in duration-200 mt-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center font-bold font-sans">
-                  i
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-sky-950">အစမ်းတွက်ချက်မှု ရလဒ်များကို စစ်ဆေးနေပါသည်</h4>
-                  <p className="text-xs text-sky-800">
-                    မှတ်တမ်းများကို သိမ်းဆည်းထားခြင်းမရှိပါ။ ပွဲစဉ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းဇယားဖိုင်အဖြစ် သိမ်းဆည်းရန် "အတည်ပြုမည်" ခလုတ်ကိုနှိပ်၍ လျှို့ဝှက်နံပါတ်ပေးရန်လိုအပ်ပါသည်။
-                  </p>
-                </div>
+        {/* Success Confirmation Toast Banner */}
+        {settledSuccessMsg && (
+          <div className="bg-emerald-600 text-white rounded-2xl p-4 text-xs font-bold flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+              <span>{settledSuccessMsg}</span>
+            </div>
+            <button onClick={() => setSettledSuccessMsg(null)} className="text-emerald-200 hover:text-white font-bold cursor-pointer">
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Testing Preview Banner */}
+        {isTestingMode && (
+          <div className="bg-sky-50 border-2 border-sky-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in duration-200 mt-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center font-bold font-sans shrink-0">
+                🧪
               </div>
+              <div>
+                <h4 className="text-sm font-black text-sky-950">
+                  ပေါက်ဂဏန်း [{activeEvalNumber}] ဖြင့် အစမ်းတွက်ချက် စစ်ဆေးနေပါသည်
+                </h4>
+                <p className="text-xs text-sky-800">
+                  မှတ်တမ်းများကို သိမ်းဆည်းထားခြင်းမရှိပါ (ဒေတာမသိမ်းပါ)။ ဤပေါက်ဂဏန်းအား အတည်ယူရန် "အတည်ပြုမည်" ခလုတ်ကို နှိပ်ပြီး Password ပေးပါ။
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                disabled
-                className="px-5 py-2.5 bg-slate-300 text-slate-500 font-black text-xs rounded-xl flex items-center gap-2 cursor-not-allowed shrink-0"
+                onClick={() => {
+                  setIsTestingMode(false);
+                  setTestedWinningNumber('');
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>ပွဲစဉ်ပိတ်သိမ်းမည် (အစမ်းကြည့်တွင် မရပါ)</span>
+                စမ်းသပ်မှု ပိတ်မည်
               </button>
-            </div>
-          ) : (
-            <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-200 mt-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                  ✓
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-emerald-950">ပေါက်မဲ အတည်ပြုသိမ်းဆည်းပြီးပါပြီ</h4>
-                  <p className="text-xs text-emerald-800">
-                    ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းဇယားဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲရန် အောက်ပါခလုတ်ကို နှိပ်ပါ။
-                  </p>
-                </div>
-              </div>
               <button
                 type="button"
-                onClick={handleCloseRound}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0 animate-bounce"
+                onClick={handleOpenConfirm}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>ပွဲစဉ်ပိတ်သိမ်းမည် & စာရင်းသိမ်းမည် (အော်တိုဒေါင်းလုဒ်)</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>အတည်ပြုမည် (Password ဖြင့်)</span>
               </button>
             </div>
-          )
+          </div>
+        )}
+
+        {/* Settled Confirmation Banner */}
+        {isSettled && !isTestingMode && (
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-200 mt-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                ✓
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-emerald-950">
+                  ပေါက်မဲ [{activeRound?.winningNumber}] တရားဝင် အတည်ပြုသိမ်းဆည်းပြီးပါပြီ
+                </h4>
+                <p className="text-xs text-emerald-800">
+                  ပေါက်သူများနှင့် လျော်ကြေးများကို တွက်ချက်သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။ စာရင်းချုပ် Excel ဖိုင်အား လိုအပ်ပါက အောက်ပါခလုတ်ဖြင့် ထပ်မံထုတ်ယူနိုင်ပါသည်။
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={exportToExcel}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Excel ပြန်ဒေါင်းမည်</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Previous 3D Winning Draws Quick Strip (Strictly 3D only) */}
@@ -563,11 +613,11 @@ ${settings.shopName} (${settings.shopPhone})`;
       )}
 
       {/* Real-time Settlement Summary Banner */}
-      {winningInput.length === 3 && (
+      {(isTestingMode || isSettled) && activeEvalNumber.length === 3 && (
         <div className="space-y-4 animate-in fade-in duration-300">
           
           {/* Prominent Next Round Launcher Banner */}
-          {activeRound?.status === 'settled' && (
+          {activeRound?.status === 'settled' && !isTestingMode && (
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-indigo-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="space-y-1 text-center sm:text-left">
                 <div className="flex items-center justify-center sm:justify-start gap-2">
@@ -577,7 +627,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                   </h3>
                 </div>
                 <p className="text-xs text-indigo-200 leading-relaxed">
-                  ပေါက်ဂဏန်း [{activeRound.winningNumber}]၊ ရောင်းရငွေ၊ လျော်ကြေးစာရင်းအားလုံးကို မှတ်တမ်းထဲသို့ သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။
+                  ပေါက်ဂဏန်း [{activeEvalNumber}]၊ ရောင်းရငွေ၊ လျော်ကြေးစာရင်းအားလုံးကို မှတ်တမ်းထဲသို့ သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။
                 </p>
               </div>
 
@@ -723,8 +773,8 @@ ${settings.shopName} (${settings.shopPhone})`;
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-slate-500 font-sans">
                         {isMyanmar
-                          ? `ပေါက်ဂဏန်း [${winningInput}] ကို ထိုးထားသော ဝယ်သူမရှိပါ (ဒိုင် အမြတ်ငွေ အပြည့်ရရှိ)`
-                          : `No customers bet on winning number [${winningInput}]. Full dealer retention.`}
+                          ? `ပေါက်ဂဏန်း [${activeEvalNumber}] ကို ထိုးထားသော ဝယ်သူမရှိပါ (ဒိုင် အမြတ်ငွေ အပြည့်ရရှိ)`
+                          : `No customers bet on winning number [${activeEvalNumber}]. Full dealer retention.`}
                       </td>
                     </tr>
                   ) : (

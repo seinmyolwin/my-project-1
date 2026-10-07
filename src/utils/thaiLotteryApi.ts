@@ -180,12 +180,9 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
       let eveStatus: 'open' | 'closed' | 'settled' = 'settled';
 
       if (isToday) {
-        // For today: confirmed Thai SET 2D results (Morning: 86, Evening: 29)
-        const confirmedEve = liveData?.live2D?.result?.[1]?.twod;
-        eveWinning = (confirmedEve !== undefined && confirmedEve !== null && confirmedEve !== '')
-          ? String(confirmedEve).padStart(2, '0')
-          : '29';
-        eveStatus = 'settled';
+        // Today's rounds start open with NO winning number until the owner enters and confirms
+        eveWinning = undefined;
+        eveStatus = 'open';
       } else {
         // Past days: lookup in history or calculate
         const historyEve = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[1]?.twod;
@@ -216,12 +213,9 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
       let mornStatus: 'open' | 'closed' | 'settled' = 'settled';
 
       if (isToday) {
-        // For today: Morning round is settled with official confirmed winning number 86
-        const confirmedMorn = liveData?.live2D?.result?.[0]?.twod;
-        mornWinning = confirmedMorn !== undefined && confirmedMorn !== null && confirmedMorn !== ''
-          ? String(confirmedMorn).padStart(2, '0')
-          : '86';
-        mornStatus = 'settled';
+        // Today's morning round starts open with NO winning number until the owner enters and confirms
+        mornWinning = undefined;
+        mornStatus = 'open';
       } else {
         // Past days: lookup in history or calculate
         const historyMorn = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[0]?.twod;
@@ -283,13 +277,8 @@ export function generateUpToDate3DRounds(liveData?: LiveLotteryPayload | null): 
     let win16: string | undefined = calc16.threed;
 
     if (mOffset === 0) {
-      if (currentDay < 16) {
-        status16 = 'open';
-        win16 = undefined;
-      } else if (currentDay === 16 && today.getHours() < 15) {
-        status16 = 'open';
-        win16 = undefined;
-      }
+      status16 = 'open';
+      win16 = undefined;
     }
 
     rounds.push({

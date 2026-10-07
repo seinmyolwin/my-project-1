@@ -2388,7 +2388,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {(() => {
                     const is3D = selectedRecord.mode === '3d';
                     const is2D = selectedRecord.mode === '2d';
-                    const roundId = selectedRecord.id.split('-')[1];
+                    const roundId = selectedRecord.id.replace(/^(3d|2d|fb)-/, '');
 
                     const vouchersToDisplay = is3D
                       ? lottery3D.vouchers.filter(v => v.roundId === roundId)

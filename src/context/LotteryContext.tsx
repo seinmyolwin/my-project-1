@@ -24,7 +24,7 @@ import {
   saveStoredData
 } from '../utils/storage';
 import { evaluateWinnings, exportLotteryDataToExcel } from '../utils/lotteryUtils';
-import { fetchLiveOfficialFeed, generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
+import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 
 interface LotteryContextType {
   settings: AppSettings;
@@ -324,39 +324,6 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [activeRoundVouchers, activeRoundForwardSlips, activeRound, settings]);
 
-  const syncLiveRounds = useCallback(async () => {
-    try {
-      const liveFeed = await fetchLiveOfficialFeed();
-      const freshRounds = generateUpToDate3DRounds(liveFeed);
-      setRounds(prev => {
-        const merged = freshRounds.map(fresh => {
-          const existing = prev.find(p => p.id === fresh.id);
-          if (existing) {
-            return {
-              ...fresh,
-              ...existing,
-              winningNumber: existing.winningNumber || fresh.winningNumber,
-              status: existing.status || fresh.status
-            };
-          }
-          return fresh;
-        });
-        return merged;
-      });
-    } catch {
-      // Fallback
-    }
-  }, []);
-
-  // Auto-sync outdated records on first load
-  useEffect(() => {
-    const todayPrefix = new Date().toISOString().slice(0, 7);
-    const hasCurrentMonth = rounds.some(r => r.drawDate && r.drawDate.startsWith(todayPrefix));
-    if (!hasCurrentMonth) {
-      syncLiveRounds();
-    }
-  }, [syncLiveRounds, rounds]);
-
   // Actions
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
@@ -404,6 +371,10 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setVouchers(prev => prev.filter(v => v.roundId !== roundId));
     setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
   }, [activeRoundId]);
+
+  const syncLiveRounds = useCallback(async () => {
+    // Manual sync preserves owner-confirmed numbers
+  }, []);
 
   const addVoucher = useCallback((voucherData: Omit<Voucher, 'id' | 'voucherNo' | 'createdAt'>) => {
     const count = vouchers.length + 1;
