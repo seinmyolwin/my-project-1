@@ -11,6 +11,7 @@ import {
 import { TwoDVoucher } from '../../types';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { formatAmount } from '../../utils/lotteryUtils';
+import { printVoucherSlip } from '../../utils/printUtils';
 
 interface TwoDVoucherPrintModalProps {
   voucher: TwoDVoucher | null;
@@ -28,7 +29,7 @@ export const TwoDVoucherPrintModal: React.FC<TwoDVoucherPrintModalProps> = ({ vo
   const isMyanmar = settings.language === 'my';
 
   const handlePrint = () => {
-    window.print();
+    printVoucherSlip('printable-voucher', `ဇီးကွက် ဘောင်ချာ - ${voucher.voucherNo}`);
   };
 
   const handleCopyText = () => {
@@ -62,7 +63,8 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
     }, 400);
   };
 
-  const isMultiCol = voucher.items.length > 6;
+  const isThreeCol = voucher.items.length > 14;
+  const isMultiCol = voucher.items.length > 6 || isThreeCol;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">

@@ -11,6 +11,7 @@ import {
 import { Voucher } from '../types';
 import { useLottery } from '../context/LotteryContext';
 import { formatAmount } from '../utils/lotteryUtils';
+import { printVoucherSlip } from '../utils/printUtils';
 
 interface VoucherPrintModalProps {
   voucher: Voucher | null;
@@ -28,7 +29,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({ voucher, o
   const isMyanmar = settings.language === 'my';
 
   const handlePrint = () => {
-    window.print();
+    printVoucherSlip('printable-voucher', `အိုးစည်လေး ဘောင်ချာ - ${voucher.voucherNo}`);
   };
 
   const handleCopyText = () => {
@@ -62,7 +63,8 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
     }, 400);
   };
 
-  const isMultiCol = voucher.items.length > 6;
+  const isThreeCol = voucher.items.length > 14;
+  const isMultiCol = voucher.items.length > 6 || isThreeCol;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -145,14 +147,16 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
               </div>
 
               <div
-                className={`${
-                  isMultiCol
+                className={`voucher-items-container ${
+                  isThreeCol
+                    ? 'grid grid-cols-3 gap-x-2 gap-y-0.5 max-h-48 overflow-y-auto pr-0.5'
+                    : isMultiCol
                     ? 'grid grid-cols-2 gap-x-3 gap-y-0.5 max-h-48 overflow-y-auto pr-0.5'
                     : 'space-y-0.5 max-h-48 overflow-y-auto pr-0.5'
                 }`}
               >
                 {voucher.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-[11px] leading-tight">
+                  <div key={idx} className="flex justify-between text-[10.5px] leading-tight">
                     <span className="font-bold tracking-wider text-slate-900">
                       {item.number} {item.betType === 'rumble' ? '(R)' : ''}
                     </span>
@@ -216,15 +220,15 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
             <span className="truncate">{saveToast ? 'သိမ်းပြီး' : 'Save'}</span>
           </button>
 
-          {/* Action 3: Print (A6 Exact Print) */}
+          {/* Action 3: Print (A6 Single Sheet Exact Print / PDF) */}
           <button
             type="button"
             onClick={handlePrint}
             className="py-2.5 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer active:scale-95"
-            title="A6 တရွက်စာ ပရင့်ထုတ်မည်"
+            title="A6 တရွက်တည်း ထွက်အောင် ပရင့်ထုတ်မည် / PDF အဖြစ် သိမ်းဆည်းမည်"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span className="truncate">Print (A6)</span>
+            <span className="truncate">ပရင့် / PDF (တရွက်)</span>
           </button>
         </div>
 
