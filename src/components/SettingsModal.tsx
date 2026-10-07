@@ -337,23 +337,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const getLocalISODate = (date: Date = new Date()): string => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const getDaysAgo = (days: number) => {
     const d = new Date();
     d.setDate(d.getDate() - days);
-    return d.toISOString().slice(0, 10);
+    return getLocalISODate(d);
   };
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalISODate();
   const threeDaysAgoStr = getDaysAgo(2);
   const fiveDaysAgoStr = getDaysAgo(4);
   const oneWeekAgoStr = getDaysAgo(6);
   const oneMonthAgoStr = getDaysAgo(29);
   const allTimeStartStr = '2020-01-01';
+  const allTimeEndStr = '2099-12-31';
 
-  const [stmtCustomStart, setStmtCustomStart] = useState(oneWeekAgoStr);
+  const [stmtCustomStart, setStmtCustomStart] = useState(fiveDaysAgoStr);
   const [stmtCustomEnd, setStmtCustomEnd] = useState(todayStr);
 
   const { stmtStartDate, stmtEndDate } = React.useMemo(() => {
-    if (statementPeriod === 'all') return { stmtStartDate: allTimeStartStr, stmtEndDate: todayStr };
+    if (statementPeriod === 'all') return { stmtStartDate: allTimeStartStr, stmtEndDate: allTimeEndStr };
     if (statementPeriod === 'today') return { stmtStartDate: todayStr, stmtEndDate: todayStr };
     if (statementPeriod === 'three_days') return { stmtStartDate: threeDaysAgoStr, stmtEndDate: todayStr };
     if (statementPeriod === 'five_days') return { stmtStartDate: fiveDaysAgoStr, stmtEndDate: todayStr };
@@ -2522,53 +2530,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 {/* Summary Stats Overview Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">စုစုပေါင်း အရောင်းရငွေ</span>
-                  <div className="text-base sm:text-lg font-black font-mono text-slate-900 mt-0.5">
-                    {formatAmount(stmtGrandTotals.totalTurnover, currency)}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] text-slate-500 font-bold block uppercase">၁။ စုစုပေါင်း ထိုးကြေး</span>
+                    <div className="text-base sm:text-lg font-black font-mono text-slate-900 mt-0.5">
+                      {formatAmount(stmtGrandTotals.totalTurnover, currency)}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {stmtGrandTotals.totalVouchers} စောင် ({stmtRecords.length} ပွဲ)
+                    </span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    {stmtGrandTotals.totalVouchers} စောင်
-                  </span>
-                </div>
 
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                  <span className="text-[10px] text-rose-600 font-bold block uppercase">စုစုပေါင်း ပေးလျော်ငွေ</span>
-                  <div className="text-base sm:text-lg font-black font-mono text-rose-700 mt-0.5">
-                    {formatAmount(stmtGrandTotals.totalPayout, currency)}
+                  <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200 shadow-2xs">
+                    <span className="text-[10px] text-amber-900 font-bold block uppercase flex items-center justify-between">
+                      <span>၂။ အောက်လက် ကော်မရှင်</span>
+                      <span className="text-[9px] px-1 py-0.2 bg-amber-200 text-amber-900 rounded font-black">နုတ်ပေးငွေ</span>
+                    </span>
+                    <div className="text-base sm:text-lg font-black font-mono text-amber-900 mt-0.5">
+                      -{formatAmount(stmtGrandTotals.totalAgentCommission, currency)}
+                    </div>
+                    <span className="text-[10px] text-amber-700 font-medium">
+                      အမှန်ရောင်းငွေ: {formatAmount(stmtGrandTotals.totalNetSales, currency)}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-rose-500 font-medium">
-                    {stmtGrandTotals.totalWinners} ဦး ပေါက်
-                  </span>
-                </div>
 
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">စုစုပေါင်း ကော်မရှင်</span>
-                  <div className="text-base sm:text-lg font-black font-mono text-indigo-700 mt-0.5">
-                    +{formatAmount(stmtGrandTotals.totalCommission, currency)}
+                  <div className="bg-rose-50/80 p-3 rounded-2xl border border-rose-200 shadow-2xs">
+                    <span className="text-[10px] text-rose-700 font-bold block uppercase flex items-center justify-between">
+                      <span>၃။ ပေါက်မဲ လျော်ကြေး</span>
+                      <span className="text-[9px] px-1 py-0.2 bg-rose-200 text-rose-900 rounded font-black">ပေးငွေ</span>
+                    </span>
+                    <div className="text-base sm:text-lg font-black font-mono text-rose-700 mt-0.5">
+                      {formatAmount(stmtGrandTotals.totalPayout, currency)}
+                    </div>
+                    <span className="text-[10px] text-rose-600 font-bold">
+                      ပေါက်သူ {stmtGrandTotals.totalWinners} ဦး
+                    </span>
                   </div>
-                  <span className="text-[10px] text-indigo-500 font-medium">
-                    အသားတင် ရရှိ
-                  </span>
-                </div>
 
-                <div className={`p-3 rounded-2xl border shadow-2xs ${
-                  stmtGrandTotals.isProfit ? 'bg-emerald-50/80 border-emerald-200' : 'bg-rose-50/80 border-rose-200'
-                }`}>
-                  <span className="text-[10px] text-slate-600 font-bold block uppercase">အသားတင် အမြတ်/အရှုံး</span>
-                  <div className={`text-base sm:text-lg font-black font-mono mt-0.5 ${
-                    stmtGrandTotals.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                  <div className="bg-indigo-50/80 p-3 rounded-2xl border border-indigo-200 shadow-2xs">
+                    <span className="text-[10px] text-indigo-800 font-bold block uppercase flex items-center justify-between">
+                      <span>၄။ ဒိုင်ကြီးလွှဲ ကော်မရှင်</span>
+                      <span className="text-[9px] px-1 py-0.2 bg-indigo-200 text-indigo-900 rounded font-black">ရငွေ</span>
+                    </span>
+                    <div className="text-base sm:text-lg font-black font-mono text-indigo-900 mt-0.5">
+                      +{formatAmount(stmtGrandTotals.totalForwardCommission, currency)}
+                    </div>
+                    <span className="text-[10px] text-indigo-600 font-medium">
+                      ဒိုင်ကြီးဆီမှ ပြန်ရငွေ
+                    </span>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border shadow-2xs col-span-2 sm:col-span-1 ${
+                    stmtGrandTotals.isProfit ? 'bg-emerald-50/95 border-emerald-300' : 'bg-rose-50/95 border-rose-300'
                   }`}>
-                    {stmtGrandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(stmtGrandTotals.netProfit), currency)}
+                    <span className={`text-[10px] font-bold block uppercase ${
+                      stmtGrandTotals.isProfit ? 'text-emerald-800' : 'text-rose-800'
+                    }`}>
+                      ၅။ ဒိုင် အသားတင် {stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
+                    </span>
+                    <div className={`text-base sm:text-lg font-black font-mono mt-0.5 ${
+                      stmtGrandTotals.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                    }`}>
+                      {stmtGrandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(stmtGrandTotals.netProfit), currency)}
+                    </div>
+                    <span className={`text-[10px] font-bold ${
+                      stmtGrandTotals.isProfit ? 'text-emerald-600' : 'text-rose-600'
+                    }`}>
+                      {stmtGrandTotals.isProfit ? 'မြတ်' : 'ရှုံး'} ({stmtGrandTotals.profitMargin}%)
+                    </span>
                   </div>
-                  <span className={`text-[10px] font-bold ${
-                    stmtGrandTotals.isProfit ? 'text-emerald-600' : 'text-rose-600'
-                  }`}>
-                    {stmtGrandTotals.isProfit ? 'မြတ်' : 'ရှုံး'} ({stmtGrandTotals.profitMargin}%)
-                  </span>
                 </div>
-              </div>
 
               {/* Records List Table */}
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">

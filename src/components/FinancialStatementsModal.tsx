@@ -14,7 +14,12 @@ import {
   Trash2,
   Layers,
   Sparkles,
-  Award
+  Award,
+  ArrowDownRight,
+  ArrowUpRight,
+  Receipt,
+  Percent,
+  Wallet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -41,17 +46,32 @@ export interface StatementRecord {
   name: string;
   session?: 'morning' | 'evening' | 'special';
   winningResult: string;
-  turnover: number;
-  discount: number;
-  payout: number;
-  commission: number;
-  netProfit: number;
+  turnover: number;          // စုစုပေါင်း ထိုးကြေး (Gross Sales)
+  agentCommission: number;   // အောက်လက်/ဝယ်သူ ကော်မရှင် ပေးရငွေ (Discount Out)
+  netSales: number;          // အမှန်ရောင်းရငွေ (Gross - Agent Commission)
+  payout: number;            // ပေါက်မဲ ပေးလျော်ငွေ
+  forwardCommission: number; // ဒိုင်ကြီးဆီ လွှဲတင်ကော်မရှင် ရငွေ (Commission In)
+  netProfit: number;         // ဒိုင် အသားတင် အမြတ်/အရှုံး
   isProfit: boolean;
   winnersCount: number;
   vouchersCount: number;
   status: 'settled' | 'open';
   rawRoundId?: string;
 }
+
+// Local date string helper (YYYY-MM-DD) based on user's timezone
+const getLocalDateStr = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDaysAgoStr = (days: number, baseDate: Date = new Date()): string => {
+  const d = new Date(baseDate);
+  d.setDate(d.getDate() - days);
+  return getLocalDateStr(d);
+};
 
 export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> = ({
   isOpen,
@@ -63,36 +83,31 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const football = useFootball();
 
   const [selectedMode, setSelectedMode] = useState<'all' | '3d' | '2d' | 'football'>(initialMode);
-  const [periodPreset, setPeriodPreset] = useState<'all' | 'today' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom'>('all');
+  const [periodPreset, setPeriodPreset] = useState<'all' | 'today' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom'>('five_days');
 
   const [selectedRecord, setSelectedRecord] = useState<StatementRecord | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Helper to get date string N days ago in YYYY-MM-DD
-  const getDaysAgoStr = (days: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - days);
-    return d.toISOString().slice(0, 10);
-  };
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const threeDaysAgoStr = getDaysAgoStr(2); // 3 calendar days (today, yesterday, day before)
-  const fiveDaysAgoStr = getDaysAgoStr(4);  // 5 calendar days
-  const oneWeekAgoStr = getDaysAgoStr(6);   // 7 calendar days
-  const oneMonthAgoStr = getDaysAgoStr(29); // 30 calendar days
+  // Exact local date boundaries
+  const todayStr = getLocalDateStr();
+  const threeDaysAgoStr = getDaysAgoStr(2); // Today, Yesterday, 2 days ago (3 days)
+  const fiveDaysAgoStr = getDaysAgoStr(4);  // 5 Calendar Days (၅ ရက်တဖြတ် စာရင်း)
+  const oneWeekAgoStr = getDaysAgoStr(6);   // 7 Calendar Days (၁ ပတ်စာ)
+  const oneMonthAgoStr = getDaysAgoStr(29); // 30 Calendar Days (၁ လစာ)
   const allTimeStartStr = '2020-01-01';
+  const allTimeEndStr = '2099-12-31';
 
-  const [customStartDate, setCustomStartDate] = useState(oneWeekAgoStr);
+  const [customStartDate, setCustomStartDate] = useState(fiveDaysAgoStr);
   const [customEndDate, setCustomEndDate] = useState(todayStr);
 
   const currency = lottery2D.settings.currency || lottery3D.settings.currency || 'Ks';
 
-  // Determine active date boundaries
+  // Determine active date boundaries based on user selection
   const { startDate, endDate } = useMemo(() => {
     if (periodPreset === 'all') {
-      return { startDate: allTimeStartStr, endDate: todayStr };
+      return { startDate: allTimeStartStr, endDate: allTimeEndStr };
     }
     if (periodPreset === 'today') {
       return { startDate: todayStr, endDate: todayStr };
@@ -127,53 +142,56 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         if (roundDate >= startDate && roundDate <= endDate) {
           processedRoundIds.add(round.id);
 
-          // Get vouchers belonging to this round
           const roundVouchers = lottery2D.vouchers.filter(
             (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
                    v.status !== 'cancelled'
           );
 
-          // Get forward slips for this round
           const roundForwards = lottery2D.forwardSlips.filter(
             (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
           );
 
           let totalTurnover = 0;
-          let totalDiscount = 0;
+          let totalAgentCommission = 0;
           let netSales = 0;
 
           roundVouchers.forEach((v) => {
             const voucherSubtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            const voucherDiscount = v.discountAmount ?? 0;
+            
+            // Commission to sub-agents / discount
+            let voucherDiscount = 0;
+            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+              voucherDiscount = v.discountAmount;
+            } else if (round.commissionRate && round.commissionRate > 0) {
+              voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
+            } else if (lottery2D.settings.defaultCommissionRate && lottery2D.settings.defaultCommissionRate > 0) {
+              voucherDiscount = Math.round(voucherSubtotal * (lottery2D.settings.defaultCommissionRate / 100));
+            }
+
             const voucherNet = v.netPayable ?? (voucherSubtotal - voucherDiscount);
 
             totalTurnover += voucherSubtotal;
-            totalDiscount += voucherDiscount;
+            totalAgentCommission += voucherDiscount;
             netSales += voucherNet;
           });
 
-          // Forward slips & commission
-          let totalForwarded = 0;
+          // Forward slips commission earned from master bookie
           let forwardCommission = 0;
           roundForwards.forEach((f) => {
-            totalForwarded += f.totalAmount || 0;
             forwardCommission += f.commissionAmount || 0;
           });
 
-          // Payout and Winners calculation
+          // Payout & Winners calculation
           let totalPayout = 0;
           let winnersCount = 0;
-
           const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
           const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 80;
 
           if (winningNum) {
-            // Evaluate dynamically for 100% accuracy
             const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
             totalPayout = evalResult.totalPayout;
             winnersCount = evalResult.totalWinnersCount;
           } else {
-            // Check if any voucher items have wonAmount set
             roundVouchers.forEach((v) => {
               v.items.forEach((it) => {
                 if (it.isWon) {
@@ -183,9 +201,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               });
             });
           }
-
-          // Total Commission earned = forwardCommission + total customer discount
-          const totalCommission = forwardCommission > 0 ? forwardCommission : totalDiscount;
 
           // Net dealer profit = (Net Sales - Payout) + Forward Commission
           const netProfit = (netSales - totalPayout) + forwardCommission;
@@ -199,9 +214,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             session: round.session,
             winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
             turnover: totalTurnover,
-            discount: totalDiscount,
+            agentCommission: totalAgentCommission,
+            netSales,
             payout: totalPayout,
-            commission: totalCommission,
+            forwardCommission,
             netProfit,
             isProfit: netProfit >= 0,
             winnersCount,
@@ -212,14 +228,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         }
       });
 
-      // Catch any orphaned vouchers with dates in range that didn't match a round
+      // Catch any orphaned vouchers without round assigned
       const orphanedVouchers = lottery2D.vouchers.filter(v => {
         const vDate = (v.createdAt || '').slice(0, 10);
         return vDate >= startDate && vDate <= endDate && v.status !== 'cancelled' && (!v.roundId || !processedRoundIds.has(v.roundId));
       });
 
       if (orphanedVouchers.length > 0) {
-        // Group by date
         const orphanedByDate: { [date: string]: TwoDVoucher[] } = {};
         orphanedVouchers.forEach(v => {
           const d = (v.createdAt || '').slice(0, 10) || todayStr;
@@ -230,20 +245,26 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         Object.keys(orphanedByDate).forEach(d => {
           const vList = orphanedByDate[d];
           let turnover = 0;
-          let discount = 0;
+          let agentCommission = 0;
           let netSales = 0;
           let payout = 0;
           let winnersCount = 0;
 
           vList.forEach(v => {
             const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            const disc = v.discountAmount ?? 0;
+            let disc = 0;
+            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+              disc = v.discountAmount;
+            } else if (lottery2D.settings.defaultCommissionRate) {
+              disc = Math.round(sub * (lottery2D.settings.defaultCommissionRate / 100));
+            }
+
             turnover += sub;
-            discount += disc;
+            agentCommission += disc;
             netSales += (v.netPayable ?? (sub - disc));
             v.items.forEach(it => {
               if (it.isWon) {
-                payout += (it.wonAmount || (it.amount * 80));
+                payout += (it.wonAmount || (it.amount * (lottery2D.settings.defaultMultiplier || 80)));
                 winnersCount += 1;
               }
             });
@@ -260,9 +281,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             session: 'morning',
             winningResult: payout > 0 ? `${winnersCount} ဦးပေါက်` : 'မထွက်သေး',
             turnover,
-            discount,
+            agentCommission,
+            netSales,
             payout,
-            commission: discount,
+            forwardCommission: 0,
             netProfit,
             isProfit: netProfit >= 0,
             winnersCount,
@@ -290,14 +312,22 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           );
 
           let totalTurnover = 0;
-          let totalDiscount = 0;
+          let totalAgentCommission = 0;
           let netSales = 0;
 
           roundVouchers.forEach((v) => {
             const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            const disc = v.discountAmount ?? 0;
+            let disc = 0;
+            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+              disc = v.discountAmount;
+            } else if (round.commissionRate && round.commissionRate > 0) {
+              disc = Math.round(sub * (round.commissionRate / 100));
+            } else if (lottery3D.settings.defaultCommissionRate && lottery3D.settings.defaultCommissionRate > 0) {
+              disc = Math.round(sub * (lottery3D.settings.defaultCommissionRate / 100));
+            }
+
             totalTurnover += sub;
-            totalDiscount += disc;
+            totalAgentCommission += disc;
             netSales += (v.netPayable ?? (sub - disc));
           });
 
@@ -308,7 +338,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
           let totalPayout = 0;
           let winnersCount = 0;
-
           const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
           const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 600;
           const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 100;
@@ -328,7 +357,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             });
           }
 
-          const totalCommission = forwardCommission > 0 ? forwardCommission : totalDiscount;
           const netProfit = (netSales - totalPayout) + forwardCommission;
 
           list.push({
@@ -339,9 +367,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             name: round.name || `${roundDate} ထီဖွင့်ပွဲ`,
             winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
             turnover: totalTurnover,
-            discount: totalDiscount,
+            agentCommission: totalAgentCommission,
+            netSales,
             payout: totalPayout,
-            commission: totalCommission,
+            forwardCommission,
             netProfit,
             isProfit: netProfit >= 0,
             winnersCount,
@@ -363,7 +392,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       });
 
       if (slips.length > 0) {
-        // Group football slips by date
         const slipsByDate: { [date: string]: FootballSlip[] } = {};
         slips.forEach((s) => {
           const d = (s.createdAt || s.roundDate || '').slice(0, 10) || todayStr;
@@ -374,7 +402,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         Object.keys(slipsByDate).forEach((d) => {
           const daySlips = slipsByDate[d];
           let turnover = 0;
-          let discount = 0;
+          let agentCommission = 0;
           let netSales = 0;
           let payout = 0;
           let winnersCount = 0;
@@ -383,7 +411,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             const stake = s.stakeAmount || s.netPayable || 0;
             const disc = s.discountAmount || 0;
             turnover += stake;
-            discount += disc;
+            agentCommission += disc;
             netSales += (s.netPayable || (stake - disc));
 
             if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
@@ -398,7 +426,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             forwardCommission += f.commissionAmount || 0;
           });
 
-          const totalCommission = forwardCommission > 0 ? forwardCommission : discount;
           const netProfit = (netSales - payout) + forwardCommission;
 
           list.push({
@@ -409,9 +436,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             name: `${d} ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း`,
             winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : 'စလစ်အားလုံး ရှင်းပြီး',
             turnover,
-            discount,
+            agentCommission,
+            netSales,
             payout,
-            commission: totalCommission,
+            forwardCommission,
             netProfit,
             isProfit: netProfit >= 0,
             winnersCount,
@@ -422,7 +450,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       }
     }
 
-    // Sort all records by Date descending
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [
     selectedMode,
@@ -432,11 +459,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     lottery2D.vouchers,
     lottery2D.forwardSlips,
     lottery2D.settings.defaultMultiplier,
+    lottery2D.settings.defaultCommissionRate,
     lottery3D.rounds,
     lottery3D.vouchers,
     lottery3D.forwardSlips,
     lottery3D.settings.defaultMultiplier,
     lottery3D.settings.defaultToddMultiplier,
+    lottery3D.settings.defaultCommissionRate,
     football.slips,
     football.forwardSlips,
     todayStr
@@ -445,31 +474,32 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   // Grand Totals across all statement records in the filtered period
   const grandTotals = useMemo(() => {
     let totalTurnover = 0;
-    let totalDiscount = 0;
+    let totalAgentCommission = 0;
+    let totalNetSales = 0;
     let totalPayout = 0;
-    let totalCommission = 0;
+    let totalForwardCommission = 0;
     let totalVouchers = 0;
     let totalWinners = 0;
 
     statementRecords.forEach((r) => {
       totalTurnover += r.turnover;
-      totalDiscount += r.discount;
+      totalAgentCommission += r.agentCommission;
+      totalNetSales += r.netSales;
       totalPayout += r.payout;
-      totalCommission += r.commission;
+      totalForwardCommission += r.forwardCommission;
       totalVouchers += r.vouchersCount;
       totalWinners += r.winnersCount;
     });
 
-    const netSales = totalTurnover - totalDiscount;
-    const netProfit = (netSales - totalPayout) + totalCommission;
+    const netProfit = (totalNetSales - totalPayout) + totalForwardCommission;
     const profitMargin = totalTurnover > 0 ? ((netProfit / totalTurnover) * 100).toFixed(1) : '0.0';
 
     return {
       totalTurnover,
-      totalDiscount,
-      netSales,
+      totalAgentCommission,
+      totalNetSales,
       totalPayout,
-      totalCommission,
+      totalForwardCommission,
       netProfit,
       isProfit: netProfit >= 0,
       profitMargin,
@@ -479,6 +509,20 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     };
   }, [statementRecords]);
 
+  // Human readable period label
+  const periodLabel = useMemo(() => {
+    switch (periodPreset) {
+      case 'today': return 'ဒီနေ့ စာရင်းရှင်းတမ်း';
+      case 'three_days': return '၃ ရက်စာ စာရင်းရှင်းတမ်း';
+      case 'five_days': return '၅ ရက်တဖြတ် စာရင်းရှင်းတမ်း';
+      case 'week': return '၁ ပတ်စာ စာရင်းရှင်းတမ်း';
+      case 'month': return '၁ လစာ စာရင်းရှင်းတမ်း';
+      case 'all': return 'မှတ်တမ်းအားလုံး ချုပ်';
+      case 'custom': return `ရက်ရွေး စာရင်း (${startDate} မှ ${endDate})`;
+      default: return 'စာရင်းရှင်းတမ်း';
+    }
+  }, [periodPreset, startDate, endDate]);
+
   // Export to Excel handler
   const handleExportExcel = () => {
     const data = statementRecords.map((r, i) => ({
@@ -487,10 +531,12 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       'လုပ်ငန်းလိုင်း': r.modeLabel,
       'ပွဲစဉ်အမည်': r.name,
       'ပေါက်ဂဏန်း/ရလဒ်': r.winningResult,
-      'ထိုးကြေး/ရောင်းရငွေ (ကျပ်)': r.turnover,
+      'စုစုပေါင်း ထိုးကြေး (ကျပ်)': r.turnover,
+      'အောက်လက် ကော်မရှင် (ကျပ်)': r.agentCommission,
+      'အမှန်ရောင်းရငွေ (ကျပ်)': r.netSales,
       'ပေးလျော်ငွေ (ကျပ်)': r.payout,
-      'ကော်မရှင် (ကျပ်)': r.commission,
-      'အသားတင် အမြတ်/အရှုံး (ကျပ်)': (r.isProfit ? '+' : '-') + Math.abs(r.netProfit),
+      'ဒိုင်ကြီးလွှဲ ကော်မရှင်ရငွေ (ကျပ်)': r.forwardCommission,
+      'ဒိုင် အသားတင် အမြတ်/အရှုံး (ကျပ်)': (r.isProfit ? '+' : '-') + Math.abs(r.netProfit),
       'ပေါက်သူဦးရေ': r.winnersCount,
       'ဘောင်ချာစောင်ရေ': r.vouchersCount,
       'အခြေအနေ': r.status === 'settled' ? 'ရှင်းတမ်းပြီး' : 'ဖွင့်လှစ်ဆဲ'
@@ -501,12 +547,14 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       'စဉ်': 0 as any,
       'ရက်စွဲ': 'စုစုပေါင်း ချုပ်',
       'လုပ်ငန်းလိုင်း': '-',
-      'ပွဲစဉ်အမည်': `${startDate} မှ ${endDate} အထိ`,
+      'ပွဲစဉ်အမည်': `${periodLabel} (${startDate === allTimeStartStr ? 'စတင်ချိန်' : startDate} မှ ${endDate === allTimeEndStr ? 'ယခု' : endDate} အထိ)`,
       'ပေါက်ဂဏန်း/ရလဒ်': '-',
-      'ထိုးကြေး/ရောင်းရငွေ (ကျပ်)': grandTotals.totalTurnover,
+      'စုစုပေါင်း ထိုးကြေး (ကျပ်)': grandTotals.totalTurnover,
+      'အောက်လက် ကော်မရှင် (ကျပ်)': grandTotals.totalAgentCommission,
+      'အမှန်ရောင်းရငွေ (ကျပ်)': grandTotals.totalNetSales,
       'ပေးလျော်ငွေ (ကျပ်)': grandTotals.totalPayout,
-      'ကော်မရှင် (ကျပ်)': grandTotals.totalCommission,
-      'အသားတင် အမြတ်/အရှုံး (ကျပ်)': (grandTotals.isProfit ? '+' : '-') + Math.abs(grandTotals.netProfit),
+      'ဒိုင်ကြီးလွှဲ ကော်မရှင်ရငွေ (ကျပ်)': grandTotals.totalForwardCommission,
+      'ဒိုင် အသားတင် အမြတ်/အရှုံး (ကျပ်)': (grandTotals.isProfit ? '+' : '-') + Math.abs(grandTotals.netProfit),
       'ပေါက်သူဦးရေ': grandTotals.totalWinners,
       'ဘောင်ချာစောင်ရေ': grandTotals.totalVouchers,
       'အခြေအနေ': grandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'
@@ -520,7 +568,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     XLSX.writeFile(wb, filename);
   };
 
-  // Delete statement record handler
   const handleDeleteRecord = () => {
     if (!selectedRecord) return;
     
@@ -570,20 +617,20 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-5xl w-full shadow-2xl border border-slate-200 max-h-[94vh] flex flex-col justify-between overflow-hidden">
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-6xl w-full shadow-2xl border border-slate-200 max-h-[94vh] flex flex-col justify-between overflow-hidden">
         
         {/* Header */}
         <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600/30 text-indigo-400 border border-indigo-500/40 flex items-center justify-center font-bold">
-              <TrendingUp className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-teal-600/30 text-teal-400 border border-teal-500/40 flex items-center justify-center font-bold">
+              <Receipt className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-black text-white leading-tight">
-                ကာလအလိုက် စာရင်းရှင်းတမ်း & အမြတ်/အရှုံး အစီရင်ခံစာ
+                ကာလအလိုက် စာရင်းရှင်းတမ်း (၅ ရက်တဖြတ် / အမြတ်၊ အရှုံး & ကော်မရှင် အစီရင်ခံစာ)
               </h3>
               <p className="text-[10px] text-slate-400">
-                ၃ ရက်စာ၊ ၁ ပတ်စာ၊ ၁ လစာ စာရင်းရှင်းတမ်းများ၊ ထိုးကြေး၊ အလျော်နှင့် အသားတင်အမြတ်/အရှုံး
+                အောက်လက်ကော်မရှင် ပေးငွေ၊ ဒိုင်ကြီးလွှဲကော်မရှင်၊ ထိုးကြေးနှင့် ပေးလျော်ငွေ အတိအကျ ရှင်းတမ်း
               </p>
             </div>
           </div>
@@ -671,18 +718,18 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs overflow-x-auto">
               <button
                 type="button"
-                onClick={() => setPeriodPreset('all')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                onClick={() => setPeriodPreset('five_days')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  periodPreset === 'five_days' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                အားလုံး (All)
+                ★ ၅ ရက်တဖြတ်
               </button>
               <button
                 type="button"
                 onClick={() => setPeriodPreset('today')}
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'today' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  periodPreset === 'today' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ဒီနေ့
@@ -691,25 +738,16 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 type="button"
                 onClick={() => setPeriodPreset('three_days')}
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'three_days' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  periodPreset === 'three_days' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ၃ ရက်စာ
               </button>
               <button
                 type="button"
-                onClick={() => setPeriodPreset('five_days')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'five_days' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                ၅ ရက်စာ
-              </button>
-              <button
-                type="button"
                 onClick={() => setPeriodPreset('week')}
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'week' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  periodPreset === 'week' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ၁ ပတ်စာ
@@ -718,16 +756,25 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 type="button"
                 onClick={() => setPeriodPreset('month')}
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'month' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  periodPreset === 'month' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ၁ လစာ
               </button>
               <button
                 type="button"
+                onClick={() => setPeriodPreset('all')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  periodPreset === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                အားလုံး (All)
+              </button>
+              <button
+                type="button"
                 onClick={() => setPeriodPreset('custom')}
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  periodPreset === 'custom' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                  periodPreset === 'custom' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ရက်ရွေး
@@ -765,41 +812,97 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               {lottery2D.settings.shopName || lottery3D.settings.shopName || 'ရွှေမင်္ဂလာ'} - စာရင်းရှင်းတမ်း အစီရင်ခံစာ
             </h2>
             <p className="text-xs text-slate-600 font-bold mt-1">
-              {periodPreset === 'all' ? 'မှတ်တမ်းအားလုံး ချုပ်' :
-               periodPreset === 'today' ? 'ဒီနေ့ စာရင်းရှင်းတမ်း' :
-               periodPreset === 'three_days' ? '၃ ရက်စာ စာရင်းရှင်းတမ်း' :
-               periodPreset === 'five_days' ? '၅ ရက်စာ စာရင်းရှင်းတမ်း' :
-               periodPreset === 'week' ? '၁ ပတ်စာ စာရင်းရှင်းတမ်း' :
-               periodPreset === 'month' ? '၁ လစာ စာရင်းရှင်းတမ်း' : 'ရက်ရွေး စာရင်းရှင်းတမ်း'} 
-              {' '}({startDate === allTimeStartStr ? 'စတင်ချိန်' : startDate} မှ {endDate} အထိ)
+              {periodLabel} ({startDate === allTimeStartStr ? 'စတင်ချိန်' : startDate} မှ {endDate === allTimeEndStr ? 'ယခု' : endDate} အထိ)
             </p>
             <p className="text-[10px] text-slate-500 mt-0.5">
               အမျိုးအစား: {selectedMode === 'all' ? 'လုပ်ငန်းအားလုံးချုပ်' : selectedMode === '3d' ? 'အိုးစည်လေး (3D)' : selectedMode === '2d' ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (ဘောလုံး)'}
             </p>
           </div>
+
+          {/* Active Period Highlight Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-3 sm:p-3.5 shadow-md flex flex-wrap items-center justify-between gap-3 border border-indigo-500/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-white">{periodLabel}</span>
+                  <span className="px-2 py-0.5 bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-md text-[10px] font-bold">
+                    {startDate === allTimeStartStr ? 'မှတ်တမ်းအားလုံး' : `${startDate} မှ ${endDate} ထိ`}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  ပွဲစဉ်ပေါင်း <b className="text-teal-300">{statementRecords.length}</b> ခု • ဘောင်ချာ <b className="text-white">{grandTotals.totalVouchers}</b> စောင် • ပေါက်သူ <b className="text-amber-300">{grandTotals.totalWinners}</b> ဦး
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <span className="text-[10px] text-slate-300 font-bold block">ဒိုင် အသားတင် ရလဒ်</span>
+                <span className={`text-base font-black font-mono px-2 py-0.5 rounded-lg border ${
+                  grandTotals.isProfit 
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
+                    : 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                }`}>
+                  {grandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(grandTotals.netProfit), currency)}
+                </span>
+              </div>
+            </div>
+          </div>
           
-          {/* Top 4 Hero Metrics Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          {/* Comprehensive Settlement Overview Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
             
-            {/* 1. Total Turnover (ထိုးကြေး/ရောင်းရငွေ) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500 block mb-0.5">
-                ၁။ စုစုပေါင်း ထိုးကြေး / ရောင်းရငွေ
+            {/* 1. Gross Turnover (စုစုပေါင်း ထိုးကြေး) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 block mb-0.5 uppercase">
+                ၁။ စုစုပေါင်း ထိုးကြေး
               </span>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
+              <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
                 {formatAmount(grandTotals.totalTurnover, currency)}
               </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                ဘောင်ချာ {grandTotals.totalVouchers} စောင် ({statementRecords.length} ပွဲစဉ်)
+              <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">
+                ရောင်းရငွေ စုစုပေါင်း
               </span>
             </div>
 
-            {/* 2. Total Payout (လျော်ကြေး) */}
-            <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-3.5 shadow-2xs">
-              <span className="text-[11px] font-bold text-rose-700 block mb-0.5">
-                ၂။ စုစုပေါင်း ပေးလျော်ငွေ
+            {/* 2. Agent Commission Payable (အောက်လက်ကို ပေးရမည့် ကော်မရှင်ခ) */}
+            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 shadow-2xs">
+              <span className="text-[10px] font-bold text-amber-900 block mb-0.5 uppercase flex items-center justify-between">
+                <span>၂။ အောက်လက် ကော်မရှင်</span>
+                <span className="text-[9px] px-1 py-0.2 bg-amber-200 text-amber-900 rounded font-black">နုတ်ပေးငွေ</span>
               </span>
-              <div className="text-xl sm:text-2xl font-black text-rose-700 font-mono">
+              <div className="text-base sm:text-lg font-black text-amber-900 font-mono">
+                -{formatAmount(grandTotals.totalAgentCommission, currency)}
+              </div>
+              <span className="text-[10px] text-amber-700 mt-0.5 block font-medium">
+                အောက်လက်ပေး ကော်မရှင်ခ
+              </span>
+            </div>
+
+            {/* 3. Net Sales (ဒိုင် လက်ကျန် ရောင်းရငွေ) */}
+            <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-3 shadow-2xs">
+              <span className="text-[10px] font-bold text-sky-900 block mb-0.5 uppercase flex items-center justify-between">
+                <span>၃။ အမှန်ရောင်းငွေ</span>
+                <span className="text-[9px] px-1 py-0.2 bg-sky-200 text-sky-900 rounded font-black">လက်ခံရငွေ</span>
+              </span>
+              <div className="text-base sm:text-lg font-black text-sky-950 font-mono">
+                {formatAmount(grandTotals.totalNetSales, currency)}
+              </div>
+              <span className="text-[10px] text-sky-700 mt-0.5 block font-medium">
+                ထိုးကြေး - ကော်မရှင်
+              </span>
+            </div>
+
+            {/* 4. Total Payout (ပေါက်မဲ ပေးလျော်ငွေ) */}
+            <div className="bg-rose-50/80 border border-rose-200 rounded-2xl p-3 shadow-2xs">
+              <span className="text-[10px] font-bold text-rose-700 block mb-0.5 uppercase flex items-center justify-between">
+                <span>၄။ ပေးလျော်ငွေ</span>
+                <span className="text-[9px] px-1 py-0.2 bg-rose-200 text-rose-900 rounded font-black">ပေါက်မဲ</span>
+              </span>
+              <div className="text-base sm:text-lg font-black text-rose-700 font-mono">
                 {formatAmount(grandTotals.totalPayout, currency)}
               </div>
               <span className="text-[10px] text-rose-600 mt-0.5 block font-bold">
@@ -807,37 +910,38 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               </span>
             </div>
 
-            {/* 3. Total Commission (ကော်မရှင်) */}
-            <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-3.5 shadow-2xs">
-              <span className="text-[11px] font-bold text-indigo-700 block mb-0.5">
-                ၃။ ကော်မရှင် စုစုပေါင်းရငွေ
+            {/* 5. Forward Commission In (ဒိုင်ကြီးဆီ လွှဲတင်ကော်မရှင် ရငွေ) */}
+            <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3 shadow-2xs">
+              <span className="text-[10px] font-bold text-indigo-800 block mb-0.5 uppercase flex items-center justify-between">
+                <span>၅။ ဒိုင်ကြီးလွှဲ ကော်မရှင်</span>
+                <span className="text-[9px] px-1 py-0.2 bg-indigo-200 text-indigo-900 rounded font-black">ရငွေ</span>
               </span>
-              <div className="text-xl sm:text-2xl font-black text-indigo-900 font-mono">
-                +{formatAmount(grandTotals.totalCommission, currency)}
+              <div className="text-base sm:text-lg font-black text-indigo-900 font-mono">
+                +{formatAmount(grandTotals.totalForwardCommission, currency)}
               </div>
-              <span className="text-[10px] text-indigo-600 mt-0.5 block font-medium">
-                ဒိုင်ကြီးလွှဲ / လျှော့ငွေ စုစုပေါင်း
+              <span className="text-[10px] text-indigo-700 mt-0.5 block font-medium">
+                ဒိုင်ကြီးဆီမှ ပြန်ရငွေ
               </span>
             </div>
 
-            {/* 4. Net Profit / Loss (အသားတင် အမြတ်/အရှုံး) */}
-            <div className={`rounded-2xl p-3.5 border shadow-2xs ${
+            {/* 6. Net Profit / Loss (ဒိုင် အသားတင် အမြတ်/အရှုံး) */}
+            <div className={`rounded-2xl p-3 border shadow-2xs ${
               grandTotals.isProfit
-                ? 'bg-emerald-50/90 border-emerald-300'
-                : 'bg-rose-50/90 border-rose-300'
+                ? 'bg-emerald-50/95 border-emerald-300'
+                : 'bg-rose-50/95 border-rose-300'
             }`}>
-              <span className={`text-[11px] font-bold block mb-0.5 ${
+              <span className={`text-[10px] font-bold block mb-0.5 uppercase ${
                 grandTotals.isProfit ? 'text-emerald-800' : 'text-rose-800'
               }`}>
-                ၄။ ဒိုင် အသားတင် {grandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
+                ၆။ ဒိုင် အသားတင် {grandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
               </span>
-              <div className={`text-xl sm:text-2xl font-black font-mono flex items-center gap-1 ${
+              <div className={`text-base sm:text-lg font-black font-mono flex items-center gap-1 ${
                 grandTotals.isProfit ? 'text-emerald-700' : 'text-rose-700'
               }`}>
                 {grandTotals.isProfit ? (
-                  <TrendingUp className="w-5 h-5 shrink-0 text-emerald-600" />
+                  <TrendingUp className="w-4 h-4 shrink-0 text-emerald-600" />
                 ) : (
-                  <TrendingDown className="w-5 h-5 shrink-0 text-rose-600" />
+                  <TrendingDown className="w-4 h-4 shrink-0 text-rose-600" />
                 )}
                 <span>
                   {grandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(grandTotals.netProfit), currency)}
@@ -857,10 +961,12 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
               <span className="font-black text-xs flex items-center gap-2">
                 <Clock className="w-3.5 h-3.5 text-teal-400" />
-                <span>ပွဲစဉ်အလိုက် အသေးစိတ် စာရင်းရှင်းတမ်း မှတ်တမ်းများ ({statementRecords.length} ခု)</span>
+                <span>
+                  {periodLabel} - ပွဲစဉ်အလိုက် အသေးစိတ် ({statementRecords.length} ခု)
+                </span>
               </span>
               <span className="text-[10px] text-slate-300 font-bold">
-                {periodPreset === 'all' ? 'မှတ်တမ်းအားလုံး' : `${startDate} မှ ${endDate} အထိ`}
+                {startDate === allTimeStartStr ? 'မှတ်တမ်းအားလုံး' : `${startDate} မှ ${endDate} အထိ`}
               </span>
             </div>
 
@@ -869,7 +975,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 <div className="p-8 text-center text-slate-400 space-y-1">
                   <AlertCircle className="w-8 h-8 mx-auto text-slate-300" />
                   <p className="text-xs font-bold text-slate-600">ရွေးချယ်ထားသော ကာလအတွင်း ရှင်းတမ်းမှတ်တမ်း မရှိသေးပါ</p>
-                  <p className="text-[11px] text-slate-400">"အားလုံး (All)" ခလုတ်ကို နှိပ်၍ ယခင်ထည့်သွင်းထားသော စာရင်းများကို ကြည့်ရှုနိုင်ပါသည်</p>
+                  <p className="text-[11px] text-slate-400">"★ ၅ ရက်တဖြတ်" သို့မဟုတ် "အားလုံး (All)" ခလုတ်ကို နှိပ်၍ ကြည့်ရှုနိုင်ပါသည်</p>
                 </div>
               ) : (
                 <table className="w-full text-left text-xs">
@@ -878,9 +984,11 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       <th className="py-2.5 px-3">ရက်စွဲ / အချိန်</th>
                       <th className="py-2.5 px-3">ပွဲစဉ် / လိုင်း</th>
                       <th className="py-2.5 px-3 text-center">ပေါက်ဂဏန်း</th>
-                      <th className="py-2.5 px-3 text-right">ထိုးကြေး (ရောင်းရ)</th>
-                      <th className="py-2.5 px-3 text-right">ပေးလျော်ငွေ</th>
-                      <th className="py-2.5 px-3 text-right">ကော်မရှင်</th>
+                      <th className="py-2.5 px-3 text-right">ထိုးကြေး (စုစုပေါင်း)</th>
+                      <th className="py-2.5 px-3 text-right text-amber-800">အောက်လက် ကော်မရှင်</th>
+                      <th className="py-2.5 px-3 text-right text-sky-900">အမှန်ရောင်းငွေ</th>
+                      <th className="py-2.5 px-3 text-right text-rose-700">ပေးလျော်ငွေ</th>
+                      <th className="py-2.5 px-3 text-right text-indigo-700">ဒိုင်ကြီးလွှဲ ကော်မရှင်</th>
                       <th className="py-2.5 px-3 text-right">အသားတင် ရလဒ်</th>
                       <th className="py-2.5 px-3 text-center">အသေးစိတ်</th>
                     </tr>
@@ -921,6 +1029,12 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
                           {formatAmount(rec.turnover, currency)}
                         </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-800 whitespace-nowrap">
+                          {rec.agentCommission > 0 ? `-${formatAmount(rec.agentCommission, currency)}` : '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-sky-950 whitespace-nowrap">
+                          {formatAmount(rec.netSales, currency)}
+                        </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
                           {rec.payout > 0 ? (
                             <span className="text-rose-700 font-black">
@@ -931,7 +1045,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-700 whitespace-nowrap">
-                          {rec.commission > 0 ? `+${formatAmount(rec.commission, currency)}` : '-'}
+                          {rec.forwardCommission > 0 ? `+${formatAmount(rec.forwardCommission, currency)}` : '-'}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-black whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-lg border text-xs inline-block font-mono ${
@@ -1012,21 +1126,25 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             <div className="p-4 overflow-y-auto space-y-4 text-xs">
               
               {/* Metrics summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">ထိုးကြေး (ရောင်းရ)</span>
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၁။ ထိုးကြေး</span>
                   <span className="text-sm font-black font-mono text-slate-900">{formatAmount(selectedRecord.turnover, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-rose-600 font-bold block uppercase">ပေးလျော်ငွေ</span>
+                  <span className="text-[10px] text-amber-800 font-bold block uppercase">၂။ အောက်လက်ကော်မရှင်</span>
+                  <span className="text-sm font-black font-mono text-amber-800">-{formatAmount(selectedRecord.agentCommission, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-rose-600 font-bold block uppercase">၃။ ပေးလျော်ငွေ</span>
                   <span className="text-sm font-black font-mono text-rose-700">{formatAmount(selectedRecord.payout, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">ကော်မရှင် ရငွေ</span>
-                  <span className="text-sm font-black font-mono text-indigo-700">+{formatAmount(selectedRecord.commission, currency)}</span>
+                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">၄။ ဒိုင်ကြီးလွှဲကော်မရှင်</span>
+                  <span className="text-sm font-black font-mono text-indigo-700">+{formatAmount(selectedRecord.forwardCommission, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">အသားတင် ရလဒ်</span>
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၅။ အသားတင်ရလဒ်</span>
                   <span className={`text-sm font-black font-mono px-1.5 py-0.5 rounded ${
                     selectedRecord.isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   }`}>
@@ -1075,6 +1193,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                     return vouchersToDisplay.map((v: any, index: number) => {
                       const itemsStr = v.items ? v.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : '-';
                       const hasWonItem = v.items ? v.items.some((it: any) => it.isWon || it.number === selectedRecord.winningResult) : false;
+                      const voucherDisc = v.discountAmount > 0 ? v.discountAmount : 0;
                       
                       return (
                         <div key={index} className="p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-[11px]">
@@ -1083,7 +1202,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                               <span className="font-bold font-mono text-slate-900">{v.voucherNo || v.slipNo}</span>
                               <span className="text-slate-600 font-medium">({v.customerName})</span>
                               {hasWonItem && (
-                                <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 font-black text-[9px] rounded-md animate-pulse">
+                                <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 font-black text-[9px] rounded-md">
                                   ★ ပေါက်မဲ
                                 </span>
                               )}
@@ -1094,9 +1213,16 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                           </div>
                           <div className="text-right">
                             <span className="font-bold font-mono text-slate-900 block">{formatAmount(v.netPayable || v.subtotal || v.stakeAmount, currency)}</span>
-                            <span className={`text-[10px] ${v.isPaid ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                              {v.isPaid ? 'ရှင်းပြီး ✓' : 'ကြွေးကျန်'}
-                            </span>
+                            <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                              {voucherDisc > 0 && (
+                                <span className="text-[9px] text-amber-700 font-mono">
+                                  (ကော် -{formatAmount(voucherDisc, currency)})
+                                </span>
+                              )}
+                              <span className={`text-[10px] ${v.isPaid ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                {v.isPaid ? 'ရှင်းပြီး ✓' : 'ကြွေးကျန်'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
