@@ -5,8 +5,11 @@
 
 /**
  * Robust print helper for vouchers and financial statements.
- * Uses an isolated print iframe copying all page stylesheets to guarantee
- * that PDF export / printing never produces a blank page and fits on a single sheet.
+ * Uses a direct-mount printing strategy that temporarily hides the main application
+ * and mounts only the target printable element. This guarantees 100% correct
+ * layout rendering and styling, solves blank page issues on PDF export, and ensures
+ * standard print sizing (A6 for vouchers, A4 for financial statements) on all mobile
+ * webviews and tablets without using bug-prone iframe selectors or unsupported CSS.
  */
 
 export function printVoucherSlip(elementId: string = 'printable-voucher', title: string = 'ဘောင်ချာ'): void {
@@ -29,112 +32,107 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
       htmlEl.style.overflow = 'visible';
     });
 
-    // Create an isolated hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.focus();
-      window.print();
-      return;
+    // Create print mount container
+    let printMount = document.getElementById('print-mount');
+    if (!printMount) {
+      printMount = document.createElement('div');
+      printMount.id = 'print-mount';
+      document.body.appendChild(printMount);
     }
+    printMount.innerHTML = '';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = 'print-wrapper';
+    wrapper.appendChild(clone);
+    printMount.appendChild(wrapper);
 
-    // Collect all stylesheets from main window
-    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((tag) => tag.outerHTML)
-      .join('\n');
-
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="my">
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>${title}</title>
-          ${styleTags}
-          <style>
-            @page {
-              size: A6 portrait;
-              margin: 3mm;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              box-sizing: border-box !important;
-            }
-            html, body {
-              width: 100% !important;
-              height: auto !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #0f172a !important;
-              font-family: 'JetBrains Mono', 'Noto Sans Myanmar', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif !important;
-              font-size: 11px !important;
-              line-height: 1.3 !important;
-              overflow: visible !important;
-            }
-            .print-wrapper {
-              width: 98mm !important;
-              max-width: 98mm !important;
-              margin: 0 auto !important;
-              padding: 3mm 4mm !important;
-              background: #ffffff !important;
-              border: 1.5px solid #0f172a !important;
-              border-radius: 4px !important;
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
-              page-break-after: avoid !important;
-              break-after: avoid !important;
-              box-sizing: border-box !important;
-            }
-            .print-wrapper * {
-              visibility: visible !important;
-            }
-            .print-wrapper [class*="overflow-y-auto"],
-            .print-wrapper [class*="max-h-"] {
-              max-height: none !important;
-              overflow: visible !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="print-wrapper">
-            ${clone.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
-    // Small delay for styles and fonts to render inside iframe
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (err) {
-        console.warn('Iframe print failed, falling back to window.print', err);
-        window.focus();
-        window.print();
-      } finally {
-        setTimeout(() => {
-          try {
-            document.body.removeChild(iframe);
-          } catch {}
-        }, 2000);
+    // Inject dynamic print page style for A6 size
+    let styleEl = document.getElementById('dynamic-print-style') as HTMLStyleElement;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-print-style';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.innerHTML = `
+      @page {
+        size: A6 portrait;
+        margin: 2mm;
       }
-    }, 300);
+      @media print {
+        body.print-mode-active > :not(#print-mount) {
+          display: none !important;
+        }
+        body.print-mode-active #print-mount {
+          display: block !important;
+          width: 100% !important;
+          max-width: 105mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+        }
+        body {
+          background: #ffffff !important;
+          color: #0f172a !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .print-wrapper {
+          width: 100% !important;
+          max-width: 100mm !important;
+          margin: 0 auto !important;
+          padding: 1mm !important;
+          box-sizing: border-box !important;
+        }
+        /* Ensure the printable content itself fits exactly inside A6 */
+        #printable-voucher {
+          width: 100% !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          border: 1px solid #cbd5e1 !important;
+          box-sizing: border-box !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-after: avoid !important;
+          break-after: avoid !important;
+        }
+        #printable-voucher * {
+          visibility: visible !important;
+        }
+        #printable-voucher [class*="overflow-y-auto"],
+        #printable-voucher [class*="max-h-"] {
+          max-height: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+
+    const originalTitle = document.title;
+    document.title = title;
+    document.body.classList.add('print-mode-active');
+
+    // Call print
+    window.focus();
+    window.print();
+
+    // Setup cleanup
+    const cleanup = () => {
+      document.body.classList.remove('print-mode-active');
+      document.title = originalTitle;
+      if (printMount && printMount.parentNode) {
+        printMount.parentNode.removeChild(printMount);
+      }
+      if (styleEl && styleEl.parentNode) {
+        styleEl.parentNode.removeChild(styleEl);
+      }
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    // Fallback cleanup
+    setTimeout(cleanup, 2000);
+
   } catch (error) {
     console.error('Print utility error:', error);
     window.focus();
@@ -162,104 +160,105 @@ export function printStatementReport(elementId: string = 'printable-statement', 
       htmlEl.style.overflow = 'visible';
     });
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.focus();
-      window.print();
-      return;
+    // Create print mount container
+    let printMount = document.getElementById('print-mount');
+    if (!printMount) {
+      printMount = document.createElement('div');
+      printMount.id = 'print-mount';
+      document.body.appendChild(printMount);
     }
+    printMount.innerHTML = '';
 
-    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((tag) => tag.outerHTML)
-      .join('\n');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'print-statement-wrapper';
+    wrapper.appendChild(clone);
+    printMount.appendChild(wrapper);
 
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="my">
-        <head>
-          <meta charset="utf-8" />
-          <title>${title}</title>
-          ${styleTags}
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 8mm;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              box-sizing: border-box !important;
-            }
-            html, body {
-              width: 100% !important;
-              height: auto !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #0f172a !important;
-              font-family: 'JetBrains Mono', 'Noto Sans Myanmar', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-              font-size: 11px !important;
-            }
-            .statement-print-wrapper {
-              width: 100% !important;
-              margin: 0 auto !important;
-              padding: 2mm !important;
-            }
-            .statement-print-wrapper * {
-              visibility: visible !important;
-            }
-            .statement-print-wrapper table {
-              width: 100% !important;
-              border-collapse: collapse !important;
-            }
-            .statement-print-wrapper th,
-            .statement-print-wrapper td {
-              border-bottom: 1px solid #e2e8f0 !important;
-              padding: 6px 8px !important;
-            }
-            .statement-print-wrapper [class*="overflow-y-auto"],
-            .statement-print-wrapper [class*="overflow-x-auto"],
-            .statement-print-wrapper [class*="max-h-"] {
-              max-height: none !important;
-              overflow: visible !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="statement-print-wrapper">
-            ${clone.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch {
-        window.focus();
-        window.print();
-      } finally {
-        setTimeout(() => {
-          try {
-            document.body.removeChild(iframe);
-          } catch {}
-        }, 2000);
+    // Inject dynamic print page style for A4 size
+    let styleEl = document.getElementById('dynamic-print-style') as HTMLStyleElement;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-print-style';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.innerHTML = `
+      @page {
+        size: A4 portrait;
+        margin: 8mm;
       }
-    }, 300);
+      @media print {
+        body.print-mode-active > :not(#print-mount) {
+          display: none !important;
+        }
+        body.print-mode-active #print-mount {
+          display: block !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+        }
+        body {
+          background: #ffffff !important;
+          color: #0f172a !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .print-statement-wrapper {
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+        }
+        #printable-statement {
+          width: 100% !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          border: none !important;
+        }
+        #printable-statement * {
+          visibility: visible !important;
+        }
+        #printable-statement table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+        }
+        #printable-statement th,
+        #printable-statement td {
+          border-bottom: 1px solid #e2e8f0 !important;
+          padding: 6px 8px !important;
+        }
+        #printable-statement [class*="overflow-y-auto"],
+        #printable-statement [class*="overflow-x-auto"],
+        #printable-statement [class*="max-h-"] {
+          max-height: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+
+    const originalTitle = document.title;
+    document.title = title;
+    document.body.classList.add('print-mode-active');
+
+    window.focus();
+    window.print();
+
+    const cleanup = () => {
+      document.body.classList.remove('print-mode-active');
+      document.title = originalTitle;
+      if (printMount && printMount.parentNode) {
+        printMount.parentNode.removeChild(printMount);
+      }
+      if (styleEl && styleEl.parentNode) {
+        styleEl.parentNode.removeChild(styleEl);
+      }
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(cleanup, 2000);
+
   } catch (error) {
     console.error('Statement print error:', error);
     window.focus();

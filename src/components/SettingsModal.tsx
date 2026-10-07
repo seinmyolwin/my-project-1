@@ -165,6 +165,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Financial Statements State & Calculations
   const [statementPeriod, setStatementPeriod] = useState<'today' | 'five_days' | 'week' | 'month' | 'custom'>('week');
   const [statementMode, setStatementMode] = useState<'all' | '3d' | '2d' | 'football'>('all');
+  
+  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteRecord = () => {
+    if (!selectedRecord) return;
+    if (!verifyOwnerPassword(deletePassword)) {
+      setDeleteError('လျှို့ဝှက်နံပါတ် (Password) မှားယွင်းနေပါသည်!');
+      return;
+    }
+    const recordId = selectedRecord.id;
+    const mode = selectedRecord.mode;
+    try {
+      if (mode === '3d') {
+        const roundId = recordId.replace('3d-', '');
+        lottery3D.deleteRound(roundId);
+      } else if (mode === '2d') {
+        const roundId = recordId.replace('2d-', '');
+        lottery2D.deleteRound(roundId);
+      } else if (mode === 'football') {
+        const slipsToDelete = football.slips.filter((s) => {
+          const slipDate = s.createdAt.slice(0, 10);
+          return slipDate >= stmtStartDate && slipDate <= stmtEndDate;
+        });
+        slipsToDelete.forEach((s) => football.deleteSlip(s.id));
+      }
+      setSelectedRecord(null);
+      setIsConfirmingDelete(false);
+      setDeletePassword('');
+      setDeleteError(null);
+      alert('စာရင်းရှင်းတမ်းမှတ်တမ်းအား အပြီးတိုင် ဖျက်သိမ်းပြီးပါပြီ!');
+    } catch (err) {
+      console.error(err);
+      alert('ဖျက်သိမ်းစဉ် ချို့ယွင်းချက်ရှိပါသည်');
+    }
+  };
+
   const getDaysAgo = (days: number) => {
     const d = new Date();
     d.setDate(d.getDate() - days);
@@ -2112,7 +2151,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ) : (
                   <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 text-xs">
                     {stmtRecords.map((r) => (
-                      <div key={r.id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                      <div
+                        key={r.id}
+                        onClick={() => setSelectedRecord(r)}
+                        className="p-3 flex items-center justify-between hover:bg-indigo-50/50 transition-colors cursor-pointer group"
+                        title="အသေးစိတ်စာရင်းကြည့်ရန် သို့မဟုတ် ဖျက်ရန် နှိပ်ပါ"
+                      >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
                             <span className={`px-1.5 py-0.5 text-[10px] font-black rounded ${
@@ -2298,6 +2342,152 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
       </div>
+
+      {/* Selected Statement Record Inspector Dialog */}
+      {selectedRecord && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 text-xs">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col justify-between animate-in fade-in zoom-in-95 duration-150">
+            {/* Detail Header */}
+            <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span className="font-black text-sm">{selectedRecord.name} (အသေးစိတ်ကြည့်ရှုခြင်း)</span>
+              </div>
+              <button
+                onClick={() => { setSelectedRecord(null); setIsConfirmingDelete(false); setDeletePassword(''); setDeleteError(null); }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Detail Content */}
+            <div className="p-4 overflow-y-auto space-y-4 text-xs">
+              {/* Metrics summary */}
+              <div className="grid grid-cols-3 gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">စုစုပေါင်းရောင်းရငွေ</span>
+                  <span className="text-sm font-black font-mono text-slate-900">{formatAmount(selectedRecord.turnover, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-rose-600 font-bold block uppercase">ပေးလျော်ရငွေ</span>
+                  <span className="text-sm font-black font-mono text-rose-700">{formatAmount(selectedRecord.payout, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">အသားတင်ရလဒ်</span>
+                  <span className={`text-sm font-black font-mono ${selectedRecord.isProfit ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {selectedRecord.isProfit ? '+' : '-'}{formatAmount(Math.abs(selectedRecord.netProfit), currency)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Vouchers lists */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-800">အရောင်းဘောင်ချာများ စာရင်း ({selectedRecord.vouchersCount} စောင်)</h4>
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto divide-y divide-slate-100 font-sans font-medium">
+                  {(() => {
+                    const is3D = selectedRecord.mode === '3d';
+                    const is2D = selectedRecord.mode === '2d';
+                    const roundId = selectedRecord.id.split('-')[1];
+
+                    const vouchersToDisplay = is3D
+                      ? lottery3D.vouchers.filter(v => v.roundId === roundId)
+                      : is2D
+                      ? lottery2D.vouchers.filter(v => v.roundId === roundId)
+                      : football.slips.filter(s => s.createdAt.slice(0, 10) === selectedRecord.date);
+
+                    if (vouchersToDisplay.length === 0) {
+                      return <p className="p-4 text-center text-slate-400">ဘောင်ချာမှတ်တမ်း မရှိပါ</p>;
+                    }
+
+                    return vouchersToDisplay.map((v: any, index: number) => (
+                      <div key={index} className="p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-[11px]">
+                        <div>
+                          <span className="font-bold font-mono text-slate-900">{v.voucherNo || v.slipNo}</span>
+                          <span className="text-slate-500 ml-2">ဝယ်သူ: {v.customerName}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold font-mono text-slate-800 block">{formatAmount(v.netPayable || v.stakeAmount || v.totalAmount, currency)}</span>
+                          <span className={`text-[10px] ${v.isPaid || v.status === 'won' ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                            {v.isPaid || v.status === 'won' ? 'ရှင်းပြီး' : 'ကြွေးကျန်'}
+                          </span>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* PIN-Protected Deletion Area */}
+              <div className="border-t border-slate-200 pt-3.5 space-y-3">
+                {!isConfirmingDelete ? (
+                  <div className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    <div>
+                      <h5 className="font-black text-rose-950 text-xs">ဤရှင်းတမ်းမှတ်တမ်းအား ဖျက်သိမ်းလိုပါသလား။</h5>
+                      <p className="text-[10px] text-rose-800 leading-tight">ဖျက်သိမ်းပြီးပါက ဤပွဲစဉ်/ရက်စွဲ၏ အရောင်း၊ အလျော်၊ ဘောင်ချာများအားလုံး အပြီးတိုင် ပျက်သွားမည်ဖြစ်သည်။</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsConfirmingDelete(true)}
+                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg cursor-pointer transition-colors shadow-2xs shrink-0 active:scale-95"
+                    >
+                      ဖျက်မည်
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center gap-2 text-slate-800 font-bold">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span>အပြီးတိုင် ဖျက်သိမ်းရန် ဆက်တင်လျှို့ဝှက်နံပါတ် (Password) လိုအပ်ပါသည်</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="password"
+                        placeholder="လျှို့ဝှက်နံပါတ် ရိုက်ထည့်ပါ"
+                        value={deletePassword}
+                        onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(null); }}
+                        className="flex-1 bg-white border border-slate-300 focus:border-rose-500 rounded-xl px-3 py-2 outline-none font-bold text-slate-900 shadow-2xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleDeleteRecord}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl cursor-pointer shadow-xs active:scale-95 transition-all"
+                      >
+                        အတည်ပြုဖျက်မည်
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setIsConfirmingDelete(false); setDeletePassword(''); setDeleteError(null); }}
+                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl cursor-pointer"
+                      >
+                        မဖျက်တော့ပါ
+                      </button>
+                    </div>
+
+                    {deleteError && (
+                      <p className="text-xs text-rose-600 font-bold animate-pulse flex items-center gap-1">
+                        ⚠️ {deleteError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 px-4 py-2.5 border-t border-slate-200 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => { setSelectedRecord(null); setIsConfirmingDelete(false); setDeletePassword(''); setDeleteError(null); }}
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl cursor-pointer"
+              >
+                ပိတ်မည်
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
