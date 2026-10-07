@@ -16,7 +16,8 @@ import {
   Sliders,
   ChevronDown,
   X,
-  Camera
+  Camera,
+  Edit3
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate } from '../../types';
@@ -384,6 +385,16 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   };
 
   // 1. Rumble/Reversal (အာ: e.g. 24 -> fills "24 42" in number box)
+  const handleEditItem = (item: TwoDBetItem) => {
+    playTapSound();
+    setNumberInput(item.number);
+    setAmountInput(String(item.amount));
+    setIsRumble(item.isRumble || false);
+    setItems(prev => prev.filter(i => i.id !== item.id));
+    numberInputRef.current?.focus();
+    showToast(isMyanmar ? `ဂဏန်း [${item.number}] အား ပြင်ဆင်ရန် အောက်ပါအကွက်တွင် ဖြည့်သွင်းထားပါသည်` : `Editing item [${item.number}]`, 'warning');
+  };
+
   const handleAddRumbleClick = () => {
     playTapSound();
     const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
@@ -909,10 +920,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         </div>
       )}
 
-      {/* Main Grid: Input Form & Cart */}
+      {/* Main Grid: Input Form & Cart (On Mobile/Tablet, Voucher Draft on Top) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Input Form (7 cols) */}
-        <div className="lg:col-span-7 space-y-5">
+        {/* Left Column (Desktop Left / Mobile Bottom): Input Form (7 cols) */}
+        <div className="order-2 lg:order-1 lg:col-span-7 space-y-5">
           {/* Quick Input Card */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1311,8 +1322,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Pending Cart & Voucher Preview (5 cols) */}
-        <div className="lg:col-span-5 space-y-5">
+        {/* Right Column (Desktop Right / Mobile Top): Pending Cart & Voucher Preview (5 cols) */}
+        <div className="order-1 lg:order-2 lg:col-span-5 space-y-5">
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col h-full min-h-[500px]">
             {/* Batch Master Agent Forwarding Trigger */}
             {onOpenForwardModal && (
@@ -1368,7 +1379,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             </div>
 
             {/* Items List */}
-            <div className="flex-1 overflow-y-auto max-h-[380px] my-3 divide-y divide-slate-100">
+            <div className="flex-1 overflow-y-auto max-h-[380px] my-3 space-y-1.5 p-1">
               {items.length === 0 ? (
                 <div className="h-64 flex flex-col items-center justify-center text-slate-400 space-y-2">
                   <Layers className="w-10 h-10 stroke-1" />
@@ -1380,34 +1391,48 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 items.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="py-2.5 px-2 flex items-center justify-between hover:bg-slate-50 rounded-lg transition-colors group"
+                    className="py-2 px-2.5 flex items-center justify-between bg-amber-50/90 border border-amber-200/80 hover:bg-amber-100/70 rounded-xl transition-colors group shadow-2xs"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-400 font-mono w-5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xs text-amber-700/80 font-mono w-5 font-bold">
                         {idx + 1}.
                       </span>
                       <span className="font-mono text-xl font-black text-slate-900">
                         {item.number}
                       </span>
                       {item.isRumble && (
-                        <span className="px-1.5 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-bold rounded">
+                        <span className="px-1.5 py-0.5 bg-amber-200 text-amber-900 text-[10px] font-bold rounded">
                           R
                         </span>
                       )}
+                      {item.originalInput && item.originalInput !== item.number && (
+                        <span className="text-[10px] text-amber-800/80 truncate max-w-[80px]">
+                          {item.originalInput}
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-bold text-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-emerald-700">
                         {formatAmount(item.amount, settings.currency)}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleEditItem(item)}
+                        className="text-amber-800 hover:text-teal-700 p-1 cursor-pointer transition-colors rounded-lg hover:bg-amber-200/60"
+                        title="ပြင်ဆင်မည်"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
                           playDeleteSound();
                           setItems(prev => prev.filter(i => i.id !== item.id));
                         }}
-                        className="text-slate-300 hover:text-rose-600 p-1 cursor-pointer transition-colors"
+                        className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors rounded-lg hover:bg-rose-50"
+                        title="ဖျက်မည်"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

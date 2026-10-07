@@ -19,7 +19,8 @@ import {
   Ban,
   ShieldAlert,
   CheckCircle2,
-  X
+  X,
+  Edit3
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher } from '../types';
@@ -279,6 +280,21 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     setAmountInput('');
     setIsRumble(false);
     numberInputRef.current?.focus();
+  };
+
+  // Edit Draft Item (fills input form and recalculates totals and limits upon update)
+  const handleEditItem = (item: BetItem) => {
+    playTapSound();
+    setNumberInput(item.number);
+    setAmountInput(String(item.amount));
+    setIsRumble(item.isRumble || false);
+    // Remove from draft list so user can edit and add back
+    setStagedItems(prev => prev.filter(i => i.id !== item.id));
+    numberInputRef.current?.focus();
+    setToastNotification({
+      type: 'warning',
+      message: `ဂဏန်း [${item.number}] အား ပြင်ဆင်ရန် အောက်ပါအကွက်တွင် ဖြည့်သွင်းထားပါသည်`
+    });
   };
 
   // Remove Item
@@ -586,11 +602,11 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
         </div>
       )}
 
-      {/* Main Grid: Left = Entry Controls, Right = Slip Preview / Items Cart */}
+      {/* Main Grid: Left = Entry Controls, Right = Slip Preview / Items Cart (On Mobile/Tablet, Voucher Draft on Top) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Column: Quick Entry Pad & Helpers */}
-        <div className="lg:col-span-7 space-y-5">
+        {/* Left Column (Desktop Left / Mobile Bottom): Quick Entry Pad & Helpers */}
+        <div className="order-2 lg:order-1 lg:col-span-7 space-y-5">
           
           {/* Main Keypad / Input Box */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
@@ -930,8 +946,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
         </div>
 
-        {/* Right Column: Customer Info & Staged Voucher Invoice Review */}
-        <div className="lg:col-span-5 space-y-5">
+        {/* Right Column (Desktop Right / Mobile Top): Customer Info & Staged Voucher Invoice Review */}
+        <div className="order-1 lg:order-2 lg:col-span-5 space-y-5">
           
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col h-full justify-between space-y-5">
             
@@ -1043,7 +1059,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                   <span>{isMyanmar ? 'ပမာဏ' : 'Amount'}</span>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl max-h-60 overflow-y-auto divide-y divide-slate-100 p-1">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl max-h-60 overflow-y-auto space-y-1.5 p-1.5">
                   {stagedItems.length === 0 ? (
                     <div className="py-8 px-4 text-center text-slate-400 text-xs space-y-2.5">
                       <p>{isMyanmar ? 'ဂဏန်းများ ထည့်သွင်းထားခြင်း မရှိသေးပါ' : 'No numbers added to slip yet'}</p>
@@ -1060,35 +1076,43 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                     stagedItems.map((item, idx) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between px-3 py-2 text-xs hover:bg-white rounded-lg transition-colors group"
+                        className="flex items-center justify-between px-3 py-2 text-xs bg-amber-50/90 border border-amber-200/80 hover:bg-amber-100/70 rounded-xl transition-colors group shadow-2xs"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className="font-mono text-slate-400 text-[11px] w-5 text-right">
+                          <span className="font-mono text-amber-700/80 text-[11px] w-5 text-right font-bold">
                             {idx + 1}.
                           </span>
-                          <span className="font-mono font-bold text-indigo-950 text-sm tracking-wider">
+                          <span className="font-mono font-black text-slate-900 text-sm tracking-wider">
                             {item.number}
                           </span>
                           {item.isRumble && (
-                            <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-mono font-bold">
+                            <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-mono font-bold">
                               R
                             </span>
                           )}
                           {item.originalInput && item.originalInput !== item.number && (
-                            <span className="text-[10px] text-slate-400 truncate max-w-[100px]">
+                            <span className="text-[10px] text-amber-800/80 truncate max-w-[100px]">
                               {item.originalInput}
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-emerald-700">
                             {formatAmount(item.amount, settings.currency)}
                           </span>
                           <button
                             type="button"
+                            onClick={() => handleEditItem(item)}
+                            className="text-amber-800 hover:text-indigo-600 p-1 transition-colors cursor-pointer rounded-lg hover:bg-amber-200/60"
+                            title="ပြင်ဆင်မည်"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleRemoveItem(item.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
+                            className="text-slate-400 hover:text-rose-600 p-1 transition-colors cursor-pointer rounded-lg hover:bg-rose-50"
                             title="ဖျက်မည်"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

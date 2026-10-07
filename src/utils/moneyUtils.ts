@@ -117,3 +117,23 @@ export function verifyMoneyCalculations(): boolean {
 
   return true;
 }
+
+/**
+ * Returns YYYY-MM-DD string in the user's local timezone (avoiding UTC offset day shift bugs).
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Returns Yesterday's YYYY-MM-DD string in local timezone.
+ */
+export function getYesterdayDateString(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return getLocalDateString(d);
+}
+
