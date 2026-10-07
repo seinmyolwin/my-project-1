@@ -619,21 +619,27 @@ export function exportTwoDLotteryToExcel(
   shopName: string = '2D Ledger'
 ) {
   const wb = XLSX.utils.book_new();
+  const winningNumber = round.winningNumber;
 
   // Sheet 1: 00-99 Ledger
   const ledgerData = Object.keys(aggregates)
     .sort((a, b) => a.localeCompare(b))
     .map(num => {
       const agg = aggregates[num];
+      const isWinner = num === winningNumber;
       return {
         'ဂဏန်း (Number)': num,
         'စုစုပေါင်း ရောင်းရငွေ (Total Sold)': agg.totalSold,
         'ဒိုင်ကြီးဆီ လွှဲတင်ငွေ (Forwarded)': agg.forwardedAmount,
         'ဒိုင်လက်ကျန်ယူငွေ (Retained)': agg.retainedAmount,
         'သတ်မှတ်ဘရိတ် (Limit)': agg.limit,
-        'လက်ခံမှု အခြေအနေ (Status)': agg.isBlocked ? 'ဒိုင်ကာ (Blocked)' : 'လက်ခံသည်',
+        'လက်ခံမှု အခြေအနေ (Status)': isWinner 
+          ? 'ပေါက်ဂဏန်း (WINNER) ★★★' 
+          : agg.isBlocked 
+          ? 'ဒိုင်ကာ (Blocked)' 
+          : 'လက်ခံသည်',
         'ဖြစ်နိုင်ခြေ လျော်ကြေး (Payout @85x)': agg.estimatedPayout,
-        'အန္တရာယ်အဆင့် (Risk)': agg.riskLevel.toUpperCase()
+        'အန္တရာယ်အဆင့် (Risk)': isWinner ? 'WINNER' : agg.riskLevel.toUpperCase()
       };
     });
   const wsLedger = XLSX.utils.json_to_sheet(ledgerData);
@@ -670,12 +676,51 @@ export function exportTwoDLotteryToExcel(
   const wsFwd = XLSX.utils.json_to_sheet(fwdData);
   XLSX.utils.book_append_sheet(wb, wsFwd, 'ဒိုင်ကြီးလွှဲစာရင်း');
 
-  // Sheet 4: Summary
+  // Sheet 4: ပေါက်မဲစာရင်းရှင်းတမ်း (Winners Settlement Sheet if winning number exists)
+  if (winningNumber) {
+    const winEval = evaluateTwoDWinnings(vouchers, winningNumber, round.multiplier || 80);
+    const winData: any[] = [];
+    
+    winEval.settledVouchers.forEach(v => {
+      v.items.forEach(it => {
+        if (it.isWon) {
+          winData.push({
+            'ဘောင်ချာအမှတ်': v.voucherNo,
+            'ထိုးသူအမည်': v.customerName,
+            'ဖုန်းနံပါတ်': v.customerPhone || '-',
+            'ပေါက်ဂဏန်း': it.number,
+            'ထိုးကြေးငွေ': it.amount,
+            'အလျော်ဆ (Multiplier)': `${round.multiplier || 80}ဆ`,
+            'ရရှိသောလျော်ကြေးငွေ': it.wonAmount,
+            'ဒိုင် အသားတင် ရလဒ်': -(it.wonAmount)
+          });
+        }
+      });
+    });
+
+    if (winData.length === 0) {
+      winData.push({
+        'ဘောင်ချာအမှတ်': 'ပေါက်သူမရှိပါ',
+        'ထိုးသူအမည်': '-',
+        'ဖုန်းနံပါတ်': '-',
+        'ပေါက်ဂဏန်း': winningNumber,
+        'ထိုးကြေးငွေ': '-',
+        'အလျော်ဆ (Multiplier)': '-',
+        'ရရှိသောလျော်ကြေးငွေ': '-',
+        'ဒိုင် အသားတင် ရလဒ်': '-'
+      });
+    }
+
+    const wsWinners = XLSX.utils.json_to_sheet(winData);
+    XLSX.utils.book_append_sheet(wb, wsWinners, 'ပေါက်မဲစာရင်းရှင်းတမ်း');
+  }
+
+  // Sheet 5: Summary
   const summaryData = [
     { 'အကြောင်းအရာ': 'ပွဲစဉ်အမည်', 'ပမာဏ': round.name },
     { 'အကြောင်းအရာ': 'ဖွင့်ရက်စွဲ', 'ပမာဏ': round.drawDate },
     { 'အကြောင်းအရာ': 'အချိန်ပိုင်း', 'ပမာဏ': round.session === 'morning' ? 'မနက် ၁၂:၀၁' : 'ညနေ ၀၄:၃၀' },
-    { 'အကြောင်းအရာ': 'ပေါက်ဂဏန်း', 'ပမာဏ': round.winningNumber || 'မဖွင့်သေးပါ' },
+    { 'အကြောင်းအရာ': 'ပေါက်ဂဏန်း', 'ပမာဏ': winningNumber || 'မဖွင့်သေးပါ' },
     { 'အကြောင်းအရာ': 'စုစုပေါင်း အရောင်းရငွေ', 'ပမာဏ': summary.totalSales },
     { 'အကြောင်းအရာ': 'စုစုပေါင်း ဘောင်ချာအရေအတွက်', 'ပမာဏ': summary.totalVouchers },
     { 'အကြောင်းအရာ': 'ဒိုင်ကြီးထံ လွှဲတင်ငွေ', 'ပမာဏ': summary.totalForwarded },

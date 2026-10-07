@@ -17,6 +17,7 @@ import {
 import { useFootball } from '../../context/FootballContext';
 import { FootballSlip } from '../../types';
 import { formatAmount } from '../../utils/lotteryUtils';
+import { printVoucherSlip } from '../../utils/printUtils';
 
 export const FootballSlipsListView: React.FC = () => {
   const {
@@ -340,7 +341,7 @@ export const FootballSlipsListView: React.FC = () => {
               </button>
             </div>
 
-            <div className="font-mono text-xs space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <div id="printable-voucher" className="font-mono text-xs space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <div className="text-center space-y-1">
                 <h4 className="font-black text-sm text-slate-900">{settings.shopName}</h4>
                 <p className="text-[11px] text-slate-500">
@@ -397,7 +398,7 @@ export const FootballSlipsListView: React.FC = () => {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printVoucherSlip('printable-voucher', 'ပစ်တိုင်းထောင် ဘေလ် - ' + selectedSlip.slipNo)}
                 className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <Printer className="w-4 h-4" />

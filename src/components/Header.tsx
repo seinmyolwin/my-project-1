@@ -530,7 +530,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {/* စာရင်းရှင်းတမ်း (Financial Statements) Quick Action */}
                 <button
-                  onClick={onOpenStatements}
+                  onClick={() => onOpenStatements?.()}
                   className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
                   title="၁ ပတ်စာ၊ ၅ ရက်စာ၊ ၁ လစာ စာရင်းရှင်းတမ်း အစီရင်ခံစာများ"
                 >
