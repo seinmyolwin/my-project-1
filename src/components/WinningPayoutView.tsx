@@ -98,6 +98,8 @@ export const WinningPayoutView: React.FC = () => {
 
   const [isTestingMode, setIsTestingMode] = useState(false);
   const [testedWinningNumber, setTestedWinningNumber] = useState('');
+  const [isWinningConfirmed, setIsWinningConfirmed] = useState(false);
+  const [confirmedWinningNumber, setConfirmedWinningNumber] = useState('');
   const [isEnteringPassword, setIsEnteringPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -107,8 +109,10 @@ export const WinningPayoutView: React.FC = () => {
     if (activeRound?.status === 'settled') {
       setIsTestingMode(false);
       setTestedWinningNumber('');
+      setIsWinningConfirmed(false);
+      setConfirmedWinningNumber('');
     }
-  }, [activeRound?.status]);
+  }, [activeRound?.status, activeRound?.id]);
 
   // Preview results temporarily without storing anything (No data saved!)
   const handleTryWinning = (e?: React.FormEvent) => {
@@ -121,6 +125,7 @@ export const WinningPayoutView: React.FC = () => {
     setWinningInput(cleanNum);
     setTestedWinningNumber(cleanNum);
     setIsTestingMode(true);
+    setIsWinningConfirmed(false);
     setIsEnteringPassword(false);
     setConfirmError(null);
   };
@@ -138,26 +143,7 @@ export const WinningPayoutView: React.FC = () => {
     setConfirmError(null);
   };
 
-  const activeEvalNumber = useMemo(() => {
-    if (isTestingMode) return (testedWinningNumber || winningInput).trim();
-    if (isSettled) return activeRound?.winningNumber || '';
-    return winningInput.trim();
-  }, [isTestingMode, testedWinningNumber, winningInput, isSettled, activeRound?.winningNumber]);
-
-  // Evaluate winners based on winning number & multipliers
-  const winningResults = useMemo(() => {
-    const mult = parseInt(multiplierInput, 10) || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
-    const num = activeEvalNumber.trim();
-
-    if (!num || num.length !== 3) {
-      return { winners: [], totalPayout: 0, winningBetsCount: 0, toddWinningBetsCount: 0 };
-    }
-
-    return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
-  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, toddMultiplierInput]);
-
-  // Officially confirm with Password and Settle (saves to DB and auto-downloads Excel)
+  // Stage 1: Confirm winning number with Owner Password (evaluates on-the-fly, round stays open)
   const handleSettleWithPassword = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNum = convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
@@ -171,6 +157,26 @@ export const WinningPayoutView: React.FC = () => {
       return;
     }
 
+    // Set local confirmed state so results are displayed on screen for inspection
+    setWinningInput(cleanNum);
+    setConfirmedWinningNumber(cleanNum);
+    setIsWinningConfirmed(true);
+    setIsTestingMode(false);
+    setTestedWinningNumber('');
+    setIsEnteringPassword(false);
+    setConfirmPassword('');
+    setConfirmError(null);
+    setSettledSuccessMsg(`ပေါက်မဲဂဏန်း [${cleanNum}] အား စစ်ဆေးအတည်ပြုပြီးပါပြီ။ အပြီးသတ်ပိတ်သိမ်းပြီး Excel စာရင်းချုပ်သိမ်းရန် အောက်ပါခလုတ်ကို နှိပ်ပါ`);
+
+    setTimeout(() => {
+      setSettledSuccessMsg(null);
+    }, 6000);
+  };
+
+  // Stage 2: Settle & Close Round (Auto-downloads Excel & persists settled status in DB)
+  const handleCloseRound = () => {
+    const targetNum = confirmedWinningNumber || convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
+    if (!targetNum || targetNum.length !== 3) return;
     const mult = parseInt(multiplierInput, 10) || 600;
     const toddMult = parseInt(toddMultiplierInput, 10) || 100;
 
@@ -181,22 +187,38 @@ export const WinningPayoutView: React.FC = () => {
       console.warn('Auto Excel export error:', err);
     }
 
-    // 2. Officially settle and save in context/localStorage
-    settleWinningNumber(cleanNum, mult, toddMult);
+    // 2. Officially settle round status to 'settled' in context & localStorage
+    settleWinningNumber(targetNum, mult, toddMult);
 
-    // 3. Update local state
-    setWinningInput(cleanNum);
+    setIsWinningConfirmed(false);
+    setConfirmedWinningNumber('');
     setIsTestingMode(false);
-    setTestedWinningNumber('');
-    setIsEnteringPassword(false);
-    setConfirmPassword('');
-    setConfirmError(null);
-    setSettledSuccessMsg(`ပေါက်မဲ [${cleanNum}] အား အတည်ပြုသိမ်းဆည်းပြီး စာရင်းချုပ် Excel ဖိုင်ကို အောင်မြင်စွာ ဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
+    setSettledSuccessMsg(`ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းချုပ် Excel ဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
 
     setTimeout(() => {
       setSettledSuccessMsg(null);
     }, 8000);
   };
+
+  const activeEvalNumber = useMemo(() => {
+    if (isTestingMode) return (testedWinningNumber || winningInput).trim();
+    if (isWinningConfirmed && !isSettled) return confirmedWinningNumber || winningInput.trim();
+    if (isSettled) return activeRound?.winningNumber || '';
+    return winningInput.trim();
+  }, [isTestingMode, testedWinningNumber, isWinningConfirmed, confirmedWinningNumber, winningInput, isSettled, activeRound?.winningNumber]);
+
+  // Evaluate winners based on winning number & multipliers
+  const winningResults = useMemo(() => {
+    const mult = parseInt(multiplierInput, 10) || 600;
+    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
+    const num = activeEvalNumber.trim();
+
+    if (!num || num.length !== 3) {
+      return { winners: [], totalPayout: 0, winningBetsCount: 0, toddWinningBetsCount: 0 };
+    }
+
+    return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
+  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, toddMultiplierInput]);
 
   // Copy Winning Message for Customer
   const handleCopyWinningMessage = (winner: any) => {
@@ -613,7 +635,7 @@ ${settings.shopName} (${settings.shopPhone})`;
       )}
 
       {/* Real-time Settlement Summary Banner */}
-      {(isTestingMode || isSettled) && activeEvalNumber.length === 3 && (
+      {(isTestingMode || isWinningConfirmed || isSettled) && activeEvalNumber.length === 3 && (
         <div className="space-y-4 animate-in fade-in duration-300">
           
           {/* Prominent Next Round Launcher Banner */}

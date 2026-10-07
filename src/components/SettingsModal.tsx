@@ -30,8 +30,10 @@ import {
   FolderDown,
   Share2,
   FileSpreadsheet,
-  Printer
+  Printer,
+  AlertCircle
 } from 'lucide-react';
+import { verifyOwnerPassword } from '../utils/securityUtils';
 import { useLottery } from '../context/LotteryContext';
 import { printStatementReport } from '../utils/printUtils';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
