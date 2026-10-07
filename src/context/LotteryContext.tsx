@@ -401,6 +401,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return filtered;
     });
+    setVouchers(prev => prev.filter(v => v.roundId !== roundId));
+    setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
   }, [activeRoundId]);
 
   const addVoucher = useCallback((voucherData: Omit<Voucher, 'id' | 'voucherNo' | 'createdAt'>) => {
