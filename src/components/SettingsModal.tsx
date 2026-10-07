@@ -40,7 +40,8 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
-import { formatAmount, getPermutations } from '../utils/lotteryUtils';
+import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
+import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
 import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
 import {
   exportSecureMasterBackup,
@@ -291,7 +292,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   // Financial Statements State & Calculations
-  const [statementPeriod, setStatementPeriod] = useState<'today' | 'five_days' | 'week' | 'month' | 'custom'>('week');
+  const [statementPeriod, setStatementPeriod] = useState<'all' | 'today' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom'>('all');
   const [statementMode, setStatementMode] = useState<'all' | '3d' | '2d' | 'football'>('all');
   
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
@@ -313,12 +314,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         lottery3D.deleteRound(roundId);
       } else if (mode === '2d') {
         const roundId = recordId.replace('2d-', '');
-        lottery2D.deleteRound(roundId);
+        if (roundId.startsWith('orphaned-')) {
+          const orphanDate = roundId.replace('orphaned-', '');
+          const toDelete = lottery2D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          toDelete.forEach(v => lottery2D.deleteVoucher(v.id));
+        } else {
+          lottery2D.deleteRound(roundId);
+        }
       } else if (mode === 'football') {
-        const slipsToDelete = football.slips.filter((s) => {
-          const slipDate = s.createdAt.slice(0, 10);
-          return slipDate >= stmtStartDate && slipDate <= stmtEndDate;
-        });
+        const slipDate = recordId.replace('football-', '').replace('fb-', '');
+        const slipsToDelete = football.slips.filter((s) => (s.createdAt || s.roundDate || '').slice(0, 10) === slipDate);
         slipsToDelete.forEach((s) => football.deleteSlip(s.id));
       }
       setSelectedRecord(null);
@@ -338,19 +343,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return d.toISOString().slice(0, 10);
   };
   const todayStr = new Date().toISOString().slice(0, 10);
+  const threeDaysAgoStr = getDaysAgo(2);
   const fiveDaysAgoStr = getDaysAgo(4);
   const oneWeekAgoStr = getDaysAgo(6);
   const oneMonthAgoStr = getDaysAgo(29);
+  const allTimeStartStr = '2020-01-01';
+
   const [stmtCustomStart, setStmtCustomStart] = useState(oneWeekAgoStr);
   const [stmtCustomEnd, setStmtCustomEnd] = useState(todayStr);
 
   const { stmtStartDate, stmtEndDate } = React.useMemo(() => {
+    if (statementPeriod === 'all') return { stmtStartDate: allTimeStartStr, stmtEndDate: todayStr };
     if (statementPeriod === 'today') return { stmtStartDate: todayStr, stmtEndDate: todayStr };
+    if (statementPeriod === 'three_days') return { stmtStartDate: threeDaysAgoStr, stmtEndDate: todayStr };
     if (statementPeriod === 'five_days') return { stmtStartDate: fiveDaysAgoStr, stmtEndDate: todayStr };
     if (statementPeriod === 'week') return { stmtStartDate: oneWeekAgoStr, stmtEndDate: todayStr };
     if (statementPeriod === 'month') return { stmtStartDate: oneMonthAgoStr, stmtEndDate: todayStr };
     return { stmtStartDate: stmtCustomStart, stmtEndDate: stmtCustomEnd };
-  }, [statementPeriod, todayStr, fiveDaysAgoStr, oneWeekAgoStr, oneMonthAgoStr, stmtCustomStart, stmtCustomEnd]);
+  }, [statementPeriod, todayStr, threeDaysAgoStr, fiveDaysAgoStr, oneWeekAgoStr, oneMonthAgoStr, stmtCustomStart, stmtCustomEnd]);
 
   // Aggregate Statement Records
   const stmtRecords = React.useMemo(() => {
@@ -369,136 +379,303 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       winnersCount: number;
       vouchersCount: number;
       status: 'settled' | 'open';
+      rawRoundId?: string;
     }> = [];
 
-    // 1. 3D
-    if (statementMode === 'all' || statementMode === '3d') {
-      lottery3D.rounds.forEach((round) => {
-        if (round.drawDate >= stmtStartDate && round.drawDate <= stmtEndDate) {
-          const rVouchers = lottery3D.vouchers.filter(v => v.roundId === round.id && v.status !== 'cancelled');
-          let turnover = 0;
-          let payout = 0;
-          let commission = 0;
-          let winnersCount = 0;
-
-          rVouchers.forEach(v => {
-            turnover += v.netPayable || v.totalAmount;
-            commission += v.totalCommission || v.commissionAmount || 0;
-            v.items.forEach(it => {
-              if (it.isWon) {
-                payout += it.winningAmount || 0;
-                winnersCount += 1;
-              }
-            });
-          });
-
-          const netProfit = turnover - payout + commission;
-          list.push({
-            id: `3d-${round.id}`,
-            date: round.drawDate,
-            mode: '3d',
-            modeLabel: 'အိုးစည်လေး',
-            name: round.name,
-            winningResult: round.winningNumber || (round.status === 'settled' ? 'မပေါက်' : 'မထွက်သေး'),
-            turnover,
-            payout,
-            commission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: rVouchers.length,
-            status: round.status
-          });
-        }
-      });
-    }
-
-    // 2. 2D
+    // 1. 2D (ဇီးကွက်)
     if (statementMode === 'all' || statementMode === '2d') {
+      const processedRoundIds = new Set<string>();
+
       lottery2D.rounds.forEach((round) => {
-        if (round.drawDate >= stmtStartDate && round.drawDate <= stmtEndDate) {
-          const rVouchers = lottery2D.vouchers.filter(v => v.roundId === round.id && v.status !== 'cancelled');
-          let turnover = 0;
-          let payout = 0;
-          let commission = 0;
-          let winnersCount = 0;
+        const roundDate = (round.drawDate || '').slice(0, 10);
+        if (roundDate >= stmtStartDate && roundDate <= stmtEndDate) {
+          processedRoundIds.add(round.id);
+
+          const rVouchers = lottery2D.vouchers.filter(
+            (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
+                   v.status !== 'cancelled'
+          );
+
+          const rForwards = lottery2D.forwardSlips.filter(
+            (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
+          );
+
+          let totalTurnover = 0;
+          let totalDiscount = 0;
+          let netSales = 0;
 
           rVouchers.forEach(v => {
-            turnover += v.netPayable || v.totalAmount;
-            commission += v.totalCommission || v.commissionAmount || 0;
-            v.items.forEach(it => {
-              if (it.isWon) {
-                payout += it.winningAmount || 0;
-                winnersCount += 1;
-              }
-            });
+            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+            const disc = v.discountAmount ?? 0;
+            totalTurnover += sub;
+            totalDiscount += disc;
+            netSales += (v.netPayable ?? (sub - disc));
           });
 
-          const netProfit = turnover - payout + commission;
+          let forwardCommission = 0;
+          rForwards.forEach(f => {
+            forwardCommission += f.commissionAmount || 0;
+          });
+
+          let totalPayout = 0;
+          let winnersCount = 0;
+          const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
+          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 80;
+
+          if (winningNum) {
+            const evalResult = evaluateTwoDWinnings(rVouchers, winningNum, mult);
+            totalPayout = evalResult.totalPayout;
+            winnersCount = evalResult.totalWinnersCount;
+          } else {
+            rVouchers.forEach(v => {
+              v.items.forEach(it => {
+                if (it.isWon) {
+                  totalPayout += (it.wonAmount || (it.amount * mult));
+                  winnersCount += 1;
+                }
+              });
+            });
+          }
+
+          const totalCommission = forwardCommission > 0 ? forwardCommission : totalDiscount;
+          const netProfit = (netSales - totalPayout) + forwardCommission;
+
           list.push({
             id: `2d-${round.id}`,
-            date: round.drawDate,
+            date: roundDate,
             mode: '2d',
             modeLabel: 'ဇီးကွက်',
-            name: round.name,
-            winningResult: round.winningNumber || (round.status === 'settled' ? 'မပေါက်' : 'မထွက်သေး'),
-            turnover,
-            payout,
-            commission,
+            name: round.name || `${roundDate} ${round.session === 'morning' ? 'မနက် (12:01)' : 'ညနေ (04:30)'}`,
+            winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
+            turnover: totalTurnover,
+            payout: totalPayout,
+            commission: totalCommission,
             netProfit,
             isProfit: netProfit >= 0,
             winnersCount,
             vouchersCount: rVouchers.length,
-            status: round.status
+            status: round.status,
+            rawRoundId: round.id
+          });
+        }
+      });
+
+      // Catch orphaned 2D vouchers
+      const orphaned = lottery2D.vouchers.filter(v => {
+        const vDate = (v.createdAt || '').slice(0, 10);
+        return vDate >= stmtStartDate && vDate <= stmtEndDate && v.status !== 'cancelled' && (!v.roundId || !processedRoundIds.has(v.roundId));
+      });
+
+      if (orphaned.length > 0) {
+        const grouped: { [d: string]: typeof orphaned } = {};
+        orphaned.forEach(v => {
+          const d = (v.createdAt || '').slice(0, 10) || todayStr;
+          if (!grouped[d]) grouped[d] = [];
+          grouped[d].push(v);
+        });
+
+        Object.keys(grouped).forEach(d => {
+          const vList = grouped[d];
+          let turnover = 0;
+          let discount = 0;
+          let netSales = 0;
+          let payout = 0;
+          let winnersCount = 0;
+
+          vList.forEach(v => {
+            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+            const disc = v.discountAmount ?? 0;
+            turnover += sub;
+            discount += disc;
+            netSales += (v.netPayable ?? (sub - disc));
+            v.items.forEach(it => {
+              if (it.isWon) {
+                payout += (it.wonAmount || (it.amount * 80));
+                winnersCount += 1;
+              }
+            });
+          });
+
+          const netProfit = netSales - payout;
+          list.push({
+            id: `2d-orphaned-${d}`,
+            date: d,
+            mode: '2d',
+            modeLabel: 'ဇီးကွက်',
+            name: `${d} ဇီးကွက် အရောင်းမှတ်တမ်းများ`,
+            winningResult: payout > 0 ? `${winnersCount} ဦးပေါက်` : 'မထွက်သေး',
+            turnover,
+            payout,
+            commission: discount,
+            netProfit,
+            isProfit: netProfit >= 0,
+            winnersCount,
+            vouchersCount: vList.length,
+            status: payout > 0 ? 'settled' : 'open'
+          });
+        });
+      }
+    }
+
+    // 2. 3D (အိုးစည်လေး)
+    if (statementMode === 'all' || statementMode === '3d') {
+      lottery3D.rounds.forEach((round) => {
+        const roundDate = (round.drawDate || '').slice(0, 10);
+        if (roundDate >= stmtStartDate && roundDate <= stmtEndDate) {
+          const rVouchers = lottery3D.vouchers.filter(
+            (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
+                   v.status !== 'cancelled'
+          );
+
+          const rForwards = lottery3D.forwardSlips.filter(
+            (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
+          );
+
+          let totalTurnover = 0;
+          let totalDiscount = 0;
+          let netSales = 0;
+
+          rVouchers.forEach(v => {
+            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+            const disc = v.discountAmount ?? 0;
+            totalTurnover += sub;
+            totalDiscount += disc;
+            netSales += (v.netPayable ?? (sub - disc));
+          });
+
+          let forwardCommission = 0;
+          rForwards.forEach(f => {
+            forwardCommission += f.commissionAmount || 0;
+          });
+
+          let totalPayout = 0;
+          let winnersCount = 0;
+          const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
+          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 600;
+          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 100;
+
+          if (winningNum) {
+            const evalResult = evaluateWinnings(rVouchers, winningNum, straightMult, toddMult);
+            totalPayout = evalResult.totalPayout;
+            winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
+          } else {
+            rVouchers.forEach(v => {
+              v.items.forEach(it => {
+                if (it.isWon) {
+                  totalPayout += (it.wonAmount || (it.amount * straightMult));
+                  winnersCount += 1;
+                }
+              });
+            });
+          }
+
+          const totalCommission = forwardCommission > 0 ? forwardCommission : totalDiscount;
+          const netProfit = (netSales - totalPayout) + forwardCommission;
+
+          list.push({
+            id: `3d-${round.id}`,
+            date: roundDate,
+            mode: '3d',
+            modeLabel: 'အိုးစည်လေး',
+            name: round.name || `${roundDate} ထီဖွင့်ပွဲ`,
+            winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
+            turnover: totalTurnover,
+            payout: totalPayout,
+            commission: totalCommission,
+            netProfit,
+            isProfit: netProfit >= 0,
+            winnersCount,
+            vouchersCount: rVouchers.length,
+            status: round.status,
+            rawRoundId: round.id
           });
         }
       });
     }
 
-    // 3. Football
+    // 3. Football (ပစ်တိုင်းထောင်)
     if (statementMode === 'all' || statementMode === 'football') {
       const slips = football.slips.filter(s => {
-        const d = (s.createdAt || s.timestamp || '').slice(0, 10);
+        const d = (s.createdAt || s.roundDate || '').slice(0, 10);
         return d >= stmtStartDate && d <= stmtEndDate && s.status !== 'cancelled';
       });
 
       if (slips.length > 0) {
-        let turnover = 0;
-        let payout = 0;
-        let commission = 0;
-        let winnersCount = 0;
-
+        const slipsByDate: { [date: string]: typeof slips } = {};
         slips.forEach(s => {
-          turnover += s.netPayable || s.totalStake;
-          commission += s.commissionAmount || 0;
-          if (s.status === 'won') {
-            payout += s.payoutAmount || 0;
-            winnersCount += 1;
-          }
+          const d = (s.createdAt || s.roundDate || '').slice(0, 10) || todayStr;
+          if (!slipsByDate[d]) slipsByDate[d] = [];
+          slipsByDate[d].push(s);
         });
 
-        const netProfit = turnover - payout + commission;
-        list.push({
-          id: `fb-${stmtStartDate}-${stmtEndDate}`,
-          date: stmtEndDate,
-          mode: 'football',
-          modeLabel: 'ပစ်တိုင်းထောင်',
-          name: 'ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း',
-          winningResult: `${winnersCount} စလစ် ပေါက်`,
-          turnover,
-          payout,
-          commission,
-          netProfit,
-          isProfit: netProfit >= 0,
-          winnersCount,
-          vouchersCount: slips.length,
-          status: 'settled'
+        Object.keys(slipsByDate).forEach(d => {
+          const daySlips = slipsByDate[d];
+          let turnover = 0;
+          let discount = 0;
+          let netSales = 0;
+          let payout = 0;
+          let winnersCount = 0;
+
+          daySlips.forEach(s => {
+            const stake = s.stakeAmount || s.netPayable || 0;
+            const disc = s.discountAmount || 0;
+            turnover += stake;
+            discount += disc;
+            netSales += (s.netPayable || (stake - disc));
+
+            if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
+              payout += (s.actualPayout || s.potentialPayout || 0);
+              winnersCount += 1;
+            }
+          });
+
+          const dayForwards = football.forwardSlips.filter(f => (f.createdAt || f.roundDate || '').slice(0, 10) === d);
+          let forwardCommission = 0;
+          dayForwards.forEach(f => {
+            forwardCommission += f.commissionAmount || 0;
+          });
+
+          const totalCommission = forwardCommission > 0 ? forwardCommission : discount;
+          const netProfit = (netSales - payout) + forwardCommission;
+
+          list.push({
+            id: `football-${d}`,
+            date: d,
+            mode: 'football',
+            modeLabel: 'ပစ်တိုင်းထောင်',
+            name: `${d} ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း`,
+            winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : 'စလစ်အားလုံး ရှင်းပြီး',
+            turnover,
+            payout,
+            commission: totalCommission,
+            netProfit,
+            isProfit: netProfit >= 0,
+            winnersCount,
+            vouchersCount: daySlips.length,
+            status: 'settled'
+          });
         });
       }
     }
 
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [statementMode, stmtStartDate, stmtEndDate, lottery3D.rounds, lottery3D.vouchers, lottery2D.rounds, lottery2D.vouchers, football.slips]);
+  }, [
+    statementMode,
+    stmtStartDate,
+    stmtEndDate,
+    lottery2D.rounds,
+    lottery2D.vouchers,
+    lottery2D.forwardSlips,
+    lottery2D.settings.defaultMultiplier,
+    lottery3D.rounds,
+    lottery3D.vouchers,
+    lottery3D.forwardSlips,
+    lottery3D.settings.defaultMultiplier,
+    lottery3D.settings.defaultToddMultiplier,
+    football.slips,
+    football.forwardSlips,
+    todayStr
+  ]);
 
   // Grand Totals for Statements
   const stmtGrandTotals = React.useMemo(() => {
@@ -517,7 +694,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
 
     const netProfit = totalTurnover - totalPayout + totalCommission;
-    const profitMargin = totalTurnover > 0 ? ((netProfit / totalTurnover) * 100).toFixed(1) : '0';
+    const profitMargin = totalTurnover > 0 ? ((netProfit / totalTurnover) * 100).toFixed(1) : '0.0';
 
     return {
       totalTurnover,
@@ -2255,7 +2432,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[11px] font-bold text-slate-500 mr-1">ကာလ:</span>
                     {[
+                      { id: 'all', label: 'အားလုံး' },
                       { id: 'today', label: 'ဒီနေ့' },
+                      { id: 'three_days', label: '၃ ရက်စာ' },
                       { id: 'five_days', label: '၅ ရက်စာ' },
                       { id: 'week', label: '၁ ပတ်စာ' },
                       { id: 'month', label: '၁ လစာ' },
@@ -2456,12 +2635,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
 
                         <div className="text-right font-mono">
-                          <span className={`text-xs font-black block ${
-                            r.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                          <span className={`text-xs font-black px-2 py-0.5 rounded-lg border inline-block ${
+                            r.isProfit 
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                              : 'bg-rose-100 text-rose-800 border-rose-300'
                           }`}>
-                            {r.isProfit ? '+' : ''}{formatAmount(r.netProfit, currency)}
+                            {r.isProfit ? '+' : '-'}{formatAmount(Math.abs(r.netProfit), currency)}
                           </span>
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
                             {r.status === 'settled' ? 'ရှင်းတမ်းပြီး ✓' : 'ဖွင့်လှစ်ဆဲ'}
                           </span>
                         </div>
@@ -2663,32 +2844,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {(() => {
                     const is3D = selectedRecord.mode === '3d';
                     const is2D = selectedRecord.mode === '2d';
-                    const roundId = selectedRecord.id.replace(/^(3d|2d|fb)-/, '');
+                    const roundId = selectedRecord.rawRoundId || selectedRecord.id.replace(/^(3d|2d|football|fb)-/, '');
 
-                    const vouchersToDisplay = is3D
-                      ? lottery3D.vouchers.filter(v => v.roundId === roundId)
-                      : is2D
-                      ? lottery2D.vouchers.filter(v => v.roundId === roundId)
-                      : football.slips.filter(s => s.createdAt.slice(0, 10) === selectedRecord.date);
+                    let vouchersToDisplay: any[] = [];
+                    if (is2D) {
+                      vouchersToDisplay = lottery2D.vouchers.filter(v => 
+                        (v.roundId === roundId || (!v.roundId && (v.createdAt || '').slice(0, 10) === selectedRecord.date)) &&
+                        v.status !== 'cancelled'
+                      );
+                    } else if (is3D) {
+                      vouchersToDisplay = lottery3D.vouchers.filter(v => 
+                        (v.roundId === roundId || (!v.roundId && (v.createdAt || '').slice(0, 10) === selectedRecord.date)) &&
+                        v.status !== 'cancelled'
+                      );
+                    } else {
+                      vouchersToDisplay = football.slips.filter(s => (s.createdAt || s.roundDate || '').slice(0, 10) === selectedRecord.date && s.status !== 'cancelled');
+                    }
 
                     if (vouchersToDisplay.length === 0) {
                       return <p className="p-4 text-center text-slate-400">ဘောင်ချာမှတ်တမ်း မရှိပါ</p>;
                     }
 
-                    return vouchersToDisplay.map((v: any, index: number) => (
-                      <div key={index} className="p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-[11px]">
-                        <div>
-                          <span className="font-bold font-mono text-slate-900">{v.voucherNo || v.slipNo}</span>
-                          <span className="text-slate-500 ml-2">ဝယ်သူ: {v.customerName}</span>
+                    return vouchersToDisplay.map((v: any, index: number) => {
+                      const itemsStr = v.items ? v.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : '-';
+                      const hasWonItem = v.items ? v.items.some((it: any) => it.isWon || it.number === selectedRecord.winningResult) : false;
+
+                      return (
+                        <div key={index} className="p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-[11px]">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold font-mono text-slate-900">{v.voucherNo || v.slipNo}</span>
+                              <span className="text-slate-600 font-medium">({v.customerName})</span>
+                              {hasWonItem && (
+                                <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 font-black text-[9px] rounded-md">
+                                  ★ ပေါက်မဲ
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-xs">
+                              {itemsStr}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold font-mono text-slate-900 block">{formatAmount(v.netPayable || v.subtotal || v.stakeAmount, currency)}</span>
+                            <span className={`text-[10px] ${v.isPaid ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                              {v.isPaid ? 'ရှင်းပြီး ✓' : 'ကြွေးကျန်'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="font-bold font-mono text-slate-800 block">{formatAmount(v.netPayable || v.stakeAmount || v.totalAmount, currency)}</span>
-                          <span className={`text-[10px] ${v.isPaid || v.status === 'won' ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                            {v.isPaid || v.status === 'won' ? 'ရှင်းပြီး' : 'ကြွေးကျန်'}
-                          </span>
-                        </div>
-                      </div>
-                    ));
+                      );
+                    });
                   })()}
                 </div>
               </div>
