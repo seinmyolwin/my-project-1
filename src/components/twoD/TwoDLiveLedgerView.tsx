@@ -225,7 +225,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
               title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{isMyanmar ? 'ဒိုင်ကြီးဆီ ပြန်တင်မည်' : 'Batch Forward'}</span>
+              <span>{isMyanmar ? 'အပိုတင်မည်' : 'Batch Forward'}</span>
             </button>
           )}
 

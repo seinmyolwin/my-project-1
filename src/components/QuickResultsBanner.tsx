@@ -1,5 +1,5 @@
-import React from 'react';
-import { Trophy, Calendar, Sparkles, ChevronRight, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trophy, Calendar, Sparkles, ChevronRight, Clock, Eye, EyeOff } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
@@ -14,6 +14,42 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
   const football = useFootball();
+
+  // Hide & Show toggle state with local storage persistence
+  const [isVisible, setIsVisible] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('quick_results_banner_visible');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleVisible = () => {
+    setIsVisible((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('quick_results_banner_visible', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  if (!isVisible) {
+    return (
+      <div className="flex justify-end py-1">
+        <button
+          type="button"
+          onClick={toggleVisible}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-200/90 hover:bg-teal-100 text-slate-700 hover:text-teal-900 border border-slate-300 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+          title={mode === '2d' ? 'ဇီးကွက်ဂဏန်း Box အား ပြန်ဖွင့်ပြရန်' : 'ရလဒ် Box အား ဖွင့်ရန်'}
+        >
+          <Eye className="w-3.5 h-3.5 text-teal-700" />
+          <span>{mode === '2d' ? 'ဇီးကွက်ဂဏန်း (ဖွင့်ရန်)' : mode === '3d' ? 'အိုးစည်လေးဂဏန်း (ဖွင့်ရန်)' : 'ပွဲရလဒ်များ (ဖွင့်ရန်)'}</span>
+        </button>
+      </div>
+    );
+  }
 
   if (mode === '2d') {
     // Determine the 2 target dates: Today and Yesterday (or recent 2 draw dates)
@@ -146,16 +182,27 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
             </div>
           </div>
 
-          {/* View History Button */}
-          <button
-            type="button"
-            onClick={onOpenHistory}
-            className="text-xs font-bold text-teal-300 hover:text-white flex items-center gap-0.5 hover:underline cursor-pointer ml-auto pl-1"
-            title="ရလဒ်မှတ်တမ်းအားလုံး ကြည့်ရန်"
-          >
-            <span>မှတ်တမ်း</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          {/* Actions: View History & Hide Toggle */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              className="text-xs font-bold text-teal-300 hover:text-white flex items-center gap-0.5 hover:underline cursor-pointer pl-1"
+              title="ရလဒ်မှတ်တမ်းအားလုံး ကြည့်ရန်"
+            >
+              <span>မှတ်တမ်း</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleVisible}
+              className="p-1 sm:px-2 sm:py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-teal-200 hover:text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0 ml-1"
+              title="ဇီးကွက်ဂဏန်း Box အား ခေတ္တဖျောက်ထားရန်"
+            >
+              <EyeOff className="w-3.5 h-3.5 text-teal-300" />
+              <span className="hidden sm:inline">ဖျောက်မည်</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -194,15 +241,26 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           )}
         </div>
 
-        {/* View All Button */}
-        <button
-          type="button"
-          onClick={onOpenHistory}
-          className="text-xs font-bold text-indigo-300 hover:text-white flex items-center gap-1 hover:underline ml-auto cursor-pointer"
-        >
-          <span>အိုးစည်လေး ရလဒ်မှတ်တမ်းအားလုံး</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        {/* View All & Hide Buttons */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="text-xs font-bold text-indigo-300 hover:text-white flex items-center gap-1 hover:underline cursor-pointer"
+          >
+            <span>အိုးစည်လေး ရလဒ်မှတ်တမ်းအားလုံး</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleVisible}
+            className="p-1 sm:px-2 sm:py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+            title="Box အား ခေတ္တဖျောက်ထားရန်"
+          >
+            <EyeOff className="w-3.5 h-3.5 text-indigo-300" />
+            <span className="hidden sm:inline">ဖျောက်မည်</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -237,14 +295,25 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={onOpenHistory}
-        className="text-xs font-bold text-emerald-300 hover:text-white flex items-center gap-1 hover:underline ml-auto cursor-pointer"
-      >
-        <span>ပစ်တိုင်းထောင် ရလဒ်မှတ်တမ်းအားလုံး</span>
-        <ChevronRight className="w-3.5 h-3.5" />
-      </button>
+      <div className="flex items-center gap-2 ml-auto">
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="text-xs font-bold text-emerald-300 hover:text-white flex items-center gap-1 hover:underline cursor-pointer"
+        >
+          <span>ပစ်တိုင်းထောင် ရလဒ်မှတ်တမ်းအားလုံး</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={toggleVisible}
+          className="p-1 sm:px-2 sm:py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+          title="Box အား ခေတ္တဖျောက်ထားရန်"
+        >
+          <EyeOff className="w-3.5 h-3.5 text-emerald-300" />
+          <span className="hidden sm:inline">ဖျောက်မည်</span>
+        </button>
+      </div>
     </div>
   );
 };

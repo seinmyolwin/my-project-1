@@ -639,42 +639,40 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
             
             {/* Box Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                  <Zap className="w-4 h-4" />
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                  <Zap className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    {isMyanmar ? 'အမြန် အရောင်းစာရင်းသွင်း' : 'Fast Sale Entry'}
+                  <h2 className="text-xs sm:text-sm font-black text-slate-900">
+                    {isMyanmar ? 'အမြန်သွင်း' : 'Fast Entry'}
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    {isMyanmar ? 'ဂဏန်း ၃ လုံး နှင့် ထိုးကြေးငွေ ရိုက်ထည့်ပါ' : 'Enter 3-digit number and bet amount'}
-                  </p>
                 </div>
               </div>
 
               {/* Action Buttons (Photo Scan & Batch Text) */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {/* Photo OCR Scanner Trigger */}
                 <button
                   type="button"
                   onClick={() => setIsScannerModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer whitespace-nowrap"
                   title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို အလိုအလျောက် ဖတ်ယူရန်"
                 >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>{isMyanmar ? 'စကင်ဖတ်မည်' : 'Scan'}</span>
+                  <Camera className="w-3 h-3 shrink-0" />
+                  <span>{isMyanmar ? 'စကင်ဖတ်' : 'Scan'}</span>
                 </button>
 
                 {/* Batch Text Input Trigger */}
                 <button
                   type="button"
                   onClick={() => setShowBatchModal(!showBatchModal)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-indigo-700 border border-slate-200 text-xs font-semibold transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-indigo-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                  title="စာသားကူးထည့်ရန် (Batch Paste)"
                 >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>{isMyanmar ? 'စာသားဖြင့် ကူးထည့်ရန်' : 'Batch Paste'}</span>
+                  <FileText className="w-3 h-3 text-indigo-500 shrink-0" />
+                  <span>{isMyanmar ? 'စာသားကူး' : 'Batch'}</span>
                 </button>
               </div>
             </div>
@@ -991,16 +989,16 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
             <div className="space-y-4">
               {/* Batch Master Agent Forwarding Trigger */}
               {onOpenForwardModal && (
-                <div className="bg-gradient-to-r from-indigo-50 to-slate-50 border border-indigo-200 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                      <ShieldAlert className="w-4 h-4" />
+                <div className="bg-gradient-to-r from-indigo-50 to-slate-50 border border-indigo-200 rounded-xl p-1.5 sm:p-2.5 flex items-center justify-between gap-1.5 sm:gap-2 shadow-2xs">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <div className="w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                      <ShieldAlert className="w-3 h-3 sm:w-4 sm:h-4" />
                     </div>
-                    <div>
-                      <span className="text-xs font-black text-indigo-950 block">
-                        {isMyanmar ? 'ဒိုင်ကြီးဆီ ပြန်တင်မည်' : 'Forward to Master'}
+                    <div className="min-w-0 truncate">
+                      <span className="text-xs font-bold text-indigo-950 block truncate">
+                        {isMyanmar ? 'အပိုတင်မည်' : 'Forward to Master'}
                       </span>
-                      <span className="text-[10px] text-indigo-700 font-medium">
+                      <span className="text-[10px] text-indigo-700 font-medium truncate hidden md:block">
                         {(Object.values(aggregates) as any[]).filter((a: any) => a.limit > 0 && a.totalSold > a.limit).length > 0
                           ? `သတ်မှတ်ချက်ကျော် ပိုနေ: ${(Object.values(aggregates) as any[]).filter((a: any) => a.limit > 0 && a.totalSold > a.limit).length} လုံး`
                           : 'ပိုနေသော 3D ဂဏန်းများကို စုစည်းလွှဲတင်ရန်'}
@@ -1010,9 +1008,9 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                   <button
                     type="button"
                     onClick={() => onOpenForwardModal()}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
                   >
-                    {isMyanmar ? 'ပြန်တင်မည်' : 'Forward'}
+                    {isMyanmar ? 'အပိုတင်မည်' : 'Forward'}
                   </button>
                 </div>
               )}
