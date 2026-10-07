@@ -19,12 +19,14 @@ import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
 import { fetchLiveThai2D } from '../../utils/thaiLotteryApi';
+import { evaluateTwoDWinnings } from '../../utils/twoDLotteryUtils';
 
 export const TwoDWinningPayoutView: React.FC = () => {
   const {
     settings,
     activeRound,
     activeRoundVouchers,
+    activeRoundForwardSlips,
     roundSummary,
     settleWinningNumber,
     clearWinningSettlement,
@@ -116,6 +118,9 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   const isSettled = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
 
+  const currentWinningNumber = isSettled ? (activeRound?.winningNumber || '') : winningInput;
+  const currentMultiplier = isSettled ? (activeRound?.multiplier || 80) : (parseFloat(multiplierInput) || 80);
+
   const [isWinningConfirmed, setIsWinningConfirmed] = useState(() => activeRound?.status === 'settled');
   const [isTestingMode, setIsTestingMode] = useState(false);
   const [isEnteringPassword, setIsEnteringPassword] = useState(false);
@@ -140,6 +145,58 @@ export const TwoDWinningPayoutView: React.FC = () => {
     setIsWinningConfirmed(true);
   };
 
+  // Dynamic winning results calculated on-the-fly for testing/unsettled preview
+  const twoDWinningResults = useMemo(() => {
+    const cleanNum = winningInput.trim();
+    if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
+      return { settledVouchers: [], totalPayout: 0, totalWinnersCount: 0 };
+    }
+    const mult = parseFloat(multiplierInput) || settings.defaultMultiplier || 80;
+    return evaluateTwoDWinnings(activeRoundVouchers, cleanNum, mult);
+  }, [activeRoundVouchers, winningInput, multiplierInput, settings.defaultMultiplier]);
+
+  const previewRoundSummary = useMemo(() => {
+    let totalSales = 0;
+    let totalDiscount = 0;
+    let netRevenue = 0;
+
+    activeRoundVouchers.forEach(v => {
+      totalSales += v.subtotal;
+      totalDiscount += v.discountAmount;
+      netRevenue += v.netPayable;
+    });
+
+    let totalForwarded = 0;
+    let forwardedCommission = 0;
+    activeRoundForwardSlips.forEach(f => {
+      totalForwarded += f.totalAmount;
+      forwardedCommission += f.commissionAmount;
+    });
+
+    const totalPayout = twoDWinningResults.totalPayout;
+    const totalWinnersCount = twoDWinningResults.totalWinnersCount;
+    const netProfit = (netRevenue - totalPayout) + forwardedCommission;
+
+    return {
+      totalSales,
+      totalVouchers: activeRoundVouchers.length,
+      totalDiscount,
+      netRevenue,
+      totalForwarded,
+      forwardedCommission,
+      totalPayout,
+      winningNumber: winningInput,
+      totalWinnersCount,
+      netProfit,
+      isProfit: netProfit >= 0
+    };
+  }, [activeRoundVouchers, activeRoundForwardSlips, twoDWinningResults, winningInput]);
+
+  const currentWinnersCount = isSettled ? roundSummary.totalWinnersCount : previewRoundSummary.totalWinnersCount;
+  const currentTotalPayout = isSettled ? roundSummary.totalPayout : previewRoundSummary.totalPayout;
+  const currentNetProfit = isSettled ? roundSummary.netProfit : previewRoundSummary.netProfit;
+  const currentIsProfit = isSettled ? roundSummary.isProfit : previewRoundSummary.isProfit;
+
   const handleSettleWithPassword = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNum = winningInput.trim();
@@ -150,10 +207,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
       return;
     }
 
-    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80;
-
-    // Settle in state
-    settleWinningNumber(cleanNum, mult);
+    // Set local state to indicate confirmed winning number, but do NOT settle in context yet!
     setIsTestingMode(false);
     setIsWinningConfirmed(true);
     setIsEnteringPassword(false);
@@ -169,15 +223,18 @@ export const TwoDWinningPayoutView: React.FC = () => {
     // Auto-save the comprehensive 2D data report to the device first!
     exportToExcel();
 
-    // Officially settle/close the 2D round
+    // Officially settle/close the 2D round in context
     settleWinningNumber(cleanNum, mult);
     setIsWinningConfirmed(true);
   };
 
-  // Winning items filtered from active vouchers
-  const winningTickets = activeRoundVouchers.filter(v =>
-    v.items.some(item => item.isWon)
-  );
+  // Winning items filtered from active vouchers on-the-fly or settled
+  const winningTickets = useMemo(() => {
+    if (isSettled) {
+      return activeRoundVouchers.filter(v => v.items.some(item => item.isWon));
+    }
+    return twoDWinningResults.settledVouchers.filter(v => v.items.some(item => item.isWon));
+  }, [isSettled, activeRoundVouchers, twoDWinningResults]);
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
@@ -466,36 +523,38 @@ export const TwoDWinningPayoutView: React.FC = () => {
       </div>
 
       {/* Settlement Result Cards */}
-      {isSettled && (
+      {isWinningConfirmed && (
         <div className="space-y-6">
           {/* Prominent Next Session Launcher Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-indigo-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="space-y-1 text-center sm:text-left">
-              <div className="flex items-center justify-center sm:justify-start gap-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-                <h3 className="text-base font-black text-white">
-                  {isMorning
-                    ? 'မနက်ပိုင်း စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ'
-                    : 'ညနေပိုင်း စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ'}
-                </h3>
+          {isSettled && (
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-indigo-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-base font-black text-white">
+                    {isMorning
+                      ? 'မနက်ပိုင်း စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ'
+                      : 'ညနေပိုင်း စာရင်းချုပ် အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ'}
+                  </h3>
+                </div>
+                <p className="text-xs text-indigo-200 leading-relaxed">
+                  ပေါက်ဂဏန်း [{currentWinningNumber}]၊ ရောင်းရငွေ၊ လျော်ကြေးစာရင်းအားလုံးကို မှတ်တမ်းထဲသို့ သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။
+                </p>
               </div>
-              <p className="text-xs text-indigo-200 leading-relaxed">
-                ပေါက်ဂဏန်း [{activeRound.winningNumber}]၊ ရောင်းရငွေ၊ လျော်ကြေးစာရင်းအားလုံးကို မှတ်တမ်းထဲသို့ သိမ်းဆည်းထားပြီး ဖြစ်ပါသည်။
-              </p>
-            </div>
 
-            <button
-              type="button"
-              onClick={handleStartNextSession}
-              className="w-full sm:w-auto px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all active:scale-95 shrink-0"
-            >
-              <span>
-                {isMorning
-                  ? '🌆 ညနေပိုင်း (၀၄:၃၀) အတွက် အသစ်စတင်မည်'
-                  : '☀️ မနက်ဖြန် မနက်ပိုင်း (၁၂:၀၁) အတွက် အသစ်စတင်မည်'}
-              </span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleStartNextSession}
+                className="w-full sm:w-auto px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all active:scale-95 shrink-0"
+              >
+                <span>
+                  {isMorning
+                    ? '🌆 ညနေပိုင်း (၀၄:၃၀) အတွက် အသစ်စတင်မည်'
+                    : '☀️ မနက်ဖြန် မနက်ပိုင်း (၁၂:၀၁) အတွက် အသစ်စတင်မည်'}
+                </span>
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs">
@@ -503,10 +562,10 @@ export const TwoDWinningPayoutView: React.FC = () => {
                 {isMyanmar ? 'ပေါက်ဂဏန်း' : 'Winning Number'}
               </span>
               <div className="text-4xl font-black text-amber-600 font-mono">
-                {activeRound.winningNumber}
+                {currentWinningNumber}
               </div>
               <span className="text-xs text-slate-400 font-medium">
-                {isMyanmar ? 'အလျော်ဆ' : 'Multiplier'}: {activeRound.multiplier || 85}x
+                {isMyanmar ? 'အလျော်ဆ' : 'Multiplier'}: {currentMultiplier}x
               </span>
             </div>
 
@@ -515,7 +574,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
                 {isMyanmar ? 'ပေါက်သူ အရေအတွက်' : 'Total Winners'}
               </span>
               <div className="text-3xl font-black text-slate-900 font-mono">
-                {roundSummary.totalWinnersCount} {isMyanmar ? 'ဦး' : 'tickets'}
+                {currentWinnersCount} {isMyanmar ? 'ဦး' : 'tickets'}
               </div>
               <span className="text-xs text-emerald-600 font-bold">
                 {isMyanmar ? 'ပေါက်မဲဘောင်ချာများ' : 'Winning vouchers'}
@@ -527,7 +586,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
                 {isMyanmar ? 'စုစုပေါင်း လျော်ကြေးငွေ' : 'Total Payout'}
               </span>
               <div className="text-2xl sm:text-3xl font-black text-rose-700 font-mono">
-                {formatAmount(roundSummary.totalPayout, settings.currency)}
+                {formatAmount(currentTotalPayout, settings.currency)}
               </div>
               <span className="text-xs text-rose-600 font-medium">
                 {isMyanmar ? 'ဖောက်သည်များသို့ ပေးလျော်ရမည်' : 'Must pay out'}
@@ -536,36 +595,36 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
             <div
               className={`rounded-3xl p-5 border shadow-2xs ${
-                roundSummary.isProfit
+                currentIsProfit
                   ? 'bg-emerald-50/80 border-emerald-300'
                   : 'bg-rose-50/80 border-rose-300'
               }`}
             >
               <span
                 className={`text-xs font-bold block mb-1 ${
-                  roundSummary.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                  currentIsProfit ? 'text-emerald-700' : 'text-rose-700'
                 }`}
               >
                 {isMyanmar ? 'ဒိုင် အသားတင် အမြတ် / အရှုံး' : 'Dealer Net Profit/Loss'}
               </span>
               <div
                 className={`text-2xl sm:text-3xl font-black font-mono flex items-center gap-1.5 ${
-                  roundSummary.isProfit ? 'text-emerald-800' : 'text-rose-800'
+                  currentIsProfit ? 'text-emerald-800' : 'text-rose-800'
                 }`}
               >
-                {roundSummary.isProfit ? (
+                {currentIsProfit ? (
                   <TrendingUp className="w-6 h-6 shrink-0 text-emerald-600" />
                 ) : (
                   <TrendingDown className="w-6 h-6 shrink-0 text-rose-600" />
                 )}
-                <span>{formatAmount(Math.abs(roundSummary.netProfit), settings.currency)}</span>
+                <span>{formatAmount(Math.abs(currentNetProfit), settings.currency)}</span>
               </div>
               <span
                 className={`text-xs font-black ${
-                  roundSummary.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                  currentIsProfit ? 'text-emerald-700' : 'text-rose-700'
                 }`}
               >
-                {roundSummary.isProfit
+                {currentIsProfit
                   ? (isMyanmar ? 'အသားတင် အမြတ်ငွေ ရရှိပါသည်' : 'Net Profit')
                   : (isMyanmar ? 'အရှုံးပေါ်နေပါသည်' : 'Net Loss')}
               </span>
@@ -598,7 +657,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
                 <Trophy className="w-10 h-10 mx-auto stroke-1 text-slate-300" />
                 <p className="text-sm font-medium">
                   {isMyanmar
-                    ? `ပေါက်ဂဏန်း [${activeRound.winningNumber}] ကို ထိုးထားသူ မရှိပါ (ဒိုင်အပြည့်အဝ မြတ်ပါသည်)`
+                    ? `ပေါက်ဂဏန်း [${currentWinningNumber}] ကို ထိုးထားသူ မရှိပါ (ဒိုင်အပြည့်အဝ မြတ်ပါသည်)`
                     : 'No winning bets on this number.'}
                 </p>
               </div>
@@ -612,14 +671,14 @@ export const TwoDWinningPayoutView: React.FC = () => {
                       <th className="p-3">ဖုန်းနံပါတ်</th>
                       <th className="p-3 text-center">ပေါက်ဂဏန်း</th>
                       <th className="p-3 text-right">ထိုးကြေး</th>
-                      <th className="p-3 text-right">အလျော်ငွေ (@{activeRound.multiplier || 85}x)</th>
+                      <th className="p-3 text-right">အလျော်ငွေ (@{currentMultiplier}x)</th>
                       <th className="p-3 text-center">အခြေအနေ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {winningTickets.map(voucher => {
-                      const winItems = voucher.items.filter(i => i.isWon);
-                      const totalWon = winItems.reduce((sum, i) => sum + (i.wonAmount || 0), 0);
+                      const winItems = voucher.items.filter(i => i.isWon || i.number === currentWinningNumber);
+                      const totalWon = winItems.reduce((sum, i) => sum + (i.wonAmount || (i.amount * currentMultiplier)), 0);
                       const totalStake = winItems.reduce((sum, i) => sum + i.amount, 0);
 
                       return (
@@ -629,7 +688,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
                           <td className="p-3 text-slate-500">{voucher.customerPhone || '-'}</td>
                           <td className="p-3 text-center">
                             <span className="px-2.5 py-1 bg-amber-100 text-amber-900 font-black rounded-lg text-sm">
-                              {activeRound.winningNumber}
+                              {currentWinningNumber}
                             </span>
                           </td>
                           <td className="p-3 text-right font-bold text-slate-800">

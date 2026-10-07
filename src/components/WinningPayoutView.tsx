@@ -161,11 +161,7 @@ export const WinningPayoutView: React.FC = () => {
       return;
     }
 
-    const mult = parseInt(multiplierInput, 10) || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
-    
-    // Settle in state
-    settleWinningNumber(winningInput, mult, toddMult);
+    // Set local state to indicate confirmed winning number, but do NOT settle in context yet!
     setIsTestingMode(false);
     setIsWinningConfirmed(true);
     setIsEnteringPassword(false);
