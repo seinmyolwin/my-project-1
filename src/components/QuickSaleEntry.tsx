@@ -69,6 +69,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
   // Staged Bet Items in current voucher
   const [stagedItems, setStagedItems] = useState<BetItem[]>([]);
+  // Tracking unconfirmed/active draft items (Yellow) vs confirmed staged items (Green)
+  const [latestDraftIds, setLatestDraftIds] = useState<string[]>([]);
 
   // Batch / Quick text mode toggle
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -120,6 +122,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
     if (allowedItems.length > 0) {
       setStagedItems(prev => [...prev, ...allowedItems]);
+      setLatestDraftIds(allowedItems.map(i => i.id));
       if (scannedCustomerName && (!customerName || customerName === 'အထွေထွေ (General)')) {
         setCustomerName(scannedCustomerName);
       }
@@ -234,6 +237,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       };
       playAddSound();
       setStagedItems(prev => [...prev, newItem]);
+      setLatestDraftIds([newItem.id]);
     } else {
       const perms = getPermutations(numberInput);
       const allowedPerms: string[] = [];
@@ -274,6 +278,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
       playAddSound();
       setStagedItems(prev => [...prev, ...newItems]);
+      setLatestDraftIds(newItems.map(i => i.id));
     }
 
     setNumberInput('');
@@ -290,6 +295,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     setIsRumble(item.isRumble || false);
     // Remove from draft list so user can edit and add back
     setStagedItems(prev => prev.filter(i => i.id !== item.id));
+    setLatestDraftIds(prev => prev.filter(id => id !== item.id));
     numberInputRef.current?.focus();
     setToastNotification({
       type: 'warning',
@@ -297,10 +303,29 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     });
   };
 
+  // Restart / Rollback from a specific Checkpoint item (Rule #9, #10)
+  // Keeps all items before this index, populates input controls with this item's data,
+  // and removes this item and any subsequent items from draft state.
+  const handleRestartFromCheckpoint = (index: number, item: BetItem) => {
+    playTapSound();
+    const preservedItems = stagedItems.slice(0, index);
+    setStagedItems(preservedItems);
+    setLatestDraftIds([]);
+    setNumberInput(item.number);
+    setAmountInput(String(item.amount));
+    setIsRumble(item.isRumble || false);
+    numberInputRef.current?.focus();
+    setToastNotification({
+      type: 'warning',
+      message: `ဂဏန်း [${item.number}] မှ ပြန်လည်စတင်ရန် Input Box ထဲ ပြန်ထည့်ပေးထားပြီး ယခင် Checkpoint အထိ အပြည့်အဝ ထိန်းသိမ်းထားပါသည်`
+    });
+  };
+
   // Remove Item
   const handleRemoveItem = (id: string) => {
     playDeleteSound();
     setStagedItems(prev => prev.filter(item => item.id !== id));
+    setLatestDraftIds(prev => prev.filter(item => item !== id));
   };
 
   // Add Pattern Numbers (e.g. Triples/Doubles, Power, Natkhat)
@@ -331,6 +356,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     }));
     playAddSound();
     setStagedItems(prev => [...prev, ...newItems]);
+    setLatestDraftIds(newItems.map(i => i.id));
   };
 
   // Parse Text Batch
@@ -353,6 +379,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     if (allowedItems.length > 0) {
       playAddSound();
       setStagedItems(prev => [...prev, ...allowedItems]);
+      setLatestDraftIds(allowedItems.map(i => i.id));
       setRawBatchText('');
       if (errors.length === 0 && blockedErrors.length === 0) {
         setShowBatchModal(false);
@@ -721,6 +748,9 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                       onChange={(e) => {
                         const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3);
                         setNumberInput(val);
+                        if (latestDraftIds.length > 0 && val.length > 0) {
+                          setLatestDraftIds([]);
+                        }
                       }}
                       onFocus={(e) => {
                         const target = e.currentTarget;
@@ -755,7 +785,13 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                     inputMode="numeric"
                     pattern="[0-9]*"
                     value={amountInput}
-                    onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, ''))}
+                    onChange={(e) => {
+                      const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '');
+                      setAmountInput(val);
+                      if (latestDraftIds.length > 0 && val.length > 0) {
+                        setLatestDraftIds([]);
+                      }
+                    }}
                     onFocus={(e) => {
                       const target = e.currentTarget;
                       target.select();
@@ -1055,11 +1091,23 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
               {/* Staged Items List Table */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-                  <span>{isMyanmar ? 'ထိုးဂဏန်းများ' : 'Bet Numbers'}</span>
-                  <span>{isMyanmar ? 'ပမာဏ' : 'Amount'}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{isMyanmar ? 'ထိုးဂဏန်းများ' : 'Bet Numbers'}</span>
+                    <span className="text-[11px] font-normal text-slate-400">({stagedItems.length})</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px]">
+                    <span className="flex items-center gap-1 text-amber-700 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 border border-amber-600" />
+                      {isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}
+                    </span>
+                    <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 border border-emerald-700" />
+                      {isMyanmar ? 'ယာယီအတည်' : 'Confirmed'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl max-h-60 overflow-y-auto space-y-1.5 p-1.5">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl max-h-64 overflow-y-auto space-y-1.5 p-1.5">
                   {stagedItems.length === 0 ? (
                     <div className="py-8 px-4 text-center text-slate-400 text-xs space-y-2.5">
                       <p>{isMyanmar ? 'ဂဏန်းများ ထည့်သွင်းထားခြင်း မရှိသေးပါ' : 'No numbers added to slip yet'}</p>
@@ -1073,53 +1121,85 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                       </button>
                     </div>
                   ) : (
-                    stagedItems.map((item, idx) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between px-3 py-2 text-xs bg-amber-50/90 border border-amber-200/80 hover:bg-amber-100/70 rounded-xl transition-colors group shadow-2xs"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="font-mono text-amber-700/80 text-[11px] w-5 text-right font-bold">
-                            {idx + 1}.
-                          </span>
-                          <span className="font-mono font-black text-slate-900 text-sm tracking-wider">
-                            {item.number}
-                          </span>
-                          {item.isRumble && (
-                            <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-mono font-bold">
-                              R
+                    stagedItems.map((item, idx) => {
+                      const isDraft = latestDraftIds.includes(item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-all group ${
+                            isDraft
+                              ? 'bg-amber-50/95 border-2 border-amber-400 text-amber-950 shadow-xs ring-1 ring-amber-400/30'
+                              : 'bg-emerald-50/80 border border-emerald-300 text-emerald-950 shadow-2xs hover:bg-emerald-100/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono text-[11px] w-5 text-right font-bold ${isDraft ? 'text-amber-700' : 'text-emerald-700'}`}>
+                              {idx + 1}.
                             </span>
-                          )}
-                          {item.originalInput && item.originalInput !== item.number && (
-                            <span className="text-[10px] text-amber-800/80 truncate max-w-[100px]">
-                              {item.originalInput}
+                            <span className="font-mono font-black text-slate-900 text-sm tracking-wider">
+                              {item.number}
                             </span>
-                          )}
-                        </div>
+                            {item.isRumble && (
+                              <span className="text-[10px] bg-indigo-100 text-indigo-900 px-1.5 py-0.5 rounded font-mono font-bold">
+                                R
+                              </span>
+                            )}
+                            {item.originalInput && item.originalInput !== item.number && (
+                              <span className="text-[10px] text-slate-500 truncate max-w-[90px]">
+                                {item.originalInput}
+                              </span>
+                            )}
+                            {isDraft ? (
+                              <span className="text-[10px] bg-amber-200 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping" />
+                                <span>{isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>{isMyanmar ? 'ယာယီအတည်' : 'OK'}</span>
+                              </span>
+                            )}
+                          </div>
 
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-emerald-700">
-                            {formatAmount(item.amount, settings.currency)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleEditItem(item)}
-                            className="text-amber-800 hover:text-indigo-600 p-1 transition-colors cursor-pointer rounded-lg hover:bg-amber-200/60"
-                            title="ပြင်ဆင်မည်"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1 transition-colors cursor-pointer rounded-lg hover:bg-rose-50"
-                            title="ဖျက်မည်"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-emerald-700 mr-1">
+                              {formatAmount(item.amount, settings.currency)}
+                            </span>
+                            {/* Checkpoint Restart (Rule #8, #9, #10) */}
+                            <button
+                              type="button"
+                              onClick={() => handleRestartFromCheckpoint(idx, item)}
+                              className="px-1.5 py-1 text-[10px] font-bold text-slate-600 hover:text-indigo-700 bg-slate-100 hover:bg-indigo-50 border border-slate-200 rounded-md transition-colors cursor-pointer flex items-center gap-0.5"
+                              title={isMyanmar ? 'ဤဂဏန်းမှ စ၍ ပြန်လည်စတင်မည် (နောက်ပိုင်းအကွက်များ ဖယ်ရှားပြီး input ထဲ ပြန်ထည့်မည်)' : 'Restart checkpoint from here'}
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span className="hidden sm:inline">{isMyanmar ? 'ပြန်စ' : 'Revert'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEditItem(item)}
+                              className={`p-1 transition-colors cursor-pointer rounded-lg ${
+                                isDraft
+                                  ? 'text-amber-900 hover:text-indigo-600 hover:bg-amber-200/70'
+                                  : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-200/60'
+                              }`}
+                              title={isMyanmar ? 'ပြင်ဆင်မည်' : 'Edit item'}
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1 transition-colors cursor-pointer rounded-lg hover:bg-rose-50"
+                              title={isMyanmar ? 'ဖျက်မည်' : 'Delete item'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

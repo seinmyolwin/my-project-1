@@ -89,6 +89,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
   // Cart / Pending Bet Items
   const [items, setItems] = useState<TwoDBetItem[]>([]);
+  // Tracking unconfirmed/active draft items (Yellow) vs confirmed staged items (Green)
+  const [latestDraftIds, setLatestDraftIds] = useState<string[]>([]);
 
   // Batch text entry modal
   const [isBatchOpen, setIsBatchOpen] = useState(false);
@@ -125,6 +127,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }));
 
     setItems(prev => [...prev, ...newTwoDItems]);
+    setLatestDraftIds(newTwoDItems.map(i => i.id));
     showToast(isMyanmar ? `ဓါတ်ပုံမှ ဂဏန်း ${newTwoDItems.length} လုံး အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ` : `Added ${newTwoDItems.length} items from photo`, 'success');
   };
 
@@ -269,6 +272,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       if (newItems.length > 0) {
         playAddSound();
         setItems((prev) => [...prev, ...newItems]);
+        setLatestDraftIds(newItems.map(i => i.id));
         setNumberInput('');
         setAmountInput('');
         setIsRumble(false);
@@ -370,6 +374,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     if (newItems.length > 0) {
       playAddSound();
       setItems(prev => [...prev, ...newItems]);
+      setLatestDraftIds(newItems.map(i => i.id));
       // Reset inputs immediately: number cleared, amount cleared to 0/empty to prevent accidental repeats!
       setNumberInput('');
       setAmountInput('');
@@ -391,8 +396,27 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     setAmountInput(String(item.amount));
     setIsRumble(item.isRumble || false);
     setItems(prev => prev.filter(i => i.id !== item.id));
+    setLatestDraftIds(prev => prev.filter(id => id !== item.id));
     numberInputRef.current?.focus();
     showToast(isMyanmar ? `ဂဏန်း [${item.number}] အား ပြင်ဆင်ရန် အောက်ပါအကွက်တွင် ဖြည့်သွင်းထားပါသည်` : `Editing item [${item.number}]`, 'warning');
+  };
+
+  // Restart / Rollback from a specific Checkpoint item (Rule #8, #9, #10)
+  const handleRestartFromCheckpoint = (index: number, item: TwoDBetItem) => {
+    playTapSound();
+    const preservedItems = items.slice(0, index);
+    setItems(preservedItems);
+    setLatestDraftIds([]);
+    setNumberInput(item.number);
+    setAmountInput(String(item.amount));
+    setIsRumble(item.isRumble || false);
+    numberInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `ဂဏန်း [${item.number}] မှ ပြန်လည်စတင်ရန် Input Box ထဲ ပြန်ထည့်ပေးထားပြီး ယခင် Checkpoint အထိ အပြည့်အဝ ထိန်းသိမ်းထားပါသည်`
+        : `Restarted from checkpoint [${item.number}]`,
+      'warning'
+    );
   };
 
   const handleAddRumbleClick = () => {
@@ -719,6 +743,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
     playAddSound();
     setItems(prev => [...prev, ...allowed]);
+    setLatestDraftIds(allowed.map(i => i.id));
     setBatchText('');
     setIsBatchOpen(false);
     showToast(isMyanmar ? `အကွက်ပေါင်း (${allowed.length}) ကွက် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ` : `Added ${allowed.length} items`, 'success');
@@ -967,6 +992,9 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   onChange={(e) => {
                     const val = convertMyanmarToEnglishDigits(e.target.value);
                     setNumberInput(val);
+                    if (latestDraftIds.length > 0 && val.trim().length > 0) {
+                      setLatestDraftIds([]);
+                    }
                   }}
                   onFocus={(e) => {
                     const target = e.currentTarget;
@@ -1157,7 +1185,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                       pattern="[0-9]*"
                       placeholder="ထိုးကြေးငွေ (ဥပမာ- ၅၀၀)"
                       value={amountInput}
-                      onChange={(e) => setAmountInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                      onChange={(e) => {
+                        const val = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '');
+                        setAmountInput(val);
+                        if (latestDraftIds.length > 0 && val.trim().length > 0) {
+                          setLatestDraftIds([]);
+                        }
+                      }}
                       onFocus={(e) => {
                         const target = e.currentTarget;
                         target.select();
@@ -1355,7 +1389,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
             {/* Cart Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
+              <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <span>{isMyanmar ? 'အရောင်းစာရင်း (ဘောင်ချာ)' : 'Ticket Items'}</span>
                   <span className="px-2 py-0.5 bg-teal-100 text-teal-800 text-xs font-black rounded-full">
@@ -1363,19 +1397,32 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   </span>
                 </h3>
               </div>
-              {items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    playDeleteSound();
-                    setItems([]);
-                  }}
-                  className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isMyanmar ? 'အားလုံးဖျက်' : 'Clear'}</span>
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="flex items-center gap-1 text-amber-700 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 border border-amber-600" />
+                    {isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}
+                  </span>
+                  <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 border border-emerald-700" />
+                    {isMyanmar ? 'ယာယီအတည်' : 'Confirmed'}
+                  </span>
+                </div>
+                {items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playDeleteSound();
+                      setItems([]);
+                      setLatestDraftIds([]);
+                    }}
+                    className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer ml-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isMyanmar ? 'အားလုံးဖျက်' : 'Clear'}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Items List */}
@@ -1388,55 +1435,88 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   </span>
                 </div>
               ) : (
-                items.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="py-2 px-2.5 flex items-center justify-between bg-amber-50/90 border border-amber-200/80 hover:bg-amber-100/70 rounded-xl transition-colors group shadow-2xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xs text-amber-700/80 font-mono w-5 font-bold">
-                        {idx + 1}.
-                      </span>
-                      <span className="font-mono text-xl font-black text-slate-900">
-                        {item.number}
-                      </span>
-                      {item.isRumble && (
-                        <span className="px-1.5 py-0.5 bg-amber-200 text-amber-900 text-[10px] font-bold rounded">
-                          R
+                items.map((item, idx) => {
+                  const isDraft = latestDraftIds.includes(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      className={`py-2 px-2.5 flex items-center justify-between rounded-xl transition-all group ${
+                        isDraft
+                          ? 'bg-amber-50/95 border-2 border-amber-400 text-amber-950 shadow-xs ring-1 ring-amber-400/30'
+                          : 'bg-emerald-50/80 border border-emerald-300 text-emerald-950 shadow-2xs hover:bg-emerald-100/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-mono w-5 font-bold ${isDraft ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          {idx + 1}.
                         </span>
-                      )}
-                      {item.originalInput && item.originalInput !== item.number && (
-                        <span className="text-[10px] text-amber-800/80 truncate max-w-[80px]">
-                          {item.originalInput}
+                        <span className="font-mono text-xl font-black text-slate-900">
+                          {item.number}
                         </span>
-                      )}
+                        {item.isRumble && (
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-900 text-[10px] font-bold rounded">
+                            R
+                          </span>
+                        )}
+                        {item.originalInput && item.originalInput !== item.number && (
+                          <span className="text-[10px] text-slate-500 truncate max-w-[80px]">
+                            {item.originalInput}
+                          </span>
+                        )}
+                        {isDraft ? (
+                          <span className="text-[10px] bg-amber-200 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping" />
+                            <span>{isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>{isMyanmar ? 'ယာယီအတည်' : 'OK'}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-sm font-bold text-emerald-700 mr-1">
+                          {formatAmount(item.amount, settings.currency)}
+                        </span>
+                        {/* Checkpoint Restart (Rule #8, #9, #10) */}
+                        <button
+                          type="button"
+                          onClick={() => handleRestartFromCheckpoint(idx, item)}
+                          className="px-1.5 py-1 text-[10px] font-bold text-slate-600 hover:text-teal-700 bg-slate-100 hover:bg-teal-50 border border-slate-200 rounded-md transition-colors cursor-pointer flex items-center gap-0.5"
+                          title={isMyanmar ? 'ဤဂဏန်းမှ စ၍ ပြန်လည်စတင်မည် (နောက်ပိုင်းအကွက်များ ဖယ်ရှားပြီး input ထဲ ပြန်ထည့်မည်)' : 'Restart checkpoint from here'}
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span className="hidden sm:inline">{isMyanmar ? 'ပြန်စ' : 'Revert'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEditItem(item)}
+                          className={`p-1 cursor-pointer transition-colors rounded-lg ${
+                            isDraft
+                              ? 'text-amber-900 hover:text-teal-700 hover:bg-amber-200/70'
+                              : 'text-slate-500 hover:text-teal-700 hover:bg-slate-200/60'
+                          }`}
+                          title={isMyanmar ? 'ပြင်ဆင်မည်' : 'Edit item'}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playDeleteSound();
+                            setItems(prev => prev.filter(i => i.id !== item.id));
+                            setLatestDraftIds(prev => prev.filter(id => id !== item.id));
+                          }}
+                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors rounded-lg hover:bg-rose-50"
+                          title={isMyanmar ? 'ဖျက်မည်' : 'Delete item'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold text-emerald-700">
-                        {formatAmount(item.amount, settings.currency)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleEditItem(item)}
-                        className="text-amber-800 hover:text-teal-700 p-1 cursor-pointer transition-colors rounded-lg hover:bg-amber-200/60"
-                        title="ပြင်ဆင်မည်"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playDeleteSound();
-                          setItems(prev => prev.filter(i => i.id !== item.id));
-                        }}
-                        className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors rounded-lg hover:bg-rose-50"
-                        title="ဖျက်မည်"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
