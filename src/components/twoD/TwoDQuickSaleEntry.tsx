@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   RotateCcw,
   CheckCircle2,
+  Check,
   Smartphone,
   Tag,
   Ban,
@@ -20,7 +21,8 @@ import {
   Edit3
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate } from '../../types';
+import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig } from '../../types';
+import { DEFAULT_2D_ACTION_BUTTONS } from '../../utils/storage';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import {
   getTwoDReversal,
@@ -148,45 +150,68 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   // Check if current input number is blocked
   const isInputBlocked = numberInput.length === 2 && isNumberBlocked(numberInput);
 
+  // Quick Action Buttons visibility & active status config
+  const enabledButtons = useMemo<TwoDQuickActionButtonsConfig>(() => {
+    return {
+      ...DEFAULT_2D_ACTION_BUTTONS,
+      ...(settings.quickActionButtons || {})
+    };
+  }, [settings.quickActionButtons]);
+
+  const hasAnyButtonVisible = useMemo(() => {
+    return Object.values(enabledButtons).some(Boolean);
+  }, [enabledButtons]);
+
   // Real-time preview of numbers from numberInput
   const parsedPreviewNumbers = useMemo(() => {
     const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
     if (!rawInput) return [];
 
-    // Check if user typed any of the 4 Khway keywords directly
+    // Check if user typed any of the 4 Khway keywords directly (only if enabled)
     // 1. ခွေပူးအာ / ခွေပူးr
-    if (/ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(rawInput)) {
+    if (enabledButtons.khwayPuuRumble && /ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
         return getTwoDKhwayPuuRumble(nums[0]);
       }
     }
     // 2. ခွေအာ / ခွေr
-    if (/ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(rawInput) && !/ပူး/i.test(rawInput)) {
+    if (enabledButtons.khwayRumble && /ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(rawInput) && !/ပူး/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
         return getTwoDKhwayRumble(nums[0]);
       }
     }
     // 3. ခွေပူး
-    if (/ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(rawInput) && !/[rအာ]/i.test(rawInput)) {
+    if (enabledButtons.khwayPuu && /ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(rawInput) && !/[rအာ]/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
         return getTwoDKhwayPuu(nums[0]);
       }
     }
     // 4. ခွေ (ရိုးရိုးခွေ)
-    if (/ခွေ/i.test(rawInput) && !/ပူး|[rအာ]/i.test(rawInput)) {
+    if (enabledButtons.khway && /ခွေ/i.test(rawInput) && !/ပူး|[rအာ]/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
         return getTwoDKhway(nums[0]);
       }
     }
 
-    const hasR = isRumble || /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
-    const cleanForNumbers = rawInput.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
-    const rawTokens = cleanForNumbers.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
-    const valid2D = rawTokens.map(t => t.padStart(2, '0')).filter(n => /^\d{2}$/.test(n));
+    const hasStraightKeyword = enabledButtons.straight && /တဲ့|တည့်/i.test(rawInput);
+    const hasRInInput = enabledButtons.rumble && /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
+    const hasR = !hasStraightKeyword && ((enabledButtons.rumble && isRumble) || hasRInInput);
+    const cleanForNumbers = rawInput.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+
+    // If last token is 3+ digits (like 500, 1000) and there are prior tokens, treat as amount
+    if (rawTokens.length > 1) {
+      const lastToken = rawTokens[rawTokens.length - 1];
+      if (lastToken.length >= 3 && /^\d+$/.test(lastToken)) {
+        rawTokens.pop();
+      }
+    }
+
+    const valid2D = rawTokens.map(t => t.length === 1 ? `0${t}` : t).filter(n => /^\d{2}$/.test(n));
 
     if (hasR) {
       const list: string[] = [];
@@ -198,8 +223,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       });
       return list;
     }
-    return Array.from(new Set(valid2D));
-  }, [numberInput, isRumble]);
+    return valid2D;
+  }, [numberInput, isRumble, enabledButtons]);
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
@@ -227,30 +252,21 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       return;
     }
 
-    let amt = parseFloat(amountInput);
-    // Support embedded amount in number input like "35=500", "35-500", "1234 ခွေ 500", "1234.ခွေ.500" if amount box is empty
-    if (isNaN(amt) || amt <= 0) {
-      const matchAmt = rawInput.match(/[=:\-_/,*+\s](\d+)$/);
-      if (matchAmt && matchAmt[1]) {
-        amt = parseFloat(matchAmt[1]);
-      } else {
-        const allNums = rawInput.match(/\d+/g);
-        if (allNums && allNums.length > 1) {
-          amt = parseFloat(allNums[allNums.length - 1]);
-        }
-      }
-    }
-
-    if (isNaN(amt) || amt <= 0) {
-      playWarningSound();
-      showToast(isMyanmar ? 'ထိုးကြေးငွေ ထည့်သွင်းပါ (ဥပမာ- ၅၀၀)' : 'Enter bet amount (e.g., 500)', 'warning');
-      amountInputRef.current?.focus();
-      return;
-    }
+    // Direct typed keyword support for the 4 Khway variations:
+    const khwayAmtMatch = rawInput.match(/\s+(\d+)$/);
+    const khwayInlineAmt = khwayAmtMatch ? parseFloat(khwayAmtMatch[1]) : undefined;
 
     // Helper to insert generated Khway items
-    const insertKhwayItems = (generatedNumbers: string[], label: string) => {
+    const insertKhwayItems = (generatedNumbers: string[], label: string, specifiedAmt?: number) => {
       if (generatedNumbers.length === 0) return false;
+      const targetAmt = specifiedAmt || parseFloat(convertMyanmarToEnglishDigits(amountInput).trim());
+      if (isNaN(targetAmt) || targetAmt <= 0) {
+        playWarningSound();
+        showToast(isMyanmar ? 'ထိုးကြေးငွေ ထည့်သွင်းပါ (ဥပမာ- ၅၀၀)' : 'Enter bet amount (e.g., 500)', 'warning');
+        amountInputRef.current?.focus();
+        return true;
+      }
+
       const newItems: TwoDBetItem[] = [];
       const blockedFound: string[] = [];
       generatedNumbers.forEach((n) => {
@@ -260,7 +276,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           newItems.push({
             id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             number: n,
-            amount: amt,
+            amount: targetAmt,
             originalInput: label
           });
         }
@@ -285,45 +301,86 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       return true;
     };
 
-    // Direct typed keyword support for the 4 Khway variations:
     // 1. ခွေပူးအာ / ခွေပူးr
-    if (/ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(rawInput)) {
+    if (enabledButtons.khwayPuuRumble && /ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
-        if (insertKhwayItems(getTwoDKhwayPuuRumble(nums[0]), `${nums[0]} ခွေပူးr`)) return;
+        if (insertKhwayItems(getTwoDKhwayPuuRumble(nums[0]), `${nums[0]} ခွေပူးr`, khwayInlineAmt)) return;
       }
     }
 
     // 2. ခွေအာ / ခွေr
-    if (/ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(rawInput) && !/ပူး/i.test(rawInput)) {
+    if (enabledButtons.khwayRumble && /ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(rawInput) && !/ပူး/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
-        if (insertKhwayItems(getTwoDKhwayRumble(nums[0]), `${nums[0]} ခွေr`)) return;
+        if (insertKhwayItems(getTwoDKhwayRumble(nums[0]), `${nums[0]} ခွေr`, khwayInlineAmt)) return;
       }
     }
 
     // 3. ခွေပူး
-    if (/ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(rawInput) && !/[rအာ]/i.test(rawInput)) {
+    if (enabledButtons.khwayPuu && /ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(rawInput) && !/[rအာ]/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
-        if (insertKhwayItems(getTwoDKhwayPuu(nums[0]), `${nums[0]} ခွေပူး`)) return;
+        if (insertKhwayItems(getTwoDKhwayPuu(nums[0]), `${nums[0]} ခွေပူး`, khwayInlineAmt)) return;
       }
     }
 
     // 4. ခွေ (ရိုးရိုးခွေ)
-    if (/ခွေ/i.test(rawInput) && !/ပူး|[rအာ]/i.test(rawInput)) {
+    if (enabledButtons.khway && /ခွေ/i.test(rawInput) && !/ပူး|[rအာ]/i.test(rawInput)) {
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
-        if (insertKhwayItems(getTwoDKhway(nums[0]), `${nums[0]} ခွေ`)) return;
+        if (insertKhwayItems(getTwoDKhway(nums[0]), `${nums[0]} ခွေ`, khwayInlineAmt)) return;
       }
     }
 
-    const hasRInInput = /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
-    const effectiveRumble = isRumble || hasRInInput;
+    const hasStraightKeyword = enabledButtons.straight && /တဲ့|တည့်/i.test(rawInput);
+    const hasRInInput = enabledButtons.rumble && /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
+    const effectiveRumble = hasStraightKeyword ? false : ((enabledButtons.rumble && isRumble) || hasRInInput);
 
-    const cleanForNumbers = rawInput.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
-    const rawTokens = cleanForNumbers.replace(/[=:\-_/,*+]\d+/g, ' ').replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
-    const targetNumbers = rawTokens.map(t => t.padStart(2, '0')).filter(n => /^\d{2}$/.test(n));
+    const cleanForNumbers = rawInput.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+
+    if (rawTokens.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ရိုက်ထည့်ပါ' : 'Enter valid 2-digit number (00-99)', 'error');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    let amt = parseFloat(convertMyanmarToEnglishDigits(amountInput).trim());
+
+    // Check if amount is specified inline (e.g. "22,33,22,44, 500" or "၁၃,၂၄,၃၆,၄၆,၂၇,၈၄, ၁၀၀၀")
+    if (isNaN(amt) || amt <= 0) {
+      if (rawTokens.length > 1) {
+        const lastToken = rawTokens[rawTokens.length - 1];
+        const parsedLast = parseFloat(lastToken);
+        if (!isNaN(parsedLast) && parsedLast > 0) {
+          amt = parsedLast;
+          rawTokens.pop();
+        }
+      }
+    } else {
+      // Amount in amountInput, but if inline amount specified at end of string
+      if (rawTokens.length > 1) {
+        const lastToken = rawTokens[rawTokens.length - 1];
+        if (lastToken.length >= 3 && /^\d+$/.test(lastToken)) {
+          const parsedLast = parseFloat(lastToken);
+          if (!isNaN(parsedLast) && parsedLast > 0) {
+            amt = parsedLast;
+            rawTokens.pop();
+          }
+        }
+      }
+    }
+
+    if (isNaN(amt) || amt <= 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထိုးကြေးငွေ ထည့်သွင်းပါ (ဥပမာ- ၅၀၀)' : 'Enter bet amount (e.g., 500)', 'warning');
+      amountInputRef.current?.focus();
+      return;
+    }
+
+    const targetNumbers = rawTokens.map(t => t.length === 1 ? `0${t}` : t).filter(n => /^\d{2}$/.test(n));
 
     if (targetNumbers.length === 0) {
       playWarningSound();
@@ -385,6 +442,45 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           ? `ဂဏန်းပေါင်း (${newItems.length}) ကွက် ဘောင်ချာထဲသို့ ထည့်သွင်းပြီးပါပြီ`
           : `Added ${newItems.length} items to voucher`,
         'success'
+      );
+    }
+  };
+
+  // 0. တဲ့ (Straight / Direct - တိုက်ရိုက် / ပတ်လည်မပါ)
+  const handleAddStraightClick = () => {
+    playTapSound();
+    setIsRumble(false);
+
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    const cleanAmt = convertMyanmarToEnglishDigits(amountInput).trim();
+
+    if (cleanNum) {
+      let amt = parseFloat(cleanAmt);
+      if (isNaN(amt) || amt <= 0) {
+        const rawTokens = cleanNum.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ').replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+        if (rawTokens.length > 1) {
+          const lastToken = rawTokens[rawTokens.length - 1];
+          const parsedLast = parseFloat(lastToken);
+          if (!isNaN(parsedLast) && parsedLast > 0) {
+            amt = parsedLast;
+          }
+        }
+      }
+
+      if (!isNaN(amt) && amt > 0) {
+        handleAddItem();
+      } else {
+        amountInputRef.current?.focus();
+        showToast(
+          isMyanmar ? 'တဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး \'ထည့်မည်\' ကိုနှိပ်ပါ' : 'Direct (Straight) selected. Enter amount.',
+          'warning'
+        );
+      }
+    } else {
+      numberInputRef.current?.focus();
+      showToast(
+        isMyanmar ? 'တဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးထားသည်။ ဂဏန်းရိုက်ထည့်ပါ' : 'Direct (Straight) mode active.',
+        'warning'
       );
     }
   };
@@ -1015,143 +1111,188 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 />
               </div>
 
-              {/* Action Buttons below Number Input: အာ, ရိတ်, အပါ, ထိပ်, ပိတ်, ပူး, ပါဝါ, နက္ခတ်, ညီကို, ခွေ, ခွေပူး, ခွေr, ခွေပူးr */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                {/* 1. အာ (Rumble / Reversal) */}
-                <button
-                  type="button"
-                  onClick={handleAddRumbleClick}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                    isRumble
-                      ? 'bg-teal-600 text-white ring-1 ring-teal-500'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
-                  }`}
-                  title={isMyanmar ? 'အာ / ပတ်လည် (R)' : 'Rumble (R)'}
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>{isMyanmar ? 'အာ' : 'R'}</span>
-                </button>
+              {/* Action Buttons below Number Input: တဲ့, အာ, ရိတ်, အပါ, ထိပ်, ပိတ်, ပူး, ပါဝါ, နက္ခတ်, ညီကို, ခွေ, ခွေပူး, ခွေr, ခွေပူးr */}
+              {hasAnyButtonVisible && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  {/* 0. တဲ့ (Straight / Direct) */}
+                  {enabledButtons.straight && (
+                    <button
+                      type="button"
+                      onClick={handleAddStraightClick}
+                      className={`px-2.5 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                        !isRumble
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                      }`}
+                      title={isMyanmar ? 'တဲ့ / တိုက်ရိုက်ထိုးကြေး (Straight / Direct)' : 'Straight / Direct'}
+                    >
+                      <Check className="w-3 h-3" />
+                      <span>{isMyanmar ? 'တဲ့' : 'Direct'}</span>
+                    </button>
+                  )}
 
-                {/* 2. ရိတ် (Break / ဘရိတ်) */}
-                <button
-                  type="button"
-                  onClick={handleAddBreakDigit}
-                  className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ရိတ် (ဘရိတ် ၁၀ ကွက်)' : 'Break'}
-                >
-                  <span>{isMyanmar ? 'ရိတ်' : 'Break'}</span>
-                </button>
+                  {/* 1. အာ (Rumble / Reversal) */}
+                  {enabledButtons.rumble && (
+                    <button
+                      type="button"
+                      onClick={handleAddRumbleClick}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                        isRumble
+                          ? 'bg-teal-600 text-white ring-1 ring-teal-500'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                      }`}
+                      title={isMyanmar ? 'အာ / ပတ်လည် (R)' : 'Rumble (R)'}
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>{isMyanmar ? 'အာ' : 'R'}</span>
+                    </button>
+                  )}
 
-                {/* 3. အပါ (Includes / အပါ) */}
-                <button
-                  type="button"
-                  onClick={handleAddIncludesDigit}
-                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'အပါ (၁၉ ကွက်)' : 'Includes'}
-                >
-                  <span>{isMyanmar ? 'အပါ' : 'Includes'}</span>
-                </button>
+                  {/* 2. ရိတ် (Break / ဘရိတ်) */}
+                  {enabledButtons.break && (
+                    <button
+                      type="button"
+                      onClick={handleAddBreakDigit}
+                      className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ရိတ် (ဘရိတ် ၁၀ ကွက်)' : 'Break'}
+                    >
+                      <span>{isMyanmar ? 'ရိတ်' : 'Break'}</span>
+                    </button>
+                  )}
 
-                {/* 4. ထိပ် (Head / ထိပ်စီး) */}
-                <button
-                  type="button"
-                  onClick={handleAddHeadDigit}
-                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ထိပ် (ထိပ်စီး ၁၀ ကွက်)' : 'Head'}
-                >
-                  <span>{isMyanmar ? 'ထိပ်' : 'Head'}</span>
-                </button>
+                  {/* 3. အပါ (Includes / အပါ) */}
+                  {enabledButtons.includes && (
+                    <button
+                      type="button"
+                      onClick={handleAddIncludesDigit}
+                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'အပါ (၁၉ ကွက်)' : 'Includes'}
+                    >
+                      <span>{isMyanmar ? 'အပါ' : 'Includes'}</span>
+                    </button>
+                  )}
 
-                {/* 5. ပိတ် (Tail / နောက်ပိတ်) */}
-                <button
-                  type="button"
-                  onClick={handleAddTailDigit}
-                  className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ပိတ် (နောက်ပိတ် ၁၀ ကွက်)' : 'Tail'}
-                >
-                  <span>{isMyanmar ? 'ပိတ်' : 'Tail'}</span>
-                </button>
+                  {/* 4. ထိပ် (Head / ထိပ်စီး) */}
+                  {enabledButtons.head && (
+                    <button
+                      type="button"
+                      onClick={handleAddHeadDigit}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ထိပ် (ထိပ်စီး ၁၀ ကွက်)' : 'Head'}
+                    >
+                      <span>{isMyanmar ? 'ထိပ်' : 'Head'}</span>
+                    </button>
+                  )}
 
-                {/* 6. ပူး (Doubles / အပူး) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'ပူး' : 'Doubles')}
-                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ပူး (အပူး ၁၀ ကွက်)' : 'Doubles'}
-                >
-                  <span>{isMyanmar ? 'ပူး' : 'Doubles'}</span>
-                </button>
+                  {/* 5. ပိတ် (Tail / နောက်ပိတ်) */}
+                  {enabledButtons.tail && (
+                    <button
+                      type="button"
+                      onClick={handleAddTailDigit}
+                      className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ပိတ် (နောက်ပိတ် ၁၀ ကွက်)' : 'Tail'}
+                    >
+                      <span>{isMyanmar ? 'ပိတ်' : 'Tail'}</span>
+                    </button>
+                  )}
 
-                {/* 7. ပါဝါ (Power) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ' : 'Power')}
-                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ပါဝါ (၁၀ ကွက်)' : 'Power'}
-                >
-                  <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
-                </button>
+                  {/* 6. ပူး (Doubles / အပူး) */}
+                  {enabledButtons.doubles && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'ပူး' : 'Doubles')}
+                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ပူး (အပူး ၁၀ ကွက်)' : 'Doubles'}
+                    >
+                      <span>{isMyanmar ? 'ပူး' : 'Doubles'}</span>
+                    </button>
+                  )}
 
-                {/* 8. နက္ခတ် (Natkhat) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'နက္ခတ် (၁၀ ကွက်)' : 'Natkhat'}
-                >
-                  <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
-                </button>
+                  {/* 7. ပါဝါ (Power) */}
+                  {enabledButtons.power && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ' : 'Power')}
+                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ပါဝါ (၁၀ ကွက်)' : 'Power'}
+                    >
+                      <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
+                    </button>
+                  )}
 
-                {/* 9. ညီကို (Brothers) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို' : 'Brothers')}
-                  className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
-                >
-                  <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
-                </button>
+                  {/* 8. နက္ခတ် (Natkhat) */}
+                  {enabledButtons.natkhat && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
+                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'နက္ခတ် (၁၀ ကွက်)' : 'Natkhat'}
+                    >
+                      <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
+                    </button>
+                  )}
 
-                {/* 10. ခွေ (Khway - ရိုးရိုးခွေ) */}
-                <button
-                  type="button"
-                  onClick={handleAddKhwayClick}
-                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ခွေ (ရိုးရိုးခွေ - ဥပမာ ၁၂၃၄ -> ၆ ကွက်၊ ၂၃၄၅၆ -> ၁၀ ကွက်)' : 'Khway'}
-                >
-                  <span>{isMyanmar ? 'ခွေ' : 'Khway'}</span>
-                </button>
+                  {/* 9. ညီကို (Brothers) */}
+                  {enabledButtons.brothers && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို' : 'Brothers')}
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
+                    >
+                      <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
+                    </button>
+                  )}
 
-                {/* 11. ခွေပူး (Khway Puu - ရိုးရိုးခွေ + အပူး) */}
-                <button
-                  type="button"
-                  onClick={handleAddKhwayPuuClick}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ခွေပူး (ခွေ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၀ ကွက်၊ ၂၃၄၅၆ -> ၁၅ ကွက်)' : 'Khway Puu'}
-                >
-                  <span>{isMyanmar ? 'ခွေပူး' : 'Khway Puu'}</span>
-                </button>
+                  {/* 10. ခွေ (Khway - ရိုးရိုးခွေ) */}
+                  {enabledButtons.khway && (
+                    <button
+                      type="button"
+                      onClick={handleAddKhwayClick}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ခွေ (ရိုးရိုးခွေ - ဥပမာ ၁၂၃၄ -> ၆ ကွက်၊ ၂၃၄၅၆ -> ၁၀ ကွက်)' : 'Khway'}
+                    >
+                      <span>{isMyanmar ? 'ခွေ' : 'Khway'}</span>
+                    </button>
+                  )}
 
-                {/* 12. ခွေr (Khway Rumble - လှည့်တွဲ / အပြန်အလှန်) */}
-                <button
-                  type="button"
-                  onClick={handleAddKhwayRumbleClick}
-                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ခွေr (ခွေအာ လှည့်တွဲ - ဥပမာ ၁၂၃၄ -> ၁၂ ကွက်၊ ၂၃၄၅၆ -> ၂၀ ကွက်)' : 'Khway R'}
-                >
-                  <span>{isMyanmar ? 'ခွေr' : 'Khway R'}</span>
-                </button>
+                  {/* 11. ခွေပူး (Khway Puu - ရိုးရိုးခွေ + အပူး) */}
+                  {enabledButtons.khwayPuu && (
+                    <button
+                      type="button"
+                      onClick={handleAddKhwayPuuClick}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ခွေပူး (ခွေ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၀ ကွက်၊ ၂၃၄၅၆ -> ၁၅ ကွက်)' : 'Khway Puu'}
+                    >
+                      <span>{isMyanmar ? 'ခွေပူး' : 'Khway Puu'}</span>
+                    </button>
+                  )}
 
-                {/* 13. ခွေပူးr (Khway Puu Rumble - ခွေအာ + အပူးပါ အကုန်ပါ) */}
-                <button
-                  type="button"
-                  onClick={handleAddKhwayPuuRumbleClick}
-                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ခွေပူးr (ခွေအာ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၆ ကွက်၊ ၂၃၄၅၆ -> ၂၅ ကွက်)' : 'Khway Puu R'}
-                >
-                  <span>{isMyanmar ? 'ခွေပူးr' : 'Khway Puu R'}</span>
-                </button>
-              </div>
+                  {/* 12. ခွေr (Khway Rumble - လှည့်တွဲ / အပြန်အလှန်) */}
+                  {enabledButtons.khwayRumble && (
+                    <button
+                      type="button"
+                      onClick={handleAddKhwayRumbleClick}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ခွေr (ခွေအာ လှည့်တွဲ - ဥပမာ ၁၂၃၄ -> ၁၂ ကွက်၊ ၂၃၄၅၆ -> ၂၀ ကွက်)' : 'Khway R'}
+                    >
+                      <span>{isMyanmar ? 'ခွေr' : 'Khway R'}</span>
+                    </button>
+                  )}
+
+                  {/* 13. ခွေပူးr (Khway Puu Rumble - ခွေအာ + အပူးပါ အကုန်ပါ) */}
+                  {enabledButtons.khwayPuuRumble && (
+                    <button
+                      type="button"
+                      onClick={handleAddKhwayPuuRumbleClick}
+                      className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
+                      title={isMyanmar ? 'ခွေပူးr (ခွေအာ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၆ ကွက်၊ ၂၃၄၅၆ -> ၂၅ ကွက်)' : 'Khway Puu R'}
+                    >
+                      <span>{isMyanmar ? 'ခွေပူးr' : 'Khway Puu R'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Live Preview Info Bar if numbers are entered or selected */}
               {parsedPreviewNumbers.length > 0 && (

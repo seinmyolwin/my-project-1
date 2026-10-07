@@ -38,7 +38,8 @@ import { useLottery } from '../context/LotteryContext';
 import { printStatementReport } from '../utils/printUtils';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { BookieMode, TwoDNumberAggregate, NumberAggregate } from '../types';
+import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig } from '../types';
+import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations } from '../utils/lotteryUtils';
 import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
 import {
@@ -59,6 +60,131 @@ interface SettingsModalProps {
   onUpdateEnabledModes: (modes: EnabledModes) => void;
 }
 
+const BUTTON_DEFINITIONS_2D: Array<{
+  key: keyof TwoDQuickActionButtonsConfig;
+  label: string;
+  nameMyanmar: string;
+  nameEnglish: string;
+  desc: string;
+  previewClass: string;
+  icon?: React.ReactNode;
+}> = [
+  {
+    key: 'straight',
+    label: 'တဲ့',
+    nameMyanmar: 'တဲ့ (တိုက်ရိုက်ထိုးကြေး)',
+    nameEnglish: 'Straight / Direct',
+    desc: 'R မပါဘဲ တိုက်ရိုက်ဂဏန်းများအဖြစ် သွင်းမည်',
+    previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black flex items-center gap-1 shadow-2xs shrink-0',
+    icon: <Check className="w-3 h-3" />
+  },
+  {
+    key: 'rumble',
+    label: 'အာ',
+    nameMyanmar: 'အာ (ပတ်လည် / R)',
+    nameEnglish: 'Rumble / Reversal',
+    desc: '၂၄ ဆိုပါက ၂၄, ၄၂ နှစ်ကွက်လုံး ထည့်မည်',
+    previewClass: 'px-2.5 py-1 bg-teal-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs shrink-0',
+    icon: <RotateCcw className="w-3 h-3" />
+  },
+  {
+    key: 'break',
+    label: 'ရိတ်',
+    nameMyanmar: 'ရိတ် (ဘရိတ်)',
+    nameEnglish: 'Break Digit',
+    desc: 'ပေါင်းလဒ် ဘရိတ် ၁၀ ကွက် ထုတ်ပေးသည်',
+    previewClass: 'px-2.5 py-1 bg-sky-50 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'includes',
+    label: 'အပါ',
+    nameMyanmar: 'အပါ (ဂဏန်းပါ)',
+    nameEnglish: 'Includes Digit',
+    desc: 'ရွေးချယ်ဂဏန်းပါသော ၁၉ ကွက် ထုတ်ပေးသည်',
+    previewClass: 'px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'head',
+    label: 'ထိပ်',
+    nameMyanmar: 'ထိပ် (ထိပ်စီး)',
+    nameEnglish: 'Head Digit',
+    desc: 'ရှေ့ဂဏန်း ထိပ်စီး ၁၀ ကွက် ထုတ်ပေးသည်',
+    previewClass: 'px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'tail',
+    label: 'ပိတ်',
+    nameMyanmar: 'ပိတ် (နောက်ပိတ်)',
+    nameEnglish: 'Tail Digit',
+    desc: 'နောက်ဂဏန်း နောက်ပိတ် ၁၀ ကွက် ထုတ်ပေးသည်',
+    previewClass: 'px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'doubles',
+    label: 'ပူး',
+    nameMyanmar: 'ပူး (အပူး ၁၀ ကွက်)',
+    nameEnglish: 'Doubles',
+    desc: '၀၀ မှ ၉၉ အထိ အပူး ၁၀ ကွက် ထည့်သွင်းမည်',
+    previewClass: 'px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'power',
+    label: 'ပါဝါ',
+    nameMyanmar: 'ပါဝါ (၁၀ ကွက်)',
+    nameEnglish: 'Power Numbers',
+    desc: '၀၅ မှ ၄၉ အထိ ပါဝါ ၁၀ ကွက် ထည့်သွင်းမည်',
+    previewClass: 'px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'natkhat',
+    label: 'နက္ခတ်',
+    nameMyanmar: 'နက္ခတ် (၁၀ ကွက်)',
+    nameEnglish: 'Natkhat Numbers',
+    desc: '၀၇ မှ ၅၈ အထိ နက္ခတ် ၁၀ ကွက် ထည့်သွင်းမည်',
+    previewClass: 'px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'brothers',
+    label: 'ညီကို',
+    nameMyanmar: 'ညီကို (၂၀ ကွက်)',
+    nameEnglish: 'Brothers Numbers',
+    desc: '၀၁, ၁၂ မှ ၈၉ အထိ ညီကို ၂၀ ကွက် ထည့်သွင်းမည်',
+    previewClass: 'px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold shrink-0'
+  },
+  {
+    key: 'khway',
+    label: 'ခွေ',
+    nameMyanmar: 'ခွေ (ရိုးရိုးခွေ)',
+    nameEnglish: 'Khway Straight',
+    desc: 'ဥပမာ ၁၂၃၄ -> ၆ ကွက်၊ ၂၃၄၅၆ -> ၁၀ ကွက်',
+    previewClass: 'px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-black shadow-xs shrink-0'
+  },
+  {
+    key: 'khwayPuu',
+    label: 'ခွေပူး',
+    nameMyanmar: 'ခွေပူး (ခွေ + အပူး)',
+    nameEnglish: 'Khway Puu',
+    desc: 'ဥပမာ ၁၂၃၄ -> ၁၀ ကွက်၊ ၂၃၄၅၆ -> ၁၅ ကွက်',
+    previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-xs shrink-0'
+  },
+  {
+    key: 'khwayRumble',
+    label: 'ခွေr',
+    nameMyanmar: 'ခွေr (ခွေအာ လှည့်တွဲ)',
+    nameEnglish: 'Khway Rumble',
+    desc: 'ဥပမာ ၁၂၃၄ -> ၁၂ ကွက်၊ ၂၃၄၅၆ -> ၂၀ ကွက်',
+    previewClass: 'px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-black shadow-xs shrink-0'
+  },
+  {
+    key: 'khwayPuuRumble',
+    label: 'ခွေပူးr',
+    nameMyanmar: 'ခွေပူးr (ခွေပူးအာ)',
+    nameEnglish: 'Khway Puu Rumble',
+    desc: 'ဥပမာ ၁၂၃၄ -> ၁၆ ကွက်၊ ၂၃၄၅၆ -> ၂၅ ကွက်',
+    previewClass: 'px-2.5 py-1 bg-purple-600 text-white rounded-lg text-xs font-black shadow-xs shrink-0'
+  }
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
@@ -72,7 +198,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general' | 'backup' | 'statements' | 'excel'>(initialTab);
   const [subTab3D, setSubTab3D] = useState<'rates' | 'limits' | 'blocked'>('rates');
-  const [subTab2D, setSubTab2D] = useState<'rates' | 'limits' | 'blocked'>('rates');
+  const [subTab2D, setSubTab2D] = useState<'rates' | 'limits' | 'blocked' | 'buttons'>('rates');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -515,6 +641,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [disc2D, setDisc2D] = useState(String(lottery2D.settings.defaultCustomerDiscount || 0));
   const [globalLimit2D, setGlobalLimit2D] = useState(String(lottery2D.settings.globalStockLimit || 200000));
   const [footer2D, setFooter2D] = useState(lottery2D.settings.voucherFooterMessage || '');
+  const [actionButtons2D, setActionButtons2D] = useState<TwoDQuickActionButtonsConfig>(() => ({
+    ...DEFAULT_2D_ACTION_BUTTONS,
+    ...(lottery2D.settings.quickActionButtons || {})
+  }));
 
   // 2D Single Number Limit State
   const [numLimit2DInput, setNumLimit2DInput] = useState('');
@@ -568,7 +698,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       defaultCommissionRate: parseFloat(comm2D) || 12,
       defaultCustomerDiscount: parseFloat(disc2D) || 0,
       globalStockLimit: parseFloat(globalLimit2D) || 200000,
-      voucherFooterMessage: footer2D.trim()
+      voucherFooterMessage: footer2D.trim(),
+      quickActionButtons: actionButtons2D
     });
 
     // 3. Save Football
@@ -1322,7 +1453,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     subTab2D === 'limits' ? 'bg-white text-teal-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  ၂။ ဂဏန်းတစ်လုံးချင်း Limit ({Object.keys(lottery2D.limits).length})
+                  ၂။ Limit ({Object.keys(lottery2D.limits).length})
                 </button>
                 <button
                   type="button"
@@ -1331,7 +1462,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     subTab2D === 'blocked' ? 'bg-white text-teal-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  ၃။ ဒိုင်ကာဂဏန်းများ ({filteredBlocked2D.length})
+                  ၃။ ဒိုင်ကာ ({filteredBlocked2D.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubTab2D('buttons')}
+                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                    subTab2D === 'buttons' ? 'bg-white text-teal-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ၄။ အမြန်သွင်းခလုတ်များ
                 </button>
               </div>
 
@@ -1619,6 +1759,139 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </span>
                         ))
                       )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2D Quick Action Buttons Configuration */}
+              {subTab2D === 'buttons' && (
+                <div className="space-y-3">
+                  <div className="bg-teal-50/70 border border-teal-200/80 rounded-xl p-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5 pb-2.5 border-b border-teal-200/60">
+                      <div>
+                        <h4 className="text-xs font-black text-teal-950 flex items-center gap-1.5">
+                          <Sliders className="w-4 h-4 text-teal-600" />
+                          <span>2D အမြန်စာရင်းသွင်း ခလုတ်များ စီမံခြင်း</span>
+                        </h4>
+                        <p className="text-[11px] text-teal-800/80 mt-0.5">
+                          ဖွင့်ထားသော ခလုတ်များသာ အမြန်စာရင်းသွင်း (Quick Entry) တွင် ပေါ်ပြီး အလုပ်လုပ်ပါမည်။ ပိတ်ထားသော ခလုတ်များသည် မျက်နှာပြင်တွင် မပေါ်ဘဲ နေရာမယူပါ။
+                        </p>
+                      </div>
+
+                      {/* Quick Bulk Action Buttons */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allOn: TwoDQuickActionButtonsConfig = {
+                              straight: true,
+                              rumble: true,
+                              break: true,
+                              includes: true,
+                              head: true,
+                              tail: true,
+                              doubles: true,
+                              power: true,
+                              natkhat: true,
+                              brothers: true,
+                              khway: true,
+                              khwayPuu: true,
+                              khwayRumble: true,
+                              khwayPuuRumble: true
+                            };
+                            setActionButtons2D(allOn);
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-teal-50 border border-teal-300 text-teal-900 rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
+                        >
+                          အားလုံးဖွင့်မည်
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allOff: TwoDQuickActionButtonsConfig = {
+                              straight: false,
+                              rumble: false,
+                              break: false,
+                              includes: false,
+                              head: false,
+                              tail: false,
+                              doubles: false,
+                              power: false,
+                              natkhat: false,
+                              brothers: false,
+                              khway: false,
+                              khwayPuu: false,
+                              khwayRumble: false,
+                              khwayPuuRumble: false
+                            };
+                            setActionButtons2D(allOff);
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-rose-300 text-rose-800 rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
+                        >
+                          အားလုံးပိတ်မည်
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActionButtons2D({ ...DEFAULT_2D_ACTION_BUTTONS });
+                          }}
+                          className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
+                        >
+                          မူလအတိုင်း
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Button Grid with Previews and Toggles */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto pr-1">
+                      {BUTTON_DEFINITIONS_2D.map((btn) => {
+                        const isEnabled = actionButtons2D[btn.key];
+                        return (
+                          <label
+                            key={btn.key}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none ${
+                              isEnabled
+                                ? 'bg-white border-teal-300/80 shadow-2xs'
+                                : 'bg-slate-50/70 border-slate-200 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {/* Preview Badge of Button */}
+                              <div className={btn.previewClass}>
+                                {btn.icon && <span className="shrink-0">{btn.icon}</span>}
+                                <span>{btn.label}</span>
+                              </div>
+
+                              {/* Title and Description */}
+                              <div className="min-w-0">
+                                <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                  <span>{btn.nameMyanmar}</span>
+                                  <span className="text-[10px] font-mono text-slate-500 font-normal">({btn.nameEnglish})</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 truncate">
+                                  {btn.desc}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Toggle Switch */}
+                            <div className="shrink-0 flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={(e) => {
+                                  setActionButtons2D(prev => ({
+                                    ...prev,
+                                    [btn.key]: e.target.checked
+                                  }));
+                                }}
+                                className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                              />
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

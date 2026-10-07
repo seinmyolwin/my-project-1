@@ -211,6 +211,23 @@ export interface TwoDForwardSlip {
   notes?: string;
 }
 
+export interface TwoDQuickActionButtonsConfig {
+  straight: boolean;    // တဲ့ (တိုက်ရိုက်ထိုးကြေး)
+  rumble: boolean;      // အာ (ပတ်လည် / R)
+  break: boolean;       // ရိတ် (ဘရိတ် ၁၀ ကွက်)
+  includes: boolean;    // အပါ (အပါ ၁၉ ကွက်)
+  head: boolean;        // ထိပ် (ထိပ်စီး ၁၀ ကွက်)
+  tail: boolean;        // ပိတ် (နောက်ပိတ် ၁၀ ကွက်)
+  doubles: boolean;     // ပူး (အပူး ၁၀ ကွက်)
+  power: boolean;       // ပါဝါ (ပါဝါ ၁၀ ကွက်)
+  natkhat: boolean;     // နက္ခတ် (နက္ခတ် ၁၀ ကွက်)
+  brothers: boolean;    // ညီကို (ညီကို ၂၀ ကွက်)
+  khway: boolean;       // ခွေ (ရိုးရိုးခွေ)
+  khwayPuu: boolean;    // ခွေပူး (ခွေ + အပူး)
+  khwayRumble: boolean; // ခွေr (ခွေအာ လှည့်တွဲ)
+  khwayPuuRumble: boolean; // ခွေပူးr (ခွေပူးအာ)
+}
+
 export interface TwoDAppSettings {
   appName: string;
   shopName: string;
@@ -228,6 +245,7 @@ export interface TwoDAppSettings {
   voucherFooterMessage: string;
   defaultMasterAgentName?: string;
   defaultMasterAgentPhone?: string;
+  quickActionButtons?: TwoDQuickActionButtonsConfig;
 }
 
 export interface TwoDNumberAggregate {

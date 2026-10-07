@@ -200,91 +200,152 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
   const netPayable = subtotal - discountAmount;
 
-  // Add Single Bet Handler
+  // Add Single or Multiple Bet Handler
   const handleAddBet = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    if (!numberInput || numberInput.length !== 3) {
+    const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
+    if (!rawInput) {
       playWarningSound();
       numberInputRef.current?.focus();
       return;
     }
 
-    const amount = parseInt(amountInput, 10);
+    const hasStraightKeyword = /တဲ့|တည့်/i.test(rawInput);
+    const hasRInInput = /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
+    const effectiveRumble = hasStraightKeyword ? false : (isRumble || hasRInInput);
+
+    const cleanForNumbers = rawInput.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+
+    if (rawTokens.length === 0) {
+      playWarningSound();
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    let amount = parseInt(convertMyanmarToEnglishDigits(amountInput).trim(), 10);
+
+    // Check inline amount
+    if (isNaN(amount) || amount <= 0) {
+      if (rawTokens.length > 1) {
+        const lastToken = rawTokens[rawTokens.length - 1];
+        const parsedLast = parseInt(lastToken, 10);
+        if (!isNaN(parsedLast) && parsedLast > 0) {
+          amount = parsedLast;
+          rawTokens.pop();
+        }
+      }
+    } else {
+      if (rawTokens.length > 1) {
+        const lastToken = rawTokens[rawTokens.length - 1];
+        if (lastToken.length >= 4 && /^\d+$/.test(lastToken)) {
+          const parsedLast = parseInt(lastToken, 10);
+          if (!isNaN(parsedLast) && parsedLast > 0) {
+            amount = parsedLast;
+            rawTokens.pop();
+          }
+        }
+      }
+    }
+
     if (isNaN(amount) || amount <= 0) {
       playWarningSound();
       amountInputRef.current?.focus();
       return;
     }
 
-    // Check if dealer protected number
-    if (!isRumble) {
-      if (isNumberBlocked(numberInput)) {
-        playWarningSound();
-        setToastNotification({
-          type: 'error',
-          message: `⛔ ဂဏန်း [${numberInput}] သည် ဒိုင်ကာဂဏန်းအဖြစ် သတ်မှတ်ထားသဖြင့် ထိုးကြေးတက်လာသော်လည်း လုံးဝလက်မခံပါ!`
-        });
-        return;
-      }
+    const targetNumbers = rawTokens.map(t => t.padStart(3, '0')).filter(n => /^\d{3}$/.test(n));
 
-      const newItem: BetItem = {
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 3)}`,
-        number: numberInput,
-        amount: amount,
-        isRumble: false,
-        originalInput: numberInput
-      };
-      playAddSound();
-      setStagedItems(prev => [...prev, newItem]);
-      setLatestDraftIds([newItem.id]);
-    } else {
-      const perms = getPermutations(numberInput);
-      const allowedPerms: string[] = [];
-      const blockedPerms: string[] = [];
-
-      perms.forEach(p => {
-        if (isNumberBlocked(p)) {
-          blockedPerms.push(p);
-        } else {
-          allowedPerms.push(p);
-        }
+    if (targetNumbers.length === 0) {
+      playWarningSound();
+      setToastNotification({
+        type: 'error',
+        message: 'ဂဏန်း (၃ လုံး) မှန်ကန်စွာ ထည့်သွင်းပါ'
       });
+      numberInputRef.current?.focus();
+      return;
+    }
 
-      if (blockedPerms.length > 0) {
-        playWarningSound();
-        setToastNotification({
-          type: 'warning',
-          message: `သတိပြုရန်: ဒိုင်ကာဂဏန်းအဖြစ် သတ်မှတ်ထားသော [${blockedPerms.join(', ')}] များအား ထိုးကြေးလက်မခံဘဲ ချန်လှပ်ထားပါသည်`
+    const newItems: BetItem[] = [];
+    const blockedFound: string[] = [];
+
+    targetNumbers.forEach(cleanNum => {
+      if (!effectiveRumble) {
+        if (isNumberBlocked(cleanNum)) {
+          blockedFound.push(cleanNum);
+        } else {
+          newItems.push({
+            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            number: cleanNum,
+            amount: amount,
+            isRumble: false,
+            originalInput: cleanNum
+          });
+        }
+      } else {
+        const perms = getPermutations(cleanNum);
+        perms.forEach(p => {
+          if (isNumberBlocked(p)) {
+            blockedFound.push(p);
+          } else {
+            newItems.push({
+              id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              number: p,
+              amount: amount,
+              isRumble: true,
+              originalInput: `${cleanNum} R`
+            });
+          }
         });
       }
+    });
 
-      if (allowedPerms.length === 0) {
-        playWarningSound();
-        setToastNotification({
-          type: 'error',
-          message: `⛔ ရွေးချယ်ထားသော ပတ်လည်ဂဏန်းအားလုံးသည် ဒိုင်ကာဂဏန်းများဖြစ်သဖြင့် ထိုးကြေးလုံးဝလက်မခံပါ!`
-        });
-        return;
-      }
+    if (blockedFound.length > 0) {
+      playWarningSound();
+      setToastNotification({
+        type: 'warning',
+        message: `ဒိုင်ကာဂဏန်း [${Array.from(new Set(blockedFound)).join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်`
+      });
+    }
 
-      const newItems: BetItem[] = allowedPerms.map((p, idx) => ({
-        id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 3)}`,
-        number: p,
-        amount: amount,
-        isRumble: true,
-        originalInput: `${numberInput} R`
-      }));
-
+    if (newItems.length > 0) {
       playAddSound();
       setStagedItems(prev => [...prev, ...newItems]);
       setLatestDraftIds(newItems.map(i => i.id));
+      setNumberInput('');
+      setAmountInput('');
+      setIsRumble(false);
+      numberInputRef.current?.focus();
     }
+  };
 
-    setNumberInput('');
-    setAmountInput('');
+  // တဲ့ (Straight / Direct Handler)
+  const handleAddStraightClick = () => {
+    playTapSound();
     setIsRumble(false);
-    numberInputRef.current?.focus();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    const cleanAmt = convertMyanmarToEnglishDigits(amountInput).trim();
+    if (cleanNum) {
+      let amt = parseInt(cleanAmt, 10);
+      if (isNaN(amt) || amt <= 0) {
+        const rawTokens = cleanNum.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ').replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+        if (rawTokens.length > 1) {
+          const lastToken = rawTokens[rawTokens.length - 1];
+          const parsedLast = parseInt(lastToken, 10);
+          if (!isNaN(parsedLast) && parsedLast > 0) {
+            amt = parsedLast;
+          }
+        }
+      }
+      if (!isNaN(amt) && amt > 0) {
+        handleAddBet();
+      } else {
+        amountInputRef.current?.focus();
+      }
+    } else {
+      numberInputRef.current?.focus();
+    }
   };
 
   // Edit Draft Item (fills input form and recalculates totals and limits upon update)
@@ -739,14 +800,11 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                     <input
                       ref={numberInputRef}
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={3}
                       value={numberInput}
                       onChange={(e) => {
-                        const val = convertMyanmarToEnglishDigits(e.target.value).replace(/[^0-9]/g, '').slice(0, 3);
+                        const val = convertMyanmarToEnglishDigits(e.target.value);
                         setNumberInput(val);
-                        if (latestDraftIds.length > 0 && val.length > 0) {
+                        if (latestDraftIds.length > 0 && val.trim().length > 0) {
                           setLatestDraftIds([]);
                         }
                       }}
@@ -760,8 +818,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                         target.select();
                         setTimeout(() => target.select(), 20);
                       }}
-                      placeholder="000 - 999"
-                      className="w-full bg-slate-50 focus:bg-white border-2 border-slate-200 focus:border-indigo-600 rounded-xl px-3 py-2.5 text-2xl font-black text-indigo-950 font-mono tracking-widest text-center outline-none transition-colors shadow-2xs"
+                      placeholder="356 သို့ 123, 456, 789"
+                      className="w-full bg-slate-50 focus:bg-white border-2 border-slate-200 focus:border-indigo-600 rounded-xl px-3 py-2.5 text-xl sm:text-2xl font-black text-indigo-950 font-mono tracking-wider text-center outline-none transition-colors shadow-2xs"
                       autoFocus
                     />
                     {numberInput.length === 3 && (
@@ -831,27 +889,40 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                 </div>
               </div>
 
-              {/* Permutation / Rumble (R) Checkbox Toggle */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={isRumble}
-                    onChange={(e) => setIsRumble(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 bg-white border-slate-300 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                      <span>ပတ်လည် (R / Permutation) အကုန်ခွေထည့်မည်</span>
-                      <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-mono font-bold">
-                        R
-                      </span>
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">
-                      ဂဏန်းတစ်ခုချင်းစီအတွက် {amountInput || 1000} {settings.currency} စီ ထည့်သွင်းပေးပါမည်
-                    </span>
-                  </div>
-                </label>
+              {/* Direct (တဲ့) vs Permutation / Rumble (R) Buttons */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddStraightClick}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                      !isRumble
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}
+                    title="တဲ့ / တိုက်ရိုက်ထိုးကြေး (Straight / Direct)"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isMyanmar ? 'တဲ့ (တိုက်ရိုက်)' : 'Direct'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playTapSound();
+                      setIsRumble(prev => !prev);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                      isRumble
+                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white ring-1 ring-indigo-500 shadow-xs'
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}
+                    title="ပတ်လည် / အာ (R)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{isMyanmar ? 'အာ (ပတ်လည်)' : 'Rumble (R)'}</span>
+                  </button>
+                </div>
 
                 {isRumble && permPreview.length > 0 && (
                   <div className="flex items-center gap-1 text-xs text-indigo-800 font-mono font-bold bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-lg">

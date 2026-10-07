@@ -6,6 +6,7 @@ import {
   NumberLimit,
   BlockedNumbers,
   TwoDAppSettings,
+  TwoDQuickActionButtonsConfig,
   TwoDDrawRound,
   TwoDVoucher,
   TwoDForwardSlip,
@@ -158,6 +159,23 @@ export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
 // ====================================================
 // 2D LOTTERY INITIAL DATA & STORAGE
 // ====================================================
+export const DEFAULT_2D_ACTION_BUTTONS: TwoDQuickActionButtonsConfig = {
+  straight: true,       // တဲ့ (တိုက်ရိုက်ထိုးကြေး)
+  rumble: true,         // အာ (ပတ်လည် / R)
+  break: true,          // ရိတ် (ဘရိတ် ၁၀ ကွက်)
+  includes: true,       // အပါ (အပါ ၁၉ ကွက်)
+  head: true,           // ထိပ် (ထိပ်စီး ၁၀ ကွက်)
+  tail: true,           // ပိတ် (နောက်ပိတ် ၁၀ ကွက်)
+  doubles: true,        // ပူး (အပူး ၁၀ ကွက်)
+  power: true,          // ပါဝါ (ပါဝါ ၁၀ ကွက်)
+  natkhat: true,        // နက္ခတ် (နက္ခတ် ၁၀ ကွက်)
+  brothers: true,       // ညီကို (ညီကို ၂၀ ကွက်)
+  khway: true,          // ခွေ (ရိုးရိုးခွေ)
+  khwayPuu: true,       // ခွေပူး (ခွေ + အပူး)
+  khwayRumble: true,    // ခွေr (ခွေအာ လှည့်တွဲ)
+  khwayPuuRumble: true  // ခွေပူးr (ခွေပူးအာ)
+};
+
 export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   appName: 'ရွှေမင်္ဂလာ',
   shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
@@ -174,7 +192,8 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   printPaperSize: '80mm',
   voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သေချာသိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၂၄ နာရီအတွင်း ငွေထုတ်ယူနိုင်ပါသည်။',
   defaultMasterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
-  defaultMasterAgentPhone: '09-970001111'
+  defaultMasterAgentPhone: '09-970001111',
+  quickActionButtons: DEFAULT_2D_ACTION_BUTTONS
 };
 
 export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds();
