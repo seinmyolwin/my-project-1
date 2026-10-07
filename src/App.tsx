@@ -139,6 +139,9 @@ function AppContent() {
   const [isLimitsModal3DOpen, setIsLimitsModal3DOpen] = useState(false);
   const [limitInitialNumber3D, setLimitInitialNumber3D] = useState<string | undefined>(undefined);
 
+  const [isLimitsModal2DOpen, setIsLimitsModal2DOpen] = useState(false);
+  const [limitInitialNumber2D, setLimitInitialNumber2D] = useState<string | undefined>(undefined);
+
   const [isRoundManager3DOpen, setIsRoundManager3DOpen] = useState(false);
   const [isRoundManager2DOpen, setIsRoundManager2DOpen] = useState(false);
 
@@ -163,6 +166,7 @@ function AppContent() {
     isRoundManager3DOpen ||
     isRoundManager2DOpen ||
     isLimitsModal3DOpen ||
+    isLimitsModal2DOpen ||
     isForwardModal3DOpen ||
     isForwardModal2DOpen ||
     isBackupModalOpen ||
@@ -183,6 +187,7 @@ function AppContent() {
     else if (isRoundManager3DOpen) setIsRoundManager3DOpen(false);
     else if (isRoundManager2DOpen) setIsRoundManager2DOpen(false);
     else if (isLimitsModal3DOpen) setIsLimitsModal3DOpen(false);
+    else if (isLimitsModal2DOpen) setIsLimitsModal2DOpen(false);
     else if (isForwardModal3DOpen) setIsForwardModal3DOpen(false);
     else if (isForwardModal2DOpen) setIsForwardModal2DOpen(false);
     else if (isBackupModalOpen) setIsBackupModalOpen(false);
@@ -201,6 +206,7 @@ function AppContent() {
     isRoundManager3DOpen,
     isRoundManager2DOpen,
     isLimitsModal3DOpen,
+    isLimitsModal2DOpen,
     isForwardModal3DOpen,
     isForwardModal2DOpen,
     isBackupModalOpen,
@@ -276,7 +282,8 @@ function AppContent() {
       setLimitInitialNumber3D(num);
       setIsLimitsModal3DOpen(true);
     } else if (dealerMode === '2d') {
-      setIsPinPromptOpen(true);
+      setLimitInitialNumber2D(num);
+      setIsLimitsModal2DOpen(true);
     }
   };
 
@@ -403,7 +410,7 @@ function AppContent() {
             {activeTab2D === 'ledger' && (
               <TwoDLiveLedgerView
                 onOpenForwardModal={handleOpenForwardModal}
-                onOpenLimitsManager={() => setIsPinPromptOpen(true)}
+                onOpenLimitsManager={(num) => handleOpenLimitsModal(num)}
               />
             )}
 
@@ -490,6 +497,15 @@ function AppContent() {
         onClose={() => setIsRoundManager2DOpen(false)}
       />
 
+      <TwoDLimitsManager
+        isOpen={isLimitsModal2DOpen}
+        onClose={() => {
+          setIsLimitsModal2DOpen(false);
+          setLimitInitialNumber2D(undefined);
+        }}
+        initialNumber={limitInitialNumber2D}
+      />
+
       {/* Unified Backup & Restore Modal */}
       <UnifiedBackupModal
         isOpen={isBackupModalOpen}
@@ -548,20 +564,27 @@ function AppContent() {
         isOpen={isPreviousResultsOpen}
         onClose={() => setIsPreviousResultsOpen(false)}
         mode={dealerMode}
-        onSelectRound3D={() => {
+        onSelectRound3D={(roundId) => {
+          if (roundId) lottery3D.setActiveRoundId(roundId);
           setActiveTab3D('ledger');
+          setIsPreviousResultsOpen(false);
         }}
-        onSelectRound2D={() => {
+        onSelectRound2D={(roundId) => {
+          if (roundId) lottery2D.setActiveRoundId(roundId);
           setActiveTab2D('ledger');
+          setIsPreviousResultsOpen(false);
         }}
         onGoToWinningPayouts3D={() => {
-          setActiveTab3D('payouts');
+          setActiveTab3D('winning');
+          setIsPreviousResultsOpen(false);
         }}
         onGoToWinningPayouts2D={() => {
-          setActiveTab2D('payouts');
+          setActiveTab2D('winning');
+          setIsPreviousResultsOpen(false);
         }}
         onGoToFootballSlips={() => {
-          setActiveTabFB('slips');
+          setActiveTabFB('slips_list');
+          setIsPreviousResultsOpen(false);
         }}
       />
 

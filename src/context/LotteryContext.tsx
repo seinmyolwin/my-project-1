@@ -23,7 +23,8 @@ import {
   loadStoredData,
   saveStoredData
 } from '../utils/storage';
-import { evaluateWinnings, exportLotteryDataToExcel } from '../utils/lotteryUtils';
+import { evaluateWinnings, exportLotteryDataToExcel, getPermutations } from '../utils/lotteryUtils';
+import { calculatePayout } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 
@@ -503,6 +504,38 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
 
+    const sMult = multiplier || activeRound?.multiplier || settings.defaultMultiplier || 600;
+    const tMult = toddMultiplier || activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100;
+    const allPerms = new Set(getPermutations(winningNumber));
+
+    // Update vouchers item isWon and wonAmount
+    setVouchers(prev =>
+      prev.map(v => {
+        if (v.roundId === activeRoundId) {
+          let voucherWon = false;
+          const updatedItems = v.items.map(item => {
+            const isRumble = item.betType === 'rumble';
+            if (item.number === winningNumber && !isRumble) {
+              const winPayout = calculatePayout(item.amount, sMult);
+              voucherWon = true;
+              return { ...item, isWon: true, wonAmount: winPayout };
+            } else if (isRumble && allPerms.has(item.number) && tMult > 0) {
+              const winPayout = calculatePayout(item.amount, tMult);
+              voucherWon = true;
+              return { ...item, isWon: true, wonAmount: winPayout };
+            }
+            return { ...item, isWon: false, wonAmount: 0 };
+          });
+          return {
+            ...v,
+            status: voucherWon ? ('settled' as const) : v.status,
+            items: updatedItems
+          };
+        }
+        return v;
+      })
+    );
+
     // Trigger celebration confetti
     try {
       confetti({
@@ -519,18 +552,32 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return {
           ...r,
           winningNumber,
-          multiplier: multiplier || r.multiplier || settings.defaultMultiplier,
-          toddMultiplier: toddMultiplier || r.toddMultiplier || settings.defaultToddMultiplier,
+          multiplier: sMult,
+          toddMultiplier: tMult,
           status: 'settled',
           settledAt: new Date().toISOString()
         };
       }
       return r;
     }));
-  }, [activeRoundId, settings]);
+  }, [activeRoundId, activeRound, settings]);
 
   const clearWinningSettlement = useCallback(() => {
     if (!activeRoundId) return;
+
+    setVouchers(prev =>
+      prev.map(v => {
+        if (v.roundId === activeRoundId) {
+          return {
+            ...v,
+            status: 'active',
+            items: v.items.map(i => ({ ...i, isWon: false, wonAmount: 0 }))
+          };
+        }
+        return v;
+      })
+    );
+
     setRounds(prev => prev.map(r => {
       if (r.id === activeRoundId) {
         return {
