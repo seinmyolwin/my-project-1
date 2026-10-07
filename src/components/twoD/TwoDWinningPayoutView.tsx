@@ -114,16 +114,33 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   const isSettled = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
 
-  const handleSettle = (e: React.FormEvent) => {
+  const [isWinningConfirmed, setIsWinningConfirmed] = useState(() => activeRound?.status === 'settled');
+
+  useEffect(() => {
+    setIsWinningConfirmed(activeRound?.status === 'settled');
+  }, [activeRound?.status]);
+
+  const handleConfirmWinning = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNum = winningInput.trim();
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
       alert(isMyanmar ? 'ပေါက်ဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter a valid 2-digit winning number');
       return;
     }
+    setIsWinningConfirmed(true);
+  };
 
+  const handleCloseRound = () => {
+    const cleanNum = winningInput.trim();
+    if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) return;
     const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80;
+
+    // Auto-save the comprehensive 2D data report to the device first!
+    exportToExcel();
+
+    // Officially settle/close the 2D round
     settleWinningNumber(cleanNum, mult);
+    setIsWinningConfirmed(true);
   };
 
   // Winning items filtered from active vouchers
@@ -176,7 +193,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
         )}
 
         {/* Input Form */}
-        <form onSubmit={handleSettle} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+        <form onSubmit={handleConfirmWinning} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
           <div className="sm:col-span-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-700">
@@ -253,6 +270,30 @@ export const TwoDWinningPayoutView: React.FC = () => {
             </button>
           </div>
         </form>
+
+        {isWinningConfirmed && activeRound?.status === 'open' && (
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-200 mt-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                ✓
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-emerald-950">ပေါက်မဲ တွက်ချက်စစ်ဆေးပြီးပါပြီ</h4>
+                <p className="text-xs text-emerald-800">
+                  ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းဇယားဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲရန် အောက်ပါခလုတ်ကို နှိပ်ပါ။
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseRound}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0 animate-bounce"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>ပွဲစဉ်ပိတ်သိမ်းမည် & စာရင်းသိမ်းမည် (အော်တိုဒေါင်းလုဒ်)</span>
+            </button>
+          </div>
+        )}
 
         {/* Previous 2D Winning Draws Quick Strip (Strictly 2D only) */}
         {settled2DRounds.length > 0 && (

@@ -528,6 +528,16 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
+                {/* စာရင်းရှင်းတမ်း (Financial Statements) Quick Action */}
+                <button
+                  onClick={onOpenStatements}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                  title="၁ ပတ်စာ၊ ၅ ရက်စာ၊ ၁ လစာ စာရင်းရှင်းတမ်း အစီရင်ခံစာများ"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  <span className="hidden sm:inline">{isMyanmar ? 'ရှင်းတမ်း' : 'Statements'}</span>
+                </button>
+
                 {/* Settings with Lock Badge (Contains Limits, Statements, Excel & Security) */}
                 <button
                   onClick={onOpenSettings}

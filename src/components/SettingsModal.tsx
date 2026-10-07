@@ -33,6 +33,7 @@ import {
   Printer
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
+import { printStatementReport } from '../utils/printUtils';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate } from '../types';
@@ -162,20 +163,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   // Financial Statements State & Calculations
-  const [statementPeriod, setStatementPeriod] = useState<'today' | 'week' | 'month' | 'custom'>('week');
+  const [statementPeriod, setStatementPeriod] = useState<'today' | 'five_days' | 'week' | 'month' | 'custom'>('week');
   const [statementMode, setStatementMode] = useState<'all' | '3d' | '2d' | 'football'>('all');
+  const getDaysAgo = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+  };
   const todayStr = new Date().toISOString().slice(0, 10);
-  const oneWeekAgoStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const oneMonthAgoStr = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const fiveDaysAgoStr = getDaysAgo(4);
+  const oneWeekAgoStr = getDaysAgo(6);
+  const oneMonthAgoStr = getDaysAgo(29);
   const [stmtCustomStart, setStmtCustomStart] = useState(oneWeekAgoStr);
   const [stmtCustomEnd, setStmtCustomEnd] = useState(todayStr);
 
   const { stmtStartDate, stmtEndDate } = React.useMemo(() => {
     if (statementPeriod === 'today') return { stmtStartDate: todayStr, stmtEndDate: todayStr };
+    if (statementPeriod === 'five_days') return { stmtStartDate: fiveDaysAgoStr, stmtEndDate: todayStr };
     if (statementPeriod === 'week') return { stmtStartDate: oneWeekAgoStr, stmtEndDate: todayStr };
     if (statementPeriod === 'month') return { stmtStartDate: oneMonthAgoStr, stmtEndDate: todayStr };
     return { stmtStartDate: stmtCustomStart, stmtEndDate: stmtCustomEnd };
-  }, [statementPeriod, todayStr, oneWeekAgoStr, oneMonthAgoStr, stmtCustomStart, stmtCustomEnd]);
+  }, [statementPeriod, todayStr, fiveDaysAgoStr, oneWeekAgoStr, oneMonthAgoStr, stmtCustomStart, stmtCustomEnd]);
 
   // Aggregate Statement Records
   const stmtRecords = React.useMemo(() => {
@@ -1934,8 +1942,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className="text-[11px] font-bold text-slate-500 mr-1">ကာလ:</span>
                     {[
                       { id: 'today', label: 'ဒီနေ့' },
-                      { id: 'week', label: 'ဒီတစ်ပတ်' },
-                      { id: 'month', label: 'ဒီတစ်လ' },
+                      { id: 'five_days', label: '၅ ရက်စာ' },
+                      { id: 'week', label: '၁ ပတ်စာ' },
+                      { id: 'month', label: '၁ လစာ' },
                       { id: 'custom', label: 'စိတ်ကြိုက်' }
                     ].map((p) => (
                       <button
@@ -2001,8 +2010,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
               </div>
 
-              {/* Summary Stats Overview Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div id="printable-statement" className="space-y-4">
+                {/* Print-only Statement Header Banner */}
+                <div className="hidden print:block border-b-2 border-slate-900 pb-3 mb-4 text-center">
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                    {useLottery().settings.shopName || 'ရွှေမင်္ဂလာ'} - စာရင်းရှင်းတမ်း အစီရင်ခံစာ
+                  </h2>
+                  <p className="text-xs text-slate-600 font-bold mt-1">
+                    {statementPeriod === 'today' ? 'ဒီနေ့ စာရင်းရှင်းတမ်း' :
+                     statementPeriod === 'five_days' ? '၅ ရက်စာ စာရင်းရှင်းတမ်း' :
+                     statementPeriod === 'week' ? '၁ ပတ်စာ စာရင်းရှင်းတမ်း' :
+                     statementPeriod === 'month' ? '၁ လစာ စာရင်းရှင်းတမ်း' : 'ရက်ရွေး စာရင်းရှင်းတမ်း'} 
+                    {' '}({stmtStartDate} မှ {stmtEndDate} အထိ)
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    အမျိုးအစား: {statementMode === 'all' ? 'လုပ်ငန်းအားလုံးချုပ်' : statementMode === '3d' ? 'အိုးစည်လေး (3D)' : statementMode === '2d' ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (ဘောလုံး)'}
+                  </p>
+                </div>
+
+                {/* Summary Stats Overview Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
                   <span className="text-[10px] text-slate-500 font-bold block uppercase">စုစုပေါင်း အရောင်းရငွေ</span>
                   <div className="text-base sm:text-lg font-black font-mono text-slate-900 mt-0.5">
@@ -2067,11 +2094,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => window.print()}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                      onClick={() => printStatementReport('printable-statement', 'ရွှေမင်္ဂလာ စာရင်းရှင်းတမ်း အစီရင်ခံစာ')}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="ပရင့်ထုတ်ရန် သို့မဟုတ် PDF အဖြစ် သိမ်းဆည်းရန်"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Print</span>
+                      <span>ပရင့် / PDF</span>
                     </button>
                   </div>
                 </div>
@@ -2122,6 +2150,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     ))}
                   </div>
                 )}
+              </div>
               </div>
             </div>
           )}

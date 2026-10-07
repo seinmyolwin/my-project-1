@@ -138,7 +138,7 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
               )}
             </div>
 
-            {/* Numbers list - Responsive 2-Col Grid for Single Sheet A6 fit */}
+            {/* Numbers list - Responsive 2/3-Col Grid for Single Sheet A6 fit */}
             <div className="border-t border-dashed border-slate-300 pt-1.5 space-y-1 pb-1.5">
               <div className="flex justify-between font-bold text-[10px] text-slate-900 border-b border-slate-200 pb-0.5">
                 <span>ဂဏန်း</span>
@@ -146,14 +146,16 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
               </div>
 
               <div
-                className={`${
-                  isMultiCol
+                className={`voucher-items-container ${
+                  isThreeCol
+                    ? 'grid grid-cols-3 gap-x-2 gap-y-0.5 max-h-48 overflow-y-auto pr-0.5'
+                    : isMultiCol
                     ? 'grid grid-cols-2 gap-x-3 gap-y-0.5 max-h-48 overflow-y-auto pr-0.5'
                     : 'space-y-0.5 max-h-48 overflow-y-auto pr-0.5'
                 }`}
               >
                 {voucher.items.map((it, idx) => (
-                  <div key={idx} className="flex justify-between text-[11px] leading-tight">
+                  <div key={idx} className="flex justify-between text-[10.5px] leading-tight">
                     <span className="font-black tracking-wider text-slate-950">{it.number}</span>
                     <span className="font-bold text-slate-700">{formatAmount(it.amount, settings.currency)}</span>
                   </div>
@@ -210,15 +212,15 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
             <span className="truncate">{saveToast ? 'သိမ်းပြီး' : 'Save'}</span>
           </button>
 
-          {/* Action 3: Print (A6 Exact Print) */}
+          {/* Action 3: Print (A6 Single Sheet Exact Print / PDF) */}
           <button
             type="button"
             onClick={handlePrint}
             className="flex-1 py-2.5 px-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer active:scale-95"
-            title="A6 တရွက်စာ ပရင့်ထုတ်မည်"
+            title="A6 တရွက်တည်း ထွက်အောင် ပရင့်ထုတ်မည် / PDF အဖြစ် သိမ်းဆည်းမည်"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span className="truncate">Print (A6)</span>
+            <span className="truncate">ပရင့် / PDF (တရွက်)</span>
           </button>
         </div>
 

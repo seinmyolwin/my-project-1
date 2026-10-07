@@ -129,13 +129,29 @@ export const WinningPayoutView: React.FC = () => {
     return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
   }, [activeRoundVouchers, winningInput, multiplierInput, toddMultiplierInput]);
 
-  // Handle Settle Winning
-  const handleSettle = (e: React.FormEvent) => {
+  const [isWinningConfirmed, setIsWinningConfirmed] = useState(() => activeRound?.status === 'settled');
+
+  useEffect(() => {
+    setIsWinningConfirmed(activeRound?.status === 'settled');
+  }, [activeRound?.status]);
+
+  const handleConfirmWinning = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!winningInput || winningInput.length !== 3) return;
+    setIsWinningConfirmed(true);
+  };
+
+  const handleCloseRound = () => {
     if (!winningInput || winningInput.length !== 3) return;
     const mult = parseInt(multiplierInput, 10) || 600;
     const toddMult = parseInt(toddMultiplierInput, 10) || 100;
+    
+    // Auto-save the comprehensive data report to the device first!
+    exportToExcel();
+    
+    // Officially settle/close round in the context
     settleWinningNumber(winningInput, mult, toddMult);
+    setIsWinningConfirmed(true);
   };
 
   // Copy Winning Message for Customer
@@ -218,7 +234,7 @@ ${settings.shopName} (${settings.shopPhone})`;
         )}
 
         {/* Input Form */}
-        <form onSubmit={handleSettle} className="space-y-4">
+        <form onSubmit={handleConfirmWinning} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
             
             {/* 3-Digit Winning Number */}
@@ -352,6 +368,30 @@ ${settings.shopName} (${settings.shopPhone})`;
             ))}
           </div>
         </form>
+
+        {isWinningConfirmed && activeRound?.status === 'open' && (
+          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-200 mt-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                ✓
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-emerald-950">ပေါက်မဲ တွက်ချက်စစ်ဆေးပြီးပါပြီ</h4>
+                <p className="text-xs text-emerald-800">
+                  ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းဇယားဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲရန် အောက်ပါခလုတ်ကို နှိပ်ပါ။
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseRound}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0 animate-bounce"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>ပွဲစဉ်ပိတ်သိမ်းမည် & စာရင်းသိမ်းမည် (အော်တိုဒေါင်းလုဒ်)</span>
+            </button>
+          </div>
+        )}
 
         {/* Previous 3D Winning Draws Quick Strip (Strictly 3D only) */}
         {settled3DRounds.length > 0 && (
