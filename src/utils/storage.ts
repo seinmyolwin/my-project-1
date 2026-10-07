@@ -727,14 +727,75 @@ export function loadStoredData<T>(key: string, defaultValue: T): T {
   }
 }
 
-export function saveStoredData<T>(key: string, data: T): void {
+export function saveStoredData<T>(key: string, data: T): boolean {
+  const previousPrimary = localStorage.getItem(key);
+  const previousBackup = localStorage.getItem(`${key}_backup`);
+
   try {
     const str = JSON.stringify(data);
     localStorage.setItem(key, str);
-    // Maintain secondary safety snapshot to protect against accidental browser eviction
     localStorage.setItem(`${key}_backup`, str);
+    return true;
   } catch (err) {
-    console.error(`Failed to save ${key} to storage:`, err);
+    console.error(`Failed to save ${key} to storage. Rolling back to previous state:`, err);
+    try {
+      if (previousPrimary !== null) {
+        localStorage.setItem(key, previousPrimary);
+      } else {
+        localStorage.removeItem(key);
+      }
+      if (previousBackup !== null) {
+        localStorage.setItem(`${key}_backup`, previousBackup);
+      } else {
+        localStorage.removeItem(`${key}_backup`);
+      }
+    } catch (rollbackErr) {
+      console.error(`Rollback failed for ${key}:`, rollbackErr);
+    }
+    return false;
+  }
+}
+
+/**
+ * Atomically saves multiple key-value pairs to localStorage.
+ * If any single key write fails (e.g. storage limit, browser error),
+ * ALL keys are immediately rolled back to their exact previous state (ACID transaction).
+ */
+export function saveBatchTransactional(updates: Record<string, any>): boolean {
+  const snapshots: Record<string, { primary: string | null; backup: string | null }> = {};
+
+  // 1. Take snapshot of all target keys
+  for (const key of Object.keys(updates)) {
+    snapshots[key] = {
+      primary: localStorage.getItem(key),
+      backup: localStorage.getItem(`${key}_backup`)
+    };
+  }
+
+  // 2. Attempt atomic updates
+  const writtenKeys: string[] = [];
+  try {
+    for (const [key, value] of Object.entries(updates)) {
+      const str = JSON.stringify(value);
+      localStorage.setItem(key, str);
+      localStorage.setItem(`${key}_backup`, str);
+      writtenKeys.push(key);
+    }
+    return true;
+  } catch (err) {
+    console.error('Atomic batch save failed! Reverting all modified storage keys...', err);
+    // 3. Rollback all modified keys to exact previous snapshot
+    for (const key of writtenKeys) {
+      const snap = snapshots[key];
+      if (snap) {
+        if (snap.primary !== null) localStorage.setItem(key, snap.primary);
+        else localStorage.removeItem(key);
+
+        if (snap.backup !== null) localStorage.setItem(`${key}_backup`, snap.backup);
+        else localStorage.removeItem(`${key}_backup`);
+      }
+    }
+    return false;
   }
 }
 

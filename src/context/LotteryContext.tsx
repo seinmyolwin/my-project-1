@@ -25,6 +25,7 @@ import {
 } from '../utils/storage';
 import { evaluateWinnings, exportLotteryDataToExcel } from '../utils/lotteryUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
+import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 
 interface LotteryContextType {
   settings: AppSettings;
@@ -377,8 +378,33 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const addVoucher = useCallback((voucherData: Omit<Voucher, 'id' | 'voucherNo' | 'createdAt'>) => {
-    const count = vouchers.length + 1;
-    const pad = String(count).padStart(4, '0');
+    // Duplicate Protection: Prevent same voucher submit twice within 4 seconds
+    const fp = generateSubmissionFingerprint('3D_VOUCHER_SAVE', {
+      roundId: voucherData.roundId,
+      customerName: voucherData.customerName,
+      subtotal: voucherData.subtotal,
+      netPayable: voucherData.netPayable,
+      items: voucherData.items
+    });
+    if (isDuplicateSubmission(fp, 4000)) {
+      console.warn('Duplicate 3D voucher submission detected and blocked!');
+      // Find and return existing duplicate if already in state
+      const existing = vouchers.find(v =>
+        v.roundId === voucherData.roundId &&
+        v.customerName === voucherData.customerName &&
+        v.netPayable === voucherData.netPayable &&
+        JSON.stringify(v.items) === JSON.stringify(voucherData.items)
+      );
+      if (existing) return existing;
+    }
+
+    const existingSeq = vouchers.map(v => {
+      const match = v.voucherNo?.match(/\d+/);
+      return match ? parseInt(match[0], 10) : 0;
+    });
+    const maxSeq = existingSeq.length > 0 ? Math.max(...existingSeq) : 0;
+    const nextSeq = Math.max(maxSeq + 1, vouchers.length + 1);
+    const pad = String(nextSeq).padStart(4, '0');
     const newVoucher: Voucher = {
       ...voucherData,
       id: `vouch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -387,7 +413,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setVouchers(prev => [newVoucher, ...prev]);
     return newVoucher;
-  }, [vouchers.length]);
+  }, [vouchers]);
 
   const updateVoucher = useCallback((id: string, data: Partial<Voucher>) => {
     setVouchers(prev => prev.map(v => v.id === id ? { ...v, ...data } : v));
@@ -469,6 +495,13 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const settleWinningNumber = useCallback((winningNumber: string, multiplier?: number, toddMultiplier?: number) => {
     if (!activeRoundId) return;
+
+    // Duplicate Protection: Avoid duplicate settlement or double confetti if already settled with same number
+    const fp = generateSubmissionFingerprint('3D_SETTLE_ROUND', { activeRoundId, winningNumber, multiplier, toddMultiplier });
+    if (isDuplicateSubmission(fp, 5000)) {
+      console.warn('Duplicate settlement attempt blocked!');
+      return;
+    }
 
     // Trigger celebration confetti
     try {

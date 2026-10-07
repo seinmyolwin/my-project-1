@@ -722,32 +722,41 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     // Check if any numbers in this voucher exceed limits
-    let hasOverLimit = false;
     const itemSums: { [num: string]: number } = {};
     items.forEach(i => {
       itemSums[i.number] = (itemSums[i.number] || 0) + i.amount;
     });
 
+    const pendingOverLimits: OverLimitItemInfo[] = [];
     Object.keys(itemSums).forEach(num => {
       const addedAmt = itemSums[num];
       const currentSold = aggregates[num]?.totalSold || 0;
       const lmt = getNumberLimit(num);
       if (lmt > 0 && currentSold + addedAmt > lmt) {
-        hasOverLimit = true;
+        const remainingQuota = Math.max(0, lmt - currentSold);
+        const excessAmount = (currentSold + addedAmt) - lmt;
+        pendingOverLimits.push({
+          id: num,
+          number: num,
+          originalAmount: addedAmt,
+          existingSold: currentSold,
+          limit: lmt,
+          remainingQuota,
+          excessAmount,
+          action: 'forward_excess'
+        });
       }
     });
 
-    // Save voucher directly
-    createFinalVoucher(items);
-
-    if (hasOverLimit) {
-      showToast(
-        isMyanmar
-          ? 'ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ (သတ်မှတ်ချက် ကျော်လွန်သော ဂဏန်းများကို "ဒိုင်ကြီးဆီ ပြန်တင်ရန်" စာရင်းထဲသို့ အလိုအလျောက် စုစည်းပေးထားပါသည်)'
-          : 'Voucher saved! Excess numbers compiled for batch master forwarding.',
-        'success'
-      );
+    if (pendingOverLimits.length > 0) {
+      playWarningSound();
+      setPendingOverLimitItems(pendingOverLimits);
+      setIsOverLimitModalOpen(true);
+      return;
     }
+
+    // Save voucher directly only if all items are within limits
+    createFinalVoucher(items);
   };
 
   // Create Voucher with decision resolutions

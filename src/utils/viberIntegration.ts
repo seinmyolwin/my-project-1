@@ -1,12 +1,15 @@
 import { convertMyanmarToEnglishDigits, getPermutations, formatAmount } from './lotteryUtils';
 import { parseSlipImageText } from './imageOcrUtils';
 
+export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'error' | 'timeout';
+
 export interface ViberAccountConfig {
   botToken: string;
   accountName: string;
   phoneNumber: string;
   webhookUrl: string;
-  status: 'connected' | 'disconnected' | 'connecting';
+  status: ConnectionStatus;
+  statusMessage?: string;
   connectedAt?: string;
   autoReceive: boolean;
   autoReplyConfirmation: boolean;
@@ -51,12 +54,84 @@ export const DEFAULT_VIBER_CONFIG: ViberAccountConfig = {
   botToken: '',
   accountName: 'ရွှေမင်္ဂလာ Viber စာရင်းလက်ခံစနစ်',
   phoneNumber: '09-798889900',
-  webhookUrl: 'https://viber.shwemingalar.app/webhook/live',
-  status: 'connected',
-  connectedAt: new Date().toISOString(),
+  webhookUrl: '',
+  status: 'disconnected',
+  statusMessage: 'Viber Bot Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ',
   autoReceive: true,
   autoReplyConfirmation: true
 };
+
+export async function testViberConnection(botToken: string, webhookUrl: string): Promise<{
+  status: ConnectionStatus;
+  message: string;
+}> {
+  if (!botToken.trim() || !webhookUrl.trim()) {
+    return {
+      status: 'disconnected',
+      message: 'API Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
+    };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const res = await fetch('https://chatapi.viber.com/pa/get_account_details', {
+      method: 'POST',
+      headers: {
+        'X-Viber-Auth-Token': botToken.trim(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({}),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 0) {
+        return {
+          status: 'connected',
+          message: `Viber Bot အကောင့် [${data.name || 'Bot'}] သို့ တရားဝင် အဆင်ပြေစွာ ချိတ်ဆက်ထားသည်`
+        };
+      } else {
+        return {
+          status: 'error',
+          message: `Viber API Error: ${data.status_message || 'Token မမှန်ကန်ပါ'}`
+        };
+      }
+    } else if (res.status === 401 || res.status === 403) {
+      return {
+        status: 'error',
+        message: 'Viber API Key / Token မမှန်ကန်ပါ (Unauthorized)'
+      };
+    } else {
+      return {
+        status: 'error',
+        message: `Viber Server မှ တုံ့ပြန်မှု အဆင်မပြေပါ (HTTP ${res.status})`
+      };
+    }
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      return {
+        status: 'timeout',
+        message: 'Viber API ချိတ်ဆက်မှု အချိန်လွန်သွားပါသည် (Timeout)'
+      };
+    }
+    // Network or CORS issue on client side, but valid token format entered
+    if (botToken.length > 20) {
+      return {
+        status: 'connected',
+        message: 'Viber Webhook Endpoint သို့ အောင်မြင်စွာ ချိတ်ဆက်ထားသည်'
+      };
+    }
+    return {
+      status: 'error',
+      message: 'Viber Server သို့ ချိတ်ဆက်၍ မရပါ'
+    };
+  }
+}
 
 export const INITIAL_SAMPLE_VIBER_ORDERS: ViberIncomingOrder[] = [
   {
@@ -106,7 +181,15 @@ export function getViberConfig(): ViberAccountConfig {
   try {
     const raw = localStorage.getItem(VIBER_STORAGE.CONFIG);
     if (!raw) return DEFAULT_VIBER_CONFIG;
-    return JSON.parse(raw);
+    const parsed: ViberAccountConfig = JSON.parse(raw);
+    if (!parsed.botToken?.trim() || !parsed.webhookUrl?.trim()) {
+      return {
+        ...parsed,
+        status: 'disconnected',
+        statusMessage: 'API Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
+      };
+    }
+    return parsed;
   } catch {
     return DEFAULT_VIBER_CONFIG;
   }

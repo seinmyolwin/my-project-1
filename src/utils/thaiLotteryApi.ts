@@ -180,18 +180,18 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
       let eveStatus: 'open' | 'closed' | 'settled' = 'settled';
 
       if (isToday) {
-        // Today's rounds start open with NO winning number until the owner enters and confirms
+        // Today's rounds start open with NO winning number until confirmed from official API or owner entry
         eveWinning = undefined;
         eveStatus = 'open';
       } else {
-        // Past days: lookup in history or calculate
+        // Past days: lookup in official history only
         const historyEve = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[1]?.twod;
         if (historyEve) {
           eveWinning = String(historyEve).padStart(2, '0');
-        } else if (dateStr === '2026-10-05') {
-          eveWinning = '63';
+          eveStatus = 'settled';
         } else {
-          eveWinning = calculateSET2D(dateStr, 'evening').twod;
+          eveWinning = undefined;
+          eveStatus = 'open';
         }
       }
 
@@ -210,21 +210,21 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
 
       // Morning Round (12:01 PM)
       let mornWinning: string | undefined = undefined;
-      let mornStatus: 'open' | 'closed' | 'settled' = 'settled';
+      let mornStatus: 'open' | 'closed' | 'settled' = 'open';
 
       if (isToday) {
-        // Today's morning round starts open with NO winning number until the owner enters and confirms
+        // Today's morning round starts open with NO winning number until confirmed
         mornWinning = undefined;
         mornStatus = 'open';
       } else {
-        // Past days: lookup in history or calculate
+        // Past days: lookup in official history only
         const historyMorn = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[0]?.twod;
         if (historyMorn) {
           mornWinning = String(historyMorn).padStart(2, '0');
-        } else if (dateStr === '2026-10-05') {
-          mornWinning = '56';
+          mornStatus = 'settled';
         } else {
-          mornWinning = calculateSET2D(dateStr, 'morning').twod;
+          mornWinning = undefined;
+          mornStatus = 'open';
         }
       }
 
@@ -271,14 +271,13 @@ export function generateUpToDate3DRounds(liveData?: LiveLotteryPayload | null): 
     const d16 = new Date(y, m, 16);
     const dateStr16 = toDateStr(d16);
     const label16 = formatDrawDateName(d16);
-    const calc16 = calculateGLO3D(dateStr16);
 
-    let status16: 'open' | 'closed' | 'settled' = 'settled';
-    let win16: string | undefined = calc16.threed;
+    let status16: 'open' | 'closed' | 'settled' = 'open';
+    let win16: string | undefined = undefined;
 
-    if (mOffset === 0) {
-      status16 = 'open';
-      win16 = undefined;
+    if (liveData?.live3D?.drawDate === dateStr16 && liveData.live3D.firstPrize) {
+      win16 = String(liveData.live3D.firstPrize).slice(-3);
+      status16 = 'settled';
     }
 
     rounds.push({
@@ -298,14 +297,13 @@ export function generateUpToDate3DRounds(liveData?: LiveLotteryPayload | null): 
     const d1 = new Date(y, m, 1);
     const dateStr1 = toDateStr(d1);
     const label1 = formatDrawDateName(d1);
-    const calc1 = calculateGLO3D(dateStr1);
 
-    let status1: 'open' | 'closed' | 'settled' = 'settled';
-    let win1: string | undefined = calc1.threed;
+    let status1: 'open' | 'closed' | 'settled' = 'open';
+    let win1: string | undefined = undefined;
 
-    if (mOffset === 0 && currentDay < 1) {
-      status1 = 'open';
-      win1 = undefined;
+    if (liveData?.live3D?.drawDate === dateStr1 && liveData.live3D.firstPrize) {
+      win1 = String(liveData.live3D.firstPrize).slice(-3);
+      status1 = 'settled';
     }
 
     rounds.push({
@@ -329,7 +327,7 @@ export function generateUpToDate3DRounds(liveData?: LiveLotteryPayload | null): 
 /**
  * Fetch Live Official Thai 2D Result
  * Strictly extracts final confirmed result for morning (12:01) or evening (04:30).
- * If not finalized, returns success: false and leaves result blank.
+ * If official result is not available, returns success: false and leaves result undefined.
  */
 export async function fetchLiveThai2D(session: 'morning' | 'evening' = 'evening'): Promise<{
   success: boolean;
@@ -343,56 +341,45 @@ export async function fetchLiveThai2D(session: 'morning' | 'evening' = 'evening'
   if (livePayload?.live2D) {
     if (session === 'morning') {
       const morningTarget = livePayload.live2D.result?.[0];
-      const twod = (morningTarget && morningTarget.twod !== undefined && morningTarget.twod !== null && morningTarget.twod !== '')
-        ? String(morningTarget.twod).padStart(2, '0')
-        : '86';
-      return {
-        success: true,
-        result: {
-          session: 'morning',
-          set: morningTarget?.set || '1324.86',
-          value: morningTarget?.value || '23415.86',
-          twod,
-          time: '12:01 PM',
-          date: dateStr
-        },
-        message: `ထိုင်း SET တရားဝင် မနက်ပိုင်း ဖိုင်နယ် အတည်ပြုဂဏန်း [${twod}] ကို ရယူပြီးပါပြီ`
-      };
+      if (morningTarget && morningTarget.twod !== undefined && morningTarget.twod !== null && String(morningTarget.twod).trim() !== '') {
+        const twod = String(morningTarget.twod).padStart(2, '0');
+        return {
+          success: true,
+          result: {
+            session: 'morning',
+            set: morningTarget.set || '-',
+            value: morningTarget.value || '-',
+            twod,
+            time: '12:01 PM',
+            date: dateStr
+          },
+          message: `ထိုင်း SET တရားဝင် မနက်ပိုင်း ဖိုင်နယ် အတည်ပြုဂဏန်း [${twod}] ကို ရယူပြီးပါပြီ`
+        };
+      }
     } else {
       const eveningTarget = livePayload.live2D.result?.[1];
-      const twod = (eveningTarget && eveningTarget.twod !== undefined && eveningTarget.twod !== null && eveningTarget.twod !== '')
-        ? String(eveningTarget.twod).padStart(2, '0')
-        : '29';
-      return {
-        success: true,
-        result: {
-          session: 'evening',
-          set: eveningTarget?.set || '1320.29',
-          value: eveningTarget?.value || '42186.29',
-          twod,
-          time: '04:30 PM',
-          date: dateStr
-        },
-        message: `ထိုင်း SET တရားဝင် ညနေပိုင်း ဖိုင်နယ် အတည်ပြုဂဏန်း [${twod}] ကို ရယူပြီးပါပြီ`
-      };
+      if (eveningTarget && eveningTarget.twod !== undefined && eveningTarget.twod !== null && String(eveningTarget.twod).trim() !== '') {
+        const twod = String(eveningTarget.twod).padStart(2, '0');
+        return {
+          success: true,
+          result: {
+            session: 'evening',
+            set: eveningTarget.set || '-',
+            value: eveningTarget.value || '-',
+            twod,
+            time: '04:30 PM',
+            date: dateStr
+          },
+          message: `ထိုင်း SET တရားဝင် ညနေပိုင်း ဖိုင်နယ် အတည်ပြုဂဏန်း [${twod}] ကို ရယူပြီးပါပြီ`
+        };
+      }
     }
   }
 
-  // Fallback to verified official results for today (Morning: 86, Evening: 29)
-  const fallbackTwod = session === 'morning' ? '86' : '29';
-  const fallbackSet = session === 'morning' ? '1324.86' : '1320.29';
-  const fallbackVal = session === 'morning' ? '23415.86' : '42186.29';
+  // Official result unavailable or stream not live yet -> Return unavailable state
   return {
-    success: true,
-    result: {
-      session,
-      set: fallbackSet,
-      value: fallbackVal,
-      twod: fallbackTwod,
-      time: session === 'morning' ? '12:01 PM' : '04:30 PM',
-      date: dateStr
-    },
-    message: `ထိုင်း SET တရားဝင် ${session === 'morning' ? 'မနက်ပိုင်း' : 'ညနေပိုင်း'} ဖိုင်နယ် အတည်ပြုဂဏန်း [${fallbackTwod}] ကို ရယူပြီးပါပြီ`
+    success: false,
+    message: `တရားဝင် ထိုင်း 2D (${session === 'morning' ? 'မနက်ပိုင်း 12:01' : 'ညနေပိုင်း 04:30'}) ပေါက်ဂဏန်း မထွက်ရှိသေးပါ သို့မဟုတ် လိုင်းချိတ်ဆက်၍ မရနိုင်သေးပါ`
   };
 }
 
@@ -409,27 +396,23 @@ export async function fetchLiveThai3D(): Promise<{
   const dateStr = toDateStr(today);
 
   if (livePayload?.live3D?.firstPrize) {
-    const firstPrizeStr = String(livePayload.live3D.firstPrize);
-    const threed = firstPrizeStr.slice(-3);
-    return {
-      success: true,
-      result: {
-        drawDate: livePayload.live3D.drawDate || dateStr,
-        firstPrize: firstPrizeStr,
-        threed
-      },
-      message: `ထိုင်းအစိုးရ ထီပထမဆု [${firstPrizeStr}] မှ 3D ပေါက်ဂဏန်း [${threed}] ကို တိုက်ရိုက် ရယူပြီးပါပြီ`
-    };
+    const firstPrizeStr = String(livePayload.live3D.firstPrize).trim();
+    if (firstPrizeStr.length >= 3) {
+      const threed = firstPrizeStr.slice(-3);
+      return {
+        success: true,
+        result: {
+          drawDate: livePayload.live3D.drawDate || dateStr,
+          firstPrize: firstPrizeStr,
+          threed
+        },
+        message: `ထိုင်းအစိုးရ ထီပထမဆု [${firstPrizeStr}] မှ 3D ပေါက်ဂဏန်း [${threed}] ကို တိုက်ရိုက် ရယူပြီးပါပြီ`
+      };
+    }
   }
 
-  const calc = calculateGLO3D(dateStr);
   return {
-    success: true,
-    result: {
-      drawDate: dateStr,
-      firstPrize: calc.firstPrize,
-      threed: calc.threed
-    },
-    message: `ထိုင်းတရားဝင် 3D ပေါက်ဂဏန်း [${calc.threed}] ကို အလိုအလျောက် ရယူပြီးပါပြီ`
+    success: false,
+    message: 'တရားဝင် ထိုင်း 3D ပေါက်ဂဏန်း မထွက်ရှိသေးပါ သို့မဟုတ် လိုင်းချိတ်ဆက်၍ မရနိုင်သေးပါ'
   };
 }

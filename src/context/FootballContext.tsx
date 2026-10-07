@@ -19,6 +19,7 @@ import {
   saveStoredData
 } from '../utils/storage';
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
+import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 
 interface FootballContextType {
   settings: FootballSettings;
@@ -262,6 +263,25 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const addSlip = useCallback((slipData: Omit<FootballSlip, 'id' | 'slipNo' | 'createdAt'>) => {
+    // Duplicate Protection: Prevent same football slip submit twice within 4 seconds
+    const fp = generateSubmissionFingerprint('FOOTBALL_SLIP_SAVE', {
+      roundDate: slipData.roundDate,
+      customerName: slipData.customerName,
+      stakeAmount: slipData.stakeAmount,
+      netPayable: slipData.netPayable,
+      selections: slipData.selections
+    });
+    if (isDuplicateSubmission(fp, 4000)) {
+      console.warn('Duplicate football slip submission detected and blocked!');
+      const existing = slips.find(s =>
+        s.roundDate === slipData.roundDate &&
+        s.customerName === slipData.customerName &&
+        s.stakeAmount === slipData.stakeAmount &&
+        JSON.stringify(s.selections) === JSON.stringify(slipData.selections)
+      );
+      if (existing) return existing;
+    }
+
     const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
     const randSeq = Math.floor(1000 + Math.random() * 9000);
     const newSlip: FootballSlip = {
@@ -272,7 +292,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, []);
+  }, [slips]);
 
   const updateSlip = useCallback((id: string, data: Partial<FootballSlip>) => {
     setSlips(prev =>

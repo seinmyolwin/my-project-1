@@ -313,6 +313,13 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
   return armoredFile;
 }
 
+function setItemWithBackup(key: string, val: string | null) {
+  if (val !== null && val !== undefined) {
+    localStorage.setItem(key, val);
+    localStorage.setItem(`${key}_backup`, val);
+  }
+}
+
 /**
  * Restores 100% of ALL system data from encrypted .rhmg file (or legacy JSON backup)
  */
@@ -372,59 +379,59 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       // Restore 3D
       const p3 = parsed.payload['3d'];
       if (p3) {
-        if (p3.rounds) localStorage.setItem(STORAGE_KEYS.ROUNDS, p3.rounds);
-        if (p3.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS, p3.vouchers);
-        if (p3.limits) localStorage.setItem(STORAGE_KEYS.LIMITS, p3.limits);
-        if (p3.blocked) localStorage.setItem(STORAGE_KEYS.BLOCKED, p3.blocked);
-        if (p3.forwardSlips) localStorage.setItem(STORAGE_KEYS.FORWARD_SLIPS, p3.forwardSlips);
-        if (p3.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, p3.settings);
-        if (p3.activeRoundId) localStorage.setItem(STORAGE_KEYS.ACTIVE_ROUND_ID, p3.activeRoundId);
+        setItemWithBackup(STORAGE_KEYS.ROUNDS, p3.rounds);
+        setItemWithBackup(STORAGE_KEYS.VOUCHERS, p3.vouchers);
+        setItemWithBackup(STORAGE_KEYS.LIMITS, p3.limits);
+        setItemWithBackup(STORAGE_KEYS.BLOCKED, p3.blocked);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS, p3.forwardSlips);
+        setItemWithBackup(STORAGE_KEYS.SETTINGS, p3.settings);
+        setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID, p3.activeRoundId);
       }
 
       // Restore 2D
       const p2 = parsed.payload['2d'];
       if (p2) {
-        if (p2.rounds) localStorage.setItem(STORAGE_KEYS.ROUNDS_2D, p2.rounds);
-        if (p2.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS_2D, p2.vouchers);
-        if (p2.limits) localStorage.setItem(STORAGE_KEYS.LIMITS_2D, p2.limits);
-        if (p2.blocked) localStorage.setItem(STORAGE_KEYS.BLOCKED_2D, p2.blocked);
-        if (p2.forwardSlips) localStorage.setItem(STORAGE_KEYS.FORWARD_SLIPS_2D, p2.forwardSlips);
-        if (p2.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS_2D, p2.settings);
-        if (p2.activeRoundId) localStorage.setItem(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, p2.activeRoundId);
+        setItemWithBackup(STORAGE_KEYS.ROUNDS_2D, p2.rounds);
+        setItemWithBackup(STORAGE_KEYS.VOUCHERS_2D, p2.vouchers);
+        setItemWithBackup(STORAGE_KEYS.LIMITS_2D, p2.limits);
+        setItemWithBackup(STORAGE_KEYS.BLOCKED_2D, p2.blocked);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_2D, p2.forwardSlips);
+        setItemWithBackup(STORAGE_KEYS.SETTINGS_2D, p2.settings);
+        setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, p2.activeRoundId);
       }
 
       // Restore Football
       const pf = parsed.payload['football'];
       if (pf) {
-        if (pf.matches) localStorage.setItem(STORAGE_KEYS.MATCHES_FOOTBALL, pf.matches);
-        if (pf.slips) localStorage.setItem(STORAGE_KEYS.SLIPS_FOOTBALL, pf.slips);
-        if (pf.forwardSlips) localStorage.setItem(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, pf.forwardSlips);
-        if (pf.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS_FOOTBALL, pf.settings);
-        if (pf.activeDate) localStorage.setItem(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, pf.activeDate);
-        if (pf.leagues) localStorage.setItem(STORAGE_KEYS.LEAGUES_FOOTBALL, pf.leagues);
+        setItemWithBackup(STORAGE_KEYS.MATCHES_FOOTBALL, pf.matches);
+        setItemWithBackup(STORAGE_KEYS.SLIPS_FOOTBALL, pf.slips);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, pf.forwardSlips);
+        setItemWithBackup(STORAGE_KEYS.SETTINGS_FOOTBALL, pf.settings);
+        setItemWithBackup(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, pf.activeDate);
+        setItemWithBackup(STORAGE_KEYS.LEAGUES_FOOTBALL, pf.leagues);
       }
 
       // Restore Security & Modes
       const psec = parsed.payload['security'];
       if (psec) {
-        if (psec.ownerPin) localStorage.setItem(SECURITY_STORAGE_KEYS.OWNER_PIN, psec.ownerPin);
-        if (psec.enabledModes) localStorage.setItem(SECURITY_STORAGE_KEYS.ENABLED_MODES, psec.enabledModes);
-        if (psec.setupCompleted) localStorage.setItem(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, psec.setupCompleted);
-        if (psec.activeDealerMode) localStorage.setItem(STORAGE_KEYS.DEALER_MODE, psec.activeDealerMode);
+        setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PIN, psec.ownerPin);
+        setItemWithBackup(SECURITY_STORAGE_KEYS.ENABLED_MODES, psec.enabledModes);
+        setItemWithBackup(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, psec.setupCompleted);
+        setItemWithBackup(STORAGE_KEYS.DEALER_MODE, psec.activeDealerMode);
       }
 
       // Restore Viber
       const pvib = parsed.payload['viber'];
       if (pvib) {
-        if (pvib.config) localStorage.setItem(VIBER_STORAGE_KEYS.CONFIG, pvib.config);
-        if (pvib.orders) localStorage.setItem(VIBER_STORAGE_KEYS.ORDERS, pvib.orders);
+        setItemWithBackup(VIBER_STORAGE_KEYS.CONFIG, pvib.config);
+        setItemWithBackup(VIBER_STORAGE_KEYS.ORDERS, pvib.orders);
       }
 
       // Restore Telegram
       const ptg = parsed.payload['telegram'];
       if (ptg) {
-        if (ptg.config) localStorage.setItem(TELEGRAM_STORAGE_KEYS.CONFIG, ptg.config);
-        if (ptg.orders) localStorage.setItem(TELEGRAM_STORAGE_KEYS.ORDERS, ptg.orders);
+        setItemWithBackup(TELEGRAM_STORAGE_KEYS.CONFIG, ptg.config);
+        setItemWithBackup(TELEGRAM_STORAGE_KEYS.ORDERS, ptg.orders);
       }
 
       return {

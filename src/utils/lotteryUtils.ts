@@ -1,16 +1,22 @@
 import * as XLSX from 'xlsx';
 import { Voucher, DrawRound, ForwardSlip, BetItem, BetType } from '../types';
+import { formatAmount, calculatePayout, safeRound } from './moneyUtils';
+
+export { formatAmount, safeRound };
 
 /**
  * Generate all unique 3-digit permutations for a given 3-digit number.
- * E.g., '123' -> ['123', '132', '213', '231', '312', '321']
- * '112' -> ['112', '121', '211']
- * '111' -> ['111']
+ * E.g., '123' -> ['123', '132', '213', '231', '312', '321'] (6)
+ * '112' -> ['112', '121', '211'] (3)
+ * '111' -> ['111'] (1)
+ * '121' -> ['112', '121', '211'] (3)
  */
 export function getPermutations(numStr: string): string[] {
-  const digits = numStr.padStart(3, '0').slice(0, 3).split('');
-  if (digits.length !== 3) return [numStr];
+  if (!numStr) return [];
+  const cleanDigits = convertMyanmarToEnglishDigits(numStr).replace(/\D/g, '').slice(0, 3);
+  if (cleanDigits.length !== 3) return [numStr];
 
+  const digits = cleanDigits.split('');
   const results = new Set<string>();
 
   const permute = (arr: string[], m: string[] = []) => {
@@ -124,7 +130,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
                   id: `item-${Date.now()}-${idCounter++}`,
                   number: p,
                   amount: amount,
-                  isRumble: true,
+                  isRumble: false,
                   originalInput: `${cleanNum} R (${perms.length} ခွေ)`
                 });
               });
@@ -151,8 +157,8 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
               id: `item-${Date.now()}-${idCounter++}`,
               number: p,
               amount: 1000,
-              isRumble: true,
-              originalInput: `${cleanNum} R`
+              isRumble: false,
+              originalInput: `${cleanNum} R (${perms.length} ခွေ)`
             });
           });
         } else {
@@ -184,15 +190,6 @@ export function convertMyanmarToEnglishDigits(str: string): string {
     const idx = myanmarDigits.indexOf(char);
     return idx !== -1 ? String(idx) : char;
   });
-}
-
-/**
- * Format currency with thousands separator
- */
-export function formatAmount(amount: number, currency: string = 'Ks'): string {
-  if (isNaN(amount)) return `0 ${currency}`;
-  const formatted = Math.round(amount).toLocaleString('en-US');
-  return `${formatted} ${currency}`;
 }
 
 /**
@@ -231,17 +228,19 @@ export function evaluateWinnings(
     return { winners, totalPayout, winningBetsCount, toddWinningBetsCount };
   }
 
-  const toddSet = new Set(getPermutations(winningNumber));
-  // Remove the exact winning number from toddSet so straight matches don't double count
-  toddSet.delete(winningNumber);
+  // All permutations of winning number for Todd/Rumble evaluation
+  const allPermutations = getPermutations(winningNumber);
+  const toddSet = new Set(allPermutations);
 
   vouchers.forEach((v) => {
     if (v.status === 'cancelled') return;
 
     v.items.forEach((item) => {
-      // 1. Exact straight hit (တည့်ပေါက်)
-      if (item.number === winningNumber) {
-        const payout = item.amount * straightMultiplier;
+      const isRumbleBet = item.betType === 'rumble';
+
+      // 1. Exact straight hit (တည့်ပေါက်) - ONLY applies to straight bets
+      if (item.number === winningNumber && !isRumbleBet) {
+        const payout = calculatePayout(item.amount, straightMultiplier);
         totalPayout += payout;
         winningBetsCount++;
         winners.push({
@@ -257,9 +256,9 @@ export function evaluateWinnings(
           isPaid: v.isPaid
         });
       }
-      // 2. Todd / Rumble hit (ပတ်လည်ပေါက်)
-      else if (toddSet.has(item.number) && item.betType === 'rumble' && toddMultiplier > 0) {
-        const payout = item.amount * toddMultiplier;
+      // 2. Todd / Rumble hit (ပတ်လည်ပေါက်) - ONLY applies to rumble bets matching any permutation
+      else if (isRumbleBet && toddSet.has(item.number) && toddMultiplier > 0) {
+        const payout = calculatePayout(item.amount, toddMultiplier);
         totalPayout += payout;
         toddWinningBetsCount++;
         winners.push({
@@ -342,16 +341,22 @@ export function exportLotteryDataToExcel(
   const voucherData: any[] = [];
   vouchers.forEach((v) => {
     const numbersList = v.items.map(i => `${i.number}=${i.amount}`).join(', ');
+    const statusText = v.status === 'cancelled'
+      ? 'ပယ်ဖျက်ထားသည် (Cancelled)'
+      : v.isPaid
+      ? 'ပေးပြီး (Paid)'
+      : 'မပေးရသေး (Unpaid)';
+
     voucherData.push({
       'ဘောင်ချာအမှတ် (Voucher No)': v.voucherNo,
       'ဝယ်သူအမည် (Customer)': v.customerName,
       'ဖုန်းနံပါတ် (Phone)': v.customerPhone || '-',
       'ထိုးဂဏန်းများ (Bets)': numbersList,
-      'စုစုပေါင်း (Subtotal)': v.subtotal,
-      'လျှော့ငွေ/ကော်မရှင် (Discount)': v.discountAmount,
-      'အသားတင်ပေးချေငွေ (Net Amount)': v.netPayable,
-      'ရက်စွဲ (Date)': new Date(v.createdAt).toLocaleString('en-GB'),
-      'ငွေပေးချေမှု (Payment)': v.isPaid ? 'ပေးပြီး (Paid)' : 'မပေးရသေး (Unpaid)'
+      'စုစုပေါင်း ထိုးကြေး (Total Stake)': v.subtotal,
+      'ကော်မရှင်/လျှော့ငွေ (Commission)': v.discountAmount,
+      'အသားတင်ကျသင့်ငွေ (Net Amount)': v.netPayable,
+      'ရက်စွဲ/အချိန် (Date)': new Date(v.createdAt).toLocaleString('en-GB'),
+      'အခြေအနေ (Status)': statusText
     });
   });
   const wsVouchers = XLSX.utils.json_to_sheet(voucherData);
@@ -359,7 +364,7 @@ export function exportLotteryDataToExcel(
 
   // 3. Winning Settlement Sheet if winning number exists
   if (winningNumber) {
-    const winEval = evaluateWinnings(vouchers, winningNumber, multiplier, 100);
+    const winEval = evaluateWinnings(vouchers, winningNumber, multiplier, round.toddMultiplier || 100);
     const winData: any[] = [];
     winEval.winners.forEach(w => {
       winData.push({

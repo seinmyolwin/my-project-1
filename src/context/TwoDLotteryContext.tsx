@@ -24,6 +24,7 @@ import {
 } from '../utils/storage';
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel } from '../utils/twoDLotteryUtils';
 import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
+import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -213,17 +214,41 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
-    const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-    const randSeq = Math.floor(1000 + Math.random() * 9000);
+    // Duplicate Protection: Prevent same voucher submit twice within 4 seconds
+    const fp = generateSubmissionFingerprint('2D_VOUCHER_SAVE', {
+      roundId: voucherData.roundId,
+      customerName: voucherData.customerName,
+      subtotal: voucherData.subtotal,
+      netPayable: voucherData.netPayable,
+      items: voucherData.items
+    });
+    if (isDuplicateSubmission(fp, 4000)) {
+      console.warn('Duplicate 2D voucher submission detected and blocked!');
+      const existing = vouchers.find(v =>
+        v.roundId === voucherData.roundId &&
+        v.customerName === voucherData.customerName &&
+        v.netPayable === voucherData.netPayable &&
+        JSON.stringify(v.items) === JSON.stringify(voucherData.items)
+      );
+      if (existing) return existing;
+    }
+
+    const existingSeq = vouchers.map(v => {
+      const match = v.voucherNo?.match(/\d+$/);
+      return match ? parseInt(match[0], 10) : 0;
+    });
+    const maxSeq = existingSeq.length > 0 ? Math.max(...existingSeq) : 0;
+    const nextSeq = Math.max(maxSeq + 1, vouchers.length + 1);
+    const pad = String(nextSeq).padStart(4, '0');
     const newVoucher: TwoDVoucher = {
       ...voucherData,
-      id: `vouch-2d-${Date.now()}`,
-      voucherNo: `V2D-${todayStr}-${randSeq}`,
+      id: `vouch-2d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      voucherNo: `V-2D-${pad}`,
       createdAt: new Date().toISOString()
     };
     setVouchers(prev => [newVoucher, ...prev]);
     return newVoucher;
-  }, []);
+  }, [vouchers]);
 
   const updateVoucher = useCallback((id: string, data: Partial<TwoDVoucher>) => {
     setVouchers(prev =>
@@ -462,14 +487,11 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
-      activeRoundVouchers.forEach(v => {
-        v.items.forEach(item => {
-          if (item.isWon) {
-            totalPayout += item.wonAmount || 0;
-            totalWinnersCount++;
-          }
-        });
-      });
+      const mult = activeRound.multiplier || settings.defaultMultiplier || 80;
+      const formattedNum = activeRound.winningNumber.padStart(2, '0');
+      const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
+      totalPayout = evalResult.totalPayout;
+      totalWinnersCount = evalResult.totalWinnersCount;
     }
 
     // Dealer profit = (net revenue - payouts) + commission from bookmaker
@@ -488,11 +510,19 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       netProfit,
       isProfit: netProfit >= 0
     };
-  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips]);
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier]);
 
   // Settle winning number
   const settleWinningNumber = useCallback((winningNum: string, multiplier?: number) => {
     if (!activeRound) return;
+
+    // Duplicate Protection: Prevent duplicate settlement calls
+    const fp = generateSubmissionFingerprint('2D_SETTLE_ROUND', { activeRoundId: activeRound.id, winningNum, multiplier });
+    if (isDuplicateSubmission(fp, 5000)) {
+      console.warn('Duplicate 2D settlement attempt blocked!');
+      return;
+    }
+
     const mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 80;
     const formattedNum = winningNum.padStart(2, '0');
 

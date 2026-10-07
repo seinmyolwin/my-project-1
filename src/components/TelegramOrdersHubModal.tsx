@@ -28,7 +28,9 @@ import {
   saveTelegramConfig,
   getTelegramOrders,
   saveTelegramOrders,
-  generateTelegramConfirmationMessage
+  generateTelegramConfirmationMessage,
+  testTelegramConnection,
+  ConnectionStatus
 } from '../utils/telegramIntegration';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -247,18 +249,61 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (selectedOrderId === orderId) setSelectedOrderId(null);
   };
 
-  const handleSaveConfig = (e: React.FormEvent) => {
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    const result = await testTelegramConnection(botToken.trim(), webhookUrl.trim());
+    setIsTestingConnection(false);
+
+    const updatedConfig: TelegramAccountConfig = {
+      botToken: botToken.trim(),
+      channelId: channelId.trim(),
+      accountName: accountName.trim(),
+      webhookUrl: webhookUrl.trim(),
+      status: result.status,
+      statusMessage: result.message,
+      connectedAt: result.status === 'connected' ? new Date().toISOString() : undefined
+    };
+    setConfig(updatedConfig);
+    saveTelegramConfig(updatedConfig);
+  };
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!botToken.trim() || !webhookUrl.trim()) {
+      const newConfig: TelegramAccountConfig = {
+        botToken: botToken.trim(),
+        channelId: channelId.trim(),
+        accountName: accountName.trim(),
+        webhookUrl: webhookUrl.trim(),
+        status: 'disconnected',
+        statusMessage: 'API Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
+      };
+      setConfig(newConfig);
+      saveTelegramConfig(newConfig);
+      setConfigSuccess(true);
+      setTimeout(() => setConfigSuccess(false), 2500);
+      return;
+    }
+
+    setIsTestingConnection(true);
+    const result = await testTelegramConnection(botToken.trim(), webhookUrl.trim());
+    setIsTestingConnection(false);
+
     const newConfig: TelegramAccountConfig = {
       botToken: botToken.trim(),
       channelId: channelId.trim(),
       accountName: accountName.trim(),
-      webhookUrl: webhookUrl.trim()
+      webhookUrl: webhookUrl.trim(),
+      status: result.status,
+      statusMessage: result.message,
+      connectedAt: result.status === 'connected' ? new Date().toISOString() : undefined
     };
     setConfig(newConfig);
     saveTelegramConfig(newConfig);
     setConfigSuccess(true);
-    setTimeout(() => setConfigSuccess(false), 2000);
+    setTimeout(() => setConfigSuccess(false), 2500);
   };
 
   return (
@@ -716,12 +761,66 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 />
               </div>
 
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {config.status === 'connected' && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Connected (ချိတ်ဆက်ပြီး)</span>
+                      </span>
+                    )}
+                    {config.status === 'disconnected' && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300">
+                        <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span>Disconnected (မချိတ်ဆက်ရသေးပါ)</span>
+                      </span>
+                    )}
+                    {config.status === 'connecting' && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Connecting (စမ်းသပ်နေသည်...)</span>
+                      </span>
+                    )}
+                    {config.status === 'error' && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 text-xs font-bold border border-rose-300">
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Error (အမှားအယွင်းရှိသည်)</span>
+                      </span>
+                    )}
+                    {config.status === 'timeout' && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-100 text-orange-800 text-xs font-bold border border-orange-300">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Timeout (အချိန်လွန်သွားသည်)</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={isTestingConnection}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
+                    <span>{isTestingConnection ? 'စမ်းသပ်နေဆဲ...' : 'ချိတ်ဆက်မှု စမ်းသပ်မည်'}</span>
+                  </button>
+                </div>
+
+                {config.statusMessage && (
+                  <p className="text-[11px] font-medium text-slate-600 mt-2 font-mono">
+                    {config.statusMessage}
+                  </p>
+                )}
+              </div>
+
               <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
+                  disabled={isTestingConnection}
                   className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
                 >
-                  ဆက်တင်များ သိမ်းဆည်းမည်
+                  {isTestingConnection ? 'စမ်းသပ်စစ်ဆေးနေပါသည်...' : 'ဆက်တင်များ သိမ်းဆည်းမည်'}
                 </button>
               </div>
             </form>

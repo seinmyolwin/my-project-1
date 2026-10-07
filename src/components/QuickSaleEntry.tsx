@@ -80,6 +80,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
   // Over-limit Decision Modal state
   const [isOverLimitModalOpen, setIsOverLimitModalOpen] = useState(false);
   const [pendingOverLimitItems, setPendingOverLimitItems] = useState<OverLimitItemInfo[]>([]);
+  const [isSavingVoucher, setIsSavingVoucher] = useState(false);
 
   // Floating Toast / Feedback notification
   const [toastNotification, setToastNotification] = useState<{
@@ -379,17 +380,20 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     playSuccessSound();
     setToastNotification({
       type: 'success',
-      message: `ဘောင်ချာ ${newVoucher.voucherNumber} အား အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ`
+      message: `ဘောင်ချာ ${newVoucher.voucherNo} အား အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ`
     });
+    setIsSavingVoucher(false);
     onVoucherCreated(newVoucher);
   };
 
   // Submit Voucher - checks for Blocked & Over-limit numbers
   const handleSaveVoucher = () => {
-    if (stagedItems.length === 0) {
+    if (stagedItems.length === 0 || isSavingVoucher) {
       playWarningSound();
       return;
     }
+
+    setIsSavingVoucher(true);
 
     // 1. Strict Fail-Safe: Check for any Blocked Numbers (ဒိုင်ကာဂဏန်း)
     const blockedFound = stagedItems.filter(item => isNumberBlocked(item.number));
@@ -397,6 +401,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       const bNums = Array.from(new Set(blockedFound.map(b => b.number)));
       alert(`⚠️ သတိပေးချက်: အောက်ပါဂဏန်းများသည် 'ဒိုင်ကာဂဏန်း' ဖြစ်သဖြင့် ထိုးကြေးတက်လာစေကာမူ လုံးဝလက်မခံနိုင်ပါ:\n\n[${bNums.join(', ')}]\n\nအဆိုပါဂဏန်းများကို စာရင်းမှ ဖယ်ရှားပေးပါမည်။`);
       setStagedItems(prev => prev.filter(item => !isNumberBlocked(item.number)));
+      setIsSavingVoucher(false);
       return;
     }
 
@@ -406,24 +411,36 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       cartTotals[item.number] = (cartTotals[item.number] || 0) + item.amount;
     });
 
-    let hasOverLimit = false;
+    const pendingItems: OverLimitItemInfo[] = [];
     Object.entries(cartTotals).forEach(([num, totalInCart]) => {
       const limit = getNumberLimit(num);
       const existingSold = aggregates[num]?.totalSold || 0;
       if (limit > 0 && (existingSold + totalInCart > limit)) {
-        hasOverLimit = true;
+        const remainingQuota = Math.max(0, limit - existingSold);
+        const excessAmount = (existingSold + totalInCart) - limit;
+        pendingItems.push({
+          id: num,
+          number: num,
+          originalAmount: totalInCart,
+          existingSold,
+          limit,
+          remainingQuota,
+          excessAmount,
+          action: 'forward_excess'
+        });
       }
     });
 
-    // Save voucher directly
-    finalizeAndSaveVoucher(stagedItems);
-
-    if (hasOverLimit) {
-      setToastNotification({
-        type: 'success',
-        message: 'ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ (သတ်မှတ်ချက် ကျော်လွန်သော ဂဏန်းများကို "ဒိုင်ကြီးဆီ ပြန်တင်ရန်" စာရင်းထဲသို့ အလိုအလျောက် စုစည်းပေးထားပါသည်)'
-      });
+    if (pendingItems.length > 0) {
+      playWarningSound();
+      setPendingOverLimitItems(pendingItems);
+      setIsOverLimitModalOpen(true);
+      setIsSavingVoucher(false);
+      return;
     }
+
+    // Save voucher directly only if all bets are within limits
+    finalizeAndSaveVoucher(stagedItems);
   };
 
   // Confirm over-limit resolution from OverLimitConfirmModal
@@ -1157,7 +1174,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
               <button
                 type="button"
                 onClick={handleSaveVoucher}
-                disabled={stagedItems.length === 0}
+                disabled={stagedItems.length === 0 || isSavingVoucher}
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               >
                 <Receipt className="w-4 h-4" />

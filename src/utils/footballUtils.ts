@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { safeRound, formatAmount } from './moneyUtils';
 import {
   FootballMatch,
   FootballSlip,
@@ -174,7 +175,7 @@ export function calculateSlipSettlement(
     }
   });
 
-  const actualPayout = Math.round(slip.stakeAmount * multiplier);
+  const actualPayout = safeRound(slip.stakeAmount * multiplier);
   const outcome = hasHalfLoss ? 'half_won' : (hasHalfWin ? 'half_won' : (multiplier > 1.0 ? 'won' : 'draw'));
 
   return {

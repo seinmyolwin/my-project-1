@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx';
+import { convertMyanmarToEnglishDigits } from './lotteryUtils';
+import { calculatePayout, formatAmount, safeRound } from './moneyUtils';
 import {
   TwoDVoucher,
   TwoDForwardSlip,
@@ -226,7 +228,7 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
   const items: TwoDBetItem[] = [];
 
   for (const rawLine of lines) {
-    const line = rawLine.trim();
+    const line = convertMyanmarToEnglishDigits(rawLine.trim());
     if (!line) continue;
 
     // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble) - e.g. "1234 ခွေပူးr 1000", "1234.ခွေပူးအာ"
@@ -576,7 +578,7 @@ export function evaluateTwoDWinnings(
     let voucherHasWin = false;
     const updatedItems = v.items.map(item => {
       if (item.number === winningNumber) {
-        const winAmt = item.amount * multiplier;
+        const winAmt = calculatePayout(item.amount, multiplier);
         totalPayout += winAmt;
         voucherHasWin = true;
         totalWinnersCount++;
@@ -646,18 +648,26 @@ export function exportTwoDLotteryToExcel(
   XLSX.utils.book_append_sheet(wb, wsLedger, '၂ လုံး စာရင်းချုပ် (00-99)');
 
   // Sheet 2: Vouchers
-  const voucherData = vouchers.map(v => ({
-    'ဘောင်ချာနံပါတ်': v.voucherNo,
-    'ထိုးသူအမည်': v.customerName,
-    'ဖုန်းနံပါတ်': v.customerPhone || '-',
-    'ဂဏန်းအရေအတွက်': v.items.length,
-    'စုစုပေါင်းငွေ': v.subtotal,
-    'လျှော့ငွေ': v.discountAmount,
-    'ကျသင့်ငွေ': v.netPayable,
-    'အချိန်': new Date(v.createdAt).toLocaleString('my-MM'),
-    'ငွေချေပြီး': v.isPaid ? 'ဟုတ်' : 'မဟုတ်',
-    'မှတ်ချက်': v.notes || '-'
-  }));
+  const voucherData = vouchers.map(v => {
+    const statusText = v.status === 'cancelled'
+      ? 'ပယ်ဖျက်ထားသည် (Cancelled)'
+      : v.isPaid
+      ? 'ပေးပြီး (Paid)'
+      : 'မပေးရသေး (Unpaid)';
+
+    return {
+      'ဘောင်ချာနံပါတ် (Voucher No)': v.voucherNo,
+      'ထိုးသူအမည် (Customer)': v.customerName,
+      'ဖုန်းနံပါတ် (Phone)': v.customerPhone || '-',
+      'ထိုးဂဏန်းများ (Bets)': v.items.map(i => `${i.number}=${i.amount}`).join(', '),
+      'စုစုပေါင်း ထိုးကြေး (Total Stake)': v.subtotal,
+      'ကော်မရှင်/လျှော့ငွေ (Commission)': v.discountAmount,
+      'အသားတင်ကျသင့်ငွေ (Net Amount)': v.netPayable,
+      'ရက်စွဲ/အချိန် (Date)': new Date(v.createdAt).toLocaleString('en-GB'),
+      'အခြေအနေ (Status)': statusText,
+      'မှတ်ချက် (Notes)': v.notes || '-'
+    };
+  });
   const wsVouchers = XLSX.utils.json_to_sheet(voucherData);
   XLSX.utils.book_append_sheet(wb, wsVouchers, 'အရောင်းဘောင်ချာများ');
 
