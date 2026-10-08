@@ -139,7 +139,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
       lottery2D.rounds.forEach((round) => {
         const roundDate = (round.drawDate || '').slice(0, 10);
-        if (roundDate >= startDate && roundDate <= endDate) {
+        if (roundDate >= '2026-10-05' && roundDate >= startDate && roundDate <= endDate) {
           processedRoundIds.add(round.id);
 
           const roundVouchers = lottery2D.vouchers.filter(

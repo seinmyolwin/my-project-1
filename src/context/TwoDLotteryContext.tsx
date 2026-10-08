@@ -91,21 +91,29 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     loadStoredData(STORAGE_KEYS.SETTINGS_2D, DEFAULT_2D_SETTINGS)
   );
 
+  const [deletedRoundIds, setDeletedRoundIds] = useState<string[]>(() => {
+    return loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
+  });
+
   const [rounds, setRounds] = useState<TwoDDrawRound[]>(() => {
     const stored = loadStoredData<TwoDDrawRound[]>(STORAGE_KEYS.ROUNDS_2D, []);
     const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
-    if (!stored || stored.length === 0) {
-      return upToDate;
-    }
+    const deleted = loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
+    const deletedSet = new Set(deleted);
+
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
-      storedMap.set(r.id, r);
-    });
-    upToDate.forEach(r => {
-      if (!storedMap.has(r.id)) {
+      if (!deletedSet.has(r.id)) {
         storedMap.set(r.id, r);
       }
     });
+
+    upToDate.forEach(r => {
+      if (!storedMap.has(r.id) && !deletedSet.has(r.id)) {
+        storedMap.set(r.id, r);
+      }
+    });
+
     return Array.from(storedMap.values());
   });
 
@@ -120,12 +128,19 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const map = new Map<string, TwoDDrawRound>();
         let changed = false;
 
+        const deleted = loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
+        const deletedSet = new Set(deleted);
+
         prev.forEach(r => {
-          map.set(r.id, r);
+          if (!deletedSet.has(r.id)) {
+            map.set(r.id, r);
+          } else {
+            changed = true;
+          }
         });
 
         upToDate.forEach(r => {
-          if (!map.has(r.id)) {
+          if (!map.has(r.id) && !deletedSet.has(r.id)) {
             map.set(r.id, r);
             changed = true;
           }
@@ -290,6 +305,11 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     setRounds(prev => prev.filter(r => r.id !== roundId));
+    setDeletedRoundIds(prev => {
+      const next = [...prev.filter(id => id !== roundId), roundId];
+      saveStoredData('2d_ledger_deleted_rounds_v1', next);
+      return next;
+    });
 
     if (activeRoundId === roundId) {
       const remaining = visibleRounds.filter(r => r.id !== roundId);

@@ -393,7 +393,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       lottery2D.rounds.forEach((round) => {
         const roundDate = (round.drawDate || '').slice(0, 10);
-        if (roundDate >= stmtStartDate && roundDate <= stmtEndDate) {
+        if (roundDate >= '2026-10-05' && roundDate >= stmtStartDate && roundDate <= stmtEndDate) {
           processedRoundIds.add(round.id);
 
           const rVouchers = lottery2D.vouchers.filter(
@@ -861,12 +861,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       shopName: shop3D.trim(),
       shopPhone: phone3D.trim(),
       currency,
-      defaultMultiplier: parseInt(mult3D, 10) || lottery3D.settings.defaultMultiplier,
-      defaultToddMultiplier: parseInt(todd3D, 10) || lottery3D.settings.defaultToddMultiplier,
-      defaultCommissionRate: parseInt(comm3D, 10) || lottery3D.settings.defaultCommissionRate,
-      defaultCustomerDiscount: parseInt(disc3D, 10) || lottery3D.settings.defaultCustomerDiscount,
-      globalStockLimit: parseInt(globalLimit3D, 10) || lottery3D.settings.globalStockLimit,
-      lowStockAlertPercentage: parseInt(alertPct3D, 10) || lottery3D.settings.lowStockAlertPercentage,
+      defaultMultiplier: !isNaN(parseInt(mult3D, 10)) ? parseInt(mult3D, 10) : lottery3D.settings.defaultMultiplier,
+      defaultToddMultiplier: !isNaN(parseInt(todd3D, 10)) ? parseInt(todd3D, 10) : lottery3D.settings.defaultToddMultiplier,
+      defaultCommissionRate: !isNaN(parseInt(comm3D, 10)) ? parseInt(comm3D, 10) : lottery3D.settings.defaultCommissionRate,
+      defaultCustomerDiscount: !isNaN(parseInt(disc3D, 10)) ? parseInt(disc3D, 10) : lottery3D.settings.defaultCustomerDiscount,
+      globalStockLimit: !isNaN(parseInt(globalLimit3D, 10)) ? parseInt(globalLimit3D, 10) : lottery3D.settings.globalStockLimit,
+      lowStockAlertPercentage: !isNaN(parseInt(alertPct3D, 10)) ? parseInt(alertPct3D, 10) : lottery3D.settings.lowStockAlertPercentage,
       voucherFooterMessage: footer3D.trim()
     });
 
@@ -876,10 +876,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       shopName: shop2D.trim(),
       shopPhone: phone2D.trim(),
       currency,
-      defaultMultiplier: parseFloat(mult2D) || lottery2D.settings.defaultMultiplier,
-      defaultCommissionRate: parseFloat(comm2D) || lottery2D.settings.defaultCommissionRate,
-      defaultCustomerDiscount: parseFloat(disc2D) || 0,
-      globalStockLimit: parseFloat(globalLimit2D) || 200000,
+      defaultMultiplier: !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : lottery2D.settings.defaultMultiplier,
+      defaultCommissionRate: !isNaN(parseFloat(comm2D)) ? parseFloat(comm2D) : lottery2D.settings.defaultCommissionRate,
+      defaultCustomerDiscount: !isNaN(parseFloat(disc2D)) ? parseFloat(disc2D) : lottery2D.settings.defaultCustomerDiscount,
+      globalStockLimit: !isNaN(parseFloat(globalLimit2D)) ? parseFloat(globalLimit2D) : 200000,
       voucherFooterMessage: footer2D.trim(),
       quickActionButtons: actionButtons2D
     });
@@ -890,9 +890,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       shopName: shopFB.trim(),
       shopPhone: phoneFB.trim(),
       currency,
-      defaultCommissionRate: parseFloat(commFB) || football.settings.defaultCommissionRate,
-      defaultCustomerDiscount: parseFloat(discFB) || 0,
-      maxPayoutPerTicket: parseFloat(maxPayoutFB) || 15000000,
+      defaultCommissionRate: !isNaN(parseFloat(commFB)) ? parseFloat(commFB) : football.settings.defaultCommissionRate,
+      defaultCustomerDiscount: !isNaN(parseFloat(discFB)) ? parseFloat(discFB) : football.settings.defaultCustomerDiscount,
+      maxPayoutPerTicket: !isNaN(parseFloat(maxPayoutFB)) ? parseFloat(maxPayoutFB) : 15000000,
       slipFooterMessage: footerFB.trim()
     });
 
