@@ -12,29 +12,11 @@ import {
 } from '../types';
 
 /**
- * Check if a 2D round is closed based on round status, date, and local closing time (12:00 morning, 16:25 evening)
+ * Check if a 2D round is closed based on round status (Only returns true if closed or settled, no auto-closing by time/date)
  */
 export function is2DRoundClosed(round?: TwoDDrawRound): boolean {
   if (!round) return true;
-  if (round.status === 'closed' || round.status === 'settled') return true;
-
-  const todayStr = getLocalDateString();
-  if (round.drawDate < todayStr) return true;
-  if (round.drawDate > todayStr) return false;
-
-  // Round is today - check local time against closing time
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  let closeMinutes = round.session === 'morning' ? 12 * 60 : 16 * 60 + 25;
-  if (round.closingTime) {
-    const parts = round.closingTime.split(':').map(Number);
-    if (!isNaN(parts[0]) && !isNaN(parts[1])) {
-      closeMinutes = parts[0] * 60 + parts[1];
-    }
-  }
-
-  return currentMinutes >= closeMinutes;
+  return round.status === 'closed' || round.status === 'settled';
 }
 
 // ====================================================

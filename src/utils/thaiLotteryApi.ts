@@ -182,21 +182,14 @@ export function generateUpToDate2DRounds(
     if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Monday - Friday Thai SET
       // Evening Round (04:30 PM)
       let eveWinning: string | undefined = undefined;
-      let eveStatus: 'open' | 'closed' | 'settled' = 'closed';
+      let eveStatus: 'open' | 'closed' | 'settled' = 'open';
 
-      if (isToday) {
-        // Today's evening closes at 16:25 (985 mins)
-        eveWinning = undefined;
-        eveStatus = currentTimeVal >= (16 * 60 + 25) ? 'closed' : 'open';
-      } else {
+      if (!isToday) {
         // Past days: lookup in official history only
         const historyEve = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[1]?.twod;
         if (historyEve) {
           eveWinning = String(historyEve).padStart(2, '0');
           eveStatus = 'settled';
-        } else {
-          eveWinning = undefined;
-          eveStatus = 'closed';
         }
       }
 
@@ -215,21 +208,14 @@ export function generateUpToDate2DRounds(
 
       // Morning Round (12:01 PM)
       let mornWinning: string | undefined = undefined;
-      let mornStatus: 'open' | 'closed' | 'settled' = 'closed';
+      let mornStatus: 'open' | 'closed' | 'settled' = 'open';
 
-      if (isToday) {
-        // Today's morning closes at 12:00 (720 mins)
-        mornWinning = undefined;
-        mornStatus = currentTimeVal >= (12 * 60) ? 'closed' : 'open';
-      } else {
+      if (!isToday) {
         // Past days: lookup in official history only
         const historyMorn = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[0]?.twod;
         if (historyMorn) {
           mornWinning = String(historyMorn).padStart(2, '0');
           mornStatus = 'settled';
-        } else {
-          mornWinning = undefined;
-          mornStatus = 'closed';
         }
       }
 

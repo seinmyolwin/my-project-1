@@ -97,15 +97,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!stored || stored.length === 0) {
       return upToDate;
     }
-    const todayStr = getLocalDateString();
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
-      // Result မရှိတဲ့ ရက်ဟောင်း round တွေကို 'open' မဖြစ်စေပါနဲ့ — 'closed' သတ်မှတ်ပါ
-      if (r.drawDate < todayStr && r.status === 'open' && !r.winningNumber) {
-        storedMap.set(r.id, { ...r, status: 'closed' });
-      } else {
-        storedMap.set(r.id, r);
-      }
+      storedMap.set(r.id, r);
     });
     upToDate.forEach(r => {
       if (!storedMap.has(r.id)) {
@@ -115,7 +109,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return Array.from(storedMap.values());
   });
 
-  // Keep today's rounds available and close past open rounds on mount/day change without removing existing rounds
+  // Keep today's rounds available without force-closing past open rounds
   useEffect(() => {
     let lastDateStr = getLocalDateString();
 
@@ -127,12 +121,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         let changed = false;
 
         prev.forEach(r => {
-          if (r.drawDate < todayStr && r.status === 'open' && !r.winningNumber) {
-            map.set(r.id, { ...r, status: 'closed' });
-            changed = true;
-          } else {
-            map.set(r.id, r);
-          }
+          map.set(r.id, r);
         });
 
         upToDate.forEach(r => {
@@ -340,9 +329,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [settings.defaultMultiplier, settings.defaultCommissionRate]);
 
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
-    // 1. Check active round status and local closing time
+    // 1. Check active round status
     const targetRound = rounds.find(r => r.id === voucherData.roundId);
-    if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound) || targetRound.drawDate < getLocalDateString()) {
+    if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound)) {
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
     }
 
@@ -853,12 +842,6 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       if (Array.isArray(data.rounds)) {
         setRounds(prev => {
-          const todayStr = getLocalDateString();
-          const today = new Date();
-          const currentHour = today.getHours();
-          const currentMinutes = today.getMinutes();
-          const currentTimeVal = currentHour * 60 + currentMinutes;
-
           const map = new Map<string, TwoDDrawRound>();
           prev.forEach(r => map.set(r.id, r));
 
@@ -873,40 +856,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
                   settledAt: existing.settledAt || r.settledAt
                 });
               } else {
-                let finalStatus = r.status;
-                if (finalStatus === 'open') {
-                  const isPast = r.drawDate < todayStr;
-                  let isClosingPassed = false;
-                  if (r.drawDate === todayStr) {
-                    const closeTime = r.session === 'morning' ? (12 * 60) : (16 * 60 + 25);
-                    isClosingPassed = currentTimeVal >= closeTime;
-                  }
-                  if (isPast || isClosingPassed) {
-                    finalStatus = 'closed';
-                  }
-                }
-                map.set(r.id, {
-                  ...r,
-                  status: finalStatus
-                });
+                map.set(r.id, r);
               }
             } else {
-              let finalStatus = r.status;
-              if (finalStatus === 'open') {
-                const isPast = r.drawDate < todayStr;
-                let isClosingPassed = false;
-                if (r.drawDate === todayStr) {
-                  const closeTime = r.session === 'morning' ? (12 * 60) : (16 * 60 + 25);
-                  isClosingPassed = currentTimeVal >= closeTime;
-                }
-                if (isPast || isClosingPassed) {
-                  finalStatus = 'closed';
-                }
-              }
-              map.set(r.id, {
-                ...r,
-                status: finalStatus
-              });
+              map.set(r.id, r);
             }
           });
           return Array.from(map.values());
