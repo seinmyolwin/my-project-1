@@ -160,7 +160,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             
             // Commission to sub-agents / discount
             let voucherDiscount = 0;
-            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+            if (typeof v.discountAmount === 'number') {
               voucherDiscount = v.discountAmount;
             } else if (round.commissionRate && round.commissionRate > 0) {
               voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
@@ -270,7 +270,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           vList.forEach(v => {
             const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
             let disc = 0;
-            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+            if (typeof v.discountAmount === 'number') {
               disc = v.discountAmount;
             } else if (lottery2D.settings.defaultCommissionRate) {
               disc = Math.round(sub * (lottery2D.settings.defaultCommissionRate / 100));
@@ -335,7 +335,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           roundVouchers.forEach((v) => {
             const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
             let disc = 0;
-            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+            if (typeof v.discountAmount === 'number') {
               disc = v.discountAmount;
             } else if (round.commissionRate && round.commissionRate > 0) {
               disc = Math.round(sub * (round.commissionRate / 100));

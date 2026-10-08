@@ -188,17 +188,17 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
           </div>
         </div>
 
-        {/* Modal 3 Dedicated Actions: Viber/SMS Copy, Save, Print */}
+        {/* Modal 3 Dedicated Actions: SMS/Chat Copy, Save, Print */}
         <div className="bg-slate-50 px-3 sm:px-4 py-3 border-t border-slate-200 grid grid-cols-3 gap-2">
-          {/* Action 1: Viber/SMS Copy */}
+          {/* Action 1: SMS/Chat Copy */}
           <button
             type="button"
             onClick={handleCopyText}
             className="py-2.5 px-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95"
-            title="Viber / SMS သို့ စာသားကူးထည့်ရန်"
+            title="SMS / Chat သို့ စာသားကူးထည့်ရန်"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-teal-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-            <span className="truncate">{copied ? 'ကူးပြီး' : 'Viber/SMS'}</span>
+            <span className="truncate">{copied ? 'ကူးပြီး' : 'SMS/Chat'}</span>
           </button>
 
           {/* Action 2: Save (Auto-Saved Instant Confirm) */}

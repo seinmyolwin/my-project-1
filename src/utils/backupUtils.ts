@@ -1,11 +1,6 @@
 import { STORAGE_KEYS } from './storage';
 import { SECURITY_STORAGE_KEYS, obscurePin, verifyObscuredPin } from './securityUtils';
 
-export const VIBER_STORAGE_KEYS = {
-  CONFIG: 'rhmg_viber_config_v1',
-  ORDERS: 'rhmg_viber_orders_v1'
-};
-
 export const TELEGRAM_STORAGE_KEYS = {
   CONFIG: 'shwe_mingalar_telegram_config',
   ORDERS: 'shwe_mingalar_telegram_orders'
@@ -279,11 +274,7 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
         setupCompleted: localStorage.getItem(SECURITY_STORAGE_KEYS.SETUP_COMPLETED),
         activeDealerMode: localStorage.getItem(STORAGE_KEYS.DEALER_MODE)
       },
-      // Viber Integration Orders & Config
-      'viber': {
-        config: localStorage.getItem(VIBER_STORAGE_KEYS.CONFIG),
-        orders: localStorage.getItem(VIBER_STORAGE_KEYS.ORDERS)
-      },
+
       // Telegram Integration Orders & Config
       'telegram': {
         config: localStorage.getItem(TELEGRAM_STORAGE_KEYS.CONFIG),
@@ -436,13 +427,6 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
         setItemWithBackup(SECURITY_STORAGE_KEYS.ENABLED_MODES, psec.enabledModes);
         setItemWithBackup(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, psec.setupCompleted);
         setItemWithBackup(STORAGE_KEYS.DEALER_MODE, psec.activeDealerMode);
-      }
-
-      // Restore Viber
-      const pvib = parsed.payload['viber'];
-      if (pvib) {
-        setItemWithBackup(VIBER_STORAGE_KEYS.CONFIG, pvib.config);
-        setItemWithBackup(VIBER_STORAGE_KEYS.ORDERS, pvib.orders);
       }
 
       // Restore Telegram

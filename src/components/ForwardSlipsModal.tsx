@@ -204,7 +204,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     setCreatedSlip(newSlip);
   };
 
-  const handleCopyViber = () => {
+  const handleCopyText = () => {
     if (!createdSlip) return;
     const lines = createdSlip.items.map((it) => `${it.number}=${it.amount}`);
     const text = `【3D ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nပွဲစဉ်: ${activeRound?.name}\nဒိုင်ချုပ်: ${createdSlip.masterAgentName}\n----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nဒိုင်သို့ အမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
@@ -289,11 +289,11 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
-                onClick={handleCopyViber}
+                onClick={handleCopyText}
                 className="py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
               >
                 <Copy className="w-4 h-4" />
-                <span>{copySuccess ? 'Copied ✓' : 'Viber စာသား ကူးယူမည်'}</span>
+                <span>{copySuccess ? 'Copied ✓' : 'စာသား ကူးယူမည်'}</span>
               </button>
               <button
                 type="button"

@@ -102,7 +102,7 @@ export function preprocessCanvas(
  * Supports:
  * - 3D Bets (123=1000, 123-500, 123 1000, 123R 500, 123ပတ် 1000)
  * - 2D Bets (24=1000, 24-500, 24 1000, 24R 500, အပူး 1000, 5 ဘရိတ် 2000, etc.)
- * - Viber / Telegram chat screenshots and messages
+ * - Telegram chat screenshots and messages
  * - Chat timestamps & metadata filtering
  * - Myanmar numerals (၀-၉) and English digits (0-9)
  */
@@ -136,10 +136,10 @@ export function parseSlipImageText(
   for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
     const rawLine = rawLines[lineIndex];
 
-    // Filter out common Viber/Telegram chat timestamps and headers
+    // Filter out common Telegram chat timestamps and headers
     if (
       /^\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm|AM|PM)?$/i.test(rawLine) ||
-      /^(?:today|yesterday|delivered|seen|read|online|typing|forwarded|viber|telegram|screenshot)$/i.test(rawLine) ||
+      /^(?:today|yesterday|delivered|seen|read|online|typing|forwarded|telegram|screenshot)$/i.test(rawLine) ||
       /^(?:kbzpay|kpay|wavepay|wave money|transaction|ref no|transferred|successful|ကျပ်)$/i.test(rawLine)
     ) {
       continue;

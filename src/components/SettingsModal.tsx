@@ -2393,7 +2393,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                 <span className="text-xs font-black text-slate-900 block">၁။ Master Encrypted Backup (.rhmg) ဖိုင်သိမ်းဆည်းရန်</span>
                 <p className="text-[11px] text-slate-500">
-                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် + Viber စာရင်းအားလုံး ပါဝင်ပါသည်။
+                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် စာရင်းအားလုံး ပါဝင်ပါသည်။
                 </p>
                 <button
                   type="button"

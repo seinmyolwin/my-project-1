@@ -882,7 +882,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                           </button>
                         </td>
 
-                        {/* Copy SMS / Viber action */}
+                        {/* Copy SMS / Chat action */}
                         <td className="py-3 px-4 text-right font-sans">
                           <button
                             onClick={() => handleCopyWinningMessage(winner)}

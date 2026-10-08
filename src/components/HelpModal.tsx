@@ -62,7 +62,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               - <b>ပတ်လည် (R / Permutations):</b> ဥပမာ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-700 font-bold font-mono">123 R</code> ရွေးလိုက်ပါက 123, 132, 213, 231, 312, 321 (၆ ခွေ) ကို အလိုအလျောက် ခွဲထုတ်ပေးပါသည်။
             </p>
             <p>
-              - <b>Viber/SMS စာသား ကူးထည့်ခြင်း (Batch Paste):</b> Viber သို့မဟုတ် Messenger မှ ပို့ထားသော စာသားများ (ဥပမာ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800 font-mono">123=1000, 456-500, 789R=1000</code>) ကို ကူးယူထည့်သွင်းနိုင်ပါသည်။
+              - <b>SMS / စာသားများမှ တိုက်ရိုက်ကူးထည့်ခြင်း (Batch Paste):</b> SMS သို့မဟုတ် Messenger မှ ပို့ထားသော စာသားများ (ဥပမာ <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800 font-mono">123=1000, 456-500, 789R=1000</code>) ကို ကူးယူထည့်သွင်းနိုင်ပါသည်။
             </p>
             <p>
               - <b>အထူးဂဏန်းအတွဲများ:</b> အပူး (000-999)၊ ပါဝါအတွဲများ၊ နက္ခတ်အတွဲများ၊ ညီကိုအတွဲများကို တစ်ချက်နှိပ်ရုံဖြင့် အမြန်ထည့်နိုင်ပါသည်။
@@ -81,7 +81,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               <li>မည်သူတွေ ပေါက်သွားသလဲ (တည့်ပေါက်နှင့် ပတ်လည်ပေါက်)</li>
               <li>ဘယ်သူ့ကို ဘယ်လောက် လျော်ပေးရမလဲ (စုစုပေါင်း လျော်ကြေးငွေ)</li>
               <li>ဒိုင်၏ စုစုပေါင်း ရောင်းရငွေ၊ အသားတင် <b>အမြတ် သို့မဟုတ် အရှုံး</b> ကို တခါတည်း အလိုအလျောက် ရှင်းလင်းစွာ တွက်ချက်ပေးပါသည်။</li>
-              <li>ပေါက်သူထံသို့ Viber/SMS ဖြင့် ပို့နိုင်သော ဂုဏ်ပြုစာသားကို တစ်ချက်နှိပ် ကူးယူနိုင်ပါသည်။</li>
+              <li>ပေါက်သူထံသို့ SMS / Telegram ဖြင့် ပို့နိုင်သော ဂုဏ်ပြုစာသားကို တစ်ချက်နှိပ် ကူးယူနိုင်ပါသည်။</li>
             </ul>
           </div>
 

@@ -47,7 +47,7 @@ import { PreviousResultsModal } from './components/PreviousResultsModal';
 import { FinancialStatementsModal } from './components/FinancialStatementsModal';
 import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
-import { ViberOrdersHubModal } from './components/ViberOrdersHubModal';
+
 import { TelegramOrdersHubModal } from './components/TelegramOrdersHubModal';
 
 // Security & Setup Modals
@@ -152,7 +152,7 @@ function AppContent() {
   const [isPreviousResultsOpen, setIsPreviousResultsOpen] = useState(false);
   const [isStatementsOpen, setIsStatementsOpen] = useState(false);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
-  const [isViberHubOpen, setIsViberHubOpen] = useState(false);
+
   const [isTelegramHubOpen, setIsTelegramHubOpen] = useState(false);
 
   // Check if any modal is active
@@ -173,13 +173,11 @@ function AppContent() {
     isHelpOpen ||
     isPreviousResultsOpen ||
     isTitleModalOpen ||
-    isViberHubOpen ||
     isTelegramHubOpen;
 
   const closeActiveModal = useCallback(() => {
     if (printingVoucher3D) setPrintingVoucher3D(null);
     else if (printingVoucher2D) setPrintingVoucher2D(null);
-    else if (isViberHubOpen) setIsViberHubOpen(false);
     else if (isTelegramHubOpen) setIsTelegramHubOpen(false);
     else if (isSettingsOpen) setIsSettingsOpen(false);
     else if (isPinPromptOpen) setIsPinPromptOpen(false);
@@ -198,7 +196,6 @@ function AppContent() {
   }, [
     printingVoucher3D,
     printingVoucher2D,
-    isViberHubOpen,
     isSettingsOpen,
     isPinPromptOpen,
     isStatementsOpen,
@@ -352,7 +349,7 @@ function AppContent() {
         onOpenStatements={() => setIsStatementsOpen(true)}
         onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
         onOpenTitleModal={() => setIsTitleModalOpen(true)}
-        onOpenViberHub={() => setIsViberHubOpen(true)}
+
         onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
       />
 
@@ -595,15 +592,6 @@ function AppContent() {
         initialMode={dealerMode}
       />
 
-      {/* Viber Orders & Direct Ingest Review Hub Modal */}
-      <ViberOrdersHubModal
-        isOpen={isViberHubOpen}
-        onClose={() => setIsViberHubOpen(false)}
-        onOpenPrintVoucher={(v) => {
-          if (dealerMode === '2d') setPrintingVoucher2D(v);
-          else setPrintingVoucher3D(v);
-        }}
-      />
 
       {/* Telegram Orders & Bot Hub Modal */}
       <TelegramOrdersHubModal

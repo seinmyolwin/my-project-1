@@ -185,7 +185,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
               {previewFilename}
             </div>
             <p className="text-[10px] text-slate-500 leading-tight">
-              * အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + Settings + Viber စာရင်းအားလုံး ၁၀၀% ပါဝင်ပါသည်။
+              * အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + Settings စာရင်းအားလုံး ၁၀၀% ပါဝင်ပါသည်။
             </p>
           </div>
 

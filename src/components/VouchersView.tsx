@@ -86,7 +86,7 @@ export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher }
     });
   }, [activeRoundForwardSlips, searchQuery]);
 
-  // Copy raw customer voucher text for Viber/SMS
+  // Copy raw customer voucher text for SMS/Chat
   const handleCopyVoucherText = (v: Voucher) => {
     const lines = v.items.map((i) => `${i.number} = ${formatAmount(i.amount, settings.currency)}`).join('\n');
     const text = `🧾 ${settings.shopName} (အိုးစည်လေး 3D)
@@ -376,7 +376,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                       <button
                         onClick={() => handleCopyForwardSlipText(s)}
                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
-                        title="Viber ပို့ရန် စာသားကူးမည်"
+                        title="စာသား ကူးယူမည်"
                       >
                         {copiedId === s.id ? (
                           <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -538,7 +538,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                         <button
                           onClick={() => handleCopyVoucherText(v)}
                           className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
-                          title="Viber/SMS ပို့ရန် စာသားကူးမည်"
+                          title="SMS/Chat ပို့ရန် စာသားကူးမည်"
                         >
                           {copiedId === v.id ? (
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -691,7 +691,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                   ) : (
                     <>
                       <Copy className="w-4 h-4 text-slate-600" />
-                      <span>Viber စာသားကူးမည်</span>
+                      <span>စာသားကူးမည်</span>
                     </>
                   )}
                 </button>

@@ -40,26 +40,40 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
   const isMyanmar = settings.language === 'my';
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'danger' | 'warning' | 'blocked' | 'hot'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'hot' | 'danger' | 'warning' | 'blocked' | 'empty'>('all');
   const [selectedDigitFilter, setSelectedDigitFilter] = useState<string | null>(null);
+
+  // Category counts
+  const counts = useMemo(() => {
+    const list = Object.values(aggregates) as TwoDNumberAggregate[];
+    return {
+      all: list.length,
+      hot: list.filter(item => item.totalSold > 0).length,
+      danger: list.filter(item => (item.riskLevel === 'danger' || (item.limit > 0 && item.totalSold >= item.limit)) && !item.isBlocked).length,
+      warning: list.filter(item => item.riskLevel === 'warning').length,
+      blocked: list.filter(item => item.isBlocked).length,
+      empty: list.filter(item => item.totalSold === 0).length,
+    };
+  }, [aggregates]);
 
   // Filtered 00-99 numbers
   const filteredNumbers = useMemo(() => {
     let list = Object.values(aggregates) as TwoDNumberAggregate[];
 
     if (searchTerm.trim()) {
-      const term = searchTerm.trim().padStart(searchTerm.length <= 2 ? 2 : 0, '0');
       list = list.filter(item => item.number.includes(searchTerm.trim()));
     }
 
     if (filterType === 'danger') {
-      list = list.filter(item => item.riskLevel === 'danger' && !item.isBlocked);
+      list = list.filter(item => (item.riskLevel === 'danger' || (item.limit > 0 && item.totalSold >= item.limit)) && !item.isBlocked);
     } else if (filterType === 'warning') {
       list = list.filter(item => item.riskLevel === 'warning');
     } else if (filterType === 'blocked') {
       list = list.filter(item => item.isBlocked);
     } else if (filterType === 'hot') {
       list = list.filter(item => item.totalSold > 0).sort((a, b) => b.totalSold - a.totalSold);
+    } else if (filterType === 'empty') {
+      list = list.filter(item => item.totalSold === 0);
     }
 
     if (selectedDigitFilter !== null) {
@@ -150,57 +164,86 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
           <button
             type="button"
             onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               filterType === 'all'
-                ? 'bg-slate-900 text-white'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
-            {isMyanmar ? 'အားလုံး (00-99)' : 'All 00-99'}
+            <span>{isMyanmar ? 'အားလုံး' : 'All'}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'all' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              {counts.all}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setFilterType('hot')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               filterType === 'hot'
-                ? 'bg-amber-600 text-white'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
             }`}
           >
-            {isMyanmar ? 'အရောင်းများ (Hot)' : 'Hot Numbers'}
+            <span>{isMyanmar ? 'အရောင်းများ' : 'Hot'}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'hot' ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'}`}>
+              {counts.hot}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setFilterType('danger')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               filterType === 'danger'
-                ? 'bg-rose-600 text-white'
-                : 'bg-rose-50 hover:bg-rose-100 text-rose-800'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
             }`}
           >
-            {isMyanmar ? 'ဘရိတ်ပြည့် (Danger)' : 'Full Limit'}
+            <span>{isMyanmar ? 'ဘရိတ်ပြည့်' : 'Full Limit'}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'danger' ? 'bg-rose-700 text-white' : 'bg-rose-200 text-rose-900'}`}>
+              {counts.danger}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setFilterType('warning')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               filterType === 'warning'
-                ? 'bg-amber-500 text-white'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
             }`}
           >
-            {isMyanmar ? 'သတိပေးအဆင့် (80%+)' : 'Warning (80%+)'}
+            <span>{isMyanmar ? 'သတိပေး' : 'Warning'}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'warning' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
+              {counts.warning}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setFilterType('blocked')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               filterType === 'blocked'
-                ? 'bg-purple-700 text-white'
-                : 'bg-purple-50 hover:bg-purple-100 text-purple-800'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200'
             }`}
           >
-            {isMyanmar ? 'ဒိုင်ကာ (Blocked)' : 'Blocked'}
+            <span>{isMyanmar ? 'ဒိုင်' : 'Blocked'}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'blocked' ? 'bg-purple-800 text-white' : 'bg-purple-200 text-purple-900'}`}>
+              {counts.blocked}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterType('empty')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              filterType === 'empty'
+                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300'
+                : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
+            }`}
+          >
+            <span>{isMyanmar ? 'အလွတ်' : 'Empty'}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'empty' ? 'bg-blue-700 text-white' : 'bg-blue-200 text-blue-800'}`}>
+              {counts.empty}
+            </span>
           </button>
         </div>
 
@@ -272,12 +315,43 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
         ))}
       </div>
 
+      {/* Results Count & Legend */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 px-1">
+        <div>
+          {isMyanmar ? 'တွေ့ရှိသော ဂဏန်း အရေအတွက်:' : 'Showing:'}{' '}
+          <span className="font-bold text-teal-700 font-mono">{filteredNumbers.length}</span> ခု
+        </div>
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px]">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block"></span>
+            <span>{isMyanmar ? 'ရောင်းပြီး (စိတ်ချရ)' : 'Sold (Safe)'}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+            <span>{isMyanmar ? 'သတိပေး (80%+)' : 'Warning (80%+)'}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+            <span>{isMyanmar ? 'ဘရိတ်ပြည့် (Full)' : 'Full Limit'}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block"></span>
+            <span>{isMyanmar ? 'ဒိုင်ကာ (Blocked)' : 'Blocked'}</span>
+          </span>
+          <span className="flex items-center gap-1.5 font-bold text-blue-700">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
+            <span>{isMyanmar ? 'အလွတ် (ထိုးကြေးမရှိ)' : 'Empty (No bets)'}</span>
+          </span>
+        </div>
+      </div>
+
       {/* 2D Matrix Grid (10x10) */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2.5 sm:gap-3">
           {filteredNumbers.map(agg => {
             const usagePercent = agg.limit > 0 ? Math.min(Math.round((agg.totalSold / agg.limit) * 100), 100) : 0;
             const isFull = agg.limit > 0 && agg.totalSold >= agg.limit;
+            const isEmpty = agg.totalSold === 0 && !agg.isBlocked;
 
             return (
               <div
@@ -291,7 +365,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                     ? 'bg-amber-50/60 border-amber-300 shadow-2xs'
                     : agg.totalSold > 0
                     ? 'bg-teal-50/40 border-teal-200 hover:border-teal-400'
-                    : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
+                    : 'bg-blue-50/70 border-blue-200 hover:border-blue-400 hover:bg-blue-100/50 ring-1 ring-blue-100/70 shadow-2xs'
                 }`}
                 onClick={() => {
                   if (onOpenLimitsManager) {
@@ -309,7 +383,9 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                         ? 'text-rose-900'
                         : agg.riskLevel === 'warning'
                         ? 'text-amber-900'
-                        : 'text-slate-900'
+                        : agg.totalSold > 0
+                        ? 'text-slate-900'
+                        : 'text-blue-700'
                     }`}
                   >
                     {agg.number}
@@ -327,21 +403,31 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                     <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-md">
                       {usagePercent}%
                     </span>
+                  ) : isEmpty ? (
+                    <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-md border border-blue-200">
+                      {isMyanmar ? 'အလွတ်' : 'EMPTY'}
+                    </span>
                   ) : null}
                 </div>
 
                 {/* Sold Amount */}
                 <div className="my-1.5">
-                  <div className="font-mono text-xs font-bold text-slate-800">
-                    {formatAmount(agg.totalSold, settings.currency)}
+                  <div className={`font-mono text-xs font-bold ${isEmpty ? 'text-blue-600' : 'text-slate-800'}`}>
+                    {isEmpty ? (
+                      <span className="inline-flex items-center gap-1 font-semibold text-[11px] text-blue-600">
+                        {isMyanmar ? 'ထိုးကြေးမရှိ' : 'No bets (0)'}
+                      </span>
+                    ) : (
+                      formatAmount(agg.totalSold, settings.currency)
+                    )}
                   </div>
-                  <div className="text-[10px] text-slate-400 font-medium">
+                  <div className={`text-[10px] font-medium ${isEmpty ? 'text-blue-400' : 'text-slate-400'}`}>
                     {isMyanmar ? 'ကန့်သတ်:' : 'Lmt:'} {formatAmount(agg.limit, settings.currency)}
                   </div>
                 </div>
 
                 {/* Progress bar */}
-                <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                <div className={`w-full rounded-full h-1.5 overflow-hidden ${isEmpty ? 'bg-blue-100' : 'bg-slate-200'}`}>
                   <div
                     className={`h-full transition-all rounded-full ${
                       agg.isBlocked
@@ -350,9 +436,11 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                         ? 'bg-rose-600'
                         : agg.riskLevel === 'warning'
                         ? 'bg-amber-500'
-                        : 'bg-teal-500'
+                        : agg.totalSold > 0
+                        ? 'bg-teal-500'
+                        : 'bg-blue-400'
                     }`}
-                    style={{ width: `${agg.isBlocked ? 100 : usagePercent}%` }}
+                    style={{ width: `${agg.isBlocked ? 100 : isEmpty ? 0 : usagePercent}%` }}
                   ></div>
                 </div>
 

@@ -86,7 +86,7 @@ async function startServer() {
     }
   });
 
-  // Gemini AI Vision OCR endpoint for Lottery Slips, Viber/Telegram Screenshots & Photos
+  // Gemini AI Vision OCR endpoint for Lottery Slips, Telegram Screenshots & Photos
   app.post('/api/ocr', async (req, res) => {
     try {
       const { image, mimeType, mode = 'auto' } = req.body;
@@ -122,12 +122,12 @@ Also support:
 - Multiple 3D numbers on a line (e.g. "123, 456, 789 = 1000").`
         : `Target Mode: AUTO (both 2D and 3D). Detect whether numbers are 2-digit or 3-digit and extract accurately.`;
 
-      const prompt = `You are an expert OCR and data extraction assistant specialized in Myanmar 2D/3D lottery slips, paper receipts, and chat screenshots from Viber, Telegram, Messenger, and SMS.
-Analyze this image (which may be a screenshot of a Viber or Telegram conversation, chat bubbles, interface elements, timestamps, customer names, phone numbers, or handwritten/printed lottery slips).
+      const prompt = `You are an expert OCR and data extraction assistant specialized in Myanmar 2D/3D lottery slips, paper receipts, and chat screenshots from Telegram, Messenger, and SMS.
+Analyze this image (which may be a screenshot of a Telegram conversation, chat bubbles, interface elements, timestamps, customer names, phone numbers, or handwritten/printed lottery slips).
 
 Your goals:
 1. Extract ALL readable text from the image line-by-line verbatim into "rawText" (so the user can clearly inspect what text was scanned from the photo).
-2. Identify customer name if present (e.g. Viber/Telegram chat header, sender bubble, or labeled with နာမည်/ဝယ်သူ/အမည်/ကို/မ/ဒေါ်/ဦး).
+2. Identify customer name if present (e.g. Telegram chat header, sender bubble, or labeled with နာမည်/ဝယ်သူ/အမည်/ကို/မ/ဒေါ်/ဦး).
 3. Identify customer phone number if present (09-xxxxxxxxx or +959xxxxxxxxx).
 4. Extract all betting numbers and amounts accurately:
    ${modeInstruction}
@@ -178,7 +178,7 @@ Your goals:
     }
   });
 
-  // Gemini AI endpoint for direct chat text parsing (Viber / Telegram / SMS)
+  // Gemini AI endpoint for direct chat text parsing (Telegram / SMS)
   app.post('/api/parse-chat-text', async (req, res) => {
     try {
       const { text, mode = 'auto' } = req.body;
@@ -195,7 +195,7 @@ Your goals:
         ? `Target Mode: 3D ONLY. Extract 3-digit numbers and amounts. Support 3D permutations/R (123R, 123 ပတ်, 123 ခွေ, and multiple numbers e.g. "123 456 R 500").`
         : `Target Mode: AUTO (both 2D and 3D).`;
 
-      const prompt = `You are an expert data parser for Myanmar 2D/3D lottery bets sent via Viber, Telegram, or SMS.
+      const prompt = `You are an expert data parser for Myanmar 2D/3D lottery bets sent via Telegram or SMS.
 The user pasted text directly from a chat:
 """
 ${text}

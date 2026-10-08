@@ -105,21 +105,13 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
       if (!deletedSet.has(r.id)) {
-        let updatedRound = { ...r };
-        if (updatedRound.drawDate < todayStr && updatedRound.status === 'open' && updatedRound.drawDate >= '2026-10-05') {
-          updatedRound.status = 'closed';
-        }
-        storedMap.set(r.id, updatedRound);
+        storedMap.set(r.id, r);
       }
     });
 
     upToDate.forEach(r => {
       if (!storedMap.has(r.id) && !deletedSet.has(r.id)) {
-        let updatedRound = { ...r };
-        if (updatedRound.drawDate < todayStr && updatedRound.status === 'open' && updatedRound.drawDate >= '2026-10-05') {
-          updatedRound.status = 'closed';
-        }
-        storedMap.set(r.id, updatedRound);
+        storedMap.set(r.id, r);
       }
     });
 

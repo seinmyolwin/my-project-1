@@ -78,7 +78,7 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [activeRoundForwardSlips, searchTerm]);
 
-  // Copy text for Customer Voucher (Viber/SMS)
+  // Copy text for Customer Voucher (SMS/Chat)
   const handleCopySlipText = (v: TwoDVoucher) => {
     const lines = v.items
       .map(i => `${i.number} = ${formatAmount(i.amount, settings.currency)}`)
@@ -311,11 +311,11 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                             <span>{isMyanmar ? 'ကြည့်မည်' : 'View'}</span>
                           </button>
 
-                          {/* 2. Copy for Viber */}
+                          {/* 2. Copy for Chat */}
                           <button
                             type="button"
                             onClick={() => handleCopyForwardText(s)}
-                            title="ဒိုင်ကြီးထံ Viber ပို့ရန် စာသားကူးမည်"
+                            title="ဒိုင်ကြီးထံ ပို့ရန် စာသားကူးမည်"
                             className="p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
                           >
                             {copiedId === s.id ? (
@@ -428,11 +428,11 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                             <span>{isMyanmar ? 'ကြည့်မည်' : 'View'}</span>
                           </button>
 
-                          {/* 2. Copy for Viber */}
+                          {/* 2. Copy for Chat */}
                           <button
                             type="button"
                             onClick={() => handleCopySlipText(v)}
-                            title="Viber ပို့ရန် စာသားကူးမည်"
+                            title="စာသားကူးမည်"
                             className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                           >
                             {copiedId === v.id ? (
@@ -585,7 +585,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                   ) : (
                     <>
                       <Copy className="w-4 h-4 text-slate-600" />
-                      <span>Viber စာသားကူးမည်</span>
+                      <span>စာသားကူးမည်</span>
                     </>
                   )}
                 </button>
@@ -728,7 +728,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
 
               {/* Action Buttons */}
               <div className="flex gap-2 pt-1">
-                {/* Copy for Viber */}
+                {/* Copy for Chat */}
                 <button
                   type="button"
                   onClick={() => handleCopySlipText(selectedVoucher)}
@@ -742,7 +742,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                   ) : (
                     <>
                       <Copy className="w-4 h-4 text-slate-600" />
-                      <span>Viber စာသားကူးမည်</span>
+                      <span>စာသားကူးမည်</span>
                     </>
                   )}
                 </button>

@@ -744,7 +744,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    {isMyanmar ? 'Viber / SMS မှ စာသားကူးထည့်ရန် (Shallow Parser)' : 'Paste Text from Viber/SMS'}
+                    {isMyanmar ? 'SMS / စာသားများမှ တိုက်ရိုက်ကူးထည့်ရန် (Shallow Parser)' : 'Paste Text from SMS/Chat'}
                   </span>
                   <span className="text-[11px] text-slate-500 font-mono">
                     နမူနာ: 123=1000, 456=500, 789R=1000

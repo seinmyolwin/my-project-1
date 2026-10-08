@@ -62,7 +62,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
   const [inputTab, setInputTab] = useState<'photo' | 'text'>('photo');
   const [directPasteText, setDirectPasteText] = useState<string>('');
 
-  // Image source state (default natural colorful mode for crisp Viber/Telegram screenshots)
+  // Image source state (default natural colorful mode for crisp Telegram screenshots)
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [rotation, setRotation] = useState<number>(0);
   const [contrast, setContrast] = useState<number>(0);
@@ -313,7 +313,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
 
     setIsScanning(true);
     setScanProgress(15);
-    setScanStatusText(isMyanmar ? 'Viber/Telegram ဓါတ်ပုံအား Gemini AI ဖြင့် ဖတ်ယူနေပါသည်...' : 'Analyzing Viber/Telegram slip with Gemini AI...');
+    setScanStatusText(isMyanmar ? 'Telegram ဓါတ်ပုံအား Gemini AI ဖြင့် ဖတ်ယူနေပါသည်...' : 'Analyzing Telegram slip with Gemini AI...');
 
     try {
       const img = document.createElement('img');
@@ -335,7 +335,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
         ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
 
         // If user explicitly applied filters (for faint paper receipts), apply preprocessCanvas.
-        // Otherwise, send crisp original color canvas so Gemini reads Viber/Telegram colored chat bubbles!
+        // Otherwise, send crisp original color canvas so Gemini reads Telegram colored chat bubbles!
         const needsPreprocessing = contrast !== 0 || brightness !== 0 || enableThreshold || isGrayscale;
         const finalCanvas = needsPreprocessing
           ? preprocessCanvas(tempCanvas, { contrast, brightness, threshold: enableThreshold, grayscale: isGrayscale })
@@ -457,7 +457,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Direct Text Parser for Viber / Telegram / SMS chat messages
+  // Direct Text Parser for Telegram / SMS chat messages
   const handleParseDirectText = async (customText?: string) => {
     const textToParse = customText !== undefined ? customText : directPasteText;
     if (!textToParse.trim()) return;
@@ -688,7 +688,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
         </div>
       </div>
 
-      {/* Extracted Raw Text Display (The scanned text from Viber/Telegram photo) */}
+      {/* Extracted Raw Text Display (The scanned text from Telegram photo) */}
       {rawOcrText && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-2xs">
           <div className="flex items-center justify-between">
@@ -955,7 +955,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-slate-900">
-                  {isMyanmar ? 'Viber / Telegram စကရင်ရှော့ခ်နှင့် ဓါတ်ပုံ စကင်ဖတ်စနစ်' : 'Viber / Telegram & Photo Slip OCR Scanner'}
+                  {isMyanmar ? 'Telegram စကရင်ရှော့ခ်နှင့် ဓါတ်ပုံ စကင်ဖတ်စနစ်' : 'Telegram & Photo Slip OCR Scanner'}
                 </h3>
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
                   <Zap className="w-3 h-3 text-indigo-600" />
@@ -964,8 +964,8 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
               </div>
               <p className="text-xs text-slate-500">
                 {isMyanmar
-                  ? 'Viber/Telegram မက်ဆေ့ခ်ျ Screenshot ဓါတ်ပုံများ (သို့မဟုတ်) စလစ်ဓါတ်ပုံထဲမှ စာသားများကို scan ဖတ်ပြီး ဂဏန်းနှင့် ထိုးကြေးများကို အလိုအလျောက် စာရင်းသွင်းပေးပါသည်'
-                  : 'Scan Viber/Telegram chat screenshots or photos to automatically extract numbers and amounts'}
+                  ? 'Telegram မက်ဆေ့ခ်ျ Screenshot ဓါတ်ပုံများ (သို့မဟုတ်) စလစ်ဓါတ်ပုံထဲမှ စာသားများကို scan ဖတ်ပြီး ဂဏန်းနှင့် ထိုးကြေးများကို အလိုအလျောက် စာရင်းသွင်းပေးပါသည်'
+                  : 'Scan Telegram chat screenshots or photos to automatically extract numbers and amounts'}
               </p>
             </div>
           </div>
@@ -978,7 +978,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
           </button>
         </div>
 
-        {/* Input Mode Selector: Photo / Screenshot vs Direct Viber / Telegram Text */}
+        {/* Input Mode Selector: Photo / Screenshot vs Direct Telegram Text */}
         <div className="px-4 sm:px-6 pt-2 pb-0 flex items-center gap-2 border-b border-slate-200 bg-slate-50/75 shrink-0">
           <button
             type="button"
@@ -990,7 +990,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
             }`}
           >
             <Camera className="w-4 h-4" />
-            <span>{isMyanmar ? '📷 Viber / Telegram ဓါတ်ပုံ (Photo OCR)' : 'Photo / Screenshot Scan'}</span>
+            <span>{isMyanmar ? '📷 Telegram ဓါတ်ပုံ (Photo OCR)' : 'Photo / Screenshot Scan'}</span>
           </button>
 
           <button
@@ -1003,7 +1003,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
             }`}
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>{isMyanmar ? '💬 Viber / Telegram စာသား တိုက်ရိုက်ကူးထည့်မည်' : 'Paste Viber / Telegram Text'}</span>
+            <span>{isMyanmar ? '💬 Telegram စာသား တိုက်ရိုက်ကူးထည့်မည်' : 'Paste Telegram Text'}</span>
           </button>
         </div>
 
@@ -1016,12 +1016,12 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-indigo-600" />
-                    <span>{isMyanmar ? 'Viber / Telegram / SMS မှ စာသားများ ကူးထည့်ပါ' : 'Paste Chat Text'}</span>
+                    <span>{isMyanmar ? 'Telegram / SMS မှ စာသားများ ကူးထည့်ပါ' : 'Paste Chat Text'}</span>
                   </h4>
                   <p className="text-xs text-slate-500">
                     {isMyanmar
-                      ? 'Viber သို့မဟုတ် Telegram မက်ဆေ့ခ်ျထဲမှ စာသားကို Copy ယူပြီး ဤနေရာတွင် Paste ချလိုက်ပါ (AI စနစ်ဖြင့် ဂဏန်းနှင့် ထိုးကြေးများကို အလိုအလျောက် ခွဲထုတ်ပေးပါမည်)'
-                      : 'Paste copied messages from Viber or Telegram to instantly extract numbers and amounts'}
+                      ? 'Telegram မက်ဆေ့ခ်ျထဲမှ စာသားကို Copy ယူပြီး ဤနေရာတွင် Paste ချလိုက်ပါ (AI စနစ်ဖြင့် ဂဏန်းနှင့် ထိုးကြေးများကို အလိုအလျောက် ขွဲထုတ်ပေးပါမည်)'
+                      : 'Paste copied messages from Telegram to instantly extract numbers and amounts'}
                   </p>
                 </div>
               </div>
@@ -1138,12 +1138,12 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
 
                 <div className="space-y-1">
                   <h4 className="text-base font-bold text-slate-900">
-                    {isMyanmar ? 'Viber / Telegram စကရင်ရှော့ခ် သို့မဟုတ် စလစ်ဓါတ်ပုံ တင်သွင်းရန်' : 'Upload or Capture Viber/Telegram Slip Photo'}
+                    {isMyanmar ? 'Telegram စကရင်ရှော့ခ် သို့မဟုတ် စလစ်ဓါတ်ပုံ တင်သွင်းရန်' : 'Upload or Capture Telegram Slip Photo'}
                   </h4>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
                     {isMyanmar
-                      ? 'Viber, Telegram မက်ဆေ့ခ်ျ Screenshot ဓါတ်ပုံ သို့မဟုတ် ဖုန်းကင်မရာဖြင့် ရိုက်ထားသော ဓါတ်ပုံများကို တင်သွင်းပါက စာသားများကို scan ဖတ်ပြီး ဂဏန်းနှင့်ထိုးကြေးများကို အလိုအလျောက် စာရင်းသွင်းပေးပါမည်'
-                      : 'Take a photo with camera, upload a Viber/Telegram screenshot, or paste from clipboard'}
+                      ? 'Telegram မက်ဆေ့ခ်ျ Screenshot ဓါတ်ပုံ သို့မဟုတ် ဖုန်းကင်မရာဖြင့် ရိုက်ထားသော ဓါတ်ပုံများကို တင်သွင်းပါက စာသားများကို scan ဖတ်ပြီး ဂဏန်းနှင့်ထိုးကြေးများကို အလိုအလျောက် စာရင်းသွင်းပေးပါမည်'
+                      : 'Take a photo with camera, upload a Telegram screenshot, or paste from clipboard'}
                   </p>
                 </div>
 
@@ -1201,7 +1201,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
                 )}
 
                 <div className="pt-2 text-[11px] text-slate-500 flex items-center gap-1.5 font-mono">
-                  <span>💡 အကြံပြုချက်: Viber သို့မဟုတ် Telegram မက်ဆေ့ခ်ျ Screenshot ကို တင်သွင်းလိုက်ရုံဖြင့် အလိုအလျောက် scan ဖတ်ပေးမည်ဖြစ်ပါသည်</span>
+                  <span>💡 အကြံပြုချက်: Telegram မက်ဆေ့ခ်ျ Screenshot ကို တင်သွင်းလိုက်ရုံဖြင့် အလိုအလျောက် scan ဖတ်ပေးမည်ဖြစ်ပါသည်</span>
                 </div>
               </div>
             )
