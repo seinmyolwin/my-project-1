@@ -100,17 +100,26 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
     const deleted = loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
     const deletedSet = new Set(deleted);
+    const todayStr = getLocalDateString();
 
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
       if (!deletedSet.has(r.id)) {
-        storedMap.set(r.id, r);
+        let updatedRound = { ...r };
+        if (updatedRound.drawDate < todayStr && updatedRound.status === 'open' && updatedRound.drawDate >= '2026-10-05') {
+          updatedRound.status = 'closed';
+        }
+        storedMap.set(r.id, updatedRound);
       }
     });
 
     upToDate.forEach(r => {
       if (!storedMap.has(r.id) && !deletedSet.has(r.id)) {
-        storedMap.set(r.id, r);
+        let updatedRound = { ...r };
+        if (updatedRound.drawDate < todayStr && updatedRound.status === 'open' && updatedRound.drawDate >= '2026-10-05') {
+          updatedRound.status = 'closed';
+        }
+        storedMap.set(r.id, updatedRound);
       }
     });
 
@@ -133,7 +142,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         prev.forEach(r => {
           if (!deletedSet.has(r.id)) {
-            map.set(r.id, r);
+            if (r.drawDate < todayStr && r.status === 'open' && r.drawDate >= '2026-10-05') {
+              map.set(r.id, { ...r, status: 'closed' });
+              changed = true;
+            } else {
+              map.set(r.id, r);
+            }
           } else {
             changed = true;
           }
@@ -141,7 +155,11 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         upToDate.forEach(r => {
           if (!map.has(r.id) && !deletedSet.has(r.id)) {
-            map.set(r.id, r);
+            if (r.drawDate < todayStr && r.status === 'open' && r.drawDate >= '2026-10-05') {
+              map.set(r.id, { ...r, status: 'closed' });
+            } else {
+              map.set(r.id, r);
+            }
             changed = true;
           }
         });
@@ -329,15 +347,25 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const upToDate = generateUpToDate2DRounds(feed, settings.defaultMultiplier, settings.defaultCommissionRate);
         setRounds(prev => {
           const map = new Map<string, TwoDDrawRound>();
-          prev.forEach(r => map.set(r.id, r));
-          upToDate.forEach(r => {
-            const existing = map.get(r.id);
-            if (existing) {
-              if (existing.status !== 'settled' && r.status === 'settled' && r.winningNumber) {
-                map.set(r.id, { ...existing, status: 'settled', winningNumber: r.winningNumber, settledAt: r.settledAt });
-              }
-            } else {
+          const deleted = loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
+          const deletedSet = new Set(deleted);
+
+          prev.forEach(r => {
+            if (!deletedSet.has(r.id)) {
               map.set(r.id, r);
+            }
+          });
+
+          upToDate.forEach(r => {
+            if (!deletedSet.has(r.id)) {
+              const existing = map.get(r.id);
+              if (existing) {
+                if (existing.status !== 'settled' && r.status === 'settled' && r.winningNumber) {
+                  map.set(r.id, { ...existing, status: 'settled', winningNumber: r.winningNumber, settledAt: r.settledAt });
+                }
+              } else {
+                map.set(r.id, r);
+              }
             }
           });
           return Array.from(map.values());
@@ -867,20 +895,27 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
           data.rounds.forEach((r: TwoDDrawRound) => {
             const existing = map.get(r.id);
-            if (existing) {
-              if (existing.status === 'closed' || existing.status === 'settled') {
-                map.set(r.id, {
-                  ...r,
-                  status: existing.status,
-                  winningNumber: existing.winningNumber || r.winningNumber,
-                  settledAt: existing.settledAt || r.settledAt
-                });
-              } else {
-                map.set(r.id, r);
-              }
-            } else {
-              map.set(r.id, r);
+            let mergedRound = { ...r };
+
+            // Determine if the imported round's date is old
+            const todayStr = getLocalDateString();
+            const isPastDate = r.drawDate < todayStr;
+
+            // If the imported round is 'open', but it's a past date, change its status to 'closed'
+            if (mergedRound.status === 'open' && isPastDate) {
+              mergedRound.status = 'closed';
             }
+
+            if (existing) {
+              // Rule: id တူရင် ရှိပြီးသား status (closed/settled) ကို မပြောင်းစေပါနဲ့ (Do not change existing status if it is closed or settled)
+              if (existing.status === 'closed' || existing.status === 'settled') {
+                mergedRound.status = existing.status;
+                mergedRound.winningNumber = existing.winningNumber || mergedRound.winningNumber;
+                mergedRound.settledAt = existing.settledAt || mergedRound.settledAt;
+              }
+            }
+
+            map.set(r.id, mergedRound);
           });
           return Array.from(map.values());
         });

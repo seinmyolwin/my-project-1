@@ -35,6 +35,13 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
       return;
     }
 
+    if (dateStr < '2026-10-05') {
+      alert(isMyanmar
+        ? '၂၀၂၆-၁၀-၀၅ မတိုင်မီ ရက်စွဲများအတွက် ပွဲစဉ်အသစ် ဖန်တီး၍ မရပါတည်း။'
+        : 'Cannot create draw rounds before 2026-10-05');
+      return;
+    }
+
     const sessionName = session === 'morning' ? 'မနက် (12:01 PM)' : 'ညနေ (04:30 PM)';
     const name = `${dateStr} ${sessionName}`;
 
