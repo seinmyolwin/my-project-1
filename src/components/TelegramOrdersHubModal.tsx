@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Send,
   CheckCircle2,
@@ -26,8 +26,13 @@ import {
   TelegramAccountConfig,
   getTelegramConfig,
   saveTelegramConfig,
+  syncTelegramConfig,
   getTelegramOrders,
   saveTelegramOrders,
+  fetchTelegramOrdersFromServer,
+  updateTelegramOrderOnServer,
+  deleteTelegramOrderOnServer,
+  sendTelegramMessage,
   generateTelegramConfirmationMessage,
   testTelegramConnection,
   ConnectionStatus
@@ -78,6 +83,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    syncTelegramConfig().then(cfg => {
+      if (cfg) {
+        setConfig(cfg);
+      }
+    });
+    fetchTelegramOrdersFromServer().then(ordList => {
+      if (ordList && ordList.length > 0) {
+        setOrders(ordList);
+      }
+    });
+  }, []);
 
   if (!isOpen) return null;
 
@@ -311,17 +329,34 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
     handleUpdateOrders(updated);
+
+    // Sync status with backend
+    updateTelegramOrderOnServer(order.id, { status: 'approved' });
+
+    // Send confirmation message to Telegram user if chatId exists
+    if (order.chatId) {
+      sendTelegramMessage(
+        order.chatId,
+        generateTelegramConfirmationMessage(order.senderName, order.totalAmount)
+      ).catch(() => {});
+    }
   };
 
   const handleRejectOrder = (orderId: string) => {
     const updated = orders.map(o => o.id === orderId ? { ...o, status: 'rejected' as const } : o);
     handleUpdateOrders(updated);
+
+    // Sync status with backend
+    updateTelegramOrderOnServer(orderId, { status: 'rejected' });
   };
 
   const handleDeleteOrder = (orderId: string) => {
     const updated = orders.filter(o => o.id !== orderId);
     handleUpdateOrders(updated);
     if (selectedOrderId === orderId) setSelectedOrderId(null);
+
+    // Sync deletion with backend
+    deleteTelegramOrderOnServer(orderId);
   };
 
   const handleTestConnection = async () => {

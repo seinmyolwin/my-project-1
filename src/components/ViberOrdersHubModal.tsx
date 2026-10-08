@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare,
   CheckCircle2,
@@ -31,8 +31,13 @@ import {
   ViberAccountConfig,
   getViberConfig,
   saveViberConfig,
+  syncViberConfig,
   getViberOrders,
   saveViberOrders,
+  fetchViberOrdersFromServer,
+  updateViberOrderOnServer,
+  deleteViberOrderOnServer,
+  sendViberMessage,
   parseViberBetText,
   generateViberConfirmationMessage,
   generateViberRejectionMessage,
@@ -92,6 +97,19 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    syncViberConfig().then(cfg => {
+      if (cfg) {
+        setConfig(cfg);
+      }
+    });
+    fetchViberOrdersFromServer().then(ordList => {
+      if (ordList && ordList.length > 0) {
+        setOrders(ordList);
+      }
+    });
+  }, []);
 
   if (!isOpen) return null;
 
@@ -341,13 +359,15 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
       }
     }
 
+    const finalVoucherNo = createdVoucherNo || `V-APPR-${Date.now().toString().slice(-4)}`;
+
     // Update order status
     const updated = orders.map(o => {
       if (o.id === order.id) {
         return {
           ...o,
           status: 'approved' as const,
-          approvedVoucherNo: createdVoucherNo || `V-APPR-${Date.now().toString().slice(-4)}`,
+          approvedVoucherNo: finalVoucherNo,
           verifiedAt: new Date().toISOString()
         };
       }
@@ -355,6 +375,21 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
     });
 
     handleUpdateOrders(updated);
+
+    // Sync status with backend
+    updateViberOrderOnServer(order.id, {
+      status: 'approved',
+      approvedVoucherNo: finalVoucherNo
+    });
+
+    // Optionally send outbound message if senderId is known
+    if (order.senderId) {
+      sendViberMessage(
+        order.senderId,
+        generateViberConfirmationMessage(order, finalVoucherNo, 'ရွှေမင်္ဂလာ')
+      ).catch(() => {});
+    }
+
     alert(`✅ Viber အော်ဒါအား အတည်ပြုပြီးပါပြီ!\nဘောင်ချာအမှတ်: ${createdVoucherNo || 'အောင်မြင်ပါသည်'}`);
   };
 
@@ -363,12 +398,13 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
     const reason = prompt('ပယ်ဖျက်ရသည့် အကြောင်းပြချက် ရိုက်ထည့်ပါ (ဥပမာ- ပိတ်ဂဏန်းဖြစ်နေ၍ / ပွဲပိတ်ချိန်လွန်၍):', 'ဂဏန်းပိတ်ထားပါသည်');
     if (reason === null) return;
 
+    const finalReason = reason || 'ပယ်ဖျက်ထားပါသည်';
     const updated = orders.map(o => {
       if (o.id === order.id) {
         return {
           ...o,
           status: 'rejected' as const,
-          rejectionReason: reason || 'ပယ်ဖျက်ထားပါသည်',
+          rejectionReason: finalReason,
           verifiedAt: new Date().toISOString()
         };
       }
@@ -376,6 +412,20 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
     });
 
     handleUpdateOrders(updated);
+
+    // Sync status with backend
+    updateViberOrderOnServer(order.id, {
+      status: 'rejected',
+      rejectionReason: finalReason
+    });
+
+    // Optionally send outbound message if senderId is known
+    if (order.senderId) {
+      sendViberMessage(
+        order.senderId,
+        generateViberRejectionMessage(order, finalReason, 'ရွှေမင်္ဂလာ')
+      ).catch(() => {});
+    }
   };
 
   const handleTestConnection = async () => {

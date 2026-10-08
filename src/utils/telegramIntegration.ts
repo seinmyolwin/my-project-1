@@ -4,6 +4,7 @@ export interface TelegramIncomingOrder {
   id: string;
   senderName: string;
   senderPhone: string;
+  chatId?: string | number;
   orderType: 'text' | 'photo';
   category: '3d' | '2d' | 'football';
   rawText: string;
@@ -28,6 +29,7 @@ export interface TelegramAccountConfig {
   status: ConnectionStatus;
   statusMessage?: string;
   connectedAt?: string;
+  hasServerToken?: boolean;
 }
 
 const TELEGRAM_CONFIG_KEY = 'shwe_mingalar_telegram_config';
@@ -47,14 +49,11 @@ export function getTelegramConfig(): TelegramAccountConfig {
     const raw = localStorage.getItem(TELEGRAM_CONFIG_KEY);
     if (raw) {
       const parsed: TelegramAccountConfig = JSON.parse(raw);
-      if (!parsed.botToken?.trim() || !parsed.webhookUrl?.trim()) {
-        return {
-          ...parsed,
-          status: 'disconnected',
-          statusMessage: 'API Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
-        };
-      }
-      return parsed;
+      // Ensure botToken is never stored in plain text in browser
+      return {
+        ...parsed,
+        botToken: parsed.botToken ? '' : ''
+      };
     }
   } catch {
     // ignore
@@ -62,74 +61,126 @@ export function getTelegramConfig(): TelegramAccountConfig {
   return DEFAULT_TELEGRAM_CONFIG;
 }
 
+/**
+ * Fetch server-side status & configuration for Telegram
+ */
+export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null> {
+  try {
+    const res = await fetch('/api/telegram/config', {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const current = getTelegramConfig();
+      const updated: TelegramAccountConfig = {
+        ...current,
+        channelId: data.channelId || current.channelId,
+        accountName: data.accountName || current.accountName,
+        webhookUrl: data.webhookUrl || current.webhookUrl,
+        status: data.status || 'disconnected',
+        statusMessage: data.statusMessage,
+        connectedAt: data.connectedAt,
+        hasServerToken: Boolean(data.hasToken)
+      };
+      saveTelegramConfig(updated);
+      return updated;
+    }
+  } catch {
+    // network failure to backend
+  }
+  return null;
+}
+
+/**
+ * Test Telegram connection via backend endpoint
+ * Tokens NEVER go to api.telegram.org directly from the browser!
+ */
 export async function testTelegramConnection(botToken: string, webhookUrl: string): Promise<{
   status: ConnectionStatus;
   message: string;
 }> {
-  if (!botToken.trim() || !webhookUrl.trim()) {
-    return {
-      status: 'disconnected',
-      message: 'API Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
-    };
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
-
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken.trim()}/getMe`, {
-      method: 'GET',
-      signal: controller.signal
+    const res = await fetch('/api/telegram/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        botToken: botToken.trim() || undefined,
+        webhookUrl: webhookUrl.trim() || undefined
+      }),
+      signal: AbortSignal.timeout(8000)
     });
-    clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
-      if (data.ok && data.result) {
-        return {
-          status: 'connected',
-          message: `Telegram Bot [@${data.result.username || data.result.first_name}] သို့ တရားဝင် အဆင်ပြေစွာ ချိတ်ဆက်ထားသည်`
-        };
-      } else {
-        return {
-          status: 'error',
-          message: 'Telegram API Error: Bot Token မမှန်ကန်ပါ'
-        };
-      }
-    } else if (res.status === 401 || res.status === 404) {
+      return {
+        status: data.status || 'disconnected',
+        message: data.message || 'Telegram connection response received'
+      };
+    }
+
+    if (res.status === 401 || res.status === 404) {
       return {
         status: 'error',
         message: 'Telegram Bot Token မမှန်ကန်ပါ (Unauthorized)'
       };
-    } else {
-      return {
-        status: 'error',
-        message: `Telegram Server မှ တုံ့ပြန်မှု အဆင်မပြေပါ (HTTP ${res.status})`
-      };
     }
+
+    return {
+      status: 'error',
+      message: `ဆာဗာမှ အမှားတုံ့ပြန်ချက် ရရှိပါသည် (HTTP ${res.status})`
+    };
   } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
       return {
         status: 'timeout',
-        message: 'Telegram API ချိတ်ဆက်မှု အချိန်လွန်သွားပါသည် (Timeout)'
-      };
-    }
-    if (botToken.length > 20) {
-      return {
-        status: 'connected',
-        message: 'Telegram Webhook Endpoint သို့ အောင်မြင်စွာ ချိတ်ဆက်ထားသည်'
+        message: 'Telegram API စစ်ဆေးမှု အချိန်လွန်သွားပါသည် (Timeout)'
       };
     }
     return {
       status: 'error',
-      message: 'Telegram Server သို့ ချိတ်ဆက်၍ မရပါ'
+      message: 'စနစ်ဆာဗာ (Backend) သို့ ချိတ်ဆက်၍ မရပါ'
     };
   }
 }
 
-export function saveTelegramConfig(config: TelegramAccountConfig) {
-  localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(config));
+/**
+ * Save configuration to server-side endpoint and client cache
+ * Never stores real botToken in browser localStorage
+ */
+export function saveTelegramConfig(config: TelegramAccountConfig): void {
+  try {
+    // Sanitize: client localStorage stores config WITHOUT raw botToken
+    const sanitized = {
+      ...config,
+      botToken: '' // Never store real bot token in localStorage
+    };
+    localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(sanitized));
+  } catch {
+    // ignore
+  }
+
+  // Push secret and configuration securely to backend
+  if (config.botToken || config.channelId || config.accountName || config.webhookUrl) {
+    fetch('/api/telegram/config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        botToken: config.botToken ? config.botToken.trim() : undefined,
+        channelId: config.channelId,
+        accountName: config.accountName,
+        webhookUrl: config.webhookUrl
+      })
+    }).catch(() => {
+      // offline fallback
+    });
+  }
 }
 
 export function getTelegramOrders(): TelegramIncomingOrder[] {
@@ -160,8 +211,71 @@ export function getTelegramOrders(): TelegramIncomingOrder[] {
   ];
 }
 
-export function saveTelegramOrders(orders: TelegramIncomingOrder[]) {
-  localStorage.setItem(TELEGRAM_ORDERS_KEY, JSON.stringify(orders));
+export function saveTelegramOrders(orders: TelegramIncomingOrder[]): void {
+  try {
+    localStorage.setItem(TELEGRAM_ORDERS_KEY, JSON.stringify(orders));
+  } catch {
+    // ignore
+  }
+}
+
+export async function fetchTelegramOrdersFromServer(): Promise<TelegramIncomingOrder[] | null> {
+  try {
+    const res = await fetch('/api/telegram/orders', {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const orders = await res.json();
+      if (Array.isArray(orders) && orders.length > 0) {
+        saveTelegramOrders(orders);
+        return orders;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+export async function sendTelegramMessage(chatId: string | number, text: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/telegram/send-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId, text })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function updateTelegramOrderOnServer(
+  id: string,
+  updates: { status?: 'pending_review' | 'approved' | 'rejected'; notes?: string }
+): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/telegram/orders/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteTelegramOrderOnServer(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/telegram/orders/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function generateTelegramConfirmationMessage(senderName: string, totalAmount: number, currency: string = 'Ks'): string {
