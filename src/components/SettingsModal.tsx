@@ -1085,8 +1085,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     (num) => lottery2D.blockedNumbers[num] && (!searchBlocked2D || num.includes(searchBlocked2D))
   );
 
-  if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col justify-between overflow-hidden">
@@ -2393,7 +2391,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                 <span className="text-xs font-black text-slate-900 block">၁။ Master Encrypted Backup (.rhmg) ဖိုင်သိမ်းဆည်းရန်</span>
                 <p className="text-[11px] text-slate-500">
-                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် စာရင်းအားလုံး ပါဝင်ပါသည်။
+                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် + Viber စာရင်းအားလုံး ပါဝင်ပါသည်။
                 </p>
                 <button
                   type="button"
@@ -2512,7 +2510,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* Print-only Statement Header Banner */}
                 <div className="hidden print:block border-b-2 border-slate-900 pb-3 mb-4 text-center">
                   <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                    {useLottery().settings.shopName || 'ရွှေမင်္ဂလာ'} - စာရင်းရှင်းတမ်း အစီရင်ခံစာ
+                    {lottery3D.settings.shopName || 'ရွှေမင်္ဂလာ'} - စာရင်းရှင်းတမ်း အစီရင်ခံစာ
                   </h2>
                   <p className="text-xs text-slate-600 font-bold mt-1">
                     {statementPeriod === 'today' ? 'ဒီနေ့ စာရင်းရှင်းတမ်း' :

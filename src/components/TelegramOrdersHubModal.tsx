@@ -75,6 +75,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [accountName, setAccountName] = useState(config.accountName || 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့');
   const [webhookUrl, setWebhookUrl] = useState(config.webhookUrl || 'https://telegram.shwemingalar.app/webhook/bot');
   const [configSuccess, setConfigSuccess] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -322,8 +323,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     handleUpdateOrders(updated);
     if (selectedOrderId === orderId) setSelectedOrderId(null);
   };
-
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
