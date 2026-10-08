@@ -72,10 +72,11 @@ export const WinningPayoutView: React.FC = () => {
     const newRound = createRound({
       name: roundName,
       drawDate: dateStr,
+      closingTime: '15:30',
       status: 'open',
       multiplier: settings.defaultMultiplier || 600,
       toddMultiplier: settings.defaultToddMultiplier || 100,
-      targetTime: '15:30'
+      commissionRate: settings.defaultCommissionRate || 10
     });
 
     setActiveRoundId(newRound.id);

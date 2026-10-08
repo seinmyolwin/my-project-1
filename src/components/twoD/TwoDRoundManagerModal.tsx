@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 
+import { getLocalDateString } from '../../utils/moneyUtils';
+
 interface TwoDRoundManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,9 +20,9 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
   const { rounds, activeRoundId, setActiveRoundId, createRound, deleteRound, settings } = useTwoDLottery();
   const isMyanmar = settings.language === 'my';
 
-  const [dateStr, setDateStr] = useState(new Date().toISOString().slice(0, 10));
+  const [dateStr, setDateStr] = useState(getLocalDateString());
   const [session, setSession] = useState<'morning' | 'evening'>('morning');
-  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || 80));
+  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || ''));
 
   if (!isOpen) return null;
 
@@ -34,9 +36,9 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
       drawDate: dateStr,
       session,
       closingTime: session === 'morning' ? '12:00' : '16:25',
-      multiplier: parseFloat(multiplier) || settings.defaultMultiplier || 80,
+      multiplier: parseFloat(multiplier) || settings.defaultMultiplier,
       status: 'open',
-      commissionRate: settings.defaultCommissionRate || 12
+      commissionRate: settings.defaultCommissionRate
     });
 
     onClose();

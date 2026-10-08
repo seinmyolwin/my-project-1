@@ -52,7 +52,7 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
     settings.defaultMasterAgentPhone || '09-970001111'
   );
   const [commissionRate, setCommissionRate] = useState<number>(
-    settings.defaultCommissionRate || 10
+    settings.defaultCommissionRate ?? 0
   );
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from './storage';
-import { SECURITY_STORAGE_KEYS } from './securityUtils';
+import { SECURITY_STORAGE_KEYS, obscurePin, verifyObscuredPin } from './securityUtils';
 
 export const VIBER_STORAGE_KEYS = {
   CONFIG: 'rhmg_viber_config_v1',
@@ -274,7 +274,7 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       },
       // Security & System Modes
       'security': {
-        ownerPin: localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN),
+        ownerPin: obscurePin(localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN)),
         enabledModes: localStorage.getItem(SECURITY_STORAGE_KEYS.ENABLED_MODES),
         setupCompleted: localStorage.getItem(SECURITY_STORAGE_KEYS.SETUP_COMPLETED),
         activeDealerMode: localStorage.getItem(STORAGE_KEYS.DEALER_MODE)
@@ -318,6 +318,17 @@ function setItemWithBackup(key: string, val: string | null) {
     localStorage.setItem(key, val);
     localStorage.setItem(`${key}_backup`, val);
   }
+}
+
+function validateBackupSchema(parsed: any): boolean {
+  if (!parsed || typeof parsed !== 'object') return false;
+  if (!parsed.payload || typeof parsed.payload !== 'object') return false;
+  const p = parsed.payload;
+  if (p['3d'] !== undefined && (typeof p['3d'] !== 'object' || p['3d'] === null)) return false;
+  if (p['2d'] !== undefined && (typeof p['2d'] !== 'object' || p['2d'] === null)) return false;
+  if (p['football'] !== undefined && (typeof p['football'] !== 'object' || p['football'] === null)) return false;
+  if (p['security'] !== undefined && (typeof p['security'] !== 'object' || p['security'] === null)) return false;
+  return true;
 }
 
 /**
@@ -372,8 +383,16 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       }
 
       const parsed = JSON.parse(decryptedJson);
-      if (!parsed.payload) {
-        return { success: false, message: 'ဒေတာ ဖော်မတ် မှားယွင်းနေပါသည်' };
+      if (!validateBackupSchema(parsed)) {
+        return { success: false, message: 'ဒေတာ ဖော်မတ်/စကီးမား မှားယွင်းနေပါသည် (Schema Validation Failed)' };
+      }
+
+      // Validate security PIN if stored in backup
+      const psec = parsed.payload['security'];
+      if (psec && psec.ownerPin && ownerPin) {
+        if (!verifyObscuredPin(ownerPin, psec.ownerPin)) {
+          return { success: false, message: 'PIN နံပါတ် မှားယွင်းနေပါသည် (Invalid Security PIN)' };
+        }
       }
 
       // Restore 3D
@@ -412,7 +431,6 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       }
 
       // Restore Security & Modes
-      const psec = parsed.payload['security'];
       if (psec) {
         setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PIN, psec.ownerPin);
         setItemWithBackup(SECURITY_STORAGE_KEYS.ENABLED_MODES, psec.enabledModes);

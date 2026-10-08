@@ -194,7 +194,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
         'ထိပ်စီး (Head)': head,
         'နောက်ပိတ် (Tail)': tail,
         'ဘရိတ် (Brake)': brake,
-        'ပေါက်ဆ (Multiplier)': `${r.multiplier || 85}x`,
+        'ပေါက်ဆ (Multiplier)': `${r.multiplier || lottery2D.settings.defaultMultiplier || 0}x`,
         'အခြေအနေ (Status)': r.status === 'settled' ? 'ပြီးဆုံး' : 'ဖွင့်လှစ်ဆဲ'
       };
     });
@@ -703,7 +703,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
                   <span className="text-[11px] font-bold text-slate-500 block mb-0.5">ပုံမှန်အလျော်ဆ</span>
                   <div className="text-xl font-black text-slate-900 font-mono">
-                    {lottery2D.settings.defaultMultiplier || 85} <span className="text-xs font-normal text-slate-500">ဆ</span>
+                    {lottery2D.settings.defaultMultiplier || 0} <span className="text-xs font-normal text-slate-500">ဆ</span>
                   </div>
                 </div>
               </div>
@@ -818,7 +818,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                               </div>
 
                               <span className="text-slate-500 font-medium text-[11px]">
-                                အလျော်ဆ: <strong>{round.multiplier || 85}x</strong>
+                                အလျော်ဆ: <strong>{round.multiplier || lottery2D.settings.defaultMultiplier || 0}x</strong>
                               </span>
                             </div>
                           )}

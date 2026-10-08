@@ -252,16 +252,37 @@ export function getTwoDKhwayPuuRumble(input: string): string[] {
 // ====================================================
 // 2D BATCH TEXT / SLIP PARSER
 // ====================================================
-export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000): TwoDBetItem[] {
-  const lines = text.split(/[\n,;]+/);
+export interface ParseTwoDBatchResult {
+  items: TwoDBetItem[];
+  warnings: string[];
+}
+
+export function parseTwoDBatchInput(
+  text: string,
+  defaultAmount: number = 1000
+): TwoDBetItem[] | ParseTwoDBatchResult {
+  const warnings: string[] = [];
   const items: TwoDBetItem[] = [];
 
+  if (!text || !text.trim()) {
+    return Array.isArray(arguments[0]) ? items : { items, warnings };
+  }
+
+  // 1. Convert Myanmar digits
+  let cleanText = convertMyanmarToEnglishDigits(text);
+
+  // 2. Strip thousands separators (e.g. 1,000 -> 1000, 10,000 -> 10000)
+  cleanText = cleanText.replace(/(\b\d{1,3})(,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
+
+  // 3. Split lines by newlines
+  const lines = cleanText.split(/[\r\n]+/);
+
   for (const rawLine of lines) {
-    const line = convertMyanmarToEnglishDigits(rawLine.trim());
+    const line = rawLine.trim();
     if (!line) continue;
 
-    // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble) - e.g. "1234 ခွေပူးr 1000", "1234.ခွေပူးအာ"
-    if (/ခွေပူး[rအာ]|ခွေ\s*ပူး\s*[rအာ]|ပါခွေ[rအာ]|ခွေ[rအာ]ပူး/i.test(line)) {
+    // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble)
+    if (/(?:ခွေပူး(?:r|အာ)|ခွေ\s*ပူး\s*(?:r|အာ)|ပါခွေ(?:r|အာ)|ခွေ(?:r|အာ)ပူး)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
@@ -279,8 +300,8 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern 2: ခွေအာ / ခွေr (Khway + Rumble, no doubles) - e.g. "1234 ခွေr 1000", "1234.ခွေအာ"
-    if (/ခွေ[rအာ]|ခွေ\s*[rအာ]/i.test(line) && !/ပူး/i.test(line)) {
+    // Pattern 2: ခွေအာ / ခွေr (Khway + Rumble, no doubles)
+    if (/(?:ခွေ(?:r|အာ)|ခွေ\s*(?:r|အာ))/i.test(line) && !/ပူး/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
@@ -298,8 +319,8 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern 3: ခွေပူး (Khway + Puu, no rumble) - e.g. "1234 ခွေပူး 1000", "1234.ခွေပူး"
-    if (/ခွေပူး|ခွေ\s*ပူး|ပါခွေ/i.test(line) && !/[rအာ]/i.test(line)) {
+    // Pattern 3: ခွေပူး (Khway + Puu, no rumble)
+    if (/(?:ခွေပူး|ခွေ\s*ပူး|ပါခွေ)/i.test(line) && !/(?:r|အာ)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
@@ -317,8 +338,8 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern 4: ခွေ (ရိုးရိုးခွေ, no doubles, no rumble) - e.g. "1234 ခွေ 1000", "1234.ခွေ"
-    if (/ခွေ/i.test(line) && !/ပူး|[rအာ]/i.test(line)) {
+    // Pattern 4: ခွေ (ရိုးရိုးခွေ, no doubles, no rumble)
+    if (/ခွေ/i.test(line) && !/ပူး|(?:r|အာ)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
@@ -396,7 +417,7 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       continue;
     }
 
-    // Pattern: "5 ဘရိတ် 1000" or "ဘရိတ် 5 1000"
+    // Pattern: "5 ဘရိတ် 1000" or "0 ဘရိတ် 1000" or "ဘရိတ် 5 1000"
     if (/ဘရိတ်/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
@@ -414,8 +435,8 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern: "5 ပါ 1000", "5ပါ 500", "၅ပါ ၅၀၀", "အပါ 5 1000"
-    if (/အပါ|ပါ/i.test(line) && !/ပါဝါ/i.test(line)) {
+    // Pattern: "5 ပါ 1000", "5ပါ 500", "အပါ 5 1000"
+    if (/(?:အပါ|ပါ)/i.test(line) && !/ပါဝါ/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const targetDigit = nums[0].slice(-1);
@@ -432,8 +453,8 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern: "1 ရှေ့ပိတ် 1000", "1ရှေ့ပိတ် 500", "5 ထိပ် 1000", "ထိပ် 5 1000"
-    if (/ရှေ့ပိတ်|ရှေ့စီး|ထိပ်/i.test(line)) {
+    // Pattern: "5 ထိပ် 1000", "ထိပ် 5 1000", "1 ရှေ့ပိတ် 1000"
+    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const headDigit = parseInt(nums[0].slice(-1), 10);
@@ -450,8 +471,8 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern: "2 နောက်ပိတ် 1000", "2နောက်ပိတ် 500", "5 နောက် 1000", "5 ပိတ် 1000"
-    if (/နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်/i.test(line) && !/ရှေ့ပိတ်|ရှေ့စီး/i.test(line)) {
+    // Pattern: "2 နောက်ပိတ် 1000", "5 နောက် 1000", "5 ပိတ် 1000"
+    if (/(?:နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်)/i.test(line) && !/(?:ရှေ့ပိတ်|ရှေ့စီး)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const tailDigit = parseInt(nums[0].slice(-1), 10);
@@ -468,7 +489,7 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       }
     }
 
-    // Pattern: "စုံစုံ 1000", "မမ 1000", "စုံမ 1000", "မစုံ 1000"
+    // Pattern: "စုံစုံ", "မမ", "စုံမ", "မစုံ"
     if (/စုံစုံ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
@@ -522,10 +543,7 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
       continue;
     }
 
-    // 2. Standard and Multi-number lines with R or Straight
-    // E.g.: "35 56 54 R 500", "35 56 54 အာ 500", "35, 56, 54 R 500", "35-56-54 R 500", "35/56/54=500"
-    // Also e.g. "35R500, 56R500", "35=500, 56=1000", "35 500"
-
+    // Segment parsing for comma/space delimited bets like "35, 56, 54 R 500" or "35 56 54 R 500"
     const commaSegments = line.split(',').map(s => s.trim()).filter(Boolean);
     const isIndependentSegments = commaSegments.length > 1 && commaSegments.every(seg => {
       const numMatch = seg.match(/\d+/g);
@@ -535,56 +553,65 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
     const segmentsToProcess = isIndependentSegments ? commaSegments : [line];
 
     for (const segment of segmentsToProcess) {
-      const isRumble = /r|R|အာ|ပတ်လည်|ပတ်/i.test(segment);
-      const cleanSeg = segment.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
+      const isRumble = /(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(segment);
+      const cleanSeg = segment.replace(/(?:r|R|အာ|ပတ်လည်|ပတ်)/gi, ' ');
       const rawTokens = cleanSeg.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
 
       if (rawTokens.length === 0) continue;
 
       let betAmount = defaultAmount;
-      let numbers: string[] = [];
+      let rawNumberTokens: string[] = [];
 
       if (rawTokens.length === 1) {
-        numbers.push(rawTokens[0].padStart(2, '0'));
+        rawNumberTokens.push(rawTokens[0]);
       } else {
         const lastToken = rawTokens[rawTokens.length - 1];
         const parsedAmt = parseInt(lastToken, 10);
-        
-        if (!isNaN(parsedAmt) && parsedAmt > 0) {
+
+        if (!isNaN(parsedAmt) && parsedAmt > 0 && lastToken.length >= 3 && !/^\d{2}$/.test(lastToken)) {
           betAmount = parsedAmt;
-          numbers = rawTokens.slice(0, rawTokens.length - 1).map(n => n.padStart(2, '0'));
+          rawNumberTokens = rawTokens.slice(0, rawTokens.length - 1);
+        } else if (!isNaN(parsedAmt) && parsedAmt > 0 && rawTokens.length > 1) {
+          betAmount = parsedAmt;
+          rawNumberTokens = rawTokens.slice(0, rawTokens.length - 1);
         } else {
-          numbers = rawTokens.map(n => n.padStart(2, '0'));
+          rawNumberTokens = rawTokens;
         }
       }
 
-      for (const numStr of numbers) {
-        if (/^\d{2}$/.test(numStr)) {
-          if (isRumble) {
-            const revs = getTwoDReversal(numStr);
-            revs.forEach(r => {
-              items.push({
-                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                number: r,
-                amount: betAmount,
-                isRumble: true,
-                originalInput: `${numStr} R`
-              });
-            });
-          } else {
+      for (const token of rawNumberTokens) {
+        if (!/^\d{1,2}$/.test(token)) {
+          warnings.push(`[${token}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+          continue;
+        }
+
+        const numStr = token.padStart(2, '0');
+        if (isRumble) {
+          const revs = getTwoDReversal(numStr);
+          revs.forEach(r => {
             items.push({
               id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-              number: numStr,
+              number: r,
               amount: betAmount,
-              isRumble: false,
-              originalInput: numStr
+              isRumble: true,
+              originalInput: `${numStr} R`
             });
-          }
+          });
+        } else {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: numStr,
+            amount: betAmount,
+            isRumble: false,
+            originalInput: numStr
+          });
         }
       }
     }
   }
 
+  // Attach warnings array property onto items for components expecting array direct return or property
+  (items as any).warnings = warnings;
   return items;
 }
 
@@ -594,7 +621,7 @@ export function parseTwoDBatchInput(text: string, defaultAmount: number = 1000):
 export function evaluateTwoDWinnings(
   vouchers: TwoDVoucher[],
   winningNumber: string,
-  multiplier: number = 85
+  multiplier: number
 ): {
   settledVouchers: TwoDVoucher[];
   totalPayout: number;
@@ -603,11 +630,13 @@ export function evaluateTwoDWinnings(
   let totalPayout = 0;
   let totalWinnersCount = 0;
 
+  const mult = multiplier || 0;
+
   const settledVouchers = vouchers.map(v => {
     let voucherHasWin = false;
     const updatedItems = v.items.map(item => {
       if (item.number === winningNumber) {
-        const winAmt = calculatePayout(item.amount, multiplier);
+        const winAmt = calculatePayout(item.amount, mult);
         totalPayout += winAmt;
         voucherHasWin = true;
         totalWinnersCount++;
@@ -624,9 +653,11 @@ export function evaluateTwoDWinnings(
       };
     });
 
+    const newStatus: TwoDVoucher['status'] = v.status === 'cancelled' ? 'cancelled' : voucherHasWin ? 'settled' : 'active';
+
     return {
       ...v,
-      status: voucherHasWin ? ('settled' as const) : v.status,
+      status: newStatus,
       items: updatedItems
     };
   });

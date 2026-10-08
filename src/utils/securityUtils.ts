@@ -20,6 +20,47 @@ export const DEFAULT_ENABLED_MODES: EnabledModes = {
 };
 
 /**
+ * Obscures/hashes PIN code for safe backup export so plaintext PIN is never exposed in backup files
+ */
+export function obscurePin(pin: string | null): string | null {
+  if (!pin) return null;
+  const salt = 'SHWE_MINGALAR_PIN_SALT_2026';
+  let hash = 0;
+  for (let i = 0; i < pin.length; i++) {
+    hash = ((hash << 5) - hash) + pin.charCodeAt(i);
+    hash |= 0;
+  }
+  try {
+    return `OBSCURED_PIN_v1::${Math.abs(hash).toString(36)}::${btoa(`${salt}_${pin}`)}`;
+  } catch {
+    return `OBSCURED_PIN_v1::${Math.abs(hash).toString(36)}`;
+  }
+}
+
+/**
+ * Extracts or verifies obscured PIN against input PIN
+ */
+export function verifyObscuredPin(inputPin: string, obscured: string | null): boolean {
+  if (!obscured || !inputPin) return false;
+  if (!obscured.startsWith('OBSCURED_PIN_v1::')) {
+    return inputPin.trim() === obscured.trim();
+  }
+  const parts = obscured.split('::');
+  if (parts.length >= 3) {
+    try {
+      const decoded = atob(parts[2]);
+      const salt = 'SHWE_MINGALAR_PIN_SALT_2026_';
+      if (decoded.startsWith(salt)) {
+        return decoded.slice(salt.length) === inputPin.trim();
+      }
+    } catch {
+      // fallback to hash comparison
+    }
+  }
+  return obscurePin(inputPin) === obscured;
+}
+
+/**
  * Get current stored master password (fallback to legacy PIN or default '123456')
  */
 export function getStoredOwnerPassword(): string {

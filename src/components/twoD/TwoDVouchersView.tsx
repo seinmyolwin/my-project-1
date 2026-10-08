@@ -689,7 +689,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                         >
                           <div className="flex items-center gap-1.5">
                             <span className="font-black text-base text-slate-950">{item.number}</span>
-                            {item.isRumble && (
+                            {item.betType === 'rumble' && (
                               <span className="text-[9px] bg-teal-100 text-teal-800 font-bold px-1 rounded">
                                 R
                               </span>

@@ -225,14 +225,22 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
         amount: it.amount,
         betType: it.betType
       }));
+      const subtotal = itemsToBet.reduce((s, it) => s + it.amount, 0);
+      const discountAmount = Math.round((subtotal * (order.discountPercent || 0)) / 100);
 
-      const created = lottery3D.createVoucher(
-        itemsToBet,
-        order.senderName,
-        order.senderPhone,
-        order.discountPercent,
-        `Viber အော်ဒါ [${order.id}] - ${order.notes || ''}`
-      );
+      const created = lottery3D.addVoucher({
+        roundId: lottery3D.activeRoundId,
+        customerName: order.senderName,
+        customerPhone: order.senderPhone,
+        items: itemsToBet,
+        subtotal,
+        discountPercent: order.discountPercent || 0,
+        discountAmount,
+        netPayable: subtotal - discountAmount,
+        isPaid: true,
+        status: 'active',
+        notes: `Viber အော်ဒါ [${order.id}] - ${order.notes || ''}`
+      });
 
       if (created) {
         createdVoucherNo = created.voucherNo;
@@ -243,14 +251,22 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
         amount: it.amount,
         betType: it.betType
       }));
+      const subtotal = itemsToBet.reduce((s, it) => s + it.amount, 0);
+      const discountAmount = Math.round((subtotal * (order.discountPercent || 0)) / 100);
 
-      const created = lottery2D.createVoucher(
-        itemsToBet,
-        order.senderName,
-        order.senderPhone,
-        order.discountPercent,
-        `Viber အော်ဒါ [${order.id}] - ${order.notes || ''}`
-      );
+      const created = lottery2D.addVoucher({
+        roundId: lottery2D.activeRoundId,
+        customerName: order.senderName,
+        customerPhone: order.senderPhone,
+        items: itemsToBet,
+        subtotal,
+        discountPercent: order.discountPercent || 0,
+        discountAmount,
+        netPayable: subtotal - discountAmount,
+        isPaid: true,
+        status: 'active',
+        notes: `Viber အော်ဒါ [${order.id}] - ${order.notes || ''}`
+      });
 
       if (created) {
         createdVoucherNo = created.voucherNo;

@@ -42,6 +42,7 @@ export const TwoDLimitsManager: React.FC<TwoDLimitsManagerProps> = ({
     setBatchLimits,
     removeNumberLimit,
     toggleBlockNumber,
+    setBlockNumber,
     setBatchBlocked,
     aggregates
   } = useTwoDLottery();
@@ -86,10 +87,15 @@ export const TwoDLimitsManager: React.FC<TwoDLimitsManagerProps> = ({
     e.preventDefault();
     const clean = singleNum.trim().padStart(2, '0');
     const amt = parseFloat(singleLimitAmt);
-    if (clean.length === 2 && !isNaN(amt) && amt >= 0) {
-      setNumberLimit(clean, amt);
+    if (clean.length === 2 && !isNaN(amt)) {
+      if (amt > 0) {
+        setNumberLimit(clean, amt);
+        showToast(isMyanmar ? `ဂဏန်း [${clean}] အတွက် ဘရိတ် ${formatAmount(amt, settings.currency)} သတ်မှတ်ပြီးပါပြီ` : `Limit set for ${clean}`);
+      } else {
+        setBlockNumber(clean, true);
+        showToast(isMyanmar ? `ဂဏန်း [${clean}] ကို ဒိုင်ကာ (0) အဖြစ် ပိတ်ထားပြီးပါပြီ` : `Blocked number ${clean}`);
+      }
       setSingleNum('');
-      showToast(isMyanmar ? `ဂဏန်း [${clean}] အတွက် ဘရိတ် ${formatAmount(amt, settings.currency)} သတ်မှတ်ပြီးပါပြီ` : `Limit set for ${clean}`);
     }
   };
 

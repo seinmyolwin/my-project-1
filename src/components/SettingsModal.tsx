@@ -210,13 +210,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleExport3DExcel = () => {
     const data = lottery3D.vouchers.map((v, i) => ({
       'စဉ်': i + 1,
-      'ဘောင်ချာအမှတ်': v.id,
+      'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
       'ဝယ်သူအမည်': v.customerName,
       'ဖုန်း': v.customerPhone || '-',
-      'စုစုပေါင်းထိုးငွေ': v.totalAmount,
-      'ကော်မရှင်': v.commissionAmount,
-      'ပေးငွေ': v.netAmount,
-      'ရက်စွဲ': new Date(v.timestamp).toLocaleString()
+      'စုစုပေါင်းထိုးငွေ': v.subtotal,
+      'ကော်မရှင်': v.discountAmount,
+      'ပေးငွေ': v.netPayable,
+      'ရက်စွဲ': new Date(v.createdAt).toLocaleString()
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -227,13 +227,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleExport2DExcel = () => {
     const data = lottery2D.vouchers.map((v, i) => ({
       'စဉ်': i + 1,
-      'ဘောင်ချာအမှတ်': v.id,
+      'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
       'ဝယ်သူအမည်': v.customerName,
       'ဖုန်း': v.customerPhone || '-',
-      'စုစုပေါင်းထိုးငွေ': v.totalAmount,
-      'ကော်မရှင်': v.commissionAmount,
-      'ပေးငွေ': v.netAmount,
-      'ရက်စွဲ': new Date(v.timestamp).toLocaleString()
+      'စုစုပေါင်းထိုးငွေ': v.subtotal,
+      'ကော်မရှင်': v.discountAmount,
+      'ပေးငွေ': v.netPayable,
+      'ရက်စွဲ': new Date(v.createdAt).toLocaleString()
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -383,7 +383,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       isProfit: boolean;
       winnersCount: number;
       vouchersCount: number;
-      status: 'settled' | 'open';
+      status: 'settled' | 'open' | 'closed';
       rawRoundId?: string;
     }> = [];
 
@@ -425,7 +425,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           let totalPayout = 0;
           let winnersCount = 0;
           const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 80;
+          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 0;
 
           if (winningNum) {
             const evalResult = evaluateTwoDWinnings(rVouchers, winningNum, mult);
@@ -818,8 +818,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name2D, setName2D] = useState(lottery2D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop2D, setShop2D] = useState(lottery2D.settings.shopName || '');
   const [phone2D, setPhone2D] = useState(lottery2D.settings.shopPhone || '');
-  const [mult2D, setMult2D] = useState(String(lottery2D.settings.defaultMultiplier || 85));
-  const [comm2D, setComm2D] = useState(String(lottery2D.settings.defaultCommissionRate || 12));
+  const [mult2D, setMult2D] = useState(String(lottery2D.settings.defaultMultiplier ?? ''));
+  const [comm2D, setComm2D] = useState(String(lottery2D.settings.defaultCommissionRate ?? ''));
   const [disc2D, setDisc2D] = useState(String(lottery2D.settings.defaultCustomerDiscount || 0));
   const [globalLimit2D, setGlobalLimit2D] = useState(String(lottery2D.settings.globalStockLimit || 200000));
   const [footer2D, setFooter2D] = useState(lottery2D.settings.voucherFooterMessage || '');
@@ -876,8 +876,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       shopName: shop2D.trim(),
       shopPhone: phone2D.trim(),
       currency,
-      defaultMultiplier: parseFloat(mult2D) || 85,
-      defaultCommissionRate: parseFloat(comm2D) || 12,
+      defaultMultiplier: parseFloat(mult2D) || lottery2D.settings.defaultMultiplier,
+      defaultCommissionRate: parseFloat(comm2D) || lottery2D.settings.defaultCommissionRate,
       defaultCustomerDiscount: parseFloat(disc2D) || 0,
       globalStockLimit: parseFloat(globalLimit2D) || 200000,
       voucherFooterMessage: footer2D.trim(),
@@ -2544,10 +2544,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span className="text-[9px] px-1 py-0.2 bg-amber-200 text-amber-900 rounded font-black">နုတ်ပေးငွေ</span>
                     </span>
                     <div className="text-base sm:text-lg font-black font-mono text-amber-900 mt-0.5">
-                      -{formatAmount(stmtGrandTotals.totalAgentCommission, currency)}
+                      -{formatAmount(stmtGrandTotals.totalCommission, currency)}
                     </div>
                     <span className="text-[10px] text-amber-700 font-medium">
-                      အမှန်ရောင်းငွေ: {formatAmount(stmtGrandTotals.totalNetSales, currency)}
+                      အမှန်ရောင်းငွေ: {formatAmount(stmtGrandTotals.totalTurnover - stmtGrandTotals.totalCommission, currency)}
                     </span>
                   </div>
 
@@ -2570,7 +2570,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span className="text-[9px] px-1 py-0.2 bg-indigo-200 text-indigo-900 rounded font-black">ရငွေ</span>
                     </span>
                     <div className="text-base sm:text-lg font-black font-mono text-indigo-900 mt-0.5">
-                      +{formatAmount(stmtGrandTotals.totalForwardCommission, currency)}
+                      +{formatAmount(stmtGrandTotals.totalCommission, currency)}
                     </div>
                     <span className="text-[10px] text-indigo-600 font-medium">
                       ဒိုင်ကြီးဆီမှ ပြန်ရငွေ

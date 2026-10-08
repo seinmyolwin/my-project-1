@@ -72,9 +72,10 @@ export const TwoDWinningPayoutView: React.FC = () => {
         name: targetName,
         drawDate: today,
         session: targetSession,
+        closingTime: isMorning ? '16:30' : '12:01',
         status: 'open',
         multiplier: settings.defaultMultiplier,
-        targetTime: isMorning ? '16:30' : '12:01'
+        commissionRate: settings.defaultCommissionRate
       });
       setActiveRoundId(newRound.id);
       setWinningInput('');
@@ -174,23 +175,93 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   // Stage 2: Settle & Close Round (Auto-downloads Excel & persists settled status in DB)
   const handleCloseRound = () => {
+    if (isSettled) {
+      if (!window.confirm(isMyanmar ? 'ဤဖွင့်ပွဲအား အတည်ပြုပြီးဖြစ်ပါသည်။ ပေါက်မဲ ပြန်လည်ပြင်ဆင် Settle လုပ်ရန် သေချာပါသလား။' : 'Re-settle round?')) {
+        return;
+      }
+    }
+
     const targetNum = confirmedWinningNumber || convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 2);
-    if (!targetNum || targetNum.length !== 2) return;
-    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 0;
-    if (mult <= 0) {
-      alert(isMyanmar ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
+    if (!targetNum || targetNum.length !== 2) {
+      alert(isMyanmar ? 'ပေါက်ဂဏန်း (၀၀ မှ ၉၉) ဂဏန်း ၂ လုံး မှန်ကန်စွာ ရိုက်ထည့်ပါ' : 'Enter a valid 2-digit winning number (00-99)');
       return;
     }
 
-    // 1. Auto-save the comprehensive 2D Excel report to device!
+    if (!multiplierInput || multiplierInput.trim() === '') {
+      alert(isMyanmar ? 'ပေါက်ကြေးအဆ (Multiplier) ထည့်သွင်းပါ' : 'Please enter multiplier');
+      return;
+    }
+
+    const mult = parseFloat(multiplierInput);
+    if (isNaN(mult) || mult <= 0) {
+      alert(isMyanmar ? 'ပေါက်ကြေးအဆ (Multiplier) မှန်ကန်စွာ ထည့်သွင်းပါ' : 'Please enter valid multiplier');
+      return;
+    }
+
+    // 1. Officially settle round status in context & localStorage FIRST
+    settleWinningNumber(targetNum, mult);
+
+    const settledRound = {
+      ...activeRound!,
+      status: 'settled' as const,
+      winningNumber: targetNum,
+      multiplier: mult,
+      settledAt: new Date().toISOString()
+    };
+    const evalRes = evaluateTwoDWinnings(activeRoundVouchers, targetNum, mult);
+    let totalSoldForWinNum = 0;
+    activeRoundVouchers.forEach(v => {
+      v.items.forEach(it => {
+        if (it.number === targetNum) totalSoldForWinNum += it.amount;
+      });
+    });
+    let totalForwardedForWinNum = 0;
+    activeRoundForwardSlips.forEach(f => {
+      f.items.forEach(it => {
+        if (it.number === targetNum) totalForwardedForWinNum += it.amount;
+      });
+    });
+    const retainedAmount = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
+    const dealerPayout = mult > 0 ? retainedAmount * mult : 0;
+
+    let totalSales = 0;
+    let totalDiscount = 0;
+    let netRevenue = 0;
+    activeRoundVouchers.forEach(v => {
+      totalSales += v.subtotal;
+      totalDiscount += v.discountAmount;
+      netRevenue += v.netPayable;
+    });
+
+    let totalForwarded = 0;
+    let forwardedCommission = 0;
+    activeRoundForwardSlips.forEach(f => {
+      totalForwarded += f.totalAmount;
+      forwardedCommission += f.commissionAmount;
+    });
+
+    const netProfit = (netRevenue - dealerPayout) + forwardedCommission;
+
+    const settledSummary = {
+      totalSales,
+      totalVouchers: activeRoundVouchers.length,
+      totalDiscount,
+      netRevenue,
+      totalForwarded,
+      forwardedCommission,
+      totalPayout: dealerPayout,
+      winningNumber: targetNum,
+      totalWinnersCount: evalRes.totalWinnersCount,
+      netProfit,
+      isProfit: netProfit >= 0
+    };
+
+    // 2. Auto-save the comprehensive 2D Excel report to device with updated settled status and winners
     try {
-      exportToExcel();
+      exportToExcel(settledRound, evalRes.settledVouchers, settledSummary);
     } catch (err) {
       console.warn('Auto Excel export error:', err);
     }
-
-    // 2. Officially settle round status to 'settled' in context & localStorage
-    settleWinningNumber(targetNum, mult);
 
     setIsWinningConfirmed(false);
     setConfirmedWinningNumber('');

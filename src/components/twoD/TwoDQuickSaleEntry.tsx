@@ -28,6 +28,7 @@ import {
   getTwoDReversal,
   getTwoDIncludesNumbers,
   parseTwoDBatchInput,
+  is2DRoundClosed,
   TWO_D_DOUBLES,
   TWO_D_POWER,
   TWO_D_NATKHAT,
@@ -813,12 +814,30 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
   // Process Batch Text
   const handleProcessBatch = () => {
+    if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ' : 'Round is closed', 'error');
+      return;
+    }
+
+    if (!settings.defaultMultiplier || !settings.defaultCommissionRate) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ပေါက်ကြေး သို့မဟုတ် ကော်မရှင် သတ်မှတ်ထားခြင်း မရှိသေးပါ (Settings တွင် ပြင်ဆင်ပါ)' : 'Missing settings multiplier/commission', 'error');
+      return;
+    }
+
     const defAmt = parseFloat(batchDefaultAmount) || 1000;
-    const parsed = parseTwoDBatchInput(batchText, defAmt);
+    const result = parseTwoDBatchInput(batchText, defAmt);
+    const parsed = Array.isArray(result) ? result : result.items;
+    const warnings = Array.isArray(result) ? [] : result.warnings;
+
+    if (warnings && warnings.length > 0) {
+      showToast(warnings.join(', '), 'warning');
+    }
 
     if (parsed.length === 0) {
       playWarningSound();
-      showToast(isMyanmar ? 'ဖတ်ရှု၍ရသော ဂဏန်းမရှိပါ' : 'No valid 2D bets found', 'error');
+      showToast(isMyanmar ? 'ဖတ်ရှု၍ရသော 2D ဂဏန်းမရှိပါ' : 'No valid 2D bets found', 'error');
       return;
     }
 
@@ -847,9 +866,30 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
   // Handle Checkout & Automatic Over-Limit Aggregation
   const handleSaveSale = () => {
+    if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် ဘောင်ချာ ထုတ်၍ မရတော့ပါ' : 'Round is closed', 'error');
+      return;
+    }
+
+    if (!settings.defaultMultiplier || !settings.defaultCommissionRate) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ပေါက်ကြေး သို့မဟုတ် ကော်မရှင် သတ်မှတ်ထားခြင်း မရှိသေးပါ (Settings တွင် ပြင်ဆင်ပါ)' : 'Missing settings multiplier/commission', 'error');
+      return;
+    }
+
     if (items.length === 0) {
       playWarningSound();
       showToast(isMyanmar ? 'အရောင်းစာရင်းတွင် ဂဏန်းများ ထည့်သွင်းပါ' : 'Cart is empty', 'error');
+      return;
+    }
+
+    // Re-check if any numbers in cart are blocked
+    const blockedInCart = items.filter(i => isNumberBlocked(i.number));
+    if (blockedInCart.length > 0) {
+      playWarningSound();
+      const list = Array.from(new Set(blockedInCart.map(b => b.number))).join(', ');
+      showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${list}] များ ပါဝင်နေပါသည် (ကျေးဇူးပြု၍ စာရင်းမှ ဖယ်ရှားပါ)` : `Contains blocked numbers: ${list}`, 'error');
       return;
     }
 
@@ -899,6 +939,11 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     masterAgentPhone?: string,
     forwardCommission?: number
   ) => {
+    if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
+      showToast(isMyanmar ? 'ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် ဘောင်ချာ ထုတ်၍ မရတော့ပါ' : 'Round is closed', 'error');
+      return;
+    }
+
     if (finalItems.length === 0) {
       showToast(isMyanmar ? 'ထည့်သွင်းရန် ဂဏန်းမရှိပါ' : 'No items to save', 'warning');
       return;
@@ -909,13 +954,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const net = sub - disc;
 
     const voucher = addVoucher({
-      roundId: activeRound?.id || 'default',
+      roundId: activeRound.id,
       customerName: customerName.trim() || (isMyanmar ? 'အထွေထွေ' : 'Walk-in'),
       customerPhone: customerPhone.trim() || undefined,
       items: finalItems.map(i => ({
         number: i.number,
         amount: i.amount,
-        betType: 'straight'
+        betType: i.isRumble ? 'rumble' : 'straight'
       })),
       subtotal: sub,
       discountPercent,
@@ -926,15 +971,17 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       status: 'active'
     });
 
-    // If there are forwarded items, create forward slip
-    if (forwardItems && forwardItems.length > 0) {
+    const isDup = (voucher as any)?.isDuplicate;
+
+    // If there are forwarded items, create forward slip (only if not duplicate)
+    if (!isDup && forwardItems && forwardItems.length > 0) {
       const fwdTotal = forwardItems.reduce((a, b) => a + b.amount, 0);
-      const commRate = forwardCommission ?? 14;
+      const commRate = forwardCommission ?? settings.defaultCommissionRate;
       const commAmt = Math.round((fwdTotal * commRate) / 100);
       const netPaid = fwdTotal - commAmt;
 
       addForwardSlip({
-        roundId: activeRound?.id || 'default',
+        roundId: activeRound.id,
         masterAgentName: masterAgentName || settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
         masterAgentPhone: masterAgentPhone || settings.defaultMasterAgentPhone || '09-970001111',
         items: forwardItems,
@@ -973,36 +1020,52 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const keptItems: TwoDBetItem[] = [];
     const forwardList: { number: string; amount: number }[] = [];
 
+    // Group items by number to apply decision per number across items
+    const itemsByNumber: { [num: string]: TwoDBetItem[] } = {};
     items.forEach(item => {
-      const dec = decisions.find(d => d.number === item.number);
+      if (!itemsByNumber[item.number]) itemsByNumber[item.number] = [];
+      itemsByNumber[item.number].push(item);
+    });
+
+    Object.keys(itemsByNumber).forEach(num => {
+      const numberItems = itemsByNumber[num];
+      const dec = decisions.find(d => d.number === num);
+
       if (!dec) {
-        keptItems.push(item);
+        keptItems.push(...numberItems);
         return;
       }
 
       if (dec.action === 'reject') {
-        // Drop item
         return;
       } else if (dec.action === 'accept_locally') {
-        keptItems.push(item);
-      } else if (dec.action === 'cap_at_limit') {
-        if (dec.remainingQuota > 0) {
-          keptItems.push({
-            ...item,
-            amount: Math.min(item.amount, dec.remainingQuota)
-          });
-        }
+        keptItems.push(...numberItems);
       } else if (dec.action === 'forward_all') {
-        forwardList.push({ number: item.number, amount: item.amount });
+        numberItems.forEach(it => {
+          forwardList.push({ number: it.number, amount: it.amount });
+        });
+      } else if (dec.action === 'cap_at_limit') {
+        let remQuota = dec.remainingQuota;
+        numberItems.forEach(it => {
+          const retainAmt = Math.min(it.amount, remQuota);
+          remQuota -= retainAmt;
+          if (retainAmt > 0) {
+            keptItems.push({ ...it, amount: retainAmt });
+          }
+        });
       } else if (dec.action === 'forward_excess') {
-        const excess = dec.excessAmount;
-        const retainAmt = Math.max(0, item.amount - excess);
-        if (retainAmt > 0) {
-          keptItems.push({ ...item, amount: retainAmt });
-        }
-        if (excess > 0) {
-          forwardList.push({ number: item.number, amount: excess });
-        }
+        let remQuota = dec.remainingQuota;
+        numberItems.forEach(it => {
+          const retainAmt = Math.min(it.amount, remQuota);
+          const forwardAmt = it.amount - retainAmt;
+          remQuota -= retainAmt;
+          if (retainAmt > 0) {
+            keptItems.push({ ...it, amount: retainAmt });
+          }
+          if (forwardAmt > 0) {
+            forwardList.push({ number: it.number, amount: forwardAmt });
+          }
+        });
       }
     });
 

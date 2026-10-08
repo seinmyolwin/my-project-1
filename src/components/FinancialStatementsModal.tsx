@@ -55,7 +55,7 @@ export interface StatementRecord {
   isProfit: boolean;
   winnersCount: number;
   vouchersCount: number;
-  status: 'settled' | 'open';
+  status: 'settled' | 'open' | 'closed';
   rawRoundId?: string;
 }
 
@@ -185,12 +185,26 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           let totalPayout = 0;
           let winnersCount = 0;
           const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 80;
+          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 0;
 
           if (winningNum) {
             const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
-            totalPayout = evalResult.totalPayout;
             winnersCount = evalResult.totalWinnersCount;
+
+            let totalSoldForWinNum = 0;
+            roundVouchers.forEach((v) => {
+              v.items.forEach((it) => {
+                if (it.number === winningNum) totalSoldForWinNum += it.amount;
+              });
+            });
+            let totalForwardedForWinNum = 0;
+            roundForwards.forEach((f) => {
+              f.items.forEach((it) => {
+                if (it.number === winningNum) totalForwardedForWinNum += it.amount;
+              });
+            });
+            const retainedAmount = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
+            totalPayout = mult > 0 ? retainedAmount * mult : 0;
           } else {
             roundVouchers.forEach((v) => {
               v.items.forEach((it) => {

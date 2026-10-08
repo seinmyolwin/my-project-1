@@ -37,7 +37,7 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations, parseQuickBetText } from '../utils/lotteryUtils';
 import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../utils/imageOcrUtils';
-import { BetItem, FootballBetSelection, FootballBetType } from '../types';
+import { BetItem, VoucherItem, TwoDVoucherItem, FootballBetSelection, FootballBetType } from '../types';
 import { safeRound } from '../utils/moneyUtils';
 
 interface TelegramOrdersHubModalProps {
@@ -204,19 +204,43 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     }));
 
     if (order.category === '3d') {
+      const voucherItems: VoucherItem[] = order.parsedItems.map(pi => ({
+        number: pi.number,
+        amount: pi.amount,
+        betType: pi.isRumble ? 'rumble' : 'straight'
+      }));
+      const subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
       lottery3D.addVoucher({
+        roundId: lottery3D.activeRoundId,
         customerName: order.senderName,
         customerPhone: order.senderPhone,
-        items: betItems,
+        items: voucherItems,
+        subtotal,
         discountPercent: 0,
+        discountAmount: 0,
+        netPayable: subtotal,
+        isPaid: true,
+        status: 'active',
         notes: `[Telegram Bot] ${order.notes || ''}`
       });
     } else if (order.category === '2d') {
+      const voucherItems: TwoDVoucherItem[] = order.parsedItems.map(pi => ({
+        number: pi.number,
+        amount: pi.amount,
+        betType: pi.isRumble ? 'rumble' : 'straight'
+      }));
+      const subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
       lottery2D.addVoucher({
+        roundId: lottery2D.activeRoundId,
         customerName: order.senderName,
         customerPhone: order.senderPhone,
-        items: betItems,
+        items: voucherItems,
+        subtotal,
         discountPercent: 0,
+        discountAmount: 0,
+        netPayable: subtotal,
+        isPaid: true,
+        status: 'active',
         notes: `[Telegram Bot] ${order.notes || ''}`
       });
     } else {

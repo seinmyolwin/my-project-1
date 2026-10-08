@@ -494,7 +494,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                             }`}
                           >
                             <span className="font-bold">
-                              {item.number} {item.isRumble && <span className="text-[10px] text-teal-600">R</span>}
+                              {item.number} {item.betType === 'rumble' && <span className="text-[10px] text-teal-600">R</span>}
                             </span>
                             <span>{formatAmount(item.amount, settings.currency)}</span>
                           </div>

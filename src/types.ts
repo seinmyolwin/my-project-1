@@ -175,6 +175,7 @@ export interface TwoDVoucherItem {
   number: string;
   amount: number;
   betType: BetType;
+  isRumble?: boolean;
   isWon?: boolean;
   wonAmount?: number;
 }

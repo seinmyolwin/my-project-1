@@ -49,7 +49,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
   const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
-  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultForwardCommission || 14);
+  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
   const [notes, setNotes] = useState('');
 
   // Draft Forward Items (with selection and custom amounts)
@@ -136,7 +136,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     const cleaned = convertMyanmarToEnglishDigits(newAmtStr).replace(/\D/g, '');
     const numVal = parseInt(cleaned, 10) || 0;
     setDraftItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, forwardAmount: numVal } : item))
+      prev.map((item) => (item.id === id ? { ...item, forwardAmount: Math.min(numVal, item.totalSold) } : item))
     );
   };
 
@@ -155,20 +155,21 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       if (existing) {
         setDraftItems((prev) =>
           prev.map((i) =>
-            i.number === clean ? { ...i, forwardAmount: i.forwardAmount + amt, selected: true } : i
+            i.number === clean ? { ...i, forwardAmount: Math.min(i.forwardAmount + amt, i.totalSold), selected: true } : i
           )
         );
       } else {
         const agg = aggregates[clean];
+        const sold = agg?.totalSold || 0;
         setDraftItems((prev) => [
           ...prev,
           {
             id: `manual-${clean}-${Date.now()}`,
             number: clean,
-            totalSold: agg?.totalSold || amt,
+            totalSold: sold,
             limit: agg?.limit || 0,
-            excessAmount: amt,
-            forwardAmount: amt,
+            excessAmount: Math.min(amt, sold),
+            forwardAmount: Math.min(amt, sold),
             selected: true
           }
         ]);

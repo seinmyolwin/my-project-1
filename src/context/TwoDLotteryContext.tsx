@@ -23,8 +23,8 @@ import {
   loadStoredData,
   saveStoredData
 } from '../utils/storage';
-import { evaluateTwoDWinnings, exportTwoDLotteryToExcel } from '../utils/twoDLotteryUtils';
-import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
+import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed } from '../utils/twoDLotteryUtils';
+import { generateUpToDate2DRounds, fetchLiveOfficialFeed } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString } from '../utils/moneyUtils';
 
@@ -76,7 +76,7 @@ interface TwoDLotteryContextType {
 
   settleWinningNumber: (winningNumber: string, multiplier?: number) => void;
   clearWinningSettlement: () => void;
-  exportToExcel: () => void;
+  exportToExcel: (overrideRound?: TwoDDrawRound | any, overrideVouchers?: TwoDVoucher[], overrideSummary?: TwoDRoundSummary) => void;
   resetToSampleData: () => void;
   clearAllData: () => void;
   exportJSONBackup: () => string;
@@ -93,7 +93,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rounds, setRounds] = useState<TwoDDrawRound[]>(() => {
     const stored = loadStoredData<TwoDDrawRound[]>(STORAGE_KEYS.ROUNDS_2D, []);
-    const upToDate = generateUpToDate2DRounds();
+    const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
     if (!stored || stored.length === 0) {
       return upToDate;
     }
@@ -119,7 +119,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     const todayStr = getLocalDateString();
     setRounds(prev => {
-      const upToDate = generateUpToDate2DRounds();
+      const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
       const map = new Map<string, TwoDDrawRound>();
       let changed = false;
 
@@ -141,7 +141,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       return changed ? Array.from(map.values()) : prev;
     });
-  }, []);
+  }, [settings.defaultMultiplier, settings.defaultCommissionRate]);
 
   const [activeRoundId, setActiveRoundIdState] = useState<string>(() => {
     const saved = loadStoredData<string>(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, '');
@@ -231,12 +231,6 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const updateSettings = useCallback((newSettings: Partial<TwoDAppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
-    if (newSettings.defaultMultiplier !== undefined && !isNaN(newSettings.defaultMultiplier)) {
-      const newMult = Number(newSettings.defaultMultiplier);
-      setRounds(prev =>
-        prev.map(r => (r.status === 'open' ? { ...r, multiplier: newMult } : r))
-      );
-    }
   }, []);
 
   const setActiveRoundId = useCallback((id: string) => {
@@ -246,12 +240,14 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const createRound = useCallback((roundData: Omit<TwoDDrawRound, 'id'>) => {
     const newRound: TwoDDrawRound = {
       ...roundData,
+      multiplier: roundData.multiplier ?? settings.defaultMultiplier,
+      commissionRate: roundData.commissionRate ?? settings.defaultCommissionRate,
       id: `round-2d-${Date.now()}`
     };
     setRounds(prev => [newRound, ...prev]);
     setActiveRoundIdState(newRound.id);
     return newRound;
-  }, []);
+  }, [settings.defaultMultiplier, settings.defaultCommissionRate]);
 
   const updateRound = useCallback((roundId: string, data: Partial<TwoDDrawRound>) => {
     setRounds(prev =>
@@ -260,22 +256,65 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const deleteRound = useCallback((roundId: string) => {
-    setRounds(prev => {
-      const filtered = prev.filter(r => r.id !== roundId);
-      if (activeRoundId === roundId && filtered.length > 0) {
-        setActiveRoundIdState(filtered[0].id);
+    const roundVouchers = vouchers.filter(v => v.roundId === roundId);
+    const roundForwards = forwardSlips.filter(f => f.roundId === roundId);
+    if (roundVouchers.length > 0 || roundForwards.length > 0) {
+      if (!window.confirm(settings.language === 'my' ? 'ဤပွဲစဉ်တွင် အရောင်းဘောင်ချာ သို့မဟုတ် ဒိုင်လွှဲစာရင်းများ ရှိနေပါသည်။ ဖျက်ရန် သေချာပါသလား။' : 'Round contains vouchers or forward slips. Delete anyway?')) {
+        return;
       }
-      return filtered;
-    });
+    }
+
+    setRounds(prev => prev.filter(r => r.id !== roundId));
+
+    if (activeRoundId === roundId) {
+      const remaining = rounds.filter(r => r.id !== roundId);
+      if (remaining.length > 0) {
+        setActiveRoundIdState(remaining[0].id);
+      }
+    }
+
     setVouchers(prev => prev.filter(v => v.roundId !== roundId));
     setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
-  }, [activeRoundId]);
+  }, [activeRoundId, vouchers, forwardSlips, rounds, settings.language]);
 
   const syncLiveRounds = useCallback(async () => {
-    // Manual sync preserves owner-confirmed numbers
-  }, []);
+    try {
+      const feed = await fetchLiveOfficialFeed();
+      if (feed) {
+        const upToDate = generateUpToDate2DRounds(feed, settings.defaultMultiplier, settings.defaultCommissionRate);
+        setRounds(prev => {
+          const map = new Map<string, TwoDDrawRound>();
+          prev.forEach(r => map.set(r.id, r));
+          upToDate.forEach(r => {
+            const existing = map.get(r.id);
+            if (existing) {
+              if (existing.status !== 'settled' && r.status === 'settled' && r.winningNumber) {
+                map.set(r.id, { ...existing, status: 'settled', winningNumber: r.winningNumber, settledAt: r.settledAt });
+              }
+            } else {
+              map.set(r.id, r);
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    } catch (e) {
+      console.error('Error syncing live 2D rounds:', e);
+    }
+  }, [settings.defaultMultiplier, settings.defaultCommissionRate]);
 
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
+    // 1. Check active round status and local closing time
+    const targetRound = rounds.find(r => r.id === voucherData.roundId);
+    if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound)) {
+      throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
+    }
+
+    // 2. Check settings multiplier & commission
+    if (!targetRound.multiplier || targetRound.multiplier <= 0 || targetRound.commissionRate === undefined) {
+      throw new Error('ပေါက်ကြေး သို့မဟုတ် ကော်မရှင် သတ်မှတ်ထားခြင်း မရှိသေးပါ (Settings တွင် ပြင်ဆင်ပါ)');
+    }
+
     // Duplicate Protection: Prevent same voucher submit twice within 4 seconds
     const fp = generateSubmissionFingerprint('2D_VOUCHER_SAVE', {
       roundId: voucherData.roundId,
@@ -292,7 +331,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         v.netPayable === voucherData.netPayable &&
         JSON.stringify(v.items) === JSON.stringify(voucherData.items)
       );
-      if (existing) return existing;
+      if (existing) {
+        return { ...existing, isDuplicate: true } as any;
+      }
     }
 
     const existingSeq = vouchers.map(v => {
@@ -310,7 +351,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
     setVouchers(prev => [newVoucher, ...prev]);
     return newVoucher;
-  }, [vouchers]);
+  }, [vouchers, rounds]);
 
   const createVoucher = useCallback((
     items: TwoDVoucherItem[],
@@ -319,11 +360,14 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     discountPercent: number = 0,
     notes?: string
   ): TwoDVoucher => {
+    if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
+      throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
+    }
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
     const discountAmount = Math.round((subtotal * discountPercent) / 100);
     const netPayable = subtotal - discountAmount;
     return addVoucher({
-      roundId: activeRound?.id || 'round-2d-default',
+      roundId: activeRound.id,
       customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
       customerPhone,
       items,
@@ -347,18 +391,26 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setVouchers(prev => prev.filter(v => v.id !== id));
   }, []);
 
-  const addForwardSlip = useCallback((slipData: Omit<TwoDForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
-    const todayStr = getLocalDateString().slice(2).replace(/-/g, '');
-    const randSeq = Math.floor(100 + Math.random() * 900);
+  const addForwardSlip = useCallback((slipData: Omit<TwoDForwardSlip, 'id' | 'slipNo' | 'createdAt'>): TwoDForwardSlip => {
+    const todayStr = getLocalDateString().replace(/-/g, '').slice(2);
+    const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
+    const commAmt = Math.round((slipData.totalAmount * commRate) / 100);
+    const netPaid = slipData.totalAmount - commAmt;
+
+    const todayCount = forwardSlips.filter(f => (f.createdAt || '').slice(0, 10) === getLocalDateString()).length + 1;
+    const seqPad = String(todayCount).padStart(3, '0');
     const newSlip: TwoDForwardSlip = {
       ...slipData,
-      id: `fwd-2d-${Date.now()}`,
-      slipNo: `FWD2D-${todayStr}-${randSeq}`,
+      commissionRate: commRate,
+      commissionAmount: commAmt,
+      netPaid,
+      id: `fwd-2d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      slipNo: `FWD2D-${todayStr}-${seqPad}`,
       createdAt: new Date().toISOString()
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, []);
+  }, [forwardSlips, settings.defaultCommissionRate]);
 
   const deleteForwardSlip = useCallback((id: string) => {
     setForwardSlips(prev => prev.filter(f => f.id !== id));
@@ -477,7 +529,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Calculate retained, payouts, and risk levels
     Object.keys(agg).forEach(k => {
       const item = agg[k];
-      item.retainedAmount = Math.max(0, item.totalSold - item.forwardedAmount);
+      item.retainedAmount = item.totalSold - item.forwardedAmount;
       item.estimatedPayout = mult > 0 ? item.retainedAmount * mult : 0;
 
       const usageRatio = item.limit > 0 ? item.totalSold / item.limit : 0;
@@ -670,9 +722,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setVouchers(prev =>
       prev.map(v => {
         if (v.roundId === activeRound.id) {
+          const newStatus = v.status === 'cancelled' ? 'cancelled' : 'active';
           return {
             ...v,
-            status: 'active',
+            status: newStatus,
             items: v.items.map(i => ({ ...i, isWon: false, wonAmount: 0 }))
           };
         }
@@ -694,22 +747,27 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
   }, [activeRound]);
 
-  const exportToExcel = useCallback(() => {
-    if (!activeRound) return;
+  const exportToExcel = useCallback((overrideRound?: TwoDDrawRound | any, overrideVouchers?: TwoDVoucher[], overrideSummary?: TwoDRoundSummary) => {
+    const validRound = (overrideRound && typeof overrideRound === 'object' && 'id' in overrideRound && 'drawDate' in overrideRound) ? (overrideRound as TwoDDrawRound) : undefined;
+    const targetRound = validRound || activeRound;
+    if (!targetRound) return;
+    const targetVouchers = validRound ? (overrideVouchers || activeRoundVouchers) : activeRoundVouchers;
+    const targetSummary = validRound ? (overrideSummary || roundSummary) : roundSummary;
     exportTwoDLotteryToExcel(
-      activeRound,
+      targetRound,
       aggregates,
-      activeRoundVouchers,
+      targetVouchers,
       activeRoundForwardSlips,
-      roundSummary,
+      targetSummary,
       settings.shopName
     );
   }, [activeRound, aggregates, activeRoundVouchers, activeRoundForwardSlips, roundSummary, settings.shopName]);
 
   const resetToSampleData = useCallback(() => {
     setSettingsState(DEFAULT_2D_SETTINGS);
-    setRounds(INITIAL_2D_ROUNDS);
-    setActiveRoundIdState(INITIAL_2D_ROUNDS[0].id);
+    const freshRounds = generateUpToDate2DRounds(null, DEFAULT_2D_SETTINGS.defaultMultiplier, DEFAULT_2D_SETTINGS.defaultCommissionRate);
+    setRounds(freshRounds);
+    if (freshRounds.length > 0) setActiveRoundIdState(freshRounds[0].id);
     setVouchers(INITIAL_2D_VOUCHERS);
     setForwardSlips(INITIAL_2D_FORWARD_SLIPS);
     setLimits(INITIAL_2D_LIMITS);
@@ -749,13 +807,15 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const parsed = JSON.parse(jsonString);
       const data = parsed.data || parsed;
 
-      if (data.settings) setSettingsState(data.settings);
+      if (data.settings && typeof data.settings === 'object') {
+        setSettingsState({ ...DEFAULT_2D_SETTINGS, ...data.settings });
+      }
       if (Array.isArray(data.rounds)) setRounds(data.rounds);
       if (data.activeRoundId) setActiveRoundIdState(data.activeRoundId);
       if (Array.isArray(data.vouchers)) setVouchers(data.vouchers);
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
-      if (data.limits) setLimits(data.limits);
-      if (data.blockedNumbers) setBlockedNumbers(data.blockedNumbers);
+      if (data.limits && typeof data.limits === 'object') setLimits(data.limits);
+      if (data.blockedNumbers && typeof data.blockedNumbers === 'object') setBlockedNumbers(data.blockedNumbers);
 
       return true;
     } catch (err) {

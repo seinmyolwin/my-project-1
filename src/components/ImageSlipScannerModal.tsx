@@ -1310,7 +1310,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
                   {/* Start Scan Button */}
                   <button
                     type="button"
-                    onClick={handleStartOCR}
+                    onClick={() => handleStartOCR()}
                     disabled={isScanning}
                     className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
                   >

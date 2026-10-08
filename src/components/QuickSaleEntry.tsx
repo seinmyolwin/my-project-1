@@ -1367,7 +1367,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
         isOpen={isScannerModalOpen}
         onClose={() => setIsScannerModalOpen(false)}
         onAddBetsToCart={handleAddFromScanner}
-        onAddItems={handleAddFromScanner}
         mode="3d"
       />
 

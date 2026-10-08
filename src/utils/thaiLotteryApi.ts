@@ -151,7 +151,11 @@ function formatDrawDateName(d: Date): string {
 /**
  * Generates an up-to-date list of 2D draw rounds strictly matching TODAY's date and recent days
  */
-export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): TwoDDrawRound[] {
+export function generateUpToDate2DRounds(
+  liveData?: LiveLotteryPayload | null,
+  defaultMultiplier?: number,
+  defaultCommissionRate?: number
+): TwoDDrawRound[] {
   const today = new Date();
   const currentHour = today.getHours();
   const currentMinutes = today.getMinutes();
@@ -159,7 +163,7 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
 
   const rounds: TwoDDrawRound[] = [];
 
-  // 1. Generate recent working days (excluding Sundays, or including standard Thai trading days)
+  // 1. Generate recent working days
   let dayOffset = 0;
   let addedDays = 0;
   const maxDays = 20;
@@ -177,7 +181,7 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
     if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Monday - Friday Thai SET
       // Evening Round (04:30 PM)
       let eveWinning: string | undefined = undefined;
-      let eveStatus: 'open' | 'closed' | 'settled' = 'settled';
+      let eveStatus: 'open' | 'closed' | 'settled' = 'closed';
 
       if (isToday) {
         // Today's rounds check closing time: evening closes at 16:25 (985 mins)
@@ -203,8 +207,8 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
         closingTime: '16:25',
         status: eveStatus,
         winningNumber: eveWinning,
-        multiplier: 85,
-        commissionRate: 12,
+        multiplier: defaultMultiplier ?? 0,
+        commissionRate: defaultCommissionRate ?? 0,
         settledAt: eveStatus === 'settled' ? `${dateStr}T16:35:00Z` : undefined
       });
 
@@ -236,8 +240,8 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
         closingTime: '12:00',
         status: mornStatus,
         winningNumber: mornWinning,
-        multiplier: 85,
-        commissionRate: 12,
+        multiplier: defaultMultiplier ?? 0,
+        commissionRate: defaultCommissionRate ?? 0,
         settledAt: mornStatus === 'settled' ? `${dateStr}T12:05:00Z` : undefined
       });
 
