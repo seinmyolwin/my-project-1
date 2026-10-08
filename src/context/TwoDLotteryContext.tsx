@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import {
   TwoDDrawRound,
   TwoDVoucher,
+  TwoDVoucherItem,
   TwoDForwardSlip,
   TwoDAppSettings,
   NumberLimit,
@@ -25,6 +26,7 @@ import {
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel } from '../utils/twoDLotteryUtils';
 import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
+import { getLocalDateString } from '../utils/moneyUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -41,6 +43,13 @@ interface TwoDLotteryContextType {
   vouchers: TwoDVoucher[];
   activeRoundVouchers: TwoDVoucher[];
   addVoucher: (voucher: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => TwoDVoucher;
+  createVoucher: (
+    items: TwoDVoucherItem[],
+    customerName?: string,
+    customerPhone?: string,
+    discountPercent?: number,
+    notes?: string
+  ) => TwoDVoucher;
   updateVoucher: (id: string, data: Partial<TwoDVoucher>) => void;
   deleteVoucher: (id: string) => void;
 
@@ -84,30 +93,83 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rounds, setRounds] = useState<TwoDDrawRound[]>(() => {
     const stored = loadStoredData<TwoDDrawRound[]>(STORAGE_KEYS.ROUNDS_2D, []);
-    if (stored && stored.length > 0) {
-      return stored;
+    const upToDate = generateUpToDate2DRounds();
+    if (!stored || stored.length === 0) {
+      return upToDate;
     }
-    return generateUpToDate2DRounds();
+    const todayStr = getLocalDateString();
+    const storedMap = new Map<string, TwoDDrawRound>();
+    stored.forEach(r => {
+      // Result မရှိတဲ့ ရက်ဟောင်း round တွေကို 'open' မဖြစ်စေပါနဲ့ — 'closed' သတ်မှတ်ပါ
+      if (r.drawDate < todayStr && r.status === 'open' && !r.winningNumber) {
+        storedMap.set(r.id, { ...r, status: 'closed' });
+      } else {
+        storedMap.set(r.id, r);
+      }
+    });
+    upToDate.forEach(r => {
+      if (!storedMap.has(r.id)) {
+        storedMap.set(r.id, r);
+      }
+    });
+    return Array.from(storedMap.values());
   });
+
+  // Keep today's rounds available and close past open rounds on mount/day change without removing existing rounds
+  useEffect(() => {
+    const todayStr = getLocalDateString();
+    setRounds(prev => {
+      const upToDate = generateUpToDate2DRounds();
+      const map = new Map<string, TwoDDrawRound>();
+      let changed = false;
+
+      prev.forEach(r => {
+        if (r.drawDate < todayStr && r.status === 'open' && !r.winningNumber) {
+          map.set(r.id, { ...r, status: 'closed' });
+          changed = true;
+        } else {
+          map.set(r.id, r);
+        }
+      });
+
+      upToDate.forEach(r => {
+        if (!map.has(r.id)) {
+          map.set(r.id, r);
+          changed = true;
+        }
+      });
+
+      return changed ? Array.from(map.values()) : prev;
+    });
+  }, []);
 
   const [activeRoundId, setActiveRoundIdState] = useState<string>(() => {
     const saved = loadStoredData<string>(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, '');
-    const todayStr = new Date().toISOString().slice(0, 10);
-    // Find today's open evening round as preferred active sales round
-    const todayEve = rounds.find(
-      (r) => r.drawDate === todayStr && r.status === 'open' && (r.session === 'evening' || r.id.includes('eve'))
-    );
-    if (todayEve) return todayEve.id;
+    const todayStr = getLocalDateString();
 
-    if (saved && rounds.some((r) => r.id === saved)) {
+    // Priority: ယနေ့ရက်ရဲ့ open round ကိုသာ ဦးစားပေးပါ
+    const todayOpen = rounds.find(
+      (r) => r.drawDate === todayStr && r.status === 'open'
+    );
+    if (todayOpen) return todayOpen.id;
+
+    // If saved is today's round, keep it
+    if (saved) {
       const savedRound = rounds.find((r) => r.id === saved);
-      if (savedRound && savedRound.status === 'open') return saved;
-      const anyOpen = rounds.find((r) => r.status === 'open');
-      if (anyOpen) return anyOpen.id;
-      return saved;
+      if (savedRound && savedRound.drawDate === todayStr) {
+        return saved;
+      }
     }
-    const openRound = rounds.find((r) => r.status === 'open');
-    return openRound?.id || rounds[0]?.id || 'round-2d-default';
+
+    // Today's round even if closed
+    const todayAny = rounds.find((r) => r.drawDate === todayStr);
+    if (todayAny) return todayAny.id;
+
+    // Any open round
+    const anyOpen = rounds.find((r) => r.status === 'open');
+    if (anyOpen) return anyOpen.id;
+
+    return rounds[0]?.id || 'round-2d-default';
   });
 
   const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() =>
@@ -250,6 +312,31 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return newVoucher;
   }, [vouchers]);
 
+  const createVoucher = useCallback((
+    items: TwoDVoucherItem[],
+    customerName?: string,
+    customerPhone?: string,
+    discountPercent: number = 0,
+    notes?: string
+  ): TwoDVoucher => {
+    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const discountAmount = Math.round((subtotal * discountPercent) / 100);
+    const netPayable = subtotal - discountAmount;
+    return addVoucher({
+      roundId: activeRound?.id || 'round-2d-default',
+      customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
+      customerPhone,
+      items,
+      subtotal,
+      discountPercent,
+      discountAmount,
+      netPayable,
+      notes,
+      isPaid: true,
+      status: 'active'
+    });
+  }, [activeRound, addVoucher, settings.language]);
+
   const updateVoucher = useCallback((id: string, data: Partial<TwoDVoucher>) => {
     setVouchers(prev =>
       prev.map(v => (v.id === id ? { ...v, ...data } : v))
@@ -261,7 +348,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const addForwardSlip = useCallback((slipData: Omit<TwoDForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
-    const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+    const todayStr = getLocalDateString().slice(2).replace(/-/g, '');
     const randSeq = Math.floor(100 + Math.random() * 900);
     const newSlip: TwoDForwardSlip = {
       ...slipData,
@@ -329,8 +416,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const isNumberBlocked = useCallback((num: string) => {
-    return !!blockedNumbers[num.padStart(2, '0')];
-  }, [blockedNumbers]);
+    const formatted = num.padStart(2, '0');
+    if (blockedNumbers[formatted]) return true;
+    if (limits[formatted] === 0) return true;
+    if (limits[formatted] === undefined && settings.globalStockLimit === 0) return true;
+    return false;
+  }, [blockedNumbers, limits, settings.globalStockLimit]);
 
   const getNumberLimit = useCallback((num: string) => {
     const formatted = num.padStart(2, '0');
@@ -339,14 +430,14 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 2D Aggregates calculation (00 - 99: exactly 100 combinations)
   const aggregates = useMemo(() => {
-    const mult = activeRound?.multiplier || settings.defaultMultiplier || 85;
+    const mult = activeRound?.multiplier || settings.defaultMultiplier || 0;
     const agg: { [num: string]: TwoDNumberAggregate } = {};
 
     // Initialize all 100 numbers (00 to 99)
     for (let i = 0; i <= 99; i++) {
       const numStr = i.toString().padStart(2, '0');
       const lmt = limits[numStr] ?? settings.globalStockLimit;
-      const isBlk = !!blockedNumbers[numStr];
+      const isBlk = !!blockedNumbers[numStr] || lmt === 0;
 
       agg[numStr] = {
         number: numStr,
@@ -387,7 +478,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     Object.keys(agg).forEach(k => {
       const item = agg[k];
       item.retainedAmount = Math.max(0, item.totalSold - item.forwardedAmount);
-      item.estimatedPayout = item.retainedAmount * mult;
+      item.estimatedPayout = mult > 0 ? item.retainedAmount * mult : 0;
 
       const usageRatio = item.limit > 0 ? item.totalSold / item.limit : 0;
       if (item.isBlocked || usageRatio >= 1.0) {
@@ -487,11 +578,16 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
-      const mult = activeRound.multiplier || settings.defaultMultiplier || 80;
+      const mult = activeRound.multiplier || settings.defaultMultiplier || 0;
       const formattedNum = activeRound.winningNumber.padStart(2, '0');
       const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
-      totalPayout = evalResult.totalPayout;
       totalWinnersCount = evalResult.totalWinnersCount;
+
+      // ဒိုင်လွှဲ စနစ်: ဒိုင်ကြီးက ဒိုင်လွှဲထားသော ဂဏန်းရဲ့ ပေါက်ငွေ ဆုံးရှုံးမှုကို ယူသည်။
+      // ဒိုင်ကိုယ်တိုင် ထိန်းထားသော ဂဏန်းပေါ် ပေါက်ငွေသာ ပေးရသည်။
+      const winningAgg = aggregates[formattedNum];
+      const retainedAmount = winningAgg ? winningAgg.retainedAmount : 0;
+      totalPayout = mult > 0 ? retainedAmount * mult : 0;
     }
 
     // Dealer profit = (net revenue - payouts) + commission from bookmaker
@@ -510,7 +606,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       netProfit,
       isProfit: netProfit >= 0
     };
-  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier]);
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier, aggregates]);
 
   // Settle winning number
   const settleWinningNumber = useCallback((winningNum: string, multiplier?: number) => {
@@ -523,7 +619,11 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return;
     }
 
-    const mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 80;
+    const mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 0;
+    if (mult <= 0) {
+      alert(settings.language === 'my' ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
+      return;
+    }
     const formattedNum = winningNum.padStart(2, '0');
 
     const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
@@ -562,7 +662,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         // Safe fail
       }
     }
-  }, [activeRound, activeRoundVouchers]);
+  }, [activeRound, activeRoundVouchers, settings.defaultMultiplier, settings.language]);
 
   const clearWinningSettlement = useCallback(() => {
     if (!activeRound) return;
@@ -680,6 +780,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         vouchers,
         activeRoundVouchers,
         addVoucher,
+        createVoucher,
         updateVoucher,
         deleteVoucher,
         forwardSlips,

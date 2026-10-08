@@ -280,8 +280,8 @@ export interface TwoDRoundSummary {
 // ----------------------------------------------------
 export type FootballBetType = 'body_home' | 'body_away' | 'over' | 'under';
 export type FootballSlipType = 'body_single' | 'maung';
-export type MatchResultStatus = 'upcoming' | 'live' | 'finished';
-export type SelectionOutcome = 'pending' | 'win' | 'half_win' | 'draw' | 'half_loss' | 'loss';
+export type MatchResultStatus = 'upcoming' | 'live' | 'finished' | 'postponed' | 'void';
+export type SelectionOutcome = 'pending' | 'win' | 'half_win' | 'draw' | 'half_loss' | 'loss' | 'void';
 
 export interface FootballLeague {
   id: string;
@@ -336,7 +336,7 @@ export interface FootballSlip {
   combinedOdds: number; // e.g. 1.90 * 1.90 * 1.90 = 6.85
   potentialPayout: number;
   actualPayout?: number;
-  outcome?: 'pending' | 'won' | 'half_won' | 'draw' | 'lost';
+  outcome?: 'pending' | 'won' | 'half_won' | 'draw' | 'half_lost' | 'lost';
   status: 'active' | 'settled' | 'cancelled';
   createdAt: string;
   notes?: string;

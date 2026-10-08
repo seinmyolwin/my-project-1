@@ -205,7 +205,7 @@ export const FootballSlipsListView: React.FC = () => {
 
           <button
             type="button"
-            onClick={settleMatches}
+            onClick={() => settleMatches()}
             className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -366,11 +366,11 @@ export const FootballSlipsListView: React.FC = () => {
                 {selectedSlip.selections.map((sel, idx) => (
                   <div key={idx} className="border-b border-slate-200/60 pb-1.5">
                     <div className="flex justify-between font-bold text-slate-900">
-                      <span>{sel.pickDescription}</span>
+                      <span>{sel.choiceLabel}</span>
                       <span>x{sel.odds}</span>
                     </div>
                     <div className="flex justify-between text-[10px] text-slate-400">
-                      <span>{sel.matchDescription}</span>
+                      <span>{sel.matchSummary}</span>
                       <span className="uppercase font-bold text-emerald-700">{sel.outcome}</span>
                     </div>
                   </div>

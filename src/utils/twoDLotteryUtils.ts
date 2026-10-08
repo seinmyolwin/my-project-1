@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { convertMyanmarToEnglishDigits } from './lotteryUtils';
-import { calculatePayout, formatAmount, safeRound } from './moneyUtils';
+import { calculatePayout, formatAmount, safeRound, getLocalDateString } from './moneyUtils';
 import {
   TwoDVoucher,
   TwoDForwardSlip,
@@ -10,6 +10,32 @@ import {
   TwoDBetItem,
   BetType
 } from '../types';
+
+/**
+ * Check if a 2D round is closed based on round status, date, and local closing time (12:00 morning, 16:25 evening)
+ */
+export function is2DRoundClosed(round?: TwoDDrawRound): boolean {
+  if (!round) return true;
+  if (round.status === 'closed' || round.status === 'settled') return true;
+
+  const todayStr = getLocalDateString();
+  if (round.drawDate < todayStr) return true;
+  if (round.drawDate > todayStr) return false;
+
+  // Round is today - check local time against closing time
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  let closeMinutes = round.session === 'morning' ? 12 * 60 : 16 * 60 + 25;
+  if (round.closingTime) {
+    const parts = round.closingTime.split(':').map(Number);
+    if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+      closeMinutes = parts[0] * 60 + parts[1];
+    }
+  }
+
+  return currentMinutes >= closeMinutes;
+}
 
 // ====================================================
 // MYANMAR 2D POPULAR PATTERNS (မြန်မာ့ ၂ လုံး ထိုးကွက်များ)
@@ -164,9 +190,10 @@ export function getTwoDReversal(num: string): string[] {
 
 // ၁။ ခွေ (ရိုးရိုးခွေ / အရှေ့မှအနောက်သို့သာတွဲ / အာမပါ / အပူးမပါ)
 // ဥပမာ- "1234" -> 12, 13, 14, 23, 24, 34 (၆ ကွက်)
-// ဥပမာ- "23456" -> 23, 24, 25, 26, 34, 35, 36, 45, 46, 56 (၁၀ ကွက်)
+// ဥပမာ- "4321" -> 43, 42, 41, 32, 31, 21 (၆ ကွက်)
 export function getTwoDKhway(input: string): string[] {
-  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  const normalized = convertMyanmarToEnglishDigits(input || '');
+  const digits = Array.from(new Set(normalized.replace(/\D/g, '').split('')));
   if (digits.length < 2) return [];
 
   const result: string[] = [];
@@ -180,9 +207,9 @@ export function getTwoDKhway(input: string): string[] {
 
 // ၂။ ခွေပူး (ရိုးရိုးခွေ + အပူးပါ / အာမပါ)
 // ဥပမာ- "1234" -> ခွေ (၆ ကွက်) + အပူး 11, 22, 33, 44 (၄ ကွက်) = ၁၀ ကွက်
-// ဥပမာ- "23456" -> ခွေ (၁၀ ကွက်) + အပူး 22, 33, 44, 55, 66 (၅ ကွက်) = ၁၅ ကွက်
 export function getTwoDKhwayPuu(input: string): string[] {
-  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  const normalized = convertMyanmarToEnglishDigits(input || '');
+  const digits = Array.from(new Set(normalized.replace(/\D/g, '').split('')));
   if (digits.length < 2) return [];
 
   const khwayList = getTwoDKhway(input);
@@ -194,7 +221,8 @@ export function getTwoDKhwayPuu(input: string): string[] {
 // ၃။ ခွေအာ (ခွေပြီး အာပါ လှည့်တွဲခြင်း / အပြန်အလှန် / အပူးမပါ)
 // ဥပမာ- "1234" -> 12, 13, 14, 21, 23, 24, 31, 32, 34, 41, 42, 43 (၁၂ ကွက်)
 export function getTwoDKhwayRumble(input: string): string[] {
-  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  const normalized = convertMyanmarToEnglishDigits(input || '');
+  const digits = Array.from(new Set(normalized.replace(/\D/g, '').split('')));
   if (digits.length < 2) return [];
 
   const result: string[] = [];
@@ -211,7 +239,8 @@ export function getTwoDKhwayRumble(input: string): string[] {
 // ၄။ ခွေပူးအာ (ခွေအာ + အပူးပါ အကုန်လုံးပါ)
 // ဥပမာ- "1234" -> ခွေအာ (၁၂ ကွက်) + အပူး 11, 22, 33, 44 (၄ ကွက်) = ၁၆ ကွက်
 export function getTwoDKhwayPuuRumble(input: string): string[] {
-  const digits = Array.from(new Set(input.replace(/\D/g, '').split('')));
+  const normalized = convertMyanmarToEnglishDigits(input || '');
+  const digits = Array.from(new Set(normalized.replace(/\D/g, '').split('')));
   if (digits.length < 2) return [];
 
   const khwayRumbleList = getTwoDKhwayRumble(input);
@@ -640,7 +669,7 @@ export function exportTwoDLotteryToExcel(
           : agg.isBlocked 
           ? 'ဒိုင်ကာ (Blocked)' 
           : 'လက်ခံသည်',
-        'ဖြစ်နိုင်ခြေ လျော်ကြေး (Payout @85x)': agg.estimatedPayout,
+        'ဖြစ်နိုင်ခြေ လျော်ကြေး (Payout)': agg.estimatedPayout,
         'အန္တရာယ်အဆင့် (Risk)': isWinner ? 'WINNER' : agg.riskLevel.toUpperCase()
       };
     });
@@ -688,7 +717,7 @@ export function exportTwoDLotteryToExcel(
 
   // Sheet 4: ပေါက်မဲစာရင်းရှင်းတမ်း (Winners Settlement Sheet if winning number exists)
   if (winningNumber) {
-    const winEval = evaluateTwoDWinnings(vouchers, winningNumber, round.multiplier || 80);
+    const winEval = evaluateTwoDWinnings(vouchers, winningNumber, round.multiplier || 0);
     const winData: any[] = [];
     
     winEval.settledVouchers.forEach(v => {
@@ -700,7 +729,7 @@ export function exportTwoDLotteryToExcel(
             'ဖုန်းနံပါတ်': v.customerPhone || '-',
             'ပေါက်ဂဏန်း': it.number,
             'ထိုးကြေးငွေ': it.amount,
-            'အလျော်ဆ (Multiplier)': `${round.multiplier || 80}ဆ`,
+            'အလျော်ဆ (Multiplier)': `${round.multiplier || 0}ဆ`,
             'ရရှိသောလျော်ကြေးငွေ': it.wonAmount,
             'ဒိုင် အသားတင် ရလဒ်': -(it.wonAmount)
           });

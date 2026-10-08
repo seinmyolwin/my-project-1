@@ -42,6 +42,7 @@ import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButton
 import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
 import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
+import { exportFootballDataToExcel } from '../utils/footballUtils';
 import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
 import {
   exportSecureMasterBackup,
@@ -241,18 +242,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleExportFootballExcel = () => {
-    const data = football.slips.map((s, i) => ({
-      'စဉ်': i + 1,
-      'ဘောင်ချာအမှတ်': s.id,
-      'ဝယ်သူအမည်': s.customerName,
-      'စုစုပေါင်းထိုးငွေ': s.totalStake,
-      'အခြေအနေ': s.status,
-      'ရက်စွဲ': new Date(s.timestamp).toLocaleString()
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Football Slips');
-    XLSX.writeFile(wb, `Football_Slips_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportFootballDataToExcel(
+      football.activeDate,
+      football.matches,
+      football.slips,
+      football.forwardSlips,
+      football.summary,
+      football.settings.shopName
+    );
   };
 
   // 2D Master Ledger Matrix Export

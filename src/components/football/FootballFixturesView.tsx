@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Trophy,
   Plus,
@@ -18,9 +18,10 @@ import {
   BookmarkPlus
 } from 'lucide-react';
 import { useFootball } from '../../context/FootballContext';
-import { FootballMatch } from '../../types';
+import { FootballMatch, MatchResultStatus } from '../../types';
 import { ManageLeaguesModal } from './ManageLeaguesModal';
 import { parseHandicapGoals } from '../../utils/footballUtils';
+import { getLocalDateString } from '../../utils/moneyUtils';
 
 // Preset popular Asian handicap values in Myanmar football markets
 const HANDICAP_PRESETS = [
@@ -61,6 +62,7 @@ export const FootballFixturesView: React.FC = () => {
     deleteMatch,
     setMatchScore,
     settleMatches,
+    slips,
     leagues,
     allTeams,
     addLeague,
@@ -96,14 +98,14 @@ export const FootballFixturesView: React.FC = () => {
 
   const [saveCustomTeamsToLeague, setSaveCustomTeamsToLeague] = useState(true);
 
-  const [matchDate, setMatchDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [matchDate, setMatchDate] = useState(() => getLocalDateString());
   const [kickoffTime, setKickoffTime] = useState('21:00');
   const [handicapTeam, setHandicapTeam] = useState<'home' | 'away' | 'level'>('home');
   const [handicapValue, setHandicapValue] = useState('0.5 (ဝက်နိုင်)');
   const [overUnderValue, setOverUnderValue] = useState('2.5 (၂ လုံးခွဲ)');
-  const [bodyOdds, setBodyOdds] = useState('1.90');
-  const [goalOdds, setGoalOdds] = useState('1.90');
-  const [matchStatus, setMatchStatus] = useState<'upcoming' | 'live' | 'finished'>('upcoming');
+  const [bodyOdds, setBodyOdds] = useState('');
+  const [goalOdds, setGoalOdds] = useState('');
+  const [matchStatus, setMatchStatus] = useState<MatchResultStatus>('upcoming');
 
   // Quick Score Modal
   const [scoringMatch, setScoringMatch] = useState<FootballMatch | null>(null);
@@ -136,13 +138,13 @@ export const FootballFixturesView: React.FC = () => {
     setIsCustomAway(false);
     setCustomAwayTeam('');
 
-    setMatchDate(new Date().toISOString().slice(0, 10));
+    setMatchDate(getLocalDateString());
     setKickoffTime('21:00');
     setHandicapTeam('home');
     setHandicapValue('0.5 (ဝက်နိုင်)');
     setOverUnderValue('2.5 (၂ လုံးခွဲ)');
-    setBodyOdds('1.90');
-    setGoalOdds('1.90');
+    setBodyOdds('');
+    setGoalOdds('');
     setMatchStatus('upcoming');
     setIsModalOpen(true);
   };
@@ -180,8 +182,8 @@ export const FootballFixturesView: React.FC = () => {
     setHandicapTeam(m.handicapTeam);
     setHandicapValue(m.handicapValue);
     setOverUnderValue(m.overUnderValue);
-    setBodyOdds(String(m.bodyOdds || 1.90));
-    setGoalOdds(String(m.goalOdds || 1.90));
+    setBodyOdds(m.bodyOdds ? String(m.bodyOdds) : '');
+    setGoalOdds(m.goalOdds ? String(m.goalOdds) : '');
     setMatchStatus(m.status);
     setIsModalOpen(true);
   };
@@ -260,6 +262,13 @@ export const FootballFixturesView: React.FC = () => {
       }
     }
 
+    const parsedBodyOdds = parseFloat(bodyOdds);
+    const parsedGoalOdds = parseFloat(goalOdds);
+    if (isNaN(parsedBodyOdds) || parsedBodyOdds <= 0 || isNaN(parsedGoalOdds) || parsedGoalOdds <= 0) {
+      alert(isMyanmar ? 'ရေကြေး (Odds) ကို မှန်ကန်စွာ ဖြည့်သွင်းပါ' : 'Please provide valid odds greater than 0');
+      return;
+    }
+
     const payload = {
       league: resolvedLeague,
       homeTeam: resolvedHome,
@@ -269,8 +278,8 @@ export const FootballFixturesView: React.FC = () => {
       handicapTeam,
       handicapValue: handicapValue.trim() || '0=0 (တူတူ)',
       overUnderValue: overUnderValue.trim() || '2.5 (၂ လုံးခွဲ)',
-      bodyOdds: parseFloat(bodyOdds) || 1.90,
-      goalOdds: parseFloat(goalOdds) || 1.90,
+      bodyOdds: parsedBodyOdds,
+      goalOdds: parsedGoalOdds,
       status: matchStatus
     };
 
@@ -289,17 +298,26 @@ export const FootballFixturesView: React.FC = () => {
     e.preventDefault();
     if (!scoringMatch) return;
 
+    if (hScore === '' || aScore === '' || hScore.trim() === '' || aScore.trim() === '') {
+      alert(isMyanmar ? 'အိမ်ကွင်းနှင့် အဝေးကွင်း ဂိုးရလဒ်များကို ပြည့်စုံစွာ ဖြည့်သွင်းပါ' : 'Please enter scores for both teams');
+      return;
+    }
+
     const hs = parseInt(hScore, 10);
     const as = parseInt(aScore, 10);
+    if (isNaN(hs) || hs < 0 || isNaN(as) || as < 0) {
+      alert(isMyanmar ? 'ဂိုးရလဒ်များကို မှန်ကန်စွာ ဖြည့်သွင်းပါ' : 'Please enter valid scores');
+      return;
+    }
 
-    setMatchScore(scoringMatch.id, isNaN(hs) ? 0 : hs, isNaN(as) ? 0 : as);
+    setMatchScore(scoringMatch.id, hs, as);
     setScoringMatch(null);
-
-    // Auto-settle slips with updated score
-    setTimeout(() => {
-      settleMatches();
-    }, 100);
   };
+
+  // Automatically settle slips whenever matches update (stale closure free)
+  useEffect(() => {
+    settleMatches();
+  }, [matches, settleMatches]);
 
   // Filtered matches
   const filteredMatches = useMemo(() => {
@@ -607,8 +625,8 @@ export const FootballFixturesView: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setScoringMatch(match);
-                    setHScore(String(match.homeScore ?? 0));
-                    setAScore(String(match.awayScore ?? 0));
+                    setHScore(match.homeScore !== undefined ? String(match.homeScore) : '');
+                    setAScore(match.awayScore !== undefined ? String(match.awayScore) : '');
                   }}
                   className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
@@ -632,7 +650,19 @@ export const FootballFixturesView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm(isMyanmar ? `"${match.homeTeam} vs ${match.awayTeam}" ပွဲစဉ်ကို ဖျက်ရန် သေချာပါသလား?` : 'Delete this fixture?')) {
+                  const relatedSlips = slips.filter(s =>
+                    s.status !== 'cancelled' &&
+                    s.selections.some(sel => sel.matchId === match.id)
+                  );
+                  let confirmMsg = isMyanmar
+                    ? `"${match.homeTeam} vs ${match.awayTeam}" ပွဲစဉ်ကို ဖျက်ရန် သေချာပါသလား?`
+                    : 'Delete this fixture?';
+                  if (relatedSlips.length > 0) {
+                    confirmMsg = isMyanmar
+                      ? `သတိပေးချက်: ဤပွဲစဉ်နှင့် ဆက်စပ်နေသော ဘောင်ချာ (${relatedSlips.length}) စောင် ရှိနေပါသည်။ ပွဲဖျက်လိုက်ပါက ဘောင်ချာများ pending ဖြစ်ကျန်နေမည်ဖြစ်သည်။ ဆက်လက်ဖျက်ရန် သေချာပါသလား?`
+                      : `Warning: ${relatedSlips.length} active/settled vouchers are linked to this match. Deleting will leave them pending. Continue deleting?`;
+                  }
+                  if (window.confirm(confirmMsg)) {
                     deleteMatch(match.id);
                   }
                 }}
@@ -980,12 +1010,14 @@ export const FootballFixturesView: React.FC = () => {
                   </label>
                   <select
                     value={matchStatus}
-                    onChange={(e) => setMatchStatus(e.target.value as any)}
+                    onChange={(e) => setMatchStatus(e.target.value as MatchResultStatus)}
                     className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-bold"
                   >
                     <option value="upcoming">Upcoming (မစတင်မီ)</option>
                     <option value="live">Live (ယှဉ်ပြိုင်နေဆဲ)</option>
                     <option value="finished">Finished (ပြီးဆုံးပြီး)</option>
+                    <option value="postponed">Postponed (ရွှေ့ဆိုင်း)</option>
+                    <option value="void">Void (ဖျက်သိမ်း/ပွဲပျက်)</option>
                   </select>
                 </div>
               </div>

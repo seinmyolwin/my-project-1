@@ -180,9 +180,9 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
       let eveStatus: 'open' | 'closed' | 'settled' = 'settled';
 
       if (isToday) {
-        // Today's rounds start open with NO winning number until confirmed from official API or owner entry
+        // Today's rounds check closing time: evening closes at 16:25 (985 mins)
         eveWinning = undefined;
-        eveStatus = 'open';
+        eveStatus = currentTimeVal >= (16 * 60 + 25) ? 'closed' : 'open';
       } else {
         // Past days: lookup in official history only
         const historyEve = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[1]?.twod;
@@ -191,7 +191,7 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
           eveStatus = 'settled';
         } else {
           eveWinning = undefined;
-          eveStatus = 'open';
+          eveStatus = 'closed';
         }
       }
 
@@ -210,12 +210,12 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
 
       // Morning Round (12:01 PM)
       let mornWinning: string | undefined = undefined;
-      let mornStatus: 'open' | 'closed' | 'settled' = 'open';
+      let mornStatus: 'open' | 'closed' | 'settled' = 'closed';
 
       if (isToday) {
-        // Today's morning round starts open with NO winning number until confirmed
+        // Today's morning round closes at 12:00 (720 mins)
         mornWinning = undefined;
-        mornStatus = 'open';
+        mornStatus = currentTimeVal >= (12 * 60) ? 'closed' : 'open';
       } else {
         // Past days: lookup in official history only
         const historyMorn = liveData?.history2D?.find((h: any) => h.date === dateStr)?.result?.[0]?.twod;
@@ -224,7 +224,7 @@ export function generateUpToDate2DRounds(liveData?: LiveLotteryPayload | null): 
           mornStatus = 'settled';
         } else {
           mornWinning = undefined;
-          mornStatus = 'open';
+          mornStatus = 'closed';
         }
       }
 

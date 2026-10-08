@@ -17,6 +17,7 @@ import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
 import { evaluateTwoDWinnings } from '../../utils/twoDLotteryUtils';
+import { getLocalDateString } from '../../utils/moneyUtils';
 
 export const TwoDWinningPayoutView: React.FC = () => {
   const {
@@ -37,12 +38,12 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
   const [multiplierInput, setMultiplierInput] = useState(
-    String(activeRound?.multiplier || settings.defaultMultiplier || 80)
+    String(activeRound?.multiplier || settings.defaultMultiplier || '')
   );
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
-    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || 80));
+    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || ''));
   }, [activeRound?.id, activeRound?.winningNumber, activeRound?.multiplier, settings.defaultMultiplier]);
 
   const [isFetchingLive, setIsFetchingLive] = useState(false);
@@ -52,7 +53,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
   const isMorning = activeRound?.session === 'morning' || activeRound?.name.includes('မနက်');
 
   const handleStartNextSession = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     const targetSession = isMorning ? 'evening' : 'morning';
     const targetName = isMorning
       ? `${today} ညနေပိုင်း (၀၄:၃၀)`
@@ -72,7 +73,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
         drawDate: today,
         session: targetSession,
         status: 'open',
-        multiplier: settings.defaultMultiplier || 80,
+        multiplier: settings.defaultMultiplier,
         targetTime: isMorning ? '16:30' : '12:01'
       });
       setActiveRoundId(newRound.id);
@@ -175,7 +176,11 @@ export const TwoDWinningPayoutView: React.FC = () => {
   const handleCloseRound = () => {
     const targetNum = confirmedWinningNumber || convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 2);
     if (!targetNum || targetNum.length !== 2) return;
-    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80;
+    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 0;
+    if (mult <= 0) {
+      alert(isMyanmar ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
+      return;
+    }
 
     // 1. Auto-save the comprehensive 2D Excel report to device!
     try {
@@ -215,9 +220,30 @@ export const TwoDWinningPayoutView: React.FC = () => {
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
       return { settledVouchers: [], totalPayout: 0, totalWinnersCount: 0 };
     }
-    const mult = parseFloat(multiplierInput) || settings.defaultMultiplier || 80;
-    return evaluateTwoDWinnings(activeRoundVouchers, cleanNum, mult);
-  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, settings.defaultMultiplier]);
+    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 0;
+    const evalRes = evaluateTwoDWinnings(activeRoundVouchers, cleanNum, mult);
+
+    let totalSoldForNum = 0;
+    activeRoundVouchers.forEach(v => {
+      v.items.forEach(it => {
+        if (it.number === cleanNum) totalSoldForNum += it.amount;
+      });
+    });
+    let totalForwardedForNum = 0;
+    activeRoundForwardSlips.forEach(f => {
+      f.items.forEach(it => {
+        if (it.number === cleanNum) totalForwardedForNum += it.amount;
+      });
+    });
+    const retainedAmount = Math.max(0, totalSoldForNum - totalForwardedForNum);
+    const dealerPayout = mult > 0 ? retainedAmount * mult : 0;
+
+    return {
+      settledVouchers: evalRes.settledVouchers,
+      totalPayout: dealerPayout,
+      totalWinnersCount: evalRes.totalWinnersCount
+    };
+  }, [activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, multiplierInput, activeRound?.multiplier, settings.defaultMultiplier]);
 
   const previewRoundSummary = useMemo(() => {
     let totalSales = 0;
@@ -261,8 +287,8 @@ export const TwoDWinningPayoutView: React.FC = () => {
     : (isSettled ? (activeRound?.winningNumber || '') : activeEvalNumber);
 
   const currentMultiplier = isSettled && !isTestingMode
-    ? (activeRound?.multiplier || 80)
-    : (parseFloat(multiplierInput) || 80);
+    ? (activeRound?.multiplier || settings.defaultMultiplier || 0)
+    : (parseFloat(multiplierInput) || settings.defaultMultiplier || 0);
 
   const isShowingOnTheFly = isTestingMode || (isWinningConfirmed && !isSettled);
 

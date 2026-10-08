@@ -14,12 +14,37 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useFootball } from '../../context/FootballContext';
-import { FootballBetSelection, FootballSlip } from '../../types';
+import { FootballBetSelection, FootballSlip, FootballMatch } from '../../types';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
+import { safeRound } from '../../utils/moneyUtils';
 
 interface FootballSlipEntryViewProps {
   onSlipCreated: (slip: FootballSlip) => void;
 }
+
+const isMatchExpired = (match: FootballMatch): boolean => {
+  if (match.status === 'finished' || match.status === 'live' || match.status === 'postponed' || match.status === 'void') return true;
+  if (!match.matchDate || !match.kickoffTime) return false;
+  try {
+    const [year, month, day] = match.matchDate.split('-').map(Number);
+    let hours = 0;
+    let minutes = 0;
+    const timeClean = match.kickoffTime.trim().toLowerCase();
+    const isPM = timeClean.includes('pm');
+    const isAM = timeClean.includes('am');
+    const timeParts = timeClean.replace(/[^\d:]/g, '').split(':').map(Number);
+    if (timeParts.length >= 2) {
+      hours = timeParts[0];
+      minutes = timeParts[1];
+      if (isPM && hours < 12) hours += 12;
+      if (isAM && hours === 12) hours = 0;
+    }
+    const kickoff = new Date(year, month - 1, day, hours, minutes);
+    return new Date().getTime() >= kickoff.getTime();
+  } catch {
+    return false;
+  }
+};
 
 export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ onSlipCreated }) => {
   const { settings, matches, activeDate, addSlip } = useFootball();
@@ -42,15 +67,37 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
     const match = matches.find(m => m.id === matchId);
     if (!match) return;
 
-    let pickDescription = '';
+    if (isMatchExpired(match)) {
+      alert(isMyanmar ? 'ပွဲချိန်စတင်ပြီး သို့မဟုတ် ပြီးဆုံးသွားသော ပွဲဖြစ်၍ ရွေးချယ်၍မရပါ' : 'Match has already kicked off or finished');
+      return;
+    }
+
+    if (!odds || odds <= 0 || isNaN(odds)) {
+      alert(isMyanmar ? 'ရေကြေး (Odds) မမှန်ကန်ပါ' : 'Invalid odds');
+      return;
+    }
+
+    const maxAllowed = settings.maxMaungCount || 11;
+    if (selections.length >= maxAllowed && !selections.some(s => s.matchId === matchId)) {
+      alert(isMyanmar ? `မောင်း အများဆုံး ${maxAllowed} သင်းသာ ရွေးချယ်နိုင်ပါသည်` : `Maximum allowed parlay matches is ${maxAllowed}`);
+      return;
+    }
+
+    let choiceLabel = '';
+    let lineDescription = '';
+
     if (betType === 'body_home') {
-      pickDescription = `${match.homeTeam} (Body)`;
+      choiceLabel = `${match.homeTeam} (Body)`;
+      lineDescription = `အကြော ${match.handicapTeam === 'home' ? match.homeTeam : (match.handicapTeam === 'away' ? match.awayTeam : 'Level')} ${match.handicapValue}`;
     } else if (betType === 'body_away') {
-      pickDescription = `${match.awayTeam} (Body)`;
+      choiceLabel = `${match.awayTeam} (Body)`;
+      lineDescription = `အကြော ${match.handicapTeam === 'home' ? match.homeTeam : (match.handicapTeam === 'away' ? match.awayTeam : 'Level')} ${match.handicapValue}`;
     } else if (betType === 'over') {
-      pickDescription = `ဂိုးပေါင်း အပေါ် (${match.overUnderValue})`;
+      choiceLabel = `ဂိုးပေါင်း အပေါ် (${match.overUnderValue})`;
+      lineDescription = `ဂိုးပေါင်း ${match.overUnderValue}`;
     } else {
-      pickDescription = `ဂိုးပေါင်း အောက် (${match.overUnderValue})`;
+      choiceLabel = `ဂိုးပေါင်း အောက် (${match.overUnderValue})`;
+      lineDescription = `ဂိုးပေါင်း ${match.overUnderValue}`;
     }
 
     setSelections(prev => {
@@ -67,9 +114,11 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
         ...filtered,
         {
           matchId,
-          matchDescription: `${match.homeTeam} vs ${match.awayTeam}`,
+          matchSummary: `${match.homeTeam} vs ${match.awayTeam}`,
+          league: match.league,
           betType,
-          pickDescription,
+          choiceLabel,
+          lineDescription,
           odds,
           outcome: 'pending'
         }
@@ -77,17 +126,16 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
     });
   };
 
-  // Calculate accumulated parlay odds multiplier
+  // Calculate accumulated parlay odds multiplier (unrounded product)
   const combinedOdds = useMemo(() => {
     if (selections.length === 0) return 0;
-    const mult = selections.reduce((acc, s) => acc * s.odds, 1.0);
-    return Math.round(mult * 100) / 100;
+    return selections.reduce((acc, s) => acc * s.odds, 1.0);
   }, [selections]);
 
   const stake = parseFloat(stakeAmount) || 0;
-  const discountAmt = Math.round((stake * discountPercent) / 100);
+  const discountAmt = safeRound((stake * discountPercent) / 100);
   const netPayable = stake - discountAmt;
-  const potentialPayout = Math.round(stake * combinedOdds);
+  const potentialPayout = safeRound(stake * combinedOdds);
 
   const isMaung = selections.length > 1;
 
@@ -98,8 +146,30 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
       return;
     }
 
+    const minAllowed = settings.minMaungCount || 2;
+    const maxAllowed = settings.maxMaungCount || 11;
+    if (isMaung && selections.length < minAllowed) {
+      alert(isMyanmar ? `မောင်း အနည်းဆုံး ${minAllowed} သင်း ရွေးချယ်ရပါမည်` : `Minimum allowed parlay matches is ${minAllowed}`);
+      return;
+    }
+    if (selections.length > maxAllowed) {
+      alert(isMyanmar ? `မောင်း အများဆုံး ${maxAllowed} သင်းသာ ရွေးချယ်နိုင်ပါသည်` : `Maximum allowed parlay matches is ${maxAllowed}`);
+      return;
+    }
+
     if (stake <= 0) {
       alert(isMyanmar ? 'ထိုးကြေးငွေ ထည့်ပါ' : 'Enter a valid stake amount');
+      return;
+    }
+
+    const hasInvalidOdds = selections.some(s => !s.odds || s.odds <= 0 || isNaN(s.odds));
+    if (hasInvalidOdds) {
+      alert(isMyanmar ? 'ရေကြေး (Odds) မမှန်ကန်သော ပွဲစဉ် ပါဝင်နေပါသည်' : 'Slip contains invalid odds');
+      return;
+    }
+
+    if (settings.maxPayoutPerTicket > 0 && potentialPayout > settings.maxPayoutPerTicket) {
+      alert(isMyanmar ? `အများဆုံး လျော်ကြေးငွေ ${formatAmount(settings.maxPayoutPerTicket, settings.currency)} ထက် ကျော်လွန်နေပါသည်` : `Potential payout exceeds maximum limit of ${formatAmount(settings.maxPayoutPerTicket, settings.currency)}`);
       return;
     }
 
@@ -116,7 +186,6 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
       netPayable,
       combinedOdds,
       potentialPayout,
-      isPaid: true,
       status: 'active'
     });
 
@@ -155,6 +224,7 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
           <div className="space-y-3">
             {matches.map(match => {
               const currentPick = selections.find(s => s.matchId === match.id);
+              const isExpired = isMatchExpired(match);
 
               return (
                 <div
@@ -171,8 +241,9 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                     {/* Home Body */}
                     <button
                       type="button"
+                      disabled={isExpired}
                       onClick={() => handleSelectBet(match.id, 'body_home', match.bodyOdds)}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         currentPick?.betType === 'body_home'
                           ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
                           : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
@@ -190,8 +261,9 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                     {/* Away Body */}
                     <button
                       type="button"
+                      disabled={isExpired}
                       onClick={() => handleSelectBet(match.id, 'body_away', match.bodyOdds)}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         currentPick?.betType === 'body_away'
                           ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
                           : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
@@ -212,8 +284,9 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                     {/* Over */}
                     <button
                       type="button"
+                      disabled={isExpired}
                       onClick={() => handleSelectBet(match.id, 'over', match.goalOdds)}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-between transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         currentPick?.betType === 'over'
                           ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
                           : 'bg-indigo-50/50 hover:bg-indigo-50 border-indigo-100 text-indigo-900'
@@ -226,8 +299,9 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                     {/* Under */}
                     <button
                       type="button"
+                      disabled={isExpired}
                       onClick={() => handleSelectBet(match.id, 'under', match.goalOdds)}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-between transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         currentPick?.betType === 'under'
                           ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
                           : 'bg-indigo-50/50 hover:bg-indigo-50 border-indigo-100 text-indigo-900'
@@ -284,8 +358,8 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                 selections.map((sel, idx) => (
                   <div key={sel.matchId} className="py-2.5 flex items-center justify-between text-xs">
                     <div>
-                      <div className="font-bold text-slate-900">{sel.pickDescription}</div>
-                      <div className="text-[11px] text-slate-400">{sel.matchDescription}</div>
+                      <div className="font-bold text-slate-900">{sel.choiceLabel}</div>
+                      <div className="text-[11px] text-slate-400">{sel.matchSummary}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-emerald-700">x{sel.odds}</span>
@@ -354,7 +428,7 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
               <div className="border-t border-slate-200 pt-2 space-y-1 text-xs">
                 <div className="flex justify-between font-bold text-slate-700">
                   <span>{isMyanmar ? 'စုစုပေါင်း အဆ (Combined Odds)' : 'Combined Odds'}:</span>
-                  <span className="font-mono text-emerald-800 text-sm">x{combinedOdds}</span>
+                  <span className="font-mono text-emerald-800 text-sm">x{combinedOdds.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-slate-700">
                   <span>{isMyanmar ? 'ကျသင့်ငွေ' : 'Net Payable'}:</span>

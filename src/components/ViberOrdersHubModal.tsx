@@ -45,6 +45,8 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations } from '../utils/lotteryUtils';
 import { parseSlipImageText, preprocessCanvas, performOfflineOCR } from '../utils/imageOcrUtils';
+import { FootballBetSelection, FootballBetType } from '../types';
+import { safeRound } from '../utils/moneyUtils';
 
 interface ViberOrdersHubModalProps {
   isOpen: boolean;
@@ -145,7 +147,7 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
       setNewRawText(ocrText);
 
       // Auto parse
-      const parsedRes = parseSlipImageText(ocrText, newCategory);
+      const parsedRes = parseSlipImageText(ocrText, newCategory === 'football' ? 'auto' : newCategory);
       if (parsedRes.customerName && parsedRes.customerName !== 'အထွေထွေ (Photo / Chat Entry)' && !newSenderName) {
         setNewSenderName(parsedRes.customerName);
       }
@@ -254,8 +256,72 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
         createdVoucherNo = created.voucherNo;
       }
     } else {
-      // Football simple slip creation
-      createdVoucherNo = `V-FB-${Date.now().toString().slice(-4)}`;
+      // Football slip creation
+      const availableMatches = football.matches.filter(m => m.status === 'upcoming' || m.status === 'live');
+      if (availableMatches.length === 0) {
+        alert(lottery3D.settings.language === 'my' ? 'လတ်တလော ထိုးနိုင်သော ဘောလုံးပွဲစဉ် မရှိသေးပါ' : 'No available football matches');
+        return;
+      }
+      let hasInvalidOdds = false;
+      const selections: FootballBetSelection[] = order.parsedItems.map((it, idx) => {
+        const found = availableMatches.find(m =>
+          (it.number && (m.homeTeam.toLowerCase().includes(it.number.toLowerCase()) || m.awayTeam.toLowerCase().includes(it.number.toLowerCase()))) ||
+          (order.rawText && (m.homeTeam.toLowerCase().includes(order.rawText.toLowerCase()) || m.awayTeam.toLowerCase().includes(order.rawText.toLowerCase())))
+        ) || availableMatches[idx % availableMatches.length];
+
+        if (!found || !found.bodyOdds || found.bodyOdds <= 0) {
+          hasInvalidOdds = true;
+        }
+
+        const matchId = found ? found.id : `match-order-${Date.now()}-${idx}`;
+        const matchSummary = found ? `${found.homeTeam} vs ${found.awayTeam}` : 'Special Match';
+        const league = found ? found.league : 'Football League';
+        const odds = found ? found.bodyOdds : 0;
+        const betType: FootballBetType = 'body_home';
+        const choiceLabel = found ? `${found.homeTeam} (Body)` : 'Home Body';
+        const lineDescription = found ? `အကြော ${found.handicapValue}` : 'အကြော 0=0';
+
+        return {
+          matchId,
+          matchSummary,
+          league,
+          betType,
+          choiceLabel,
+          lineDescription,
+          odds,
+          outcome: 'pending'
+        };
+      });
+
+      if (hasInvalidOdds || selections.some(s => !s.odds || s.odds <= 0)) {
+        alert(lottery3D.settings.language === 'my' ? 'Settings သို့မဟုတ် ပွဲစဉ်များတွင် ရေကြေး (Odds) ကို ဦးစွာ သတ်မှတ်ပါ' : 'Please configure valid odds in settings or matches first');
+        return;
+      }
+
+      const totalStake = order.parsedItems.reduce((sum, it) => sum + (it.amount || 0), 0) || order.subtotal || 5000;
+      const combinedOdds = selections.reduce((acc, s) => acc * s.odds, 1.0);
+      const potentialPayout = safeRound(totalStake * combinedOdds);
+      const isMaung = selections.length > 1;
+
+      const createdSlip = football.addSlip({
+        roundDate: football.activeDate,
+        customerName: order.senderName || 'Viber User',
+        customerPhone: order.senderPhone,
+        slipType: isMaung ? 'maung' : 'body_single',
+        teamCount: selections.length,
+        selections,
+        stakeAmount: totalStake,
+        discountPercent: order.discountPercent || 0,
+        discountAmount: safeRound((totalStake * (order.discountPercent || 0)) / 100),
+        netPayable: totalStake - safeRound((totalStake * (order.discountPercent || 0)) / 100),
+        combinedOdds,
+        potentialPayout,
+        status: 'active',
+        notes: `[Viber Bot] ${order.notes || ''}`
+      });
+      if (createdSlip) {
+        createdVoucherNo = createdSlip.slipNo;
+      }
     }
 
     // Update order status

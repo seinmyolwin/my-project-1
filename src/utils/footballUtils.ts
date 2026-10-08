@@ -21,19 +21,68 @@ import {
  *  "1=1.5 (၁ ပြား ၇၀)" -> 1.25
  *  "2.5" -> 2.5
  */
+/**
+ * Parses Myanmar Asian Handicap value into goal difference spread
+ * Generic parser:
+ *  - "0=0" / "တူတူ" -> 0
+ *  - "0-50" (သရေ ၅၀ ရှုံး) -> 0.25 (Quarter ball, avoiding substring bugs with word/token boundary)
+ *  - "a-b" / "a=b" format: if |b - a| = 0.5 -> (a + b) / 2 (e.g. 0.5-1 -> 0.75, 1=1.5 -> 1.25)
+ *  - if b >= 10 -> b is water juice (ရေကြေး), spread is a (e.g. 1-80 -> 1.0)
+ *  - standalone numbers: e.g. "0.5 (ဝက်)" -> 0.5, "2.5" -> 2.5
+ */
 export function parseHandicapGoals(val: string): number {
   if (!val) return 0;
-  const clean = val.toLowerCase();
-  if (clean.includes('0=0') || clean.includes('တူတူ')) return 0;
-  if (clean.includes('0-50')) return 0.25;
-  if (clean.includes('0.5-1') || clean.includes('50 စား')) return 0.75;
-  if (clean.includes('1=1.5') || clean.includes('ပြား ၇၀')) return 1.25;
-  if (clean.includes('1.5-2')) return 1.75;
-  if (clean.includes('2=2.5')) return 2.25;
-  if (clean.includes('2.5-3')) return 2.75;
+  const rawLower = val.toLowerCase().trim();
+  if (rawLower.includes('တူတူ') || rawLower.includes('သရေ ၅၀ ရှုံး')) {
+    if (rawLower.includes('သရေ ၅၀ ရှုံး')) return 0.25;
+    return 0;
+  }
 
-  const m = clean.match(/(\d+(\.\d+)?)/);
-  if (m) return parseFloat(m[1]);
+  // Convert any Myanmar digits to standard English digits first
+  const clean = rawLower
+    .replace(/[၀-၉]/g, d => String('၀၁၂၃၄၅၆၇၈၉'.indexOf(d)))
+    .trim();
+
+  if (clean === '0=0' || clean.startsWith('0=0') || clean.includes('0-50 (သရေ')) {
+    if (clean.includes('0-50')) return 0.25;
+    return 0;
+  }
+
+  // Handle specific quarter ball "0-50" (သရေ ၅၀ ရှုံး) with boundary check to avoid substring bugs
+  // Matches "0-50" at word boundary or start of string, but NOT "10-50" or "20-50"
+  if (/(?:^|[^\d])0-50(?:[^\d]|$)/.test(clean) || clean.includes('သရေ 50 ရှုံး')) {
+    return 0.25;
+  }
+
+  // Check for "a-b" or "a=b" pattern
+  // Matches e.g. "0.5-1", "1=1.5", "1-80", "2.5-3", "0-0.5", "1.5=2"
+  const rangeMatch = clean.match(/(\d+(?:\.\d+)?)\s*[-=]\s*(\d+(?:\.\d+)?)/);
+  if (rangeMatch) {
+    const a = parseFloat(rangeMatch[1]);
+    const b = parseFloat(rangeMatch[2]);
+
+    // If b >= 10, it's water juice (ရေကြေး) e.g. "1-80" -> 1.0
+    if (b >= 10) {
+      return a;
+    }
+
+    // If difference is 0.5, spread is the midpoint (a + b) / 2
+    // E.g. 0.5-1 -> 0.75, 1=1.5 -> 1.25, 2.5-3 -> 2.75
+    if (Math.abs(Math.abs(b - a) - 0.5) < 0.001) {
+      return (a + b) / 2;
+    }
+
+    if (a === b) {
+      return a;
+    }
+  }
+
+  // Check for standalone single decimal/integer number, e.g. "0.5 (ဝက်)", "2.5", "1.0", "3"
+  const singleMatch = clean.match(/(\d+(?:\.\d+)?)/);
+  if (singleMatch) {
+    return parseFloat(singleMatch[1]);
+  }
+
   return 0;
 }
 
@@ -44,6 +93,9 @@ export function evaluateSelectionOutcome(
   selection: FootballBetSelection,
   match: FootballMatch
 ): SelectionOutcome {
+  if (match.status === 'void' || match.status === 'postponed') {
+    return 'void';
+  }
   if (match.status !== 'finished' || match.homeScore === undefined || match.awayScore === undefined) {
     return 'pending';
   }
@@ -109,17 +161,28 @@ export function calculateSlipSettlement(
   slip: FootballSlip,
   matchesMap: { [id: string]: FootballMatch }
 ): {
-  outcome: 'pending' | 'won' | 'half_won' | 'draw' | 'lost';
+  outcome: 'pending' | 'won' | 'half_won' | 'draw' | 'half_lost' | 'lost';
   actualPayout: number;
   evaluatedSelections: FootballBetSelection[];
 } {
   let isAnyPending = false;
   let hasLoss = false;
-  let runningStake = slip.stakeAmount;
 
   const evaluatedSelections: FootballBetSelection[] = slip.selections.map(sel => {
     const match = matchesMap[sel.matchId];
-    if (!match || match.status !== 'finished') {
+    if (!match) {
+      isAnyPending = true;
+      return { ...sel, outcome: 'pending' as const };
+    }
+    if (match.status === 'void' || match.status === 'postponed') {
+      return {
+        ...sel,
+        homeScore: match.homeScore,
+        awayScore: match.awayScore,
+        outcome: 'void' as const
+      };
+    }
+    if (match.status !== 'finished') {
       isAnyPending = true;
       return { ...sel, outcome: 'pending' as const };
     }
@@ -157,26 +220,32 @@ export function calculateSlipSettlement(
   // Draw: x 1.0
   // Half Loss: x 0.5
   let multiplier = 1.0;
-  let hasHalfLoss = false;
-  let hasHalfWin = false;
 
   evaluatedSelections.forEach(sel => {
-    const od = sel.odds || 1.90;
+    const od = sel.odds;
     if (sel.outcome === 'win') {
       multiplier *= od;
     } else if (sel.outcome === 'half_win') {
       multiplier *= (1 + (od - 1) / 2);
-      hasHalfWin = true;
-    } else if (sel.outcome === 'draw') {
+    } else if (sel.outcome === 'draw' || sel.outcome === 'void') {
       multiplier *= 1.0;
     } else if (sel.outcome === 'half_loss') {
       multiplier *= 0.5;
-      hasHalfLoss = true;
     }
   });
 
   const actualPayout = safeRound(slip.stakeAmount * multiplier);
-  const outcome = hasHalfLoss ? 'half_won' : (hasHalfWin ? 'half_won' : (multiplier > 1.0 ? 'won' : 'draw'));
+  const eps = 0.00001;
+  let outcome: 'pending' | 'won' | 'half_won' | 'draw' | 'half_lost' | 'lost';
+  if (multiplier > 1.0 + eps) {
+    outcome = 'won';
+  } else if (Math.abs(multiplier - 1.0) <= eps) {
+    outcome = 'draw';
+  } else if (multiplier > 0) {
+    outcome = 'half_lost';
+  } else {
+    outcome = 'lost';
+  }
 
   return {
     outcome,

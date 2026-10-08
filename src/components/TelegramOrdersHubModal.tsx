@@ -37,7 +37,8 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations, parseQuickBetText } from '../utils/lotteryUtils';
 import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../utils/imageOcrUtils';
-import { BetItem } from '../types';
+import { BetItem, FootballBetSelection, FootballBetType } from '../types';
+import { safeRound } from '../utils/moneyUtils';
 
 interface TelegramOrdersHubModalProps {
   isOpen: boolean;
@@ -131,7 +132,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       setOcrProgress(90);
       setNewRawText(text);
 
-      const parsed = parseSlipImageText(text, newCategory);
+      const parsed = parseSlipImageText(text, newCategory === 'football' ? 'auto' : newCategory);
       if (parsed.customerName && parsed.customerName !== 'အထွေထွေ (Photo / Chat Entry)' && parsed.customerName !== 'အထွေထွေ (Photo Entry)') {
         setNewSenderName(parsed.customerName);
       }
@@ -220,16 +221,65 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       });
     } else {
       // Football bets
+      const availableMatches = football.matches.filter(m => m.status === 'upcoming' || m.status === 'live');
+      if (availableMatches.length === 0) {
+        alert(football.settings.language === 'my' ? 'လတ်တလော ထိုးနိုင်သော ဘောလုံးပွဲစဉ် မရှိသေးပါ' : 'No available football matches');
+        return;
+      }
+      let hasInvalidOdds = false;
+      const selections: FootballBetSelection[] = betItems.map((b, idx) => {
+        const found = availableMatches.find(m =>
+          (b.originalInput && (m.homeTeam.toLowerCase().includes(b.originalInput.toLowerCase()) || m.awayTeam.toLowerCase().includes(b.originalInput.toLowerCase())))
+        ) || availableMatches[idx % availableMatches.length];
+
+        if (!found || !found.bodyOdds || found.bodyOdds <= 0) {
+          hasInvalidOdds = true;
+        }
+
+        const matchId = found ? found.id : `match-order-${Date.now()}-${idx}`;
+        const matchSummary = found ? `${found.homeTeam} vs ${found.awayTeam}` : 'Special Match';
+        const league = found ? found.league : 'Football League';
+        const odds = found ? found.bodyOdds : 0;
+        const betType: FootballBetType = 'body_home';
+        const choiceLabel = found ? `${found.homeTeam} (Body)` : 'Home Body';
+        const lineDescription = found ? `အကြော ${found.handicapValue}` : 'အကြော 0=0';
+
+        return {
+          matchId,
+          matchSummary,
+          league,
+          betType,
+          choiceLabel,
+          lineDescription,
+          odds,
+          outcome: 'pending'
+        };
+      });
+
+      if (hasInvalidOdds || selections.some(s => !s.odds || s.odds <= 0)) {
+        alert(football.settings.language === 'my' ? 'Settings သို့မဟုတ် ပွဲစဉ်များတွင် ရေကြေး (Odds) ကို ဦးစွာ သတ်မှတ်ပါ' : 'Please configure valid odds in settings or matches first');
+        return;
+      }
+
+      const totalStake = betItems.reduce((sum, b) => sum + (b.amount || 0), 0) || order.totalAmount || 5000;
+      const combinedOdds = selections.reduce((acc, s) => acc * s.odds, 1.0);
+      const potentialPayout = safeRound(totalStake * combinedOdds);
+      const isMaung = selections.length > 1;
+
       football.addSlip({
-        customerName: order.senderName,
+        roundDate: football.activeDate,
+        customerName: order.senderName || 'Telegram User',
         customerPhone: order.senderPhone,
-        selections: betItems.map(b => ({
-          matchId: 'live-match',
-          matchTitle: b.originalInput,
-          betType: 'home_win',
-          odds: 1.85,
-          stake: b.amount
-        })),
+        slipType: isMaung ? 'maung' : 'body_single',
+        teamCount: selections.length,
+        selections,
+        stakeAmount: totalStake,
+        discountPercent: 0,
+        discountAmount: 0,
+        netPayable: totalStake,
+        combinedOdds,
+        potentialPayout,
+        status: 'active',
         notes: `[Telegram Bot] ${order.notes || ''}`
       });
     }

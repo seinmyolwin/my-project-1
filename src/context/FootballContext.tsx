@@ -20,6 +20,7 @@ import {
 } from '../utils/storage';
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
+import { getLocalDateString } from '../utils/moneyUtils';
 
 interface FootballContextType {
   settings: FootballSettings;
@@ -54,7 +55,7 @@ interface FootballContextType {
   addForwardSlip: (slip: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => FootballForwardSlip;
   deleteForwardSlip: (id: string) => void;
 
-  settleMatches: () => void;
+  settleMatches: (customMatches?: FootballMatch[]) => void;
   summary: FootballSummary;
   exportToExcel: () => void;
   resetToSampleData: () => void;
@@ -78,7 +79,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [activeDate, setActiveDateState] = useState<string>(() => {
     const saved = loadStoredData<string>(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, '');
     if (saved) return saved;
-    return new Date().toISOString().slice(0, 10);
+    return getLocalDateString();
   });
 
   const [slips, setSlips] = useState<FootballSlip[]>(() =>
@@ -194,6 +195,23 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
       })
     );
+    // Also update existing matches containing this team name
+    setMatches(prev =>
+      prev.map(m => {
+        let updatedHome = m.homeTeam;
+        let updatedAway = m.awayTeam;
+        if (m.homeTeam === oldTeamName) updatedHome = trimmedNew;
+        if (m.awayTeam === oldTeamName) updatedAway = trimmedNew;
+        if (updatedHome !== m.homeTeam || updatedAway !== m.awayTeam) {
+          return {
+            ...m,
+            homeTeam: updatedHome,
+            awayTeam: updatedAway
+          };
+        }
+        return m;
+      })
+    );
   }, []);
 
   const deleteTeamFromLeague = useCallback((leagueId: string, teamName: string) => {
@@ -282,12 +300,25 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (existing) return existing;
     }
 
-    const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-    const randSeq = Math.floor(1000 + Math.random() * 9000);
+    const localDate = getLocalDateString();
+    const todayStr = localDate.slice(2).replace(/-/g, '');
+    const todaySlips = slips.filter(s => s.slipNo && s.slipNo.startsWith(`FB-${todayStr}-`));
+    let nextSeq = 1001;
+    if (todaySlips.length > 0) {
+      const seqNums = todaySlips.map(s => {
+        const parts = s.slipNo.split('-');
+        const last = parts[parts.length - 1];
+        const n = parseInt(last, 10);
+        return isNaN(n) ? 0 : n;
+      });
+      nextSeq = Math.max(...seqNums) + 1;
+    } else {
+      nextSeq = 1001 + slips.length;
+    }
     const newSlip: FootballSlip = {
       ...slipData,
       id: `fb-slip-${Date.now()}`,
-      slipNo: `FB-${todayStr}-${randSeq}`,
+      slipNo: `FB-${todayStr}-${nextSeq}`,
       createdAt: new Date().toISOString()
     };
     setSlips(prev => [newSlip, ...prev]);
@@ -305,25 +336,39 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const addForwardSlip = useCallback((slipData: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
-    const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-    const randSeq = Math.floor(100 + Math.random() * 900);
+    const localDate = getLocalDateString();
+    const todayStr = localDate.slice(2).replace(/-/g, '');
+    const todayFwd = forwardSlips.filter(f => f.slipNo && f.slipNo.startsWith(`FBFWD-${todayStr}-`));
+    let nextSeq = 101;
+    if (todayFwd.length > 0) {
+      const seqNums = todayFwd.map(f => {
+        const parts = f.slipNo.split('-');
+        const last = parts[parts.length - 1];
+        const n = parseInt(last, 10);
+        return isNaN(n) ? 0 : n;
+      });
+      nextSeq = Math.max(...seqNums) + 1;
+    } else {
+      nextSeq = 101 + forwardSlips.length;
+    }
     const newSlip: FootballForwardSlip = {
       ...slipData,
       id: `fb-fwd-${Date.now()}`,
-      slipNo: `FBFWD-${todayStr}-${randSeq}`,
+      slipNo: `FBFWD-${todayStr}-${nextSeq}`,
       createdAt: new Date().toISOString()
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, []);
+  }, [forwardSlips]);
 
   const deleteForwardSlip = useCallback((id: string) => {
     setForwardSlips(prev => prev.filter(f => f.id !== id));
   }, []);
 
   // Automated match results settlement for all active tickets
-  const settleMatches = useCallback(() => {
-    const matchesMap = matches.reduce((acc, m) => {
+  const settleMatches = useCallback((customMatches?: FootballMatch[]) => {
+    const targetMatches = customMatches || matches;
+    const matchesMap = targetMatches.reduce((acc, m) => {
       acc[m.id] = m;
       return acc;
     }, {} as { [id: string]: FootballMatch });
@@ -333,6 +378,11 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setSlips(prevSlips =>
       prevSlips.map(slip => {
+        // Never settle cancelled tickets
+        if (slip.status === 'cancelled') {
+          return slip;
+        }
+
         const res = calculateSlipSettlement(slip, matchesMap);
         if (res.outcome !== 'pending') {
           settledCount++;
@@ -347,8 +397,13 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             selections: res.evaluatedSelections
           };
         }
+
+        // If match was deleted or score was reset/invalidated, revert to active and reset payout
         return {
           ...slip,
+          status: 'active',
+          outcome: 'pending',
+          actualPayout: undefined,
           selections: res.evaluatedSelections
         };
       })
@@ -444,7 +499,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSlips(INITIAL_FOOTBALL_SLIPS);
     setForwardSlips(INITIAL_FOOTBALL_FORWARD_SLIPS);
     setLeagues(DEFAULT_FOOTBALL_LEAGUES);
-    setActiveDateState(new Date().toISOString().slice(0, 10));
+    setActiveDateState(getLocalDateString());
   }, []);
 
   const clearAllData = useCallback(() => {
