@@ -828,8 +828,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
     const defAmt = parseFloat(batchDefaultAmount) || 1000;
     const result = parseTwoDBatchInput(batchText, defAmt);
-    const parsed = Array.isArray(result) ? result : result.items;
-    const warnings = Array.isArray(result) ? [] : result.warnings;
+    const parsed = Array.isArray(result) ? result : (result as any).items;
+    const warnings = (result as any).warnings || [];
 
     if (warnings && warnings.length > 0) {
       showToast(warnings.join(', '), 'warning');

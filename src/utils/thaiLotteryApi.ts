@@ -4,6 +4,7 @@
  */
 
 import { TwoDDrawRound, DrawRound } from '../types';
+import { getLocalDateString } from './moneyUtils';
 
 export interface Live2DResult {
   session: 'morning' | 'evening';
@@ -162,29 +163,29 @@ export function generateUpToDate2DRounds(
   const currentTimeVal = currentHour * 60 + currentMinutes;
 
   const rounds: TwoDDrawRound[] = [];
+  const START_DATE = '2026-10-05';
+  const todayLocalStr = getLocalDateString(today);
 
-  // 1. Generate recent working days
-  let dayOffset = 0;
-  let addedDays = 0;
-  const maxDays = 20;
+  // Start with today (local time) and go backwards
+  const current = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
 
-  while (addedDays < maxDays && dayOffset < 40) {
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() - dayOffset);
-    const dayOfWeek = targetDate.getDay(); // 0 is Sunday, 6 is Saturday
+  while (true) {
+    const dateStr = toDateStr(current);
+    if (dateStr < START_DATE) {
+      break;
+    }
 
-    const dateStr = toDateStr(targetDate);
-    const dateLabel = formatDrawDateName(targetDate);
-    const isToday = dayOffset === 0;
+    const dayOfWeek = current.getDay(); // 0 is Sunday, 6 is Saturday
+    const dateLabel = formatDrawDateName(current);
+    const isToday = dateStr === todayLocalStr;
 
-    // We generate 2 sessions per day: morning (12:01 PM) & evening (04:30 PM)
     if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Monday - Friday Thai SET
       // Evening Round (04:30 PM)
       let eveWinning: string | undefined = undefined;
       let eveStatus: 'open' | 'closed' | 'settled' = 'closed';
 
       if (isToday) {
-        // Today's rounds check closing time: evening closes at 16:25 (985 mins)
+        // Today's evening closes at 16:25 (985 mins)
         eveWinning = undefined;
         eveStatus = currentTimeVal >= (16 * 60 + 25) ? 'closed' : 'open';
       } else {
@@ -217,7 +218,7 @@ export function generateUpToDate2DRounds(
       let mornStatus: 'open' | 'closed' | 'settled' = 'closed';
 
       if (isToday) {
-        // Today's morning round closes at 12:00 (720 mins)
+        // Today's morning closes at 12:00 (720 mins)
         mornWinning = undefined;
         mornStatus = currentTimeVal >= (12 * 60) ? 'closed' : 'open';
       } else {
@@ -244,11 +245,10 @@ export function generateUpToDate2DRounds(
         commissionRate: defaultCommissionRate ?? 0,
         settledAt: mornStatus === 'settled' ? `${dateStr}T12:05:00Z` : undefined
       });
-
-      addedDays++;
     }
 
-    dayOffset++;
+    // Go to previous day
+    current.setDate(current.getDate() - 1);
   }
 
   return rounds;

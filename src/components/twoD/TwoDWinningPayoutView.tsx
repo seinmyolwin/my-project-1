@@ -25,6 +25,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
     activeRound,
     activeRoundVouchers,
     activeRoundForwardSlips,
+    aggregates,
     roundSummary,
     settleWinningNumber,
     clearWinningSettlement,
@@ -313,7 +314,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
     return {
       settledVouchers: evalRes.settledVouchers,
-      totalPayout: dealerPayout,
+      totalPayout: evalRes.totalPayout,
       totalWinnersCount: evalRes.totalWinnersCount
     };
   }, [activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, multiplierInput, activeRound?.multiplier, settings.defaultMultiplier]);
@@ -381,6 +382,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
   const currentWinnersCount = isShowingOnTheFly ? previewRoundSummary.totalWinnersCount : roundSummary.totalWinnersCount;
   const currentTotalPayout = isShowingOnTheFly ? previewRoundSummary.totalPayout : roundSummary.totalPayout;
+  const currentRetainedPayout = isShowingOnTheFly ? previewRoundSummary.retainedPayout : roundSummary.retainedPayout;
   const currentNetProfit = isShowingOnTheFly ? previewRoundSummary.netProfit : roundSummary.netProfit;
   const currentIsProfit = isShowingOnTheFly ? previewRoundSummary.isProfit : roundSummary.isProfit;
 
@@ -806,13 +808,13 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs">
               <span className="text-xs text-rose-700 font-bold block mb-1">
-                {isMyanmar ? 'စုစုပေါင်း လျော်ကြေးငွေ' : 'Total Payout'}
+                {isMyanmar ? 'စုစုပေါင်း လျော်ကြေးငွေ (ဖောက်သည်)' : 'Total Customer Payout'}
               </span>
               <div className="text-2xl sm:text-3xl font-black text-rose-700 font-mono">
                 {formatAmount(currentTotalPayout, settings.currency)}
               </div>
-              <span className="text-xs text-rose-600 font-medium">
-                {isMyanmar ? 'ဖောက်သည်များသို့ ပေးလျော်ရမည်' : 'Must pay out'}
+              <span className="text-xs text-rose-600 font-medium block mt-1">
+                {isMyanmar ? `ဒိုင်ပေးရမည့်ငွေ: ${formatAmount(currentRetainedPayout, settings.currency)}` : `Retained Payout: ${formatAmount(currentRetainedPayout, settings.currency)}`}
               </span>
             </div>
 

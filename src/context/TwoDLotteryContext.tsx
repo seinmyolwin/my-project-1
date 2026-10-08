@@ -117,30 +117,62 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Keep today's rounds available and close past open rounds on mount/day change without removing existing rounds
   useEffect(() => {
-    const todayStr = getLocalDateString();
-    setRounds(prev => {
-      const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
-      const map = new Map<string, TwoDDrawRound>();
-      let changed = false;
+    let lastDateStr = getLocalDateString();
 
-      prev.forEach(r => {
-        if (r.drawDate < todayStr && r.status === 'open' && !r.winningNumber) {
-          map.set(r.id, { ...r, status: 'closed' });
-          changed = true;
-        } else {
-          map.set(r.id, r);
-        }
+    const checkAndSyncRounds = () => {
+      const todayStr = getLocalDateString();
+      setRounds(prev => {
+        const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
+        const map = new Map<string, TwoDDrawRound>();
+        let changed = false;
+
+        prev.forEach(r => {
+          if (r.drawDate < todayStr && r.status === 'open' && !r.winningNumber) {
+            map.set(r.id, { ...r, status: 'closed' });
+            changed = true;
+          } else {
+            map.set(r.id, r);
+          }
+        });
+
+        upToDate.forEach(r => {
+          if (!map.has(r.id)) {
+            map.set(r.id, r);
+            changed = true;
+          }
+        });
+
+        return changed ? Array.from(map.values()) : prev;
       });
+      lastDateStr = todayStr;
+    };
 
-      upToDate.forEach(r => {
-        if (!map.has(r.id)) {
-          map.set(r.id, r);
-          changed = true;
+    // Run on mount
+    checkAndSyncRounds();
+
+    // Run every minute (60,000 ms)
+    const intervalId = setInterval(() => {
+      const currentToday = getLocalDateString();
+      if (currentToday !== lastDateStr) {
+        checkAndSyncRounds();
+      }
+    }, 60000);
+
+    // Run on visibility change
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const currentToday = getLocalDateString();
+        if (currentToday !== lastDateStr) {
+          checkAndSyncRounds();
         }
-      });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      return changed ? Array.from(map.values()) : prev;
-    });
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [settings.defaultMultiplier, settings.defaultCommissionRate]);
 
   const [activeRoundId, setActiveRoundIdState] = useState<string>(() => {
@@ -217,9 +249,13 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     saveStoredData(STORAGE_KEYS.BLOCKED_2D, blockedNumbers);
   }, [blockedNumbers]);
 
+  const visibleRounds = useMemo(() => {
+    return rounds.filter(r => r.drawDate >= '2026-10-05');
+  }, [rounds]);
+
   const activeRound = useMemo(() => {
-    return rounds.find(r => r.id === activeRoundId) || rounds[0];
-  }, [rounds, activeRoundId]);
+    return visibleRounds.find(r => r.id === activeRoundId) || visibleRounds[0];
+  }, [visibleRounds, activeRoundId]);
 
   const activeRoundVouchers = useMemo(() => {
     return vouchers.filter(v => v.roundId === activeRoundId && v.status !== 'cancelled');
@@ -267,7 +303,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setRounds(prev => prev.filter(r => r.id !== roundId));
 
     if (activeRoundId === roundId) {
-      const remaining = rounds.filter(r => r.id !== roundId);
+      const remaining = visibleRounds.filter(r => r.id !== roundId);
       if (remaining.length > 0) {
         setActiveRoundIdState(remaining[0].id);
       }
@@ -275,7 +311,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     setVouchers(prev => prev.filter(v => v.roundId !== roundId));
     setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
-  }, [activeRoundId, vouchers, forwardSlips, rounds, settings.language]);
+  }, [activeRoundId, vouchers, forwardSlips, visibleRounds, settings.language]);
 
   const syncLiveRounds = useCallback(async () => {
     try {
@@ -306,7 +342,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
     // 1. Check active round status and local closing time
     const targetRound = rounds.find(r => r.id === voucherData.roundId);
-    if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound)) {
+    if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound) || targetRound.drawDate < getLocalDateString()) {
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
     }
 
@@ -814,7 +850,69 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (data.settings && typeof data.settings === 'object') {
         setSettingsState({ ...DEFAULT_2D_SETTINGS, ...data.settings });
       }
-      if (Array.isArray(data.rounds)) setRounds(data.rounds);
+      
+      if (Array.isArray(data.rounds)) {
+        setRounds(prev => {
+          const todayStr = getLocalDateString();
+          const today = new Date();
+          const currentHour = today.getHours();
+          const currentMinutes = today.getMinutes();
+          const currentTimeVal = currentHour * 60 + currentMinutes;
+
+          const map = new Map<string, TwoDDrawRound>();
+          prev.forEach(r => map.set(r.id, r));
+
+          data.rounds.forEach((r: TwoDDrawRound) => {
+            const existing = map.get(r.id);
+            if (existing) {
+              if (existing.status === 'closed' || existing.status === 'settled') {
+                map.set(r.id, {
+                  ...r,
+                  status: existing.status,
+                  winningNumber: existing.winningNumber || r.winningNumber,
+                  settledAt: existing.settledAt || r.settledAt
+                });
+              } else {
+                let finalStatus = r.status;
+                if (finalStatus === 'open') {
+                  const isPast = r.drawDate < todayStr;
+                  let isClosingPassed = false;
+                  if (r.drawDate === todayStr) {
+                    const closeTime = r.session === 'morning' ? (12 * 60) : (16 * 60 + 25);
+                    isClosingPassed = currentTimeVal >= closeTime;
+                  }
+                  if (isPast || isClosingPassed) {
+                    finalStatus = 'closed';
+                  }
+                }
+                map.set(r.id, {
+                  ...r,
+                  status: finalStatus
+                });
+              }
+            } else {
+              let finalStatus = r.status;
+              if (finalStatus === 'open') {
+                const isPast = r.drawDate < todayStr;
+                let isClosingPassed = false;
+                if (r.drawDate === todayStr) {
+                  const closeTime = r.session === 'morning' ? (12 * 60) : (16 * 60 + 25);
+                  isClosingPassed = currentTimeVal >= closeTime;
+                }
+                if (isPast || isClosingPassed) {
+                  finalStatus = 'closed';
+                }
+              }
+              map.set(r.id, {
+                ...r,
+                status: finalStatus
+              });
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+
       if (data.activeRoundId) setActiveRoundIdState(data.activeRoundId);
       if (Array.isArray(data.vouchers)) setVouchers(data.vouchers);
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
@@ -833,7 +931,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       value={{
         settings,
         updateSettings,
-        rounds,
+        rounds: visibleRounds,
         activeRoundId,
         activeRound,
         setActiveRoundId,

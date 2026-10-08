@@ -28,6 +28,13 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!settings.defaultMultiplier || settings.defaultMultiplier <= 0 || settings.defaultCommissionRate === undefined || settings.defaultCommissionRate < 0) {
+      alert(isMyanmar 
+        ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) နှင့် ကော်မရှင် (Commission) ကို ဦးစွာသတ်မှတ်ပေးရန် လိုအပ်ပါသည်။' 
+        : 'Please configure default multiplier and commission in settings first');
+      return;
+    }
+
     const sessionName = session === 'morning' ? 'မနက် (12:01 PM)' : 'ညနေ (04:30 PM)';
     const name = `${dateStr} ${sessionName}`;
 
@@ -81,7 +88,11 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
               <div>
                 <span className="font-bold text-slate-900 block">{r.name}</span>
                 <span className="text-[11px] text-slate-500">
-                  {r.status === 'settled' ? `ပေါက်ဂဏန်း: [${r.winningNumber}]` : 'ဖွင့်လှစ်ဆဲ'}
+                  {r.status === 'settled'
+                    ? `ပိတ်ပြီး — ပေါက်ဂဏန်း [${r.winningNumber}]`
+                    : r.status === 'closed'
+                    ? 'ပိတ်ပြီး'
+                    : 'ဖွင့်လှစ်ဆဲ'}
                 </span>
               </div>
               <div className="flex items-center gap-2">

@@ -277,10 +277,7 @@ export function parseTwoDBatchInput(
   // 3. Split lines by newlines
   const lines = cleanText.split(/[\r\n]+/);
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
+  function processSingleLine(line: string) {
     // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble)
     if (/(?:ခွေပူး(?:r|အာ)|ခွေ\s*ပူး\s*(?:r|အာ)|ပါခွေ(?:r|အာ)|ခွေ(?:r|အာ)ပူး)/i.test(line)) {
       const nums = line.match(/\d+/g);
@@ -296,7 +293,7 @@ export function parseTwoDBatchInput(
             originalInput: `${rawDigits} ခွေပူးr`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -315,7 +312,7 @@ export function parseTwoDBatchInput(
             originalInput: `${rawDigits} ခွေr`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -334,7 +331,7 @@ export function parseTwoDBatchInput(
             originalInput: `${rawDigits} ခွေပူး`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -353,7 +350,7 @@ export function parseTwoDBatchInput(
             originalInput: `${rawDigits} ခွေ`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -369,7 +366,7 @@ export function parseTwoDBatchInput(
           originalInput: 'အပူး'
         });
       });
-      continue;
+      return;
     }
 
     // Pattern: "ပါဝါ 1000"
@@ -384,7 +381,7 @@ export function parseTwoDBatchInput(
           originalInput: 'ပါဝါ'
         });
       });
-      continue;
+      return;
     }
 
     // Pattern: "နက္ခတ် 1000"
@@ -399,7 +396,7 @@ export function parseTwoDBatchInput(
           originalInput: 'နက္ခတ်'
         });
       });
-      continue;
+      return;
     }
 
     // Pattern: "ညီကို 1000"
@@ -414,7 +411,7 @@ export function parseTwoDBatchInput(
           originalInput: 'ညီကို'
         });
       });
-      continue;
+      return;
     }
 
     // Pattern: "5 ဘရိတ် 1000" or "0 ဘရိတ် 1000" or "ဘရိတ် 5 1000"
@@ -431,7 +428,7 @@ export function parseTwoDBatchInput(
             originalInput: `${brk} ဘရိတ်`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -449,7 +446,7 @@ export function parseTwoDBatchInput(
             originalInput: `${targetDigit} ပါ`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -467,7 +464,7 @@ export function parseTwoDBatchInput(
             originalInput: `${headDigit} ရှေ့ပိတ်`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -485,7 +482,7 @@ export function parseTwoDBatchInput(
             originalInput: `${tailDigit} နောက်ပိတ်`
           });
         });
-        continue;
+        return;
       }
     }
 
@@ -501,7 +498,7 @@ export function parseTwoDBatchInput(
           originalInput: 'စုံစုံ'
         });
       });
-      continue;
+      return;
     }
     if (/မမ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
@@ -514,7 +511,7 @@ export function parseTwoDBatchInput(
           originalInput: 'မမ'
         });
       });
-      continue;
+      return;
     }
     if (/စုံမ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
@@ -527,7 +524,7 @@ export function parseTwoDBatchInput(
           originalInput: 'စုံမ'
         });
       });
-      continue;
+      return;
     }
     if (/မစုံ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
@@ -540,7 +537,7 @@ export function parseTwoDBatchInput(
           originalInput: 'မစုံ'
         });
       });
-      continue;
+      return;
     }
 
     // Segment parsing for comma/space delimited bets like "35, 56, 54 R 500" or "35 56 54 R 500"
@@ -607,6 +604,20 @@ export function parseTwoDBatchInput(
           });
         }
       }
+    }
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const prevItemsCount = items.length;
+    const prevWarningsCount = warnings.length;
+
+    processSingleLine(line);
+
+    if (items.length === prevItemsCount && warnings.length === prevWarningsCount) {
+      warnings.push(`[${line}] သည် တရားဝင် 2D ဂဏန်း သို့မဟုတ် ပုံစံမဟုတ်ပါ`);
     }
   }
 

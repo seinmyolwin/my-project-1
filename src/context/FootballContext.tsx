@@ -336,11 +336,20 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const addForwardSlip = useCallback((slipData: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
-    if (slipData.slipId) {
-      const parentSlip = slips.find(s => s.id === slipData.slipId);
+    let finalSlipId = slipData.slipId;
+    const anyData = slipData as any;
+    if (!finalSlipId && anyData.slipNo) {
+      const parent = slips.find(s => s.slipNo === anyData.slipNo);
+      if (parent) {
+        finalSlipId = parent.id;
+      }
+    }
+
+    if (finalSlipId) {
+      const parentSlip = slips.find(s => s.id === finalSlipId);
       if (parentSlip) {
         const existingForwarded = forwardSlips
-          .filter(f => f.slipId === slipData.slipId)
+          .filter(f => f.slipId === finalSlipId)
           .reduce((sum, f) => sum + f.stakeAmount, 0);
         if (existingForwarded + slipData.stakeAmount > parentSlip.stakeAmount) {
           alert(`ဒိုင်လွှဲငွေ ပမာဏသည် ဘောင်ချာ၏ ထိုးကြေးငွေ (${parentSlip.stakeAmount}) ထက် ကျော်လွန်၍ မရပါ!`);
@@ -365,6 +374,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     const newSlip: FootballForwardSlip = {
       ...slipData,
+      slipId: finalSlipId,
       id: `fb-fwd-${Date.now()}`,
       slipNo: `FBFWD-${todayStr}-${nextSeq}`,
       createdAt: new Date().toISOString()
@@ -427,7 +437,9 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (settledSlipIds.size > 0) {
       setForwardSlips(prevFwds =>
         prevFwds.map(fwd => {
-          if (fwd.slipId && settledSlipIds.has(fwd.slipId)) {
+          const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
+                          (fwd.slipNo && slips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
+          if (isMatch) {
             return { ...fwd, status: 'settled' as const };
           }
           return fwd;
@@ -479,18 +491,15 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const forwardRatio = s.stakeAmount > 0 ? Math.min(1, forwardedStakeForSlip / s.stakeAmount) : 0;
 
       const actPayout = s.actualPayout || 0;
+      totalPayout += actPayout;
+      retainedPayout += actPayout * (1 - forwardRatio);
+
       if (s.outcome === 'won' || s.outcome === 'half_won') {
         wonTicketsCount++;
-        totalPayout += actPayout;
-        retainedPayout += actPayout * (1 - forwardRatio);
       } else if (s.outcome === 'lost') {
         lostTicketsCount++;
       } else {
         pendingTicketsCount++;
-        if (actPayout > 0) {
-          totalPayout += actPayout;
-          retainedPayout += actPayout * (1 - forwardRatio);
-        }
       }
     });
 
