@@ -565,7 +565,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Low stock / high risk alerts
   const lowStockAlerts = useMemo(() => {
     const alerts: LowStockAlert[] = [];
-    const thresholdPct = settings.lowStockAlertPercentage || 80;
+    const thresholdPct = settings.lowStockAlertPercentage;
+    if (!thresholdPct || thresholdPct <= 0) return alerts;
 
     (Object.values(aggregates) as TwoDNumberAggregate[]).forEach(agg => {
       if (agg.limit <= 0) return;
@@ -627,6 +628,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
 
     let totalPayout = 0;
+    let retainedPayout = 0;
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
@@ -634,16 +636,17 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const formattedNum = activeRound.winningNumber.padStart(2, '0');
       const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
       totalWinnersCount = evalResult.totalWinnersCount;
+      totalPayout = evalResult.totalPayout;
 
       // ဒိုင်လွှဲ စနစ်: ဒိုင်ကြီးက ဒိုင်လွှဲထားသော ဂဏန်းရဲ့ ပေါက်ငွေ ဆုံးရှုံးမှုကို ယူသည်။
       // ဒိုင်ကိုယ်တိုင် ထိန်းထားသော ဂဏန်းပေါ် ပေါက်ငွေသာ ပေးရသည်။
       const winningAgg = aggregates[formattedNum];
-      const retainedAmount = winningAgg ? winningAgg.retainedAmount : 0;
-      totalPayout = mult > 0 ? retainedAmount * mult : 0;
+      const retainedAmount = winningAgg ? Math.max(0, winningAgg.retainedAmount) : 0;
+      retainedPayout = mult > 0 ? retainedAmount * mult : 0;
     }
 
-    // Dealer profit = (net revenue - payouts) + commission from bookmaker
-    const netProfit = (netRevenue - totalPayout) + forwardedCommission;
+    const netPaid = totalForwarded - forwardedCommission;
+    const netProfit = netRevenue - netPaid - retainedPayout;
 
     return {
       totalSales,
@@ -653,6 +656,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       totalForwarded,
       forwardedCommission,
       totalPayout,
+      retainedPayout,
       winningNumber: activeRound?.winningNumber,
       totalWinnersCount,
       netProfit,

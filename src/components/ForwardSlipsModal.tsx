@@ -58,7 +58,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   // Form State
   const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
-  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate || 10);
+  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate || 0);
   const [notes, setNotes] = useState('');
 
   // Draft items

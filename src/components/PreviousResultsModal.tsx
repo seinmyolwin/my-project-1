@@ -128,9 +128,9 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
         'ပွဲစဉ်အမည် (Round Name)': r.name,
         'တည့်ပေါက်ဂဏန်း (Winning Straight)': r.winningNumber || 'မထွက်သေး',
         'ပတ်လည်ဂဏန်းများ (Todd/Rumble)': perms,
-        'တည့်ပေါက်ဆ (Multiplier)': `${r.multiplier || 600}x`,
-        'ပတ်လည်ပေါက်ဆ (Todd Mult)': `${r.toddMultiplier || 100}x`,
-        'ကော်မရှင် (Commission)': `${r.commissionRate || 10}%`,
+        'တည့်ပေါက်ဆ (Multiplier)': `${r.multiplier || lottery3D.settings.defaultMultiplier || 0}x`,
+        'ပတ်လည်ပေါက်ဆ (Todd Mult)': `${r.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0}x`,
+        'ကော်မရှင် (Commission)': `${r.commissionRate || lottery3D.settings.defaultCommissionRate || 0}%`,
         'အခြေအနေ (Status)': r.status === 'settled' ? 'ပြီးဆုံး' : 'ဖွင့်လှစ်ဆဲ'
       };
     });
@@ -474,7 +474,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
             {mode === '3d' && (
               <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
                 <Award className="w-3.5 h-3.5 text-indigo-600" />
-                <span>တည့်: {lottery3D.settings.defaultMultiplier || 600}x | ပတ်: {lottery3D.settings.defaultToddMultiplier || 100}x</span>
+                <span>တည့်: {lottery3D.settings.defaultMultiplier || 0}x | ပတ်: {lottery3D.settings.defaultToddMultiplier || 0}x</span>
               </div>
             )}
           </div>
@@ -509,14 +509,14 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
                   <span className="text-[11px] font-bold text-slate-500 block mb-0.5">တည့်ပေါက် အလျော်ဆ</span>
                   <div className="text-xl font-black text-slate-900 font-mono">
-                    {lottery3D.settings.defaultMultiplier || 600} <span className="text-xs font-normal text-slate-500">ဆ</span>
+                    {lottery3D.settings.defaultMultiplier || 0} <span className="text-xs font-normal text-slate-500">ဆ</span>
                   </div>
                 </div>
 
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
                   <span className="text-[11px] font-bold text-slate-500 block mb-0.5">ပတ်လည်ပေါက် အလျော်ဆ</span>
                   <div className="text-xl font-black text-slate-900 font-mono">
-                    {lottery3D.settings.defaultToddMultiplier || 100} <span className="text-xs font-normal text-slate-500">ဆ</span>
+                    {lottery3D.settings.defaultToddMultiplier || 0} <span className="text-xs font-normal text-slate-500">ဆ</span>
                   </div>
                 </div>
               </div>
@@ -630,8 +630,8 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                           {/* Multipliers info & Actions */}
                           <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                             <div className="text-slate-600">
-                              ပေါက်ဆ: တည့် <strong className="text-slate-900">{round.multiplier || 600}x</strong> | ပတ်{' '}
-                              <strong className="text-slate-900">{round.toddMultiplier || 100}x</strong>
+                              ပေါက်ဆ: တည့် <strong className="text-slate-900">{round.multiplier || lottery3D.settings.defaultMultiplier || 0}x</strong> | ပတ်{' '}
+                              <strong className="text-slate-900">{round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0}x</strong>
                             </div>
 
                             <div className="flex items-center gap-2">

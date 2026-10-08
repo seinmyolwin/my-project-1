@@ -270,6 +270,7 @@ export interface TwoDRoundSummary {
   totalForwarded: number;
   forwardedCommission: number;
   totalPayout: number;
+  retainedPayout?: number;
   winningNumber?: string;
   totalWinnersCount: number;
   netProfit: number;
@@ -345,6 +346,7 @@ export interface FootballSlip {
 
 export interface FootballForwardSlip {
   id: string;
+  slipId?: string;
   slipNo: string;
   roundDate: string;
   masterAgentName: string;
@@ -391,6 +393,7 @@ export interface FootballSummary {
   totalForwarded: number;
   forwardedCommission: number;
   totalPayout: number;
+  retainedPayout?: number;
   netProfit: number;
   isProfit: boolean;
   wonTicketsCount: number;

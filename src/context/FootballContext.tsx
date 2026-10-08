@@ -336,6 +336,18 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const addForwardSlip = useCallback((slipData: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
+    if (slipData.slipId) {
+      const parentSlip = slips.find(s => s.id === slipData.slipId);
+      if (parentSlip) {
+        const existingForwarded = forwardSlips
+          .filter(f => f.slipId === slipData.slipId)
+          .reduce((sum, f) => sum + f.stakeAmount, 0);
+        if (existingForwarded + slipData.stakeAmount > parentSlip.stakeAmount) {
+          alert(`ဒိုင်လွှဲငွေ ပမာဏသည် ဘောင်ချာ၏ ထိုးကြေးငွေ (${parentSlip.stakeAmount}) ထက် ကျော်လွန်၍ မရပါ!`);
+          return null;
+        }
+      }
+    }
     const localDate = getLocalDateString();
     const todayStr = localDate.slice(2).replace(/-/g, '');
     const todayFwd = forwardSlips.filter(f => f.slipNo && f.slipNo.startsWith(`FBFWD-${todayStr}-`));
@@ -359,7 +371,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [forwardSlips]);
+  }, [forwardSlips, slips]);
 
   const deleteForwardSlip = useCallback((id: string) => {
     setForwardSlips(prev => prev.filter(f => f.id !== id));
@@ -375,6 +387,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     let settledCount = 0;
     let anyWon = false;
+    const settledSlipIds = new Set<string>();
 
     setSlips(prevSlips =>
       prevSlips.map(slip => {
@@ -389,6 +402,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           if (res.outcome === 'won' || res.outcome === 'half_won') {
             anyWon = true;
           }
+          settledSlipIds.add(slip.id);
           return {
             ...slip,
             status: 'settled',
@@ -408,6 +422,18 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
       })
     );
+
+    // Update associated forward slips to settled
+    if (settledSlipIds.size > 0) {
+      setForwardSlips(prevFwds =>
+        prevFwds.map(fwd => {
+          if (fwd.slipId && settledSlipIds.has(fwd.slipId)) {
+            return { ...fwd, status: 'settled' as const };
+          }
+          return fwd;
+        })
+      );
+    }
 
     if (anyWon) {
       try {
@@ -430,6 +456,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let totalDiscount = 0;
     let netRevenue = 0;
     let totalPayout = 0;
+    let retainedPayout = 0;
     let wonTicketsCount = 0;
     let lostTicketsCount = 0;
     let pendingTicketsCount = 0;
@@ -445,13 +472,25 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         totalMaungStake += s.stakeAmount;
       }
 
+      // Calculate forwarded ratio for this slip
+      const forwardedStakeForSlip = activeDateForwardSlips
+        .filter(f => f.slipId === s.id || (f.slipNo && f.slipNo === s.slipNo))
+        .reduce((sum, f) => sum + f.stakeAmount, 0);
+      const forwardRatio = s.stakeAmount > 0 ? Math.min(1, forwardedStakeForSlip / s.stakeAmount) : 0;
+
+      const actPayout = s.actualPayout || 0;
       if (s.outcome === 'won' || s.outcome === 'half_won') {
         wonTicketsCount++;
-        totalPayout += s.actualPayout || 0;
+        totalPayout += actPayout;
+        retainedPayout += actPayout * (1 - forwardRatio);
       } else if (s.outcome === 'lost') {
         lostTicketsCount++;
       } else {
         pendingTicketsCount++;
+        if (actPayout > 0) {
+          totalPayout += actPayout;
+          retainedPayout += actPayout * (1 - forwardRatio);
+        }
       }
     });
 
@@ -462,7 +501,8 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       forwardedCommission += f.commissionAmount;
     });
 
-    const netProfit = (netRevenue - totalPayout) + forwardedCommission;
+    const netPaid = totalForwarded - forwardedCommission;
+    const netProfit = netRevenue - netPaid - retainedPayout;
 
     return {
       totalStake,
@@ -474,6 +514,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       totalForwarded,
       forwardedCommission,
       totalPayout,
+      retainedPayout,
       netProfit,
       isProfit: netProfit >= 0,
       wonTicketsCount,

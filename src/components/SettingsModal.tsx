@@ -556,8 +556,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           let totalPayout = 0;
           let winnersCount = 0;
           const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
-          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 600;
-          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 100;
+          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 0;
+          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0;
 
           if (winningNum) {
             const evalResult = evaluateWinnings(rVouchers, winningNum, straightMult, toddMult);
@@ -795,12 +795,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name3D, setName3D] = useState(lottery3D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop3D, setShop3D] = useState(lottery3D.settings.shopName || '');
   const [phone3D, setPhone3D] = useState(lottery3D.settings.shopPhone || '');
-  const [mult3D, setMult3D] = useState(String(lottery3D.settings.defaultMultiplier || 600));
-  const [todd3D, setTodd3D] = useState(String(lottery3D.settings.defaultToddMultiplier || 100));
-  const [comm3D, setComm3D] = useState(String(lottery3D.settings.defaultCommissionRate || 10));
-  const [disc3D, setDisc3D] = useState(String(lottery3D.settings.defaultCustomerDiscount || 0));
-  const [globalLimit3D, setGlobalLimit3D] = useState(String(lottery3D.settings.globalStockLimit || 100000));
-  const [alertPct3D, setAlertPct3D] = useState(String(lottery3D.settings.lowStockAlertPercentage || 80));
+  const [mult3D, setMult3D] = useState(String(lottery3D.settings.defaultMultiplier ?? ''));
+  const [todd3D, setTodd3D] = useState(String(lottery3D.settings.defaultToddMultiplier ?? ''));
+  const [comm3D, setComm3D] = useState(String(lottery3D.settings.defaultCommissionRate ?? ''));
+  const [disc3D, setDisc3D] = useState(String(lottery3D.settings.defaultCustomerDiscount ?? ''));
+  const [globalLimit3D, setGlobalLimit3D] = useState(String(lottery3D.settings.globalStockLimit ?? ''));
+  const [alertPct3D, setAlertPct3D] = useState(String(lottery3D.settings.lowStockAlertPercentage ?? ''));
   const [footer3D, setFooter3D] = useState(lottery3D.settings.voucherFooterMessage || '');
 
   // 3D Single Number Limit State
@@ -841,7 +841,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [nameFB, setNameFB] = useState(football.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shopFB, setShopFB] = useState(football.settings.shopName || '');
   const [phoneFB, setPhoneFB] = useState(football.settings.shopPhone || '');
-  const [commFB, setCommFB] = useState(String(football.settings.defaultCommissionRate || 8));
+  const [commFB, setCommFB] = useState(String(football.settings.defaultCommissionRate ?? ''));
   const [discFB, setDiscFB] = useState(String(football.settings.defaultCustomerDiscount || 0));
   const [maxPayoutFB, setMaxPayoutFB] = useState(String(football.settings.maxPayoutPerTicket || 15000000));
   const [footerFB, setFooterFB] = useState(football.settings.slipFooterMessage || '');
@@ -861,12 +861,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       shopName: shop3D.trim(),
       shopPhone: phone3D.trim(),
       currency,
-      defaultMultiplier: parseInt(mult3D, 10) || 600,
-      defaultToddMultiplier: parseInt(todd3D, 10) || 100,
-      defaultCommissionRate: parseInt(comm3D, 10) || 10,
-      defaultCustomerDiscount: parseInt(disc3D, 10) || 0,
-      globalStockLimit: parseInt(globalLimit3D, 10) || 100000,
-      lowStockAlertPercentage: parseInt(alertPct3D, 10) || 80,
+      defaultMultiplier: parseInt(mult3D, 10) || lottery3D.settings.defaultMultiplier,
+      defaultToddMultiplier: parseInt(todd3D, 10) || lottery3D.settings.defaultToddMultiplier,
+      defaultCommissionRate: parseInt(comm3D, 10) || lottery3D.settings.defaultCommissionRate,
+      defaultCustomerDiscount: parseInt(disc3D, 10) || lottery3D.settings.defaultCustomerDiscount,
+      globalStockLimit: parseInt(globalLimit3D, 10) || lottery3D.settings.globalStockLimit,
+      lowStockAlertPercentage: parseInt(alertPct3D, 10) || lottery3D.settings.lowStockAlertPercentage,
       voucherFooterMessage: footer3D.trim()
     });
 
@@ -890,7 +890,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       shopName: shopFB.trim(),
       shopPhone: phoneFB.trim(),
       currency,
-      defaultCommissionRate: parseFloat(commFB) || 8,
+      defaultCommissionRate: parseFloat(commFB) || football.settings.defaultCommissionRate,
       defaultCustomerDiscount: parseFloat(discFB) || 0,
       maxPayoutPerTicket: parseFloat(maxPayoutFB) || 15000000,
       slipFooterMessage: footerFB.trim()

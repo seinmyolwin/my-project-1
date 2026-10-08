@@ -240,7 +240,8 @@ export const TwoDWinningPayoutView: React.FC = () => {
       forwardedCommission += f.commissionAmount;
     });
 
-    const netProfit = (netRevenue - dealerPayout) + forwardedCommission;
+    const netPaid = totalForwarded - forwardedCommission;
+    const netProfit = netRevenue - netPaid - dealerPayout;
 
     const settledSummary = {
       totalSales,
@@ -249,7 +250,8 @@ export const TwoDWinningPayoutView: React.FC = () => {
       netRevenue,
       totalForwarded,
       forwardedCommission,
-      totalPayout: dealerPayout,
+      totalPayout: evalRes.totalPayout,
+      retainedPayout: dealerPayout,
       winningNumber: targetNum,
       totalWinnersCount: evalRes.totalWinnersCount,
       netProfit,
@@ -334,9 +336,22 @@ export const TwoDWinningPayoutView: React.FC = () => {
       forwardedCommission += f.commissionAmount;
     });
 
-    const totalPayout = twoDWinningResults.totalPayout;
-    const totalWinnersCount = twoDWinningResults.totalWinnersCount;
-    const netProfit = (netRevenue - totalPayout) + forwardedCommission;
+    let totalForwardedForWinNum = 0;
+    if (activeEvalNumber) {
+      activeRoundForwardSlips.forEach(f => {
+        f.items.forEach(it => {
+          if (it.number === activeEvalNumber) totalForwardedForWinNum += it.amount;
+        });
+      });
+    }
+    const winningAgg = activeEvalNumber ? aggregates[activeEvalNumber] : undefined;
+    const totalSoldForWinNum = winningAgg ? winningAgg.totalSold : 0;
+    const retainedAmt = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
+    const mult = parseFloat(multiplierInput) || settings.defaultMultiplier || 0;
+    const retainedPayout = mult > 0 ? retainedAmt * mult : 0;
+
+    const netPaid = totalForwarded - forwardedCommission;
+    const netProfit = netRevenue - netPaid - retainedPayout;
 
     return {
       totalSales,
@@ -345,9 +360,10 @@ export const TwoDWinningPayoutView: React.FC = () => {
       netRevenue,
       totalForwarded,
       forwardedCommission,
-      totalPayout,
+      totalPayout: twoDWinningResults.totalPayout,
+      retainedPayout,
       winningNumber: activeEvalNumber,
-      totalWinnersCount,
+      totalWinnersCount: twoDWinningResults.totalWinnersCount,
       netProfit,
       isProfit: netProfit >= 0
     };
@@ -457,7 +473,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
 
           <div className="sm:col-span-4">
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {isMyanmar ? `အလျော်ဆ (ဥပမာ- ${settings.defaultMultiplier || 80} ဆ)` : `Multiplier (e.g. ${settings.defaultMultiplier || 80}x)`}
+              {isMyanmar ? `အလျော်ဆ (ဥပမာ- ${settings.defaultMultiplier || ''} ဆ)` : `Multiplier (e.g. ${settings.defaultMultiplier || ''}x)`}
             </label>
             <input
               type="text"

@@ -612,7 +612,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
     let forwardNotes = '';
     if (forwardItems.length > 0) {
       const fwdTotal = forwardItems.reduce((acc, i) => acc + i.amount, 0);
-      const commRate = commissionRate || settings.defaultCommissionRate || 10;
+      const commRate = commissionRate || settings.defaultCommissionRate || 0;
       const commAmt = Math.round((fwdTotal * commRate) / 100);
       const netPaid = fwdTotal - commAmt;
 

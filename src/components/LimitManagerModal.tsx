@@ -66,8 +66,8 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
   const [blockedSearch, setBlockedSearch] = useState('');
 
   // Global defaults
-  const [globalLimitInput, setGlobalLimitInput] = useState(String(settings.globalStockLimit || 100000));
-  const [alertPctInput, setAlertPctInput] = useState(String(settings.lowStockAlertPercentage || 80));
+  const [globalLimitInput, setGlobalLimitInput] = useState(String(settings.globalStockLimit || ''));
+  const [alertPctInput, setAlertPctInput] = useState(String(settings.lowStockAlertPercentage || ''));
 
   if (!isOpen) return null;
 
@@ -164,8 +164,8 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
   // Save Global Settings
   const handleSaveGlobalSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    const gLimit = parseInt(globalLimitInput, 10) || 100000;
-    const pct = parseInt(alertPctInput, 10) || 80;
+    const gLimit = parseInt(globalLimitInput, 10) || settings.globalStockLimit;
+    const pct = parseInt(alertPctInput, 10) || settings.lowStockAlertPercentage;
     updateSettings({
       globalStockLimit: gLimit,
       lowStockAlertPercentage: pct

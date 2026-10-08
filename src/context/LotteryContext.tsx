@@ -504,8 +504,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
 
-    const sMult = multiplier || activeRound?.multiplier || settings.defaultMultiplier || 600;
-    const tMult = toddMultiplier || activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100;
+    const sMult = multiplier || activeRound?.multiplier || settings.defaultMultiplier || 0;
+    const tMult = toddMultiplier || activeRound?.toddMultiplier || settings.defaultToddMultiplier || 0;
     const allPerms = new Set(getPermutations(winningNumber));
 
     // Update vouchers item isWon and wonAmount

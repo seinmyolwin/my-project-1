@@ -176,10 +176,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           });
 
           // Forward slips commission earned from master bookie
+          let totalForwarded = 0;
           let forwardCommission = 0;
           roundForwards.forEach((f) => {
+            totalForwarded += f.totalAmount || 0;
             forwardCommission += f.commissionAmount || 0;
           });
+          const netPaid = totalForwarded - forwardCommission;
 
           // Payout & Winners calculation
           let totalPayout = 0;
@@ -216,8 +219,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             });
           }
 
-          // Net dealer profit = (Net Sales - Payout) + Forward Commission
-          const netProfit = (netSales - totalPayout) + forwardCommission;
+          // Net dealer profit = Net Sales - Net Paid - Payout
+          const netProfit = netSales - netPaid - totalPayout;
 
           list.push({
             id: `2d-${round.id}`,
@@ -278,7 +281,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             netSales += (v.netPayable ?? (sub - disc));
             v.items.forEach(it => {
               if (it.isWon) {
-                payout += (it.wonAmount || (it.amount * (lottery2D.settings.defaultMultiplier || 80)));
+                payout += (it.wonAmount || (it.amount * (lottery2D.settings.defaultMultiplier || 0)));
                 winnersCount += 1;
               }
             });
@@ -353,8 +356,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           let totalPayout = 0;
           let winnersCount = 0;
           const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
-          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 600;
-          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 100;
+          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 0;
+          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0;
 
           if (winningNum) {
             const evalResult = evaluateWinnings(roundVouchers, winningNum, straightMult, toddMult);
@@ -631,7 +634,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-6xl w-full shadow-2xl border border-slate-200 max-h-[94vh] flex flex-col justify-between overflow-hidden">
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-5xl w-full shadow-2xl border border-slate-200 max-h-[94vh] flex flex-col justify-between overflow-hidden">
         
         {/* Header */}
         <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 shrink-0">

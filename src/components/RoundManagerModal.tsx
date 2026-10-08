@@ -34,8 +34,8 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
   const [name, setName] = useState('');
   const [drawDate, setDrawDate] = useState(new Date().toISOString().slice(0, 10));
   const [closingTime, setClosingTime] = useState('15:00');
-  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || 600));
-  const [toddMultiplier, setToddMultiplier] = useState(String(settings.defaultToddMultiplier || 100));
+  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || ''));
+  const [toddMultiplier, setToddMultiplier] = useState(String(settings.defaultToddMultiplier || ''));
 
   if (!isOpen) return null;
 
@@ -48,9 +48,9 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
       drawDate,
       closingTime,
       status: 'open',
-      multiplier: parseInt(multiplier, 10) || settings.defaultMultiplier || 600,
-      toddMultiplier: parseInt(toddMultiplier, 10) || settings.defaultToddMultiplier || 100,
-      commissionRate: settings.defaultCommissionRate || 10
+      multiplier: parseInt(multiplier, 10) || settings.defaultMultiplier || 0,
+      toddMultiplier: parseInt(toddMultiplier, 10) || settings.defaultToddMultiplier || 0,
+      commissionRate: settings.defaultCommissionRate || 0
     });
 
     setName('');

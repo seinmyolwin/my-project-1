@@ -364,7 +364,7 @@ export function exportLotteryDataToExcel(
 
   // 3. Winning Settlement Sheet if winning number exists
   if (winningNumber) {
-    const winEval = evaluateWinnings(vouchers, winningNumber, multiplier, round.toddMultiplier || 100);
+    const winEval = evaluateWinnings(vouchers, winningNumber, multiplier, round.toddMultiplier || 0);
     const winData: any[] = [];
     winEval.winners.forEach(w => {
       winData.push({

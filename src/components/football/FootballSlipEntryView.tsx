@@ -77,7 +77,11 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
       return;
     }
 
-    const maxAllowed = settings.maxMaungCount || 11;
+    if (!settings.maxMaungCount || settings.maxMaungCount <= 0) {
+      alert(isMyanmar ? 'Settings တွင် မောင်းအများဆုံး အရေအတွက် (Max Maung) သတ်မှတ်ပါ' : 'Please configure Max Maung in Settings');
+      return;
+    }
+    const maxAllowed = settings.maxMaungCount;
     if (selections.length >= maxAllowed && !selections.some(s => s.matchId === matchId)) {
       alert(isMyanmar ? `မောင်း အများဆုံး ${maxAllowed} သင်းသာ ရွေးချယ်နိုင်ပါသည်` : `Maximum allowed parlay matches is ${maxAllowed}`);
       return;
@@ -147,7 +151,11 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
     }
 
     const minAllowed = settings.minMaungCount || 2;
-    const maxAllowed = settings.maxMaungCount || 11;
+    if (!settings.maxMaungCount || settings.maxMaungCount <= 0) {
+      alert(isMyanmar ? 'Settings တွင် မောင်းအများဆုံး အရေအတွက် သတ်မှတ်ပါ' : 'Please configure Max Maung in Settings');
+      return;
+    }
+    const maxAllowed = settings.maxMaungCount;
     if (isMaung && selections.length < minAllowed) {
       alert(isMyanmar ? `မောင်း အနည်းဆုံး ${minAllowed} သင်း ရွေးချယ်ရပါမည်` : `Minimum allowed parlay matches is ${minAllowed}`);
       return;

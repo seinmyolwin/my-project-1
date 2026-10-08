@@ -74,9 +74,9 @@ export const WinningPayoutView: React.FC = () => {
       drawDate: dateStr,
       closingTime: '15:30',
       status: 'open',
-      multiplier: settings.defaultMultiplier || 600,
-      toddMultiplier: settings.defaultToddMultiplier || 100,
-      commissionRate: settings.defaultCommissionRate || 10
+      multiplier: settings.defaultMultiplier || 0,
+      toddMultiplier: settings.defaultToddMultiplier || 0,
+      commissionRate: settings.defaultCommissionRate || 0
     });
 
     setActiveRoundId(newRound.id);

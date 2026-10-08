@@ -795,7 +795,8 @@ export function exportTwoDLotteryToExcel(
     { 'အကြောင်းအရာ': 'စုစုပေါင်း ဘောင်ချာအရေအတွက်', 'ပမာဏ': summary.totalVouchers },
     { 'အကြောင်းအရာ': 'ဒိုင်ကြီးထံ လွှဲတင်ငွေ', 'ပမာဏ': summary.totalForwarded },
     { 'အကြောင်းအရာ': 'လွှဲတင်ကော်မရှင် ရငွေ', 'ပမာဏ': summary.forwardedCommission },
-    { 'အကြောင်းအရာ': 'စုစုပေါင်း လျော်ကြေးငွေ', 'ပမာဏ': summary.totalPayout },
+    { 'အကြောင်းအရာ': 'ဖောက်သည် စုစုပေါင်း ပေါက်ငွေ', 'ပမာဏ': summary.totalPayout },
+    { 'အကြောင်းအရာ': 'ဒိုင် ကိုယ်တိုင် ပေးရန် ပေါက်ငွေ (Retained Payout)', 'ပမာဏ': summary.retainedPayout ?? summary.totalPayout },
     { 'အကြောင်းအရာ': 'ဒိုင် အသားတင် အမြတ်/အရှုံး', 'ပမာဏ': summary.netProfit }
   ];
   const wsSummary = XLSX.utils.json_to_sheet(summaryData);

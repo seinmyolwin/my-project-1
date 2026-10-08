@@ -98,6 +98,9 @@ export function saveOwnerPassword(newPassword: string): boolean {
 export function verifyOwnerPassword(inputPassword: string): boolean {
   if (!inputPassword) return false;
   const current = getStoredOwnerPassword();
+  if (current.startsWith('OBSCURED_PIN_v1::')) {
+    return verifyObscuredPin(inputPassword, current);
+  }
   return inputPassword.trim() === current.trim();
 }
 
