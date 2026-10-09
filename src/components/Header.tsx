@@ -126,7 +126,6 @@ export const Header: React.FC<HeaderProps> = ({
       : football.settings.language === 'my';
 
   // Metrics for current active mode
-  let appTitle = '';
   let shopName = '';
   let revenue = 0;
   let isSettled = false;
@@ -136,8 +135,7 @@ export const Header: React.FC<HeaderProps> = ({
   let currency = 'MMK';
 
   if (dealerMode === '3d') {
-    appTitle = 'ရွှေမင်္ဂလာ';
-    shopName = lottery3D.settings.shopName || 'မရှိသေးပါ';
+    shopName = lottery3D.settings.shopName?.trim() || '';
     revenue = lottery3D.roundSummary.netRevenue;
     isSettled = lottery3D.activeRound?.status === 'settled';
     isProfit = lottery3D.roundSummary.isProfit;
@@ -145,8 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
     alertCount = lottery3D.lowStockAlerts.length;
     currency = lottery3D.settings.currency;
   } else if (dealerMode === '2d') {
-    appTitle = 'ရွှေမင်္ဂလာ';
-    shopName = lottery2D.settings.shopName || 'မရှိသေးပါ';
+    shopName = lottery2D.settings.shopName?.trim() || '';
     revenue = lottery2D.roundSummary.netRevenue;
     isSettled = lottery2D.activeRound?.status === 'settled';
     isProfit = lottery2D.roundSummary.isProfit;
@@ -154,8 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
     alertCount = lottery2D.lowStockAlerts.length;
     currency = lottery2D.settings.currency;
   } else {
-    appTitle = 'ရွှေမင်္ဂလာ';
-    shopName = football.settings.shopName || 'မရှိသေးပါ';
+    shopName = football.settings.shopName?.trim() || '';
     revenue = football.summary.netRevenue;
     isSettled = football.summary.wonTicketsCount > 0 || football.summary.lostTicketsCount > 0;
     isProfit = football.summary.isProfit;
@@ -359,15 +355,14 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
-                {/* Hide / Collapse Header Button (Pinned Right) */}
+                {/* Collapse Header Toggle Button (Icon-only chevron) */}
                 <button
                   type="button"
                   onClick={toggleHeaderCollapse}
-                  className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-xl border border-slate-600/80 flex items-center gap-1.5 text-xs font-black transition-all cursor-pointer shrink-0 shadow-sm ring-1 ring-slate-500/30"
-                  title="ခေါင်းစဉ်ဘား ဝှက်မည် (မျက်နှာပြင်ကျယ်အောင်လုပ်မည်)"
+                  className="p-1.5 sm:p-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-amber-400 rounded-xl border border-slate-600/80 flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-sm ring-1 ring-slate-500/30"
+                  aria-label="Toggle Header"
                 >
                   <ChevronUp className="w-4 h-4 text-amber-400" />
-                  <span className="inline">{isMyanmar ? 'ဝှက်မည်' : 'Hide'}</span>
                 </button>
               </div>
             </div>
@@ -382,26 +377,15 @@ export const Header: React.FC<HeaderProps> = ({
                 <div>
                   <div className="flex items-center gap-1.5">
                     <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900">
-                      {appTitle || 'ရွှေမင်္ဂလာ'}
+                      {shopName}
                     </h1>
-                    <span
-                      className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-black ${
-                        dealerMode === '3d'
-                          ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                          : dealerMode === '2d'
-                          ? 'bg-teal-100 text-teal-900 border border-teal-200'
-                          : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                      }`}
-                    >
-                      ဆိုင်: {shopName}
-                    </span>
 
                     {onOpenTitleModal && (
                       <button
                         type="button"
                         onClick={onOpenTitleModal}
                         className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="အက်ပ်ခေါင်းစဉ်နှင့် ဆိုင်အမည် ပြောင်းမည်"
+                        title="ဆိုင်အမည် ပြောင်းမည်"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -567,8 +551,9 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Mode-Specific Navigation Tabs */}
       <div className="bg-slate-50/80 border-t border-slate-200 px-3 sm:px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto no-scrollbar">
+          {/* Mode-Specific Navigation Tabs */}
           {dealerMode === '3d' && (
-            <nav className="flex space-x-1 sm:space-x-2 py-1.5">
+            <nav className="flex space-x-1 sm:space-x-2 py-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
               <button
                 onClick={() => setActiveTab('sales')}
                 className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
@@ -632,7 +617,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {dealerMode === '2d' && (
-            <nav className="flex space-x-1 sm:space-x-2 py-1.5">
+            <nav className="flex space-x-1 sm:space-x-2 py-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
               <button
                 onClick={() => setActiveTab('sales')}
                 className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
@@ -684,7 +669,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {dealerMode === 'football' && (
-            <nav className="flex space-x-1 sm:space-x-2 py-1.5">
+            <nav className="flex space-x-1 sm:space-x-2 py-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
               <button
                 onClick={() => setActiveTab('fixtures')}
                 className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
@@ -723,8 +708,8 @@ export const Header: React.FC<HeaderProps> = ({
             </nav>
           )}
 
-          {/* Header Toggle & Fast Controls */}
-          <div className="flex items-center gap-1.5 py-1 pl-2 shrink-0">
+          {/* Fast Controls when collapsed */}
+          <div className="flex items-center gap-1.5 py-1 pl-1 shrink-0">
             {/* When collapsed, provide quick mode switch pills */}
             {isHeaderCollapsed && (
               <div className="flex items-center gap-0.5 p-0.5 bg-slate-200/80 rounded-xl border border-slate-300">
@@ -791,31 +776,27 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>{isMyanmar ? 'ပွဲစဉ်အသစ်' : 'Round'}</span>
               </button>
             </div>
-
-            {/* Hide / Show Header Toggle Button (Always visible on all screens) */}
-            <button
-              type="button"
-              onClick={toggleHeaderCollapse}
-              className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-xs ${
-                isHeaderCollapsed
-                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 shadow-sm font-black ring-2 ring-amber-300'
-                  : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-              }`}
-              title={isHeaderCollapsed ? (isMyanmar ? 'ခေါင်းစဉ်ဘား ဖော်မည်' : 'Show Header') : (isMyanmar ? 'ခေါင်းစဉ်ဘား ဝှက်မည်' : 'Hide Header')}
-            >
-              {isHeaderCollapsed ? (
-                <>
-                  <ChevronDown className="w-4 h-4 text-slate-950 shrink-0" />
-                  <span className="inline">{isMyanmar ? 'ဖော်မည်' : 'Show'}</span>
-                </>
-              ) : (
-                <>
-                  <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" />
-                  <span className="hidden sm:inline">{isMyanmar ? 'ဝှက်မည်' : 'Hide'}</span>
-                </>
-              )}
-            </button>
           </div>
+        </div>
+
+        {/* Center Prominent Up/Down Arrow Toggle Handle (Mobile & Tablet & Desktop) */}
+        <div className="w-full flex justify-center -mb-3 relative z-20 pointer-events-none">
+          <button
+            type="button"
+            onClick={toggleHeaderCollapse}
+            className={`pointer-events-auto h-7 px-4 rounded-full flex items-center justify-center border shadow-md transition-all duration-200 cursor-pointer active:scale-95 ${
+              isHeaderCollapsed
+                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 ring-2 ring-amber-300/80 animate-pulse'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 hover:text-slate-900'
+            }`}
+            aria-label="Toggle Header"
+          >
+            {isHeaderCollapsed ? (
+              <ChevronDown className="w-4 h-4 stroke-[2.5]" />
+            ) : (
+              <ChevronUp className="w-4 h-4 stroke-[2.5]" />
+            )}
+          </button>
         </div>
       </div>
     </header>
