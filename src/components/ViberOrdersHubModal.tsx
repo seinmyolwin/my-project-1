@@ -428,6 +428,15 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
     }
   };
 
+  const handleDeleteOrder = (orderId: string) => {
+    const updated = orders.filter(o => o.id !== orderId);
+    handleUpdateOrders(updated);
+    if (selectedOrderId === orderId) setSelectedOrderId(null);
+
+    // Sync deletion with backend
+    deleteViberOrderOnServer(orderId);
+  };
+
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
     const result = await testViberConnection(botToken.trim(), webhookUrl.trim());
@@ -778,23 +787,33 @@ export const ViberOrdersHubModal: React.FC<ViberOrdersHubModalProps> = ({
                               </button>
                             </>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleCopyReply(order)}
-                              className="w-full py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                            >
-                              {copiedOrderId === order.id ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span className="text-emerald-700">Viber အတည်ပြုစာ ကူးယူပြီးပါပြီ!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Viber သို့ စာပြန်ရန် ကူးယူပါ</span>
-                                </>
-                              )}
-                            </button>
+                            <div className="w-full flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyReply(order)}
+                                className="flex-1 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                {copiedOrderId === order.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span className="text-emerald-700">Viber အတည်ပြုစာ ကူးယူပြီးပါပြီ!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Viber သို့ စာပြန်ရန် ကူးယူပါ</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOrder(order.id)}
+                                title="ဖျက်မည်"
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           )}
                         </div>
 

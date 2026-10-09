@@ -833,6 +833,24 @@ export function createMessagingRouter(): Router {
 
   // 6. Viber Webhook Receiver Endpoint
   router.post('/viber/webhook', (req: Request, res: Response) => {
+    // 1. Verify Viber Content Signature if auth token is configured
+    const viberToken = getViberToken();
+    const incomingSignature = req.headers['x-viber-content-signature'];
+
+    if (viberToken && incomingSignature) {
+      try {
+        const rawBody = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
+        const expectedSig = crypto.createHmac('sha256', viberToken).update(rawBody).digest('hex');
+        const incomingBuf = Buffer.from(String(incomingSignature));
+        const expBuf = Buffer.from(expectedSig);
+        if (incomingBuf.length !== expBuf.length || !crypto.timingSafeEqual(incomingBuf, expBuf)) {
+          return res.status(403).json({ error: 'Invalid Viber signature' });
+        }
+      } catch (sigErr) {
+        return res.status(403).json({ error: 'Signature verification failure' });
+      }
+    }
+
     const body = req.body;
     if (!body || typeof body !== 'object') {
       return res.status(400).json({ error: 'Invalid payload' });

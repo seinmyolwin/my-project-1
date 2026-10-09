@@ -31,6 +31,7 @@ import { formatAmount } from '../utils/lotteryUtils';
 import { PWAInstallButton } from './PWAInstallButton';
 import { BookieMode } from '../types';
 import { getTelegramOrders } from '../utils/telegramIntegration';
+import { getViberOrders } from '../utils/viberIntegration';
 import { AppLogo } from './AppLogo';
 
 import { EnabledModes } from '../utils/securityUtils';
@@ -51,6 +52,7 @@ interface HeaderProps {
   onOpenStatements?: () => void;
   onOpenPreviousResults?: () => void;
   onOpenTitleModal?: () => void;
+  onOpenViberHub?: () => void;
   onOpenTelegramHub?: () => void;
 }
 
@@ -70,6 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenStatements,
   onOpenPreviousResults,
   onOpenTitleModal,
+  onOpenViberHub,
   onOpenTelegramHub
 }) => {
   // Contexts
@@ -77,11 +80,18 @@ export const Header: React.FC<HeaderProps> = ({
   const lottery2D = useTwoDLottery();
   const football = useFootball();
 
-
-
   const telegramPendingCount = React.useMemo(() => {
     try {
       const orders = getTelegramOrders();
+      return orders.filter(o => o.status === 'pending_review').length;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  const viberPendingCount = React.useMemo(() => {
+    try {
+      const orders = getViberOrders();
       return orders.filter(o => o.status === 'pending_review').length;
     } catch {
       return 0;
@@ -283,6 +293,24 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
+
+                {/* Viber Direct Ingest Hub Button */}
+                {onOpenViberHub && (
+                  <button
+                    type="button"
+                    onClick={onOpenViberHub}
+                    className="px-2 sm:px-2.5 py-1.5 bg-purple-950/70 hover:bg-purple-900 border border-purple-500/50 text-purple-200 text-xs font-bold rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    title="Viber တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ခန်း"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <span className="hidden md:inline">Viber</span>
+                    {viberPendingCount > 0 && (
+                      <span className="bg-purple-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                        {viberPendingCount}
+                      </span>
+                    )}
+                  </button>
+                )}
 
                 {/* Telegram Direct Ingest Hub Button */}
                 {onOpenTelegramHub && (

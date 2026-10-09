@@ -13,7 +13,12 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '15mb' }));
+  app.use(express.json({
+    limit: '15mb',
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    }
+  }));
 
   // Mount Telegram and Viber messaging integration router
   app.use('/api', createMessagingRouter());
