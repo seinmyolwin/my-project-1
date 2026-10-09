@@ -56,6 +56,7 @@ export interface ViberIncomingOrder {
 interface ServerStoreData {
   telegram: {
     botToken: string;
+    isCleared?: boolean;
     channelId: string;
     accountName: string;
     webhookUrl: string;
@@ -98,9 +99,13 @@ function loadStore(): ServerStoreData {
     if (fs.existsSync(STORE_FILE)) {
       const content = fs.readFileSync(STORE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
+      const isTgCleared = parsed.telegram?.isCleared === true || (parsed.telegram?.botToken === '' && parsed.telegram?.isCleared !== false);
+      const tgBotToken = isTgCleared ? '' : (parsed.telegram?.botToken || process.env.TELEGRAM_BOT_TOKEN || '');
+
       return {
         telegram: {
-          botToken: process.env.TELEGRAM_BOT_TOKEN || parsed.telegram?.botToken || '',
+          botToken: tgBotToken,
+          isCleared: isTgCleared,
           channelId: parsed.telegram?.channelId || '@shwemingalar_channel',
           accountName: parsed.telegram?.accountName || 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့',
           webhookUrl: parsed.telegram?.webhookUrl || '',
@@ -127,7 +132,8 @@ function loadStore(): ServerStoreData {
 
   return {
     telegram: {
-      botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+      botToken: '',
+      isCleared: true,
       channelId: '@shwemingalar_channel',
       accountName: 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့',
       webhookUrl: '',
@@ -214,7 +220,10 @@ function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'football'
    ========================================================================= */
 
 function getTelegramToken(): string {
-  return process.env.TELEGRAM_BOT_TOKEN || store.telegram.botToken || '';
+  if (store.telegram.isCleared || store.telegram.botToken === '') {
+    return '';
+  }
+  return store.telegram.botToken || '';
 }
 
 function getTelegramWebhookSecret(): string {
@@ -456,11 +465,35 @@ export function createMessagingRouter(): Router {
 
   // 4. Telegram Config POST (Saves securely on server)
   router.post('/telegram/config', async (req: Request, res: Response) => {
-    const { botToken, channelId, accountName, webhookUrl } = req.body || {};
+    const { botToken, channelId, accountName, webhookUrl, clearToken } = req.body || {};
 
     if (channelId) store.telegram.channelId = String(channelId).trim();
     if (accountName) store.telegram.accountName = String(accountName).trim();
     if (webhookUrl !== undefined) store.telegram.webhookUrl = String(webhookUrl).trim();
+
+    // If explicit clear token requested
+    if (clearToken === true || botToken === '') {
+      try {
+        if (store.telegram.botToken) {
+          await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false });
+        }
+      } catch {
+        // ignore
+      }
+      store.telegram.botToken = '';
+      store.telegram.status = 'disconnected';
+      store.telegram.statusMessage = 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)';
+      delete store.telegram.connectedAt;
+      saveStore();
+
+      return res.json({
+        success: true,
+        hasToken: false,
+        maskedToken: '',
+        status: store.telegram.status,
+        statusMessage: store.telegram.statusMessage
+      });
+    }
 
     // If new token provided, test and store it
     if (botToken && typeof botToken === 'string' && botToken.trim()) {
@@ -493,6 +526,31 @@ export function createMessagingRouter(): Router {
       status: store.telegram.status,
       statusMessage: store.telegram.statusMessage,
       connectedAt: store.telegram.connectedAt
+    });
+  });
+
+  // 4b. Clear / Delete Telegram Token endpoint
+  router.post('/telegram/clear-token', async (req: Request, res: Response) => {
+    try {
+      if (store.telegram.botToken) {
+        await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false });
+      }
+    } catch {
+      // ignore
+    }
+    store.telegram.botToken = '';
+    store.telegram.webhookUrl = '';
+    store.telegram.status = 'disconnected';
+    store.telegram.statusMessage = 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)';
+    delete store.telegram.connectedAt;
+    saveStore();
+
+    return res.json({
+      success: true,
+      hasToken: false,
+      maskedToken: '',
+      status: 'disconnected',
+      statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)'
     });
   });
 

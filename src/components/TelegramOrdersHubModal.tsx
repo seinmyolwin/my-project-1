@@ -39,6 +39,7 @@ import {
   generateTelegramConfirmationMessage,
   testTelegramConnection,
   registerTelegramWebhook,
+  clearTelegramToken,
   ConnectionStatus
 } from '../utils/telegramIntegration';
 import { useLottery } from '../context/LotteryContext';
@@ -470,6 +471,26 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       });
     }
     setTimeout(() => setWebhookActionMsg(null), 6000);
+  };
+
+  const handleClearToken = async () => {
+    if (window.confirm('Telegram Bot Token ကို ဖျက်ပစ်ပြီး Disconnect လုပ်ရန် သေချာပါသလား?')) {
+      await clearTelegramToken();
+      setBotToken('');
+      setConfig(prev => ({
+        ...prev,
+        botToken: '',
+        webhookUrl: '',
+        status: 'disconnected',
+        statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)',
+        hasServerToken: false
+      }));
+      setWebhookActionMsg({
+        type: 'success',
+        text: '✓ Telegram Bot Token ကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'
+      });
+      setTimeout(() => setWebhookActionMsg(null), 4000);
+    }
   };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -933,12 +954,24 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Telegram Bot Token (FatherBot Token)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Telegram Bot Token (FatherBot Token)</label>
+                  {(config.hasServerToken || botToken || config.status === 'connected') && (
+                    <button
+                      type="button"
+                      onClick={handleClearToken}
+                      className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer hover:underline"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Token ဖျက်မည် (Clear / Disconnect)</span>
+                    </button>
+                  )}
+                </div>
                 <input
                   type="password"
                   value={botToken}
                   onChange={(e) => setBotToken(e.target.value)}
-                  placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                  placeholder={config.hasServerToken ? "•••••••••••••••• (လက်ရှိ Token ရှိသည် - ဖျက်လိုပါက 'Token ဖျက်မည်' ကိုနှိပ်ပါ)" : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
                 />
               </div>

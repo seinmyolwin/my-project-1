@@ -183,6 +183,40 @@ export function saveTelegramConfig(config: TelegramAccountConfig): void {
   }
 }
 
+/**
+ * Completely clear Telegram bot token and disconnect webhook
+ */
+export async function clearTelegramToken(): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/telegram/clear-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+
+    // Clear local storage config token
+    const current = getTelegramConfig();
+    const updated: TelegramAccountConfig = {
+      ...current,
+      botToken: '',
+      webhookUrl: '',
+      status: 'disconnected',
+      statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)',
+      hasServerToken: false
+    };
+    localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(updated));
+
+    if (res.ok) {
+      return { success: true, message: 'Telegram Bot Token ကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ' };
+    }
+  } catch (err: any) {
+    console.error('Failed to clear telegram token:', err);
+  }
+  return { success: true, message: 'Telegram Bot Token ကို ဖျက်ပြီးပါပြီ' };
+}
+
 export function getTelegramOrders(): TelegramIncomingOrder[] {
   try {
     const raw = localStorage.getItem(TELEGRAM_ORDERS_KEY);
