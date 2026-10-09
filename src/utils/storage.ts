@@ -57,7 +57,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
   {
     id: 'vouch-1',
     voucherNo: 'V-3D-1001',
-    roundId: 'round-2026-09-01',
+    roundId: 'round-3d-2026-10-01',
     customerName: 'ဦးကျော်စွာ',
     customerPhone: '09-450011223',
     items: [
@@ -69,7 +69,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     discountPercent: 0,
     discountAmount: 0,
     netPayable: 10000,
-    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+    createdAt: '2026-10-01T10:00:00.000Z',
     notes: 'ဖုန်းဖြင့် မှာယူသည်',
     isPaid: true,
     status: 'active'
@@ -77,7 +77,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
   {
     id: 'vouch-2',
     voucherNo: 'V-3D-1002',
-    roundId: 'round-2026-09-01',
+    roundId: 'round-3d-2026-10-01',
     customerName: 'ဒေါ်လှလှဝင်း',
     customerPhone: '09-790112233',
     items: [
@@ -90,7 +90,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     discountPercent: 5,
     discountAmount: 800,
     netPayable: 15200,
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+    createdAt: '2026-10-01T11:30:00.000Z',
     notes: 'ဆိုင်လာထိုးသူ',
     isPaid: true,
     status: 'active'
@@ -98,7 +98,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
   {
     id: 'vouch-3',
     voucherNo: 'V-3D-1003',
-    roundId: 'round-2026-09-01',
+    roundId: 'round-3d-2026-10-01',
     customerName: 'ကိုအောင်သူ (စက်ရုံ)',
     customerPhone: '09-250334455',
     items: [
@@ -110,7 +110,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     discountPercent: 0,
     discountAmount: 0,
     netPayable: 50000,
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    createdAt: '2026-10-01T13:00:00.000Z',
     notes: 'VIP ဖောက်သည်',
     isPaid: true,
     status: 'active'
@@ -118,7 +118,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
   {
     id: 'vouch-4',
     voucherNo: 'V-3D-1004',
-    roundId: 'round-2026-09-01',
+    roundId: 'round-3d-2026-10-01',
     customerName: 'မနွယ်နွယ်',
     customerPhone: '09-970556677',
     items: [
@@ -130,7 +130,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     discountPercent: 0,
     discountAmount: 0,
     netPayable: 40000,
-    createdAt: new Date(Date.now() - 1800000).toISOString(),
+    createdAt: '2026-10-01T14:15:00.000Z',
     notes: 'KPay ဖြင့်လွှဲထားသည်',
     isPaid: true,
     status: 'active'
@@ -140,8 +140,8 @@ export const INITIAL_VOUCHERS: Voucher[] = [
 export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
   {
     id: 'fwd-1',
-    slipNo: 'FWD-0901-01',
-    roundId: 'round-2026-09-01',
+    slipNo: 'FWD-1001-01',
+    roundId: 'round-3d-2026-10-01',
     masterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
     masterAgentPhone: '09-970001111',
     items: [
@@ -151,7 +151,7 @@ export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
     commissionRate: 12,
     commissionAmount: 2400,
     netPaid: 17600,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    createdAt: '2026-10-01T14:30:00.000Z',
     notes: '၇၈၉ အထွက်များ၍ ဘေးကင်းရန် အပေါ်ဖြတ်တင်သည်'
   }
 ];
@@ -216,7 +216,7 @@ export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [
   {
     id: 'vouch-2d-1',
     voucherNo: 'V-2D-2001',
-    roundId: 'round-2d-2026-09-02-eve',
+    roundId: 'round-2d-2026-10-08-eve',
     customerName: 'ကိုညီညီ',
     customerPhone: '09-781112233',
     items: [
@@ -228,7 +228,7 @@ export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [
     discountPercent: 0,
     discountAmount: 0,
     netPayable: 25000,
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    createdAt: '2026-10-08T14:30:00.000Z',
     notes: 'ဆိုင်လာထိုးသူ',
     isPaid: true,
     status: 'active'
@@ -236,7 +236,7 @@ export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [
   {
     id: 'vouch-2d-2',
     voucherNo: 'V-2D-2002',
-    roundId: 'round-2d-2026-09-02-eve',
+    roundId: 'round-2d-2026-10-08-eve',
     customerName: 'ဒေါ်အေးသန်း',
     customerPhone: '09-450009988',
     items: [
@@ -247,8 +247,27 @@ export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [
     discountPercent: 5,
     discountAmount: 2500,
     netPayable: 47500,
-    createdAt: new Date(Date.now() - 1800000).toISOString(),
+    createdAt: '2026-10-08T15:00:00.000Z',
     notes: 'KPay ငွေလွှဲ',
+    isPaid: true,
+    status: 'active'
+  },
+  {
+    id: 'vouch-2d-3',
+    voucherNo: 'V-2D-2003',
+    roundId: 'round-2d-2026-10-09-morn',
+    customerName: 'ကိုမျိုးဝင်း',
+    customerPhone: '09-970112244',
+    items: [
+      { number: '55', amount: 15000, betType: 'straight' },
+      { number: '82', amount: 10000, betType: 'straight' }
+    ],
+    subtotal: 25000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 25000,
+    createdAt: '2026-10-09T09:30:00.000Z',
+    notes: 'ဒီနေ့ မနက်ပိုင်း အမှာစာ',
     isPaid: true,
     status: 'active'
   }
@@ -257,8 +276,8 @@ export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [
 export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
   {
     id: 'fwd-2d-1',
-    slipNo: 'FWD-2D-0902-01',
-    roundId: 'round-2d-2026-09-02-eve',
+    slipNo: 'FWD-2D-1008-01',
+    roundId: 'round-2d-2026-10-08-eve',
     masterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
     masterAgentPhone: '09-970001111',
     items: [
@@ -268,7 +287,7 @@ export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
     commissionRate: 14,
     commissionAmount: 4200,
     netPaid: 25800,
-    createdAt: new Date(Date.now() - 1200000).toISOString(),
+    createdAt: '2026-10-08T15:30:00.000Z',
     notes: '၈၂ အထွက်များ၍ ဒိုင်ကြီးဆီ လွှဲတင်သည်'
   }
 ];
@@ -489,7 +508,7 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
     league: 'English Premier League',
     homeTeam: 'Arsenal',
     awayTeam: 'Chelsea',
-    matchDate: '2026-09-03',
+    matchDate: '2026-10-09',
     kickoffTime: '21:00',
     handicapTeam: 'home',
     handicapValue: '0.5 (ဝက်နိုင်)',
@@ -504,7 +523,7 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
     league: 'English Premier League',
     homeTeam: 'Man City',
     awayTeam: 'Tottenham',
-    matchDate: '2026-09-03',
+    matchDate: '2026-10-09',
     kickoffTime: '23:30',
     handicapTeam: 'home',
     handicapValue: '1-80 (၁ လုံး ၈၀ စား)',
@@ -519,7 +538,7 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
     league: 'Spanish La Liga',
     homeTeam: 'Real Madrid',
     awayTeam: 'Barcelona',
-    matchDate: '2026-09-04',
+    matchDate: '2026-10-09',
     kickoffTime: '01:30',
     handicapTeam: 'home',
     handicapValue: '0-50 (သရေ ၅၀ ရှုံး)',
@@ -534,7 +553,7 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
     league: 'English Premier League',
     homeTeam: 'Liverpool',
     awayTeam: 'Aston Villa',
-    matchDate: '2026-09-02',
+    matchDate: '2026-10-08',
     kickoffTime: '19:30',
     handicapTeam: 'home',
     handicapValue: '0.5-1 (တစ်လုံး ၅၀ စား)',
@@ -550,7 +569,7 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
     league: 'German Bundesliga',
     homeTeam: 'Bayern Munich',
     awayTeam: 'Dortmund',
-    matchDate: '2026-09-02',
+    matchDate: '2026-10-08',
     kickoffTime: '22:00',
     handicapTeam: 'home',
     handicapValue: '1=1.5 (၁ ပြား ၇၀)',
@@ -566,7 +585,7 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
     league: 'Italian Serie A',
     homeTeam: 'AC Milan',
     awayTeam: 'Inter Milan',
-    matchDate: '2026-09-01',
+    matchDate: '2026-10-07',
     kickoffTime: '23:15',
     handicapTeam: 'away',
     handicapValue: '0-50 (သရေ ၅၀ ရှုံး)',
@@ -582,8 +601,8 @@ export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
 export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
   {
     id: 'fb-slip-1',
-    slipNo: 'FB-0903-1001',
-    roundDate: '2026-09-03',
+    slipNo: 'FB-1009-1001',
+    roundDate: '2026-10-09',
     customerName: 'ကိုအောင်မိုး',
     customerPhone: '09-450099887',
     slipType: 'maung',
@@ -596,7 +615,7 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
     potentialPayout: 68500,
     outcome: 'pending',
     status: 'active',
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+    createdAt: '2026-10-09T08:00:00.000Z',
     notes: '၃ သင်းမောင်း',
     selections: [
       {
@@ -630,8 +649,8 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
   },
   {
     id: 'fb-slip-2',
-    slipNo: 'FB-0903-1002',
-    roundDate: '2026-09-03',
+    slipNo: 'FB-1009-1002',
+    roundDate: '2026-10-09',
     customerName: 'ကိုသူရိန်',
     customerPhone: '09-970112233',
     slipType: 'body_single',
@@ -644,7 +663,7 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
     potentialPayout: 97500,
     outcome: 'pending',
     status: 'active',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    createdAt: '2026-10-09T09:15:00.000Z',
     notes: 'ဘော်ဒီသီးသန့် (Single)',
     selections: [
       {
@@ -657,14 +676,48 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
         odds: 1.95
       }
     ]
+  },
+  {
+    id: 'fb-slip-3',
+    slipNo: 'FB-1008-1001',
+    roundDate: '2026-10-08',
+    customerName: 'ကိုဝင်းနိုင်',
+    customerPhone: '09-250114455',
+    slipType: 'body_single',
+    teamCount: 1,
+    stakeAmount: 20000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 20000,
+    combinedOdds: 1.92,
+    potentialPayout: 38400,
+    actualPayout: 38400,
+    outcome: 'won',
+    status: 'settled',
+    createdAt: '2026-10-08T18:00:00.000Z',
+    notes: 'မနေ့က ပေါက်မဲဘောင်ချာ',
+    selections: [
+      {
+        matchId: 'match-4',
+        matchSummary: 'Liverpool vs Aston Villa',
+        league: 'English Premier League',
+        betType: 'body_home',
+        choiceLabel: 'Liverpool (-0.5/1)',
+        lineDescription: 'အကြော 0.5-1',
+        odds: 1.92,
+        outcome: 'win',
+        homeScore: 3,
+        awayScore: 1
+      }
+    ]
   }
 ];
 
 export const INITIAL_FOOTBALL_FORWARD_SLIPS: FootballForwardSlip[] = [
   {
     id: 'fb-fwd-1',
-    slipNo: 'FB-FWD-0903-01',
-    roundDate: '2026-09-03',
+    slipNo: 'FB-FWD-1009-01',
+    roundDate: '2026-10-09',
     masterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
     masterAgentPhone: '09-970001111',
     slipType: 'body',
@@ -676,7 +729,7 @@ export const INITIAL_FOOTBALL_FORWARD_SLIPS: FootballForwardSlip[] = [
     netPaid: 27600,
     potentialPayout: 58500,
     status: 'active',
-    createdAt: new Date(Date.now() - 1800000).toISOString(),
+    createdAt: '2026-10-09T09:20:00.000Z',
     notes: 'အန္တရာယ်ကင်းစေရန် အပေါ်လွှဲ'
   }
 ];

@@ -239,8 +239,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         }
       } else if (mode === 'football') {
         const slipDate = recordId.replace('football-', '');
-        const slipsToDelete = football.slips.filter((s) => (s.createdAt || s.roundDate || '').slice(0, 10) === slipDate);
+        const slipsToDelete = football.slips.filter((s) => (s.roundDate || (s.createdAt || '').slice(0, 10)) === slipDate);
         slipsToDelete.forEach((s) => football.deleteSlip(s.id));
+        const forwardsToDelete = football.forwardSlips.filter((f) => (f.roundDate || (f.createdAt || '').slice(0, 10)) === slipDate);
+        forwardsToDelete.forEach((f) => football.deleteForwardSlip(f.id));
       }
       
       setSelectedRecord(null);

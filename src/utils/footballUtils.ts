@@ -171,8 +171,8 @@ export function calculateSlipSettlement(
   const evaluatedSelections: FootballBetSelection[] = slip.selections.map(sel => {
     const match = matchesMap[sel.matchId];
     if (!match) {
-      isAnyPending = true;
-      return { ...sel, outcome: 'pending' as const };
+      // If match was deleted/removed from schedule, treat as void (1.0 odds) so slip calculation adapts
+      return { ...sel, outcome: 'void' as const };
     }
     if (match.status === 'void' || match.status === 'postponed') {
       return {

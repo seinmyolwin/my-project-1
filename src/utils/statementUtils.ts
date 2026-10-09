@@ -524,24 +524,30 @@ export function generateStatementRecords(
   // ====================================================
   if (mode === 'all' || mode === 'football') {
     const slips = data.football.slips.filter((s) => {
-      const slipDate = (s.createdAt || s.roundDate || '').slice(0, 10);
+      const slipDate = s.roundDate || (s.createdAt || '').slice(0, 10);
       return slipDate >= startDate && slipDate <= endDate && s.status !== 'cancelled';
     });
 
     if (slips.length > 0) {
       const slipsByDate: { [date: string]: FootballSlip[] } = {};
       slips.forEach((s) => {
-        const d = (s.createdAt || s.roundDate || '').slice(0, 10) || todayStr;
+        const d = s.roundDate || (s.createdAt || '').slice(0, 10) || todayStr;
         if (!slipsByDate[d]) slipsByDate[d] = [];
         slipsByDate[d].push(s);
       });
 
       Object.keys(slipsByDate).forEach((d) => {
         const daySlips = slipsByDate[d];
+        const dayForwards = data.football.forwardSlips.filter((f) => {
+          const fDate = f.roundDate || (f.createdAt || '').slice(0, 10);
+          return fDate === d;
+        });
+
         let turnover = 0;
         let agentCommission = 0;
         let netSales = 0;
-        let payout = 0;
+        let totalPayout = 0;
+        let retainedPayout = 0;
         let winnersCount = 0;
 
         daySlips.forEach((s) => {
@@ -551,22 +557,33 @@ export function generateStatementRecords(
           agentCommission += disc;
           netSales += (s.netPayable || (stake - disc));
 
+          // Forward ratio for this slip (identical to FootballContext)
+          const forwardedStakeForSlip = dayForwards
+            .filter((f) => f.slipId === s.id || (f.slipNo && f.slipNo === s.slipNo))
+            .reduce((sum, f) => sum + (f.stakeAmount || f.totalAmount || 0), 0);
+          const forwardRatio = stake > 0 ? Math.min(1, forwardedStakeForSlip / stake) : 0;
+
+          const actPayout = s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won'
+            ? (s.actualPayout || s.potentialPayout || 0)
+            : 0;
+
+          totalPayout += actPayout;
+          retainedPayout += actPayout * (1 - forwardRatio);
+
           if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
-            payout += (s.actualPayout || s.potentialPayout || 0);
             winnersCount += 1;
           }
         });
 
-        const dayForwards = data.football.forwardSlips.filter((f) => (f.createdAt || f.roundDate || '').slice(0, 10) === d);
         let totalForwarded = 0;
         let forwardCommission = 0;
         dayForwards.forEach((f) => {
-          totalForwarded += f.totalAmount || 0;
+          totalForwarded += f.stakeAmount || f.totalAmount || 0;
           forwardCommission += f.commissionAmount || 0;
         });
         const netPaid = totalForwarded - forwardCommission;
 
-        const netProfit = netSales - netPaid - payout;
+        const netProfit = netSales - netPaid - retainedPayout;
 
         list.push({
           id: `football-${d}`,
@@ -578,7 +595,7 @@ export function generateStatementRecords(
           turnover,
           agentCommission,
           netSales,
-          payout,
+          payout: retainedPayout,
           totalForwarded,
           forwardCommission,
           netPaid,

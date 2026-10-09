@@ -131,9 +131,11 @@ export interface RoundSummary {
   totalForwarded: number;
   forwardedCommission: number;
   totalPayout: number;
+  retainedPayout?: number;
+  netPaid?: number;
   winningNumber?: string;
   totalWinnersCount: number;
-  netProfit: number; // (netRevenue - totalPayout) + forwardedCommission
+  netProfit: number;
   isProfit: boolean;
 }
 

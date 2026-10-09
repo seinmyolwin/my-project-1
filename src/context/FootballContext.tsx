@@ -246,6 +246,79 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return forwardSlips.filter(f => f.roundDate === activeDate);
   }, [forwardSlips, activeDate]);
 
+  // Automated match results settlement for all active tickets
+  const settleMatches = useCallback((customMatches?: FootballMatch[]) => {
+    const targetMatches = customMatches || matches;
+    const matchesMap = targetMatches.reduce((acc, m) => {
+      acc[m.id] = m;
+      return acc;
+    }, {} as { [id: string]: FootballMatch });
+
+    let settledCount = 0;
+    let anyWon = false;
+    const settledSlipIds = new Set<string>();
+
+    setSlips(prevSlips =>
+      prevSlips.map(slip => {
+        // Never settle cancelled tickets
+        if (slip.status === 'cancelled') {
+          return slip;
+        }
+
+        const res = calculateSlipSettlement(slip, matchesMap);
+        if (res.outcome !== 'pending') {
+          settledCount++;
+          if (res.outcome === 'won' || res.outcome === 'half_won') {
+            anyWon = true;
+          }
+          settledSlipIds.add(slip.id);
+          return {
+            ...slip,
+            status: 'settled',
+            outcome: res.outcome,
+            actualPayout: res.actualPayout,
+            selections: res.evaluatedSelections
+          };
+        }
+
+        // If match was deleted or score was reset/invalidated, revert to active and reset payout
+        return {
+          ...slip,
+          status: 'active',
+          outcome: 'pending',
+          actualPayout: undefined,
+          selections: res.evaluatedSelections
+        };
+      })
+    );
+
+    // Update associated forward slips to settled
+    if (settledSlipIds.size > 0) {
+      setForwardSlips(prevFwds =>
+        prevFwds.map(fwd => {
+          const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
+                          (fwd.slipNo && slips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
+          if (isMatch) {
+            return { ...fwd, status: 'settled' as const };
+          }
+          return fwd;
+        })
+      );
+    }
+
+    if (anyWon) {
+      try {
+        confetti({
+          particleCount: 75,
+          spread: 60,
+          origin: { y: 0.6 }
+        });
+      } catch (e) {
+        // Safe fail
+      }
+    }
+  }, [matches, slips]);
+
   const createMatch = useCallback((matchData: Omit<FootballMatch, 'id'>) => {
     const newMatch: FootballMatch = {
       ...matchData,
@@ -256,18 +329,24 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const updateMatch = useCallback((id: string, data: Partial<FootballMatch>) => {
-    setMatches(prev =>
-      prev.map(m => (m.id === id ? { ...m, ...data } : m))
-    );
-  }, []);
+    setMatches(prev => {
+      const updated = prev.map(m => (m.id === id ? { ...m, ...data } : m));
+      settleMatches(updated);
+      return updated;
+    });
+  }, [settleMatches]);
 
   const deleteMatch = useCallback((id: string) => {
-    setMatches(prev => prev.filter(m => m.id !== id));
-  }, []);
+    setMatches(prev => {
+      const updated = prev.filter(m => m.id !== id);
+      settleMatches(updated);
+      return updated;
+    });
+  }, [settleMatches]);
 
   const setMatchScore = useCallback((id: string, homeScore: number, awayScore: number) => {
-    setMatches(prev =>
-      prev.map(m =>
+    setMatches(prev => {
+      const updated = prev.map(m =>
         m.id === id
           ? {
               ...m,
@@ -276,9 +355,11 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               status: 'finished' as const
             }
           : m
-      )
-    );
-  }, []);
+      );
+      settleMatches(updated);
+      return updated;
+    });
+  }, [settleMatches]);
 
   const addSlip = useCallback((slipData: Omit<FootballSlip, 'id' | 'slipNo' | 'createdAt'>) => {
     // Duplicate Protection: Prevent same football slip submit twice within 4 seconds
@@ -386,79 +467,6 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const deleteForwardSlip = useCallback((id: string) => {
     setForwardSlips(prev => prev.filter(f => f.id !== id));
   }, []);
-
-  // Automated match results settlement for all active tickets
-  const settleMatches = useCallback((customMatches?: FootballMatch[]) => {
-    const targetMatches = customMatches || matches;
-    const matchesMap = targetMatches.reduce((acc, m) => {
-      acc[m.id] = m;
-      return acc;
-    }, {} as { [id: string]: FootballMatch });
-
-    let settledCount = 0;
-    let anyWon = false;
-    const settledSlipIds = new Set<string>();
-
-    setSlips(prevSlips =>
-      prevSlips.map(slip => {
-        // Never settle cancelled tickets
-        if (slip.status === 'cancelled') {
-          return slip;
-        }
-
-        const res = calculateSlipSettlement(slip, matchesMap);
-        if (res.outcome !== 'pending') {
-          settledCount++;
-          if (res.outcome === 'won' || res.outcome === 'half_won') {
-            anyWon = true;
-          }
-          settledSlipIds.add(slip.id);
-          return {
-            ...slip,
-            status: 'settled',
-            outcome: res.outcome,
-            actualPayout: res.actualPayout,
-            selections: res.evaluatedSelections
-          };
-        }
-
-        // If match was deleted or score was reset/invalidated, revert to active and reset payout
-        return {
-          ...slip,
-          status: 'active',
-          outcome: 'pending',
-          actualPayout: undefined,
-          selections: res.evaluatedSelections
-        };
-      })
-    );
-
-    // Update associated forward slips to settled
-    if (settledSlipIds.size > 0) {
-      setForwardSlips(prevFwds =>
-        prevFwds.map(fwd => {
-          const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
-                          (fwd.slipNo && slips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
-          if (isMatch) {
-            return { ...fwd, status: 'settled' as const };
-          }
-          return fwd;
-        })
-      );
-    }
-
-    if (anyWon) {
-      try {
-        confetti({
-          particleCount: 75,
-          spread: 60,
-          origin: { y: 0.6 }
-        });
-      } catch (e) {
-        // Safe fail
-      }
-    }
-  }, [matches]);
 
   // Overall financial summary for active date
   const summary = useMemo<FootballSummary>(() => {

@@ -25,6 +25,7 @@ export const WinningPayoutView: React.FC = () => {
     activeRound,
     settings,
     activeRoundVouchers,
+    activeRoundForwardSlips,
     settleWinningNumber,
     clearWinningSettlement,
     roundSummary,
@@ -680,68 +681,99 @@ ${settings.shopName} (${settings.shopPhone})`;
               </span>
             </div>
 
-            {/* 2. Total Winning Payout */}
-            <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-rose-700 text-xs font-bold block uppercase tracking-wider">
-                {isMyanmar ? '၂။ စုစုပေါင်း လျော်ကြေးငွေ' : 'Total Payouts'}
-              </span>
-              <span className="text-2xl font-black text-rose-700 font-mono mt-1 block">
-                {formatAmount(winningResults.totalPayout, settings.currency)}
-              </span>
-              <span className="text-[11px] text-rose-600 mt-1 block">
-                တည့်ပေါက်: {winningResults.winningBetsCount} ခု, ပတ်လည်: {winningResults.toddWinningBetsCount} ခု
-              </span>
-            </div>
-
-            {/* 3. Forwarded / Hedged Commission Earned */}
-            <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-indigo-700 text-xs font-bold block uppercase tracking-wider">
-                {isMyanmar ? '၃။ အပေါ်လွှဲ ကော်မရှင်ရငွေ' : 'Forwarded Comm.'}
-              </span>
-              <span className="text-2xl font-black text-indigo-900 font-mono mt-1 block">
-                +{formatAmount(roundSummary.forwardedCommission, settings.currency)}
-              </span>
-              <span className="text-[11px] text-indigo-600 mt-1 block">
-                လွှဲတင်ငွေ {formatAmount(roundSummary.totalForwarded, settings.currency)} မှ
-              </span>
-            </div>
-
-            {/* 4. NET PROFIT / LOSS */}
+            {/* 2. Retained Winning Payout */}
             {(() => {
-              const netProfit = (roundSummary.netRevenue - winningResults.totalPayout) + roundSummary.forwardedCommission;
+              const winningNum = activeEvalNumber;
+              const straightMult = parseInt(multiplierInput, 10) || settings.defaultMultiplier || 600;
+              const toddMult = parseInt(toddMultiplierInput, 10) || settings.defaultToddMultiplier || 100;
+              const toddPerms = new Set(getPermutations(winningNum).filter((p) => p !== winningNum));
+
+              let straightSold = 0;
+              let toddSold = 0;
+              activeRoundVouchers.forEach((v) => {
+                if (v.status === 'cancelled') return;
+                v.items.forEach((it) => {
+                  if (it.number === winningNum) straightSold += it.amount;
+                  else if (it.betType === 'rumble' && toddPerms.has(it.number)) toddSold += it.amount;
+                });
+              });
+
+              let straightForwarded = 0;
+              let toddForwarded = 0;
+              activeRoundForwardSlips.forEach((f) => {
+                f.items.forEach((it) => {
+                  if (it.number === winningNum) straightForwarded += it.amount;
+                  else if (toddPerms.has(it.number)) toddForwarded += it.amount;
+                });
+              });
+
+              const retainedStraight = Math.max(0, straightSold - straightForwarded);
+              const retainedTodd = Math.max(0, toddSold - toddForwarded);
+              const retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
+
+              const netPaid = roundSummary.totalForwarded - roundSummary.forwardedCommission;
+              const netProfit = roundSummary.netRevenue - netPaid - retainedPayout;
               const isProfit = netProfit >= 0;
 
               return (
-                <div className={`border-2 rounded-2xl p-4 shadow-xs ${
-                  isProfit
-                    ? 'bg-emerald-50 border-emerald-300'
-                    : 'bg-rose-50 border-rose-300'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-black uppercase tracking-wider ${
-                      isProfit ? 'text-emerald-800' : 'text-rose-800'
-                    }`}>
-                      {isMyanmar ? '၄။ အသားတင် ရလဒ်' : 'Net Outcome'}
+                <>
+                  <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 shadow-xs">
+                    <span className="text-rose-700 text-xs font-bold block uppercase tracking-wider">
+                      {isMyanmar ? '၂။ ပေးလျော်ငွေ (ဒိုင်တာဝန်)' : 'Retained Payouts'}
                     </span>
-                    {isProfit ? (
-                      <TrendingUp className="w-5 h-5 text-emerald-700" />
-                    ) : (
-                      <TrendingDown className="w-5 h-5 text-rose-700" />
-                    )}
-                  </div>
-                  <div className="mt-1">
-                    <span className={`text-2xl font-black font-mono ${
-                      isProfit ? 'text-emerald-800' : 'text-rose-800'
-                    }`}>
-                      {isProfit ? '+' : '-'}{formatAmount(Math.abs(netProfit), settings.currency)}
+                    <span className="text-2xl font-black text-rose-700 font-mono mt-1 block">
+                      {formatAmount(retainedPayout, settings.currency)}
                     </span>
-                    <span className={`text-xs font-bold block mt-0.5 ${
-                      isProfit ? 'text-emerald-700' : 'text-rose-700'
-                    }`}>
-                      {isProfit ? '🎉 အမြတ်ရရှိပါသည် (PROFIT)' : '⚠️ အရှုံးကျပါသည် (LOSS)'}
+                    <span className="text-[11px] text-rose-600 mt-1 block">
+                      ဖောက်သည်စုစုပေါင်း {formatAmount(winningResults.totalPayout, settings.currency)}
                     </span>
                   </div>
-                </div>
+
+                  {/* 3. Forwarded / Hedged Commission Earned */}
+                  <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 shadow-xs">
+                    <span className="text-indigo-700 text-xs font-bold block uppercase tracking-wider">
+                      {isMyanmar ? '၃။ အပေါ်လွှဲ ကော်မရှင်ရငွေ' : 'Forwarded Comm.'}
+                    </span>
+                    <span className="text-2xl font-black text-indigo-900 font-mono mt-1 block">
+                      +{formatAmount(roundSummary.forwardedCommission, settings.currency)}
+                    </span>
+                    <span className="text-[11px] text-indigo-600 mt-1 block">
+                      လွှဲတင်ငွေ {formatAmount(roundSummary.totalForwarded, settings.currency)} မှ
+                    </span>
+                  </div>
+
+                  {/* 4. NET PROFIT / LOSS */}
+                  <div className={`border-2 rounded-2xl p-4 shadow-xs ${
+                    isProfit
+                      ? 'bg-emerald-50 border-emerald-300'
+                      : 'bg-rose-50 border-rose-300'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-black uppercase tracking-wider ${
+                        isProfit ? 'text-emerald-800' : 'text-rose-800'
+                      }`}>
+                        {isMyanmar ? '၄။ အသားတင် ရလဒ်' : 'Net Outcome'}
+                      </span>
+                      {isProfit ? (
+                        <TrendingUp className="w-5 h-5 text-emerald-700" />
+                      ) : (
+                        <TrendingDown className="w-5 h-5 text-rose-700" />
+                      )}
+                    </div>
+                    <div className="mt-1">
+                      <span className={`text-2xl font-black font-mono ${
+                        isProfit ? 'text-emerald-800' : 'text-rose-800'
+                      }`}>
+                        {isProfit ? '+' : '-'}{formatAmount(Math.abs(netProfit), settings.currency)}
+                      </span>
+                      <span className={`text-xs font-bold block mt-0.5 ${
+                        isProfit ? 'text-emerald-700' : 'text-rose-700'
+                      }`}>
+                        {isProfit ? '🎉 အမြတ်ရရှိပါသည် (PROFIT)' : '⚠️ အရှုံးကျပါသည် (LOSS)'}
+                      </span>
+                    </div>
+                  </div>
+                </>
               );
             })()}
 

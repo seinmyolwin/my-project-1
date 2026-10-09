@@ -295,21 +295,51 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     let totalPayout = 0;
+    let retainedPayout = 0;
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
+      const winningNum = activeRound.winningNumber.padStart(3, '0');
+      const straightMult = activeRound.multiplier || settings.defaultMultiplier || 0;
+      const toddMult = activeRound.toddMultiplier || settings.defaultToddMultiplier || 0;
+
       const winEval = evaluateWinnings(
         activeRoundVouchers,
-        activeRound.winningNumber,
-        activeRound.multiplier || settings.defaultMultiplier,
-        activeRound.toddMultiplier || settings.defaultToddMultiplier
+        winningNum,
+        straightMult,
+        toddMult
       );
       totalPayout = winEval.totalPayout;
       totalWinnersCount = winEval.winners.length;
+
+      // Compute retained payouts after deducting forwarded bets
+      const toddPerms = new Set(getPermutations(winningNum).filter((p) => p !== winningNum));
+      let straightSold = 0;
+      let toddSold = 0;
+      activeRoundVouchers.forEach((v) => {
+        if (v.status === 'cancelled') return;
+        v.items.forEach((it) => {
+          if (it.number === winningNum) straightSold += it.amount;
+          else if (it.betType === 'rumble' && toddPerms.has(it.number)) toddSold += it.amount;
+        });
+      });
+
+      let straightForwarded = 0;
+      let toddForwarded = 0;
+      activeRoundForwardSlips.forEach((f) => {
+        f.items.forEach((it) => {
+          if (it.number === winningNum) straightForwarded += it.amount;
+          else if (toddPerms.has(it.number)) toddForwarded += it.amount;
+        });
+      });
+
+      const retainedStraight = Math.max(0, straightSold - straightForwarded);
+      const retainedTodd = Math.max(0, toddSold - toddForwarded);
+      retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
     }
 
-    // Profit formula: (Net Sales Revenue - Total Payouts) + Commission earned from forwarding
-    const netProfit = (netRevenue - totalPayout) + forwardedCommission;
+    const netPaid = totalForwarded - forwardedCommission;
+    const netProfit = netRevenue - netPaid - retainedPayout;
 
     return {
       totalSales,
@@ -318,7 +348,9 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       netRevenue,
       totalForwarded,
       forwardedCommission,
+      netPaid,
       totalPayout,
+      retainedPayout,
       winningNumber: activeRound?.winningNumber,
       totalWinnersCount,
       netProfit,
