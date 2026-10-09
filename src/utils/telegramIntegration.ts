@@ -278,6 +278,34 @@ export async function deleteTelegramOrderOnServer(id: string): Promise<boolean> 
   }
 }
 
+export async function registerTelegramWebhook(webhookUrl?: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/telegram/set-webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ webhookUrl: webhookUrl?.trim() || undefined }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok) {
+      return { ok: true, message: data.message || 'Telegram Server သို့ Webhook အောင်မြင်စွာ ချိတ်ဆက်ပြီးပါပြီ!' };
+    }
+    return {
+      ok: false,
+      message: data?.message || `Webhook ချိတ်ဆက်မှု မအောင်မြင်ပါ (HTTP ${res.status})`
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: err.name === 'AbortError' ? 'ချိတ်ဆက်မှု အချိန်လွန်သွားပါသည် (Timeout)' : 'ဆာဗာသို့ ချိတ်ဆက်၍ မရပါ'
+    };
+  }
+}
+
 export function generateTelegramConfirmationMessage(senderName: string, totalAmount: number, currency: string = 'Ks'): string {
   return `✅ မင်္ဂလာပါ ${senderName} ခင်ဗျာ။\n\nTelegram Bot မှ လက်ခံရရှိသော ထိုးကြေးစာရင်း စုစုပေါင်း (${totalAmount.toLocaleString()} ${currency}) အား ဒိုင်စာရင်းသို့ အောင်မြင်စွာ အတည်ပြု ထည့်သွင်းပြီးဖြစ်ပါသည်။ ကျေးဇူးတင်ပါသည်။ 🙏`;
 }

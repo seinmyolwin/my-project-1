@@ -19,7 +19,10 @@ import {
   Layers,
   Zap,
   MessageCircle,
-  Bot
+  Bot,
+  Link2,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import {
   TelegramIncomingOrder,
@@ -35,6 +38,7 @@ import {
   sendTelegramMessage,
   generateTelegramConfirmationMessage,
   testTelegramConnection,
+  registerTelegramWebhook,
   ConnectionStatus
 } from '../utils/telegramIntegration';
 import { useLottery } from '../context/LotteryContext';
@@ -78,9 +82,20 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [botToken, setBotToken] = useState(config.botToken || '');
   const [channelId, setChannelId] = useState(config.channelId || '@shwemingalar_channel');
   const [accountName, setAccountName] = useState(config.accountName || 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့');
-  const [webhookUrl, setWebhookUrl] = useState(config.webhookUrl || 'https://telegram.shwemingalar.app/webhook/bot');
+  const [webhookUrl, setWebhookUrl] = useState(() => {
+    if (config.webhookUrl && !config.webhookUrl.includes('telegram.shwemingalar.app')) {
+      return config.webhookUrl;
+    }
+    if (typeof window !== 'undefined' && window.location.origin) {
+      return `${window.location.origin}/api/telegram/webhook`;
+    }
+    return '';
+  });
   const [configSuccess, setConfigSuccess] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isRegisteringWebhook, setIsRegisteringWebhook] = useState(false);
+  const [webhookActionMsg, setWebhookActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +103,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     syncTelegramConfig().then(cfg => {
       if (cfg) {
         setConfig(cfg);
+        if (cfg.webhookUrl && !cfg.webhookUrl.includes('telegram.shwemingalar.app')) {
+          setWebhookUrl(cfg.webhookUrl);
+        } else if (typeof window !== 'undefined' && window.location.origin) {
+          setWebhookUrl(`${window.location.origin}/api/telegram/webhook`);
+        }
+        if (cfg.channelId) setChannelId(cfg.channelId);
+        if (cfg.accountName) setAccountName(cfg.accountName);
       }
     });
     fetchTelegramOrdersFromServer().then(ordList => {
@@ -375,6 +397,79 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     };
     setConfig(updatedConfig);
     saveTelegramConfig(updatedConfig);
+  };
+
+  const handleAutoDetectWebhook = () => {
+    // Current browser origin (tablet / mobile / PC)
+    const origin = window.location.origin;
+    const detected = `${origin}/api/telegram/webhook`;
+    setWebhookUrl(detected);
+    setWebhookActionMsg({
+      type: 'success',
+      text: `လက်ရှိ App URL အား အလိုအလျောက် ရယူထည့်သွင်းပေးပြီးပါပြီ: ${detected}`
+    });
+    setTimeout(() => setWebhookActionMsg(null), 4000);
+  };
+
+  const handleCopyWebhook = () => {
+    if (!webhookUrl) return;
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 2000);
+  };
+
+  const handleRegisterWebhookWithTelegram = async () => {
+    if (!botToken.trim() && !config.hasServerToken) {
+      setWebhookActionMsg({
+        type: 'error',
+        text: 'ကျေးဇူးပြု၍ Telegram Bot Token ကို အရင်ဖြည့်သွင်းပေးပါခင်ဗျာ'
+      });
+      setTimeout(() => setWebhookActionMsg(null), 4000);
+      return;
+    }
+
+    if (!webhookUrl.trim() || !webhookUrl.startsWith('https://')) {
+      setWebhookActionMsg({
+        type: 'error',
+        text: 'Webhook URL သည် https:// ဖြင့် စတင်ရပါမည် (HTTP မရပါ)'
+      });
+      setTimeout(() => setWebhookActionMsg(null), 4000);
+      return;
+    }
+
+    // Save config first to ensure token is synced on server
+    setIsRegisteringWebhook(true);
+    setWebhookActionMsg(null);
+
+    // First save settings to server
+    const currentConf: TelegramAccountConfig = {
+      botToken: botToken.trim(),
+      channelId: channelId.trim(),
+      accountName: accountName.trim(),
+      webhookUrl: webhookUrl.trim(),
+      status: config.status,
+      statusMessage: config.statusMessage
+    };
+    saveTelegramConfig(currentConf);
+
+    // Call set-webhook API
+    const res = await registerTelegramWebhook(webhookUrl.trim());
+    setIsRegisteringWebhook(false);
+
+    if (res.ok) {
+      setWebhookActionMsg({
+        type: 'success',
+        text: '✓ Telegram Bot Server သို့ Webhook အောင်မြင်စွာ ချိတ်ဆက်မှတ်ပုံတင်ပြီးပါပြီ! ယခု Telegram Bot မှ ပို့သော စာရင်းများ တိုက်ရိုက် ရောက်ရှိပါမည်။'
+      });
+      // Re-test connection to update status pill
+      handleTestConnection();
+    } else {
+      setWebhookActionMsg({
+        type: 'error',
+        text: `✕ Webhook ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${res.message}`
+      });
+    }
+    setTimeout(() => setWebhookActionMsg(null), 6000);
   };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -859,14 +954,80 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Webhook URL Endpoint</label>
-                <input
-                  type="text"
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
-                />
+              <div className="bg-sky-50/70 border border-sky-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-black text-sky-950 flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-sky-600" />
+                      <span>App Webhook URL Endpoint (တက်ဘလက် / ဖုန်း ချိတ်ဆက်ရန်)</span>
+                    </label>
+                    <p className="text-[11px] text-sky-800/80 font-medium mt-0.5">
+                      Telegram Bot ဆီက စာများကို ဆရာ့ တက်ဘလက် App သို့ အလိုအလျောက် ပို့ပေးမည့် လိပ်စာ
+                    </p>
+                  </div>
+
+                  {/* 1-Click Auto-Detect Button */}
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectWebhook}
+                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>လက်ရှိ App URL အလိုအလျောက် ရယူမည် (Auto-Detect)</span>
+                  </button>
+                </div>
+
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    placeholder="https://.../api/telegram/webhook"
+                    className="w-full bg-white border border-sky-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 shadow-inner"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyWebhook}
+                    title="URL ကူးယူမည်"
+                    className="px-3 py-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                  >
+                    {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedWebhook ? 'ကူးပြီး' : 'Copy'}</span>
+                  </button>
+                </div>
+
+                {/* 1-Click Telegram Registration Button */}
+                <div className="pt-2 border-t border-sky-200/60 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] text-slate-600 font-medium">
+                    Webhook URL ကို Telegram Server နှင့် တိုက်ရိုက်မှတ်ပုံတင်ရန် နှိပ်ပါ:
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRegisterWebhookWithTelegram}
+                    disabled={isRegisteringWebhook}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <Zap className={`w-3.5 h-3.5 ${isRegisteringWebhook ? 'animate-bounce' : ''}`} />
+                    <span>{isRegisteringWebhook ? 'Telegram သို့ ချိတ်ဆက်နေပါသည်...' : 'Telegram သို့ Webhook တိုက်ရိုက် ချိတ်ဆက်မည် (1-Click)'}</span>
+                  </button>
+                </div>
+
+                {webhookActionMsg && (
+                  <div
+                    className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                      webhookActionMsg.type === 'success'
+                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-900 border border-rose-300'
+                    }`}
+                  >
+                    {webhookActionMsg.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{webhookActionMsg.text}</span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 border-t border-slate-200">
