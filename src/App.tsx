@@ -373,6 +373,7 @@ function AppContent() {
               <QuickSaleEntry
                 onVoucherCreated={(v) => setPrintingVoucher3D(v)}
                 onOpenForwardModal={handleOpenForwardModal}
+                onOpenRoundManager={handleOpenRoundManager}
               />
             )}
 
@@ -404,6 +405,7 @@ function AppContent() {
               <TwoDQuickSaleEntry
                 onVoucherCreated={(v) => setPrintingVoucher2D(v)}
                 onOpenForwardModal={handleOpenForwardModal}
+                onOpenRoundManager={handleOpenRoundManager}
               />
             )}
 

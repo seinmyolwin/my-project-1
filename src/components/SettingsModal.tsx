@@ -38,6 +38,12 @@ import { useLottery } from '../context/LotteryContext';
 import { printStatementReport } from '../utils/printUtils';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
+import {
+  StatementRecord,
+  generateStatementRecords,
+  computeStatementGrandTotals,
+  getStatementDateRange
+} from '../utils/statementUtils';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
@@ -308,7 +314,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     try {
       if (mode === '3d') {
         const roundId = recordId.replace('3d-', '');
-        lottery3D.deleteRound(roundId);
+        if (roundId.startsWith('orphaned-')) {
+          const orphanDate = roundId.replace('orphaned-', '');
+          const toDelete = lottery3D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          toDelete.forEach(v => lottery3D.deleteVoucher(v.id));
+        } else {
+          lottery3D.deleteRound(roundId);
+        }
       } else if (mode === '2d') {
         const roundId = recordId.replace('2d-', '');
         if (roundId.startsWith('orphaned-')) {
@@ -357,313 +369,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [stmtCustomStart, setStmtCustomStart] = useState(fiveDaysAgoStr);
   const [stmtCustomEnd, setStmtCustomEnd] = useState(todayStr);
 
-  const { stmtStartDate, stmtEndDate } = React.useMemo(() => {
-    if (statementPeriod === 'all') return { stmtStartDate: allTimeStartStr, stmtEndDate: allTimeEndStr };
-    if (statementPeriod === 'today') return { stmtStartDate: todayStr, stmtEndDate: todayStr };
-    if (statementPeriod === 'three_days') return { stmtStartDate: threeDaysAgoStr, stmtEndDate: todayStr };
-    if (statementPeriod === 'five_days') return { stmtStartDate: fiveDaysAgoStr, stmtEndDate: todayStr };
-    if (statementPeriod === 'week') return { stmtStartDate: oneWeekAgoStr, stmtEndDate: todayStr };
-    if (statementPeriod === 'month') return { stmtStartDate: oneMonthAgoStr, stmtEndDate: todayStr };
-    return { stmtStartDate: stmtCustomStart, stmtEndDate: stmtCustomEnd };
-  }, [statementPeriod, todayStr, threeDaysAgoStr, fiveDaysAgoStr, oneWeekAgoStr, oneMonthAgoStr, stmtCustomStart, stmtCustomEnd]);
+  const { startDate: stmtStartDate, endDate: stmtEndDate } = React.useMemo(() => {
+    return getStatementDateRange(statementPeriod as any, stmtCustomStart, stmtCustomEnd);
+  }, [statementPeriod, stmtCustomStart, stmtCustomEnd]);
 
-  // Aggregate Statement Records
-  const stmtRecords = React.useMemo(() => {
-    const list: Array<{
-      id: string;
-      date: string;
-      mode: '3d' | '2d' | 'football';
-      modeLabel: string;
-      name: string;
-      winningResult: string;
-      turnover: number;
-      payout: number;
-      commission: number;
-      netProfit: number;
-      isProfit: boolean;
-      winnersCount: number;
-      vouchersCount: number;
-      status: 'settled' | 'open' | 'closed';
-      rawRoundId?: string;
-    }> = [];
-
-    // 1. 2D (ဇီးကွက်)
-    if (statementMode === 'all' || statementMode === '2d') {
-      const processedRoundIds = new Set<string>();
-
-      lottery2D.rounds.forEach((round) => {
-        const roundDate = (round.drawDate || '').slice(0, 10);
-        if (roundDate >= '2026-10-05' && roundDate >= stmtStartDate && roundDate <= stmtEndDate) {
-          processedRoundIds.add(round.id);
-
-          const rVouchers = lottery2D.vouchers.filter(
-            (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
-                   v.status !== 'cancelled'
-          );
-
-          const rForwards = lottery2D.forwardSlips.filter(
-            (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
-          );
-
-          let totalTurnover = 0;
-          let totalDiscount = 0;
-          let netSales = 0;
-
-          rVouchers.forEach(v => {
-            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            const disc = v.discountAmount ?? 0;
-            totalTurnover += sub;
-            totalDiscount += disc;
-            netSales += (v.netPayable ?? (sub - disc));
-          });
-
-          let forwardCommission = 0;
-          rForwards.forEach(f => {
-            forwardCommission += f.commissionAmount || 0;
-          });
-
-          let totalPayout = 0;
-          let winnersCount = 0;
-          const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 0;
-
-          if (winningNum) {
-            const evalResult = evaluateTwoDWinnings(rVouchers, winningNum, mult);
-            totalPayout = evalResult.totalPayout;
-            winnersCount = evalResult.totalWinnersCount;
-          } else {
-            rVouchers.forEach(v => {
-              v.items.forEach(it => {
-                if (it.isWon) {
-                  totalPayout += (it.wonAmount || (it.amount * mult));
-                  winnersCount += 1;
-                }
-              });
-            });
-          }
-
-          const totalCommission = forwardCommission > 0 ? forwardCommission : totalDiscount;
-          const netProfit = (netSales - totalPayout) + forwardCommission;
-
-          list.push({
-            id: `2d-${round.id}`,
-            date: roundDate,
-            mode: '2d',
-            modeLabel: 'ဇီးကွက်',
-            name: round.name || `${roundDate} ${round.session === 'morning' ? 'မနက် (12:01)' : 'ညနေ (04:30)'}`,
-            winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
-            turnover: totalTurnover,
-            payout: totalPayout,
-            commission: totalCommission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: rVouchers.length,
-            status: round.status,
-            rawRoundId: round.id
-          });
+  // Aggregate Statement Records using Single Source of Truth
+  const stmtRecords: StatementRecord[] = React.useMemo(() => {
+    return generateStatementRecords(
+      {
+        lottery2D: {
+          rounds: lottery2D.rounds,
+          vouchers: lottery2D.vouchers,
+          forwardSlips: lottery2D.forwardSlips,
+          settings: lottery2D.settings
+        },
+        lottery3D: {
+          rounds: lottery3D.rounds,
+          vouchers: lottery3D.vouchers,
+          forwardSlips: lottery3D.forwardSlips,
+          settings: lottery3D.settings
+        },
+        football: {
+          slips: football.slips,
+          forwardSlips: football.forwardSlips
         }
-      });
-
-      // Catch orphaned 2D vouchers
-      const orphaned = lottery2D.vouchers.filter(v => {
-        const vDate = (v.createdAt || '').slice(0, 10);
-        return vDate >= stmtStartDate && vDate <= stmtEndDate && v.status !== 'cancelled' && (!v.roundId || !processedRoundIds.has(v.roundId));
-      });
-
-      if (orphaned.length > 0) {
-        const grouped: { [d: string]: typeof orphaned } = {};
-        orphaned.forEach(v => {
-          const d = (v.createdAt || '').slice(0, 10) || todayStr;
-          if (!grouped[d]) grouped[d] = [];
-          grouped[d].push(v);
-        });
-
-        Object.keys(grouped).forEach(d => {
-          const vList = grouped[d];
-          let turnover = 0;
-          let discount = 0;
-          let netSales = 0;
-          let payout = 0;
-          let winnersCount = 0;
-
-          vList.forEach(v => {
-            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            const disc = v.discountAmount ?? 0;
-            turnover += sub;
-            discount += disc;
-            netSales += (v.netPayable ?? (sub - disc));
-            v.items.forEach(it => {
-              if (it.isWon) {
-                payout += (it.wonAmount || (it.amount * 80));
-                winnersCount += 1;
-              }
-            });
-          });
-
-          const netProfit = netSales - payout;
-          list.push({
-            id: `2d-orphaned-${d}`,
-            date: d,
-            mode: '2d',
-            modeLabel: 'ဇီးကွက်',
-            name: `${d} ဇီးကွက် အရောင်းမှတ်တမ်းများ`,
-            winningResult: payout > 0 ? `${winnersCount} ဦးပေါက်` : 'မထွက်သေး',
-            turnover,
-            payout,
-            commission: discount,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: vList.length,
-            status: payout > 0 ? 'settled' : 'open'
-          });
-        });
-      }
-    }
-
-    // 2. 3D (အိုးစည်လေး)
-    if (statementMode === 'all' || statementMode === '3d') {
-      lottery3D.rounds.forEach((round) => {
-        const roundDate = (round.drawDate || '').slice(0, 10);
-        if (roundDate >= stmtStartDate && roundDate <= stmtEndDate) {
-          const rVouchers = lottery3D.vouchers.filter(
-            (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
-                   v.status !== 'cancelled'
-          );
-
-          const rForwards = lottery3D.forwardSlips.filter(
-            (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
-          );
-
-          let totalTurnover = 0;
-          let totalDiscount = 0;
-          let netSales = 0;
-
-          rVouchers.forEach(v => {
-            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            const disc = v.discountAmount ?? 0;
-            totalTurnover += sub;
-            totalDiscount += disc;
-            netSales += (v.netPayable ?? (sub - disc));
-          });
-
-          let forwardCommission = 0;
-          rForwards.forEach(f => {
-            forwardCommission += f.commissionAmount || 0;
-          });
-
-          let totalPayout = 0;
-          let winnersCount = 0;
-          const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
-          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 0;
-          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0;
-
-          if (winningNum) {
-            const evalResult = evaluateWinnings(rVouchers, winningNum, straightMult, toddMult);
-            totalPayout = evalResult.totalPayout;
-            winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
-          } else {
-            rVouchers.forEach(v => {
-              v.items.forEach(it => {
-                if (it.isWon) {
-                  totalPayout += (it.wonAmount || (it.amount * straightMult));
-                  winnersCount += 1;
-                }
-              });
-            });
-          }
-
-          const totalCommission = forwardCommission > 0 ? forwardCommission : totalDiscount;
-          const netProfit = (netSales - totalPayout) + forwardCommission;
-
-          list.push({
-            id: `3d-${round.id}`,
-            date: roundDate,
-            mode: '3d',
-            modeLabel: 'အိုးစည်လေး',
-            name: round.name || `${roundDate} ထီဖွင့်ပွဲ`,
-            winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
-            turnover: totalTurnover,
-            payout: totalPayout,
-            commission: totalCommission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: rVouchers.length,
-            status: round.status,
-            rawRoundId: round.id
-          });
-        }
-      });
-    }
-
-    // 3. Football (ပစ်တိုင်းထောင်)
-    if (statementMode === 'all' || statementMode === 'football') {
-      const slips = football.slips.filter(s => {
-        const d = (s.createdAt || s.roundDate || '').slice(0, 10);
-        return d >= stmtStartDate && d <= stmtEndDate && s.status !== 'cancelled';
-      });
-
-      if (slips.length > 0) {
-        const slipsByDate: { [date: string]: typeof slips } = {};
-        slips.forEach(s => {
-          const d = (s.createdAt || s.roundDate || '').slice(0, 10) || todayStr;
-          if (!slipsByDate[d]) slipsByDate[d] = [];
-          slipsByDate[d].push(s);
-        });
-
-        Object.keys(slipsByDate).forEach(d => {
-          const daySlips = slipsByDate[d];
-          let turnover = 0;
-          let discount = 0;
-          let netSales = 0;
-          let payout = 0;
-          let winnersCount = 0;
-
-          daySlips.forEach(s => {
-            const stake = s.stakeAmount || s.netPayable || 0;
-            const disc = s.discountAmount || 0;
-            turnover += stake;
-            discount += disc;
-            netSales += (s.netPayable || (stake - disc));
-
-            if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
-              payout += (s.actualPayout || s.potentialPayout || 0);
-              winnersCount += 1;
-            }
-          });
-
-          const dayForwards = football.forwardSlips.filter(f => (f.createdAt || f.roundDate || '').slice(0, 10) === d);
-          let forwardCommission = 0;
-          dayForwards.forEach(f => {
-            forwardCommission += f.commissionAmount || 0;
-          });
-
-          const totalCommission = forwardCommission > 0 ? forwardCommission : discount;
-          const netProfit = (netSales - payout) + forwardCommission;
-
-          list.push({
-            id: `football-${d}`,
-            date: d,
-            mode: 'football',
-            modeLabel: 'ပစ်တိုင်းထောင်',
-            name: `${d} ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း`,
-            winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : 'စလစ်အားလုံး ရှင်းပြီး',
-            turnover,
-            payout,
-            commission: totalCommission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: daySlips.length,
-            status: 'settled'
-          });
-        });
-      }
-    }
-
-    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      },
+      statementMode,
+      stmtStartDate,
+      stmtEndDate
+    );
   }, [
     statementMode,
     stmtStartDate,
@@ -671,45 +405,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     lottery2D.rounds,
     lottery2D.vouchers,
     lottery2D.forwardSlips,
-    lottery2D.settings.defaultMultiplier,
+    lottery2D.settings,
     lottery3D.rounds,
     lottery3D.vouchers,
     lottery3D.forwardSlips,
-    lottery3D.settings.defaultMultiplier,
-    lottery3D.settings.defaultToddMultiplier,
+    lottery3D.settings,
     football.slips,
-    football.forwardSlips,
-    todayStr
+    football.forwardSlips
   ]);
 
-  // Grand Totals for Statements
+  // Grand Totals for Statements using Single Source of Truth
   const stmtGrandTotals = React.useMemo(() => {
-    let totalTurnover = 0;
-    let totalPayout = 0;
-    let totalCommission = 0;
-    let totalVouchers = 0;
-    let totalWinners = 0;
-
-    stmtRecords.forEach(r => {
-      totalTurnover += r.turnover;
-      totalPayout += r.payout;
-      totalCommission += r.commission;
-      totalVouchers += r.vouchersCount;
-      totalWinners += r.winnersCount;
-    });
-
-    const netProfit = totalTurnover - totalPayout + totalCommission;
-    const profitMargin = totalTurnover > 0 ? ((netProfit / totalTurnover) * 100).toFixed(1) : '0.0';
+    const totals = computeStatementGrandTotals(stmtRecords);
+    const profitMargin = totals.totalTurnover > 0 ? ((totals.totalNetProfit / totals.totalTurnover) * 100).toFixed(1) : '0.0';
 
     return {
-      totalTurnover,
-      totalPayout,
-      totalCommission,
-      netProfit,
-      isProfit: netProfit >= 0,
+      totalTurnover: totals.totalTurnover,
+      totalAgentCommission: totals.totalAgentCommission,
+      netSales: totals.netSales,
+      totalPayout: totals.totalPayout,
+      totalForwarded: totals.totalForwarded,
+      totalForwardCommission: totals.totalForwardCommission,
+      totalNetPaid: totals.totalNetPaid,
+      netProfit: totals.totalNetProfit,
+      isProfit: totals.isProfit,
       profitMargin,
-      totalVouchers,
-      totalWinners
+      totalVouchers: totals.totalVouchers,
+      totalWinners: totals.totalWinners
     };
   }, [stmtRecords]);
 
@@ -721,10 +443,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       'လုပ်ငန်းလိုင်း': r.modeLabel,
       'ပွဲစဉ်အမည်': r.name,
       'ပေါက်ဂဏန်း/ရလဒ်': r.winningResult,
-      'ထိုးကြေး/ရောင်းရငွေ (ကျပ်)': r.turnover,
+      'စုစုပေါင်း ထိုးကြေး (ကျပ်)': r.turnover,
+      'အောက်လက် ကော်မရှင် (ကျပ်)': r.agentCommission,
+      'အမှန်ရောင်းရငွေ (ကျပ်)': r.netSales,
       'ပေးလျော်ငွေ (ကျပ်)': r.payout,
-      'ကော်မရှင် (ကျပ်)': r.commission,
-      'အသားတင် အမြတ်/အရှုံး (ကျပ်)': r.netProfit,
+      'ဒိုင်ကြီးလွှဲ ကော်မရှင်ရငွေ (ကျပ်)': r.forwardCommission,
+      'ဒိုင် အသားတင် အမြတ်/အရှုံး (ကျပ်)': (r.isProfit ? '+' : '-') + Math.abs(r.netProfit),
       'ပေါက်သူဦးရေ': r.winnersCount,
       'ဘောင်ချာစောင်ရေ': r.vouchersCount,
       'အခြေအနေ': r.status === 'settled' ? 'ရှင်းတမ်းပြီး' : 'ဖွင့်လှစ်ဆဲ'
@@ -736,10 +460,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       'လုပ်ငန်းလိုင်း': '-',
       'ပွဲစဉ်အမည်': `${stmtStartDate} မှ ${stmtEndDate} အထိ`,
       'ပေါက်ဂဏန်း/ရလဒ်': '-',
-      'ထိုးကြေး/ရောင်းရငွေ (ကျပ်)': stmtGrandTotals.totalTurnover,
+      'စုစုပေါင်း ထိုးကြေး (ကျပ်)': stmtGrandTotals.totalTurnover,
+      'အောက်လက် ကော်မရှင် (ကျပ်)': stmtGrandTotals.totalAgentCommission,
+      'အမှန်ရောင်းရငွေ (ကျပ်)': stmtGrandTotals.netSales,
       'ပေးလျော်ငွေ (ကျပ်)': stmtGrandTotals.totalPayout,
-      'ကော်မရှင် (ကျပ်)': stmtGrandTotals.totalCommission,
-      'အသားတင် အမြတ်/အရှုံး (ကျပ်)': stmtGrandTotals.netProfit,
+      'ဒိုင်ကြီးလွှဲ ကော်မရှင်ရငွေ (ကျပ်)': stmtGrandTotals.totalForwardCommission,
+      'ဒိုင် အသားတင် အမြတ်/အရှုံး (ကျပ်)': (stmtGrandTotals.isProfit ? '+' : '-') + Math.abs(stmtGrandTotals.netProfit),
       'ပေါက်သူဦးရေ': stmtGrandTotals.totalWinners,
       'ဘောင်ချာစောင်ရေ': stmtGrandTotals.totalVouchers,
       'အခြေအနေ': stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'
@@ -2525,70 +2251,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 {/* Summary Stats Overview Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                  {/* 1. Gross Turnover */}
                   <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                    <span className="text-[10px] text-slate-500 font-bold block uppercase">၁။ စုစုပေါင်း ထိုးကြေး</span>
-                    <div className="text-base sm:text-lg font-black font-mono text-slate-900 mt-0.5">
+                    <span className="text-[10px] text-slate-500 font-bold block uppercase mb-0.5">၁။ စုစုပေါင်း ထိုးကြေး</span>
+                    <div className="text-base sm:text-lg font-black font-mono text-slate-900">
                       {formatAmount(stmtGrandTotals.totalTurnover, currency)}
                     </div>
-                    <span className="text-[10px] text-slate-400 font-medium">
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
                       {stmtGrandTotals.totalVouchers} စောင် ({stmtRecords.length} ပွဲ)
                     </span>
                   </div>
 
+                  {/* 2. Agent Commission */}
                   <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200 shadow-2xs">
-                    <span className="text-[10px] text-amber-900 font-bold block uppercase flex items-center justify-between">
+                    <span className="text-[10px] text-amber-900 font-bold block uppercase flex items-center justify-between mb-0.5">
                       <span>၂။ အောက်လက် ကော်မရှင်</span>
                       <span className="text-[9px] px-1 py-0.2 bg-amber-200 text-amber-900 rounded font-black">နုတ်ပေးငွေ</span>
                     </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-amber-900 mt-0.5">
-                      -{formatAmount(stmtGrandTotals.totalCommission, currency)}
+                    <div className="text-base sm:text-lg font-black font-mono text-amber-900">
+                      -{formatAmount(stmtGrandTotals.totalAgentCommission, currency)}
                     </div>
-                    <span className="text-[10px] text-amber-700 font-medium">
-                      အမှန်ရောင်းငွေ: {formatAmount(stmtGrandTotals.totalTurnover - stmtGrandTotals.totalCommission, currency)}
+                    <span className="text-[10px] text-amber-700 font-medium mt-0.5 block">
+                      အောက်လက်ပေး ကော်မရှင်ခ
                     </span>
                   </div>
 
+                  {/* 3. Net Sales */}
+                  <div className="bg-sky-50/80 p-3 rounded-2xl border border-sky-200 shadow-2xs">
+                    <span className="text-[10px] text-sky-900 font-bold block uppercase flex items-center justify-between mb-0.5">
+                      <span>၃။ အမှန်ရောင်းငွေ</span>
+                      <span className="text-[9px] px-1 py-0.2 bg-sky-200 text-sky-900 rounded font-black">လက်ခံရငွေ</span>
+                    </span>
+                    <div className="text-base sm:text-lg font-black font-mono text-sky-950">
+                      {formatAmount(stmtGrandTotals.netSales, currency)}
+                    </div>
+                    <span className="text-[10px] text-sky-700 font-medium mt-0.5 block">
+                      ထိုးကြေး - ကော်မရှင်
+                    </span>
+                  </div>
+
+                  {/* 4. Total Payout */}
                   <div className="bg-rose-50/80 p-3 rounded-2xl border border-rose-200 shadow-2xs">
-                    <span className="text-[10px] text-rose-700 font-bold block uppercase flex items-center justify-between">
-                      <span>၃။ ပေါက်မဲ လျော်ကြေး</span>
+                    <span className="text-[10px] text-rose-700 font-bold block uppercase flex items-center justify-between mb-0.5">
+                      <span>၄။ ပေါက်မဲ လျော်ကြေး</span>
                       <span className="text-[9px] px-1 py-0.2 bg-rose-200 text-rose-900 rounded font-black">ပေးငွေ</span>
                     </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-rose-700 mt-0.5">
+                    <div className="text-base sm:text-lg font-black font-mono text-rose-700">
                       {formatAmount(stmtGrandTotals.totalPayout, currency)}
                     </div>
-                    <span className="text-[10px] text-rose-600 font-bold">
+                    <span className="text-[10px] text-rose-600 font-bold mt-0.5 block">
                       ပေါက်သူ {stmtGrandTotals.totalWinners} ဦး
                     </span>
                   </div>
 
+                  {/* 5. Forward Commission */}
                   <div className="bg-indigo-50/80 p-3 rounded-2xl border border-indigo-200 shadow-2xs">
-                    <span className="text-[10px] text-indigo-800 font-bold block uppercase flex items-center justify-between">
-                      <span>၄။ ဒိုင်ကြီးလွှဲ ကော်မရှင်</span>
+                    <span className="text-[10px] text-indigo-800 font-bold block uppercase flex items-center justify-between mb-0.5">
+                      <span>၅။ ဒိုင်ကြီးလွှဲ ကော်မရှင်</span>
                       <span className="text-[9px] px-1 py-0.2 bg-indigo-200 text-indigo-900 rounded font-black">ရငွေ</span>
                     </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-indigo-900 mt-0.5">
-                      +{formatAmount(stmtGrandTotals.totalCommission, currency)}
+                    <div className="text-base sm:text-lg font-black font-mono text-indigo-900">
+                      +{formatAmount(stmtGrandTotals.totalForwardCommission, currency)}
                     </div>
-                    <span className="text-[10px] text-indigo-600 font-medium">
+                    <span className="text-[10px] text-indigo-700 font-medium mt-0.5 block">
                       ဒိုင်ကြီးဆီမှ ပြန်ရငွေ
                     </span>
                   </div>
 
-                  <div className={`p-3 rounded-2xl border shadow-2xs col-span-2 sm:col-span-1 ${
+                  {/* 6. Net Profit / Loss */}
+                  <div className={`p-3 rounded-2xl border shadow-2xs ${
                     stmtGrandTotals.isProfit ? 'bg-emerald-50/95 border-emerald-300' : 'bg-rose-50/95 border-rose-300'
                   }`}>
-                    <span className={`text-[10px] font-bold block uppercase ${
+                    <span className={`text-[10px] font-bold block uppercase mb-0.5 ${
                       stmtGrandTotals.isProfit ? 'text-emerald-800' : 'text-rose-800'
                     }`}>
-                      ၅။ ဒိုင် အသားတင် {stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
+                      ၆။ ဒိုင် အသားတင် {stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
                     </span>
-                    <div className={`text-base sm:text-lg font-black font-mono mt-0.5 ${
+                    <div className={`text-base sm:text-lg font-black font-mono ${
                       stmtGrandTotals.isProfit ? 'text-emerald-700' : 'text-rose-700'
                     }`}>
                       {stmtGrandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(stmtGrandTotals.netProfit), currency)}
                     </div>
-                    <span className={`text-[10px] font-bold ${
+                    <span className={`text-[10px] font-bold block mt-0.5 ${
                       stmtGrandTotals.isProfit ? 'text-emerald-600' : 'text-rose-600'
                     }`}>
                       {stmtGrandTotals.isProfit ? 'မြတ်' : 'ရှုံး'} ({stmtGrandTotals.profitMargin}%)
@@ -2651,12 +2396,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span className="font-bold text-slate-900">{r.name}</span>
                             <span className="text-[11px] font-mono text-slate-500">({r.date})</span>
                           </div>
-                          <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
                             <span>ပေါက်ဂဏန်း: <b className="font-mono text-amber-700">{r.winningResult}</b></span>
                             <span>•</span>
-                            <span>အရောင်း: {formatAmount(r.turnover, currency)}</span>
+                            <span>ထိုးကြေး: {formatAmount(r.turnover, currency)}</span>
+                            <span>•</span>
+                            <span>အမှန်ရောင်း: {formatAmount(r.netSales, currency)}</span>
                             <span>•</span>
                             <span>လျော်ကြေး: {formatAmount(r.payout, currency)}</span>
+                            {r.forwardCommission > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>လွှဲကော်: +{formatAmount(r.forwardCommission, currency)}</span>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -2846,18 +2599,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Detail Content */}
             <div className="p-4 overflow-y-auto space-y-4 text-xs">
               {/* Metrics summary */}
-              <div className="grid grid-cols-3 gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">စုစုပေါင်းရောင်းရငွေ</span>
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၁။ ထိုးကြေး</span>
                   <span className="text-sm font-black font-mono text-slate-900">{formatAmount(selectedRecord.turnover, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-rose-600 font-bold block uppercase">ပေးလျော်ရငွေ</span>
+                  <span className="text-[10px] text-amber-800 font-bold block uppercase">၂။ အောက်လက်ကော်မရှင်</span>
+                  <span className="text-sm font-black font-mono text-amber-800">-{formatAmount(selectedRecord.agentCommission, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-rose-600 font-bold block uppercase">၃။ ပေးလျော်ငွေ</span>
                   <span className="text-sm font-black font-mono text-rose-700">{formatAmount(selectedRecord.payout, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">အသားတင်ရလဒ်</span>
-                  <span className={`text-sm font-black font-mono ${selectedRecord.isProfit ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">၄။ ဒိုင်ကြီးလွှဲကော်မရှင်</span>
+                  <span className="text-sm font-black font-mono text-indigo-700">+{formatAmount(selectedRecord.forwardCommission, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၅။ အသားတင်ရလဒ်</span>
+                  <span className={`text-sm font-black font-mono px-1.5 py-0.5 rounded ${
+                    selectedRecord.isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
                     {selectedRecord.isProfit ? '+' : '-'}{formatAmount(Math.abs(selectedRecord.netProfit), currency)}
                   </span>
                 </div>

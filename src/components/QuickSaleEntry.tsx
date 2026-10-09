@@ -20,7 +20,8 @@ import {
   ShieldAlert,
   CheckCircle2,
   X,
-  Edit3
+  Edit3,
+  Lock
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher } from '../types';
@@ -38,9 +39,14 @@ import {
 interface QuickSaleEntryProps {
   onVoucherCreated: (voucher: Voucher) => void;
   onOpenForwardModal?: (num?: string, amt?: number) => void;
+  onOpenRoundManager?: () => void;
 }
 
-export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated, onOpenForwardModal }) => {
+export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
+  onVoucherCreated,
+  onOpenForwardModal,
+  onOpenRoundManager
+}) => {
   const {
     activeRound,
     settings,
@@ -568,6 +574,13 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
   // Finalize and Save Voucher helper
   const finalizeAndSaveVoucher = (itemsToSave: BetItem[], extraNotes?: string) => {
+    if (!activeRound || activeRound.status !== 'open') {
+      playWarningSound();
+      alert('လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ');
+      setIsSavingVoucher(false);
+      return;
+    }
+
     const voucherItems: VoucherItem[] = itemsToSave.map(item => ({
       number: item.number,
       amount: item.amount,
@@ -609,6 +622,16 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
 
   // Submit Voucher - checks for Blocked & Over-limit numbers
   const handleSaveVoucher = () => {
+    if (!activeRound || activeRound.status !== 'open') {
+      playWarningSound();
+      alert('လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ');
+      setToastNotification({
+        type: 'error',
+        message: 'လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ'
+      });
+      return;
+    }
+
     if (stagedItems.length === 0 || isSavingVoucher) {
       playWarningSound();
       return;
@@ -796,14 +819,34 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
       )}
 
       {/* Top Banner / Round Status notice */}
-      {activeRound?.status === 'settled' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between text-amber-900 text-sm shadow-2xs">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
-            <span>
-              လက်ရှိပွဲစဉ် ({activeRound.name}) သည် ပေါက်ဂဏန်း <b>{activeRound.winningNumber}</b> ဖြင့် ပြီးဆုံးပြီး ဖြစ်ပါသည်။ (အရောင်းစာရင်းများ စမ်းသပ်ထည့်သွင်းနိုင်ပါသည်)
-            </span>
+      {(!activeRound || activeRound.status !== 'open') && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold shrink-0">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-black text-rose-950">
+                {isMyanmar
+                  ? `လက်ရှိပွဲစဉ် [${activeRound?.name || ''}] ပိတ်ထားပါသည် (${activeRound?.status === 'settled' ? `ပေါက်မဲ ${activeRound?.winningNumber || ''} အတည်ပြုပြီး` : 'ပိတ်ထားသည်'})`
+                  : 'Current round is closed or settled'}
+              </h4>
+              <p className="text-[11px] sm:text-xs text-rose-800">
+                {isMyanmar
+                  ? 'ဂဏန်းနှင့် ထိုးကြေးများ စမ်းသပ်ရိုက်နှိပ်နိုင်သော်လည်း နောက်ပွဲစဉ်အသစ် မဖွင့်မချင်း အရောင်းစာရင်းနှင့် ဘောင်ချာများ လုံးဝမှတ်တမ်းမယူပါ/စာရင်းမသွင်းပါ။'
+                  : 'You can test inputting numbers, but no sales or vouchers will be recorded until a new round is opened.'}
+              </p>
+            </div>
           </div>
+          {onOpenRoundManager && (
+            <button
+              type="button"
+              onClick={onOpenRoundManager}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-black shrink-0 transition-all shadow-xs cursor-pointer"
+            >
+              {isMyanmar ? 'ပွဲစဉ်အသစ် ဖွင့်ရန်' : 'Open Round'}
+            </button>
+          )}
         </div>
       )}
 
@@ -1592,10 +1635,24 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({ onVoucherCreated
                 type="button"
                 onClick={handleSaveVoucher}
                 disabled={stagedItems.length === 0 || isSavingVoucher}
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                className={`w-full py-3.5 font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs active:scale-[0.98] transition-all cursor-pointer ${
+                  stagedItems.length === 0 || isSavingVoucher
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : (!activeRound || activeRound.status !== 'open')
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                }`}
               >
-                <Receipt className="w-4 h-4" />
-                <span>{isMyanmar ? 'ဘောင်ချာ ထုတ်ယူမည် (Save & Print)' : 'Generate Voucher'}</span>
+                {(!activeRound || activeRound.status !== 'open') ? (
+                  <Lock className="w-4 h-4" />
+                ) : (
+                  <Receipt className="w-4 h-4" />
+                )}
+                <span>
+                  {(!activeRound || activeRound.status !== 'open')
+                    ? (isMyanmar ? 'ပွဲစဉ်ပိတ်ထားသည် (စာရင်းမသွင်းပါ)' : 'Round Closed (Cannot Save)')
+                    : (isMyanmar ? 'ဘောင်ချာ ထုတ်ယူမည် (Save & Print)' : 'Generate Voucher')}
+                </span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

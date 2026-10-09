@@ -26,11 +26,20 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
-import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
-import { evaluateWinnings } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
+import {
+  StatementRecord,
+  StatementGrandTotals,
+  StatementPeriodPreset,
+  getLocalDateStr,
+  getDaysAgoStr,
+  getStatementDateRange,
+  getStatementPeriodLabel,
+  generateStatementRecords,
+  computeStatementGrandTotals
+} from '../utils/statementUtils';
 
 interface FinancialStatementsModalProps {
   isOpen: boolean;
@@ -38,40 +47,7 @@ interface FinancialStatementsModalProps {
   initialMode?: 'all' | '3d' | '2d' | 'football';
 }
 
-export interface StatementRecord {
-  id: string;
-  date: string;
-  mode: '3d' | '2d' | 'football';
-  modeLabel: string;
-  name: string;
-  session?: 'morning' | 'evening' | 'special';
-  winningResult: string;
-  turnover: number;          // စုစုပေါင်း ထိုးကြေး (Gross Sales)
-  agentCommission: number;   // အောက်လက်/ဝယ်သူ ကော်မရှင် ပေးရငွေ (Discount Out)
-  netSales: number;          // အမှန်ရောင်းရငွေ (Gross - Agent Commission)
-  payout: number;            // ပေါက်မဲ ပေးလျော်ငွေ
-  forwardCommission: number; // ဒိုင်ကြီးဆီ လွှဲတင်ကော်မရှင် ရငွေ (Commission In)
-  netProfit: number;         // ဒိုင် အသားတင် အမြတ်/အရှုံး
-  isProfit: boolean;
-  winnersCount: number;
-  vouchersCount: number;
-  status: 'settled' | 'open' | 'closed';
-  rawRoundId?: string;
-}
-
-// Local date string helper (YYYY-MM-DD) based on user's timezone
-const getLocalDateStr = (d: Date = new Date()): string => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getDaysAgoStr = (days: number, baseDate: Date = new Date()): string => {
-  const d = new Date(baseDate);
-  d.setDate(d.getDate() - days);
-  return getLocalDateStr(d);
-};
+export type { StatementRecord };
 
 export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> = ({
   isOpen,
@@ -106,368 +82,34 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
   // Determine active date boundaries based on user selection
   const { startDate, endDate } = useMemo(() => {
-    if (periodPreset === 'all') {
-      return { startDate: allTimeStartStr, endDate: allTimeEndStr };
-    }
-    if (periodPreset === 'today') {
-      return { startDate: todayStr, endDate: todayStr };
-    }
-    if (periodPreset === 'three_days') {
-      return { startDate: threeDaysAgoStr, endDate: todayStr };
-    }
-    if (periodPreset === 'five_days') {
-      return { startDate: fiveDaysAgoStr, endDate: todayStr };
-    }
-    if (periodPreset === 'week') {
-      return { startDate: oneWeekAgoStr, endDate: todayStr };
-    }
-    if (periodPreset === 'month') {
-      return { startDate: oneMonthAgoStr, endDate: todayStr };
-    }
-    return { startDate: customStartDate, endDate: customEndDate };
-  }, [periodPreset, todayStr, threeDaysAgoStr, fiveDaysAgoStr, oneWeekAgoStr, oneMonthAgoStr, customStartDate, customEndDate]);
+    return getStatementDateRange(periodPreset, customStartDate, customEndDate);
+  }, [periodPreset, customStartDate, customEndDate]);
 
-  // Aggregate statement records from 2D, 3D, and Football
+  // Aggregate statement records from 2D, 3D, and Football using Single Source of Truth
   const statementRecords: StatementRecord[] = useMemo(() => {
-    const list: StatementRecord[] = [];
-
-    // ====================================================
-    // 1. Process 2D (ဇီးကွက်) Rounds & Vouchers
-    // ====================================================
-    if (selectedMode === 'all' || selectedMode === '2d') {
-      const processedRoundIds = new Set<string>();
-
-      lottery2D.rounds.forEach((round) => {
-        const roundDate = (round.drawDate || '').slice(0, 10);
-        if (roundDate >= '2026-10-05' && roundDate >= startDate && roundDate <= endDate) {
-          processedRoundIds.add(round.id);
-
-          const roundVouchers = lottery2D.vouchers.filter(
-            (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
-                   v.status !== 'cancelled'
-          );
-
-          const roundForwards = lottery2D.forwardSlips.filter(
-            (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
-          );
-
-          let totalTurnover = 0;
-          let totalAgentCommission = 0;
-          let netSales = 0;
-
-          roundVouchers.forEach((v) => {
-            const voucherSubtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            
-            // Commission to sub-agents / discount
-            let voucherDiscount = 0;
-            if (typeof v.discountAmount === 'number') {
-              voucherDiscount = v.discountAmount;
-            } else if (round.commissionRate && round.commissionRate > 0) {
-              voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
-            } else if (lottery2D.settings.defaultCommissionRate && lottery2D.settings.defaultCommissionRate > 0) {
-              voucherDiscount = Math.round(voucherSubtotal * (lottery2D.settings.defaultCommissionRate / 100));
-            }
-
-            const voucherNet = v.netPayable ?? (voucherSubtotal - voucherDiscount);
-
-            totalTurnover += voucherSubtotal;
-            totalAgentCommission += voucherDiscount;
-            netSales += voucherNet;
-          });
-
-          // Forward slips commission earned from master bookie
-          let totalForwarded = 0;
-          let forwardCommission = 0;
-          roundForwards.forEach((f) => {
-            totalForwarded += f.totalAmount || 0;
-            forwardCommission += f.commissionAmount || 0;
-          });
-          const netPaid = totalForwarded - forwardCommission;
-
-          // Payout & Winners calculation
-          let totalPayout = 0;
-          let winnersCount = 0;
-          const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-          const mult = round.multiplier || lottery2D.settings.defaultMultiplier || 0;
-
-          if (winningNum) {
-            const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
-            winnersCount = evalResult.totalWinnersCount;
-
-            let totalSoldForWinNum = 0;
-            roundVouchers.forEach((v) => {
-              v.items.forEach((it) => {
-                if (it.number === winningNum) totalSoldForWinNum += it.amount;
-              });
-            });
-            let totalForwardedForWinNum = 0;
-            roundForwards.forEach((f) => {
-              f.items.forEach((it) => {
-                if (it.number === winningNum) totalForwardedForWinNum += it.amount;
-              });
-            });
-            const retainedAmount = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
-            totalPayout = mult > 0 ? retainedAmount * mult : 0;
-          } else {
-            roundVouchers.forEach((v) => {
-              v.items.forEach((it) => {
-                if (it.isWon) {
-                  totalPayout += (it.wonAmount || (it.amount * mult));
-                  winnersCount += 1;
-                }
-              });
-            });
-          }
-
-          // Net dealer profit = Net Sales - Net Paid - Payout
-          const netProfit = netSales - netPaid - totalPayout;
-
-          list.push({
-            id: `2d-${round.id}`,
-            date: roundDate,
-            mode: '2d',
-            modeLabel: 'ဇီးကွက်',
-            name: round.name || `${roundDate} ${round.session === 'morning' ? 'မနက် (12:01)' : 'ညနေ (04:30)'}`,
-            session: round.session,
-            winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
-            turnover: totalTurnover,
-            agentCommission: totalAgentCommission,
-            netSales,
-            payout: totalPayout,
-            forwardCommission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: roundVouchers.length,
-            status: round.status,
-            rawRoundId: round.id
-          });
+    return generateStatementRecords(
+      {
+        lottery2D: {
+          rounds: lottery2D.rounds,
+          vouchers: lottery2D.vouchers,
+          forwardSlips: lottery2D.forwardSlips,
+          settings: lottery2D.settings
+        },
+        lottery3D: {
+          rounds: lottery3D.rounds,
+          vouchers: lottery3D.vouchers,
+          forwardSlips: lottery3D.forwardSlips,
+          settings: lottery3D.settings
+        },
+        football: {
+          slips: football.slips,
+          forwardSlips: football.forwardSlips
         }
-      });
-
-      // Catch any orphaned vouchers without round assigned
-      const orphanedVouchers = lottery2D.vouchers.filter(v => {
-        const vDate = (v.createdAt || '').slice(0, 10);
-        return vDate >= startDate && vDate <= endDate && v.status !== 'cancelled' && (!v.roundId || !processedRoundIds.has(v.roundId));
-      });
-
-      if (orphanedVouchers.length > 0) {
-        const orphanedByDate: { [date: string]: TwoDVoucher[] } = {};
-        orphanedVouchers.forEach(v => {
-          const d = (v.createdAt || '').slice(0, 10) || todayStr;
-          if (!orphanedByDate[d]) orphanedByDate[d] = [];
-          orphanedByDate[d].push(v);
-        });
-
-        Object.keys(orphanedByDate).forEach(d => {
-          const vList = orphanedByDate[d];
-          let turnover = 0;
-          let agentCommission = 0;
-          let netSales = 0;
-          let payout = 0;
-          let winnersCount = 0;
-
-          vList.forEach(v => {
-            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            let disc = 0;
-            if (typeof v.discountAmount === 'number') {
-              disc = v.discountAmount;
-            } else if (lottery2D.settings.defaultCommissionRate) {
-              disc = Math.round(sub * (lottery2D.settings.defaultCommissionRate / 100));
-            }
-
-            turnover += sub;
-            agentCommission += disc;
-            netSales += (v.netPayable ?? (sub - disc));
-            v.items.forEach(it => {
-              if (it.isWon) {
-                payout += (it.wonAmount || (it.amount * (lottery2D.settings.defaultMultiplier || 0)));
-                winnersCount += 1;
-              }
-            });
-          });
-
-          const netProfit = netSales - payout;
-
-          list.push({
-            id: `2d-orphaned-${d}`,
-            date: d,
-            mode: '2d',
-            modeLabel: 'ဇီးကွက်',
-            name: `${d} ဇီးကွက် အရောင်းမှတ်တမ်းများ`,
-            session: 'morning',
-            winningResult: payout > 0 ? `${winnersCount} ဦးပေါက်` : 'မထွက်သေး',
-            turnover,
-            agentCommission,
-            netSales,
-            payout,
-            forwardCommission: 0,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: vList.length,
-            status: payout > 0 ? 'settled' : 'open'
-          });
-        });
-      }
-    }
-
-    // ====================================================
-    // 2. Process 3D (အိုးစည်လေး) Rounds
-    // ====================================================
-    if (selectedMode === 'all' || selectedMode === '3d') {
-      lottery3D.rounds.forEach((round) => {
-        const roundDate = (round.drawDate || '').slice(0, 10);
-        if (roundDate >= startDate && roundDate <= endDate) {
-          const roundVouchers = lottery3D.vouchers.filter(
-            (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
-                   v.status !== 'cancelled'
-          );
-
-          const roundForwards = lottery3D.forwardSlips.filter(
-            (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
-          );
-
-          let totalTurnover = 0;
-          let totalAgentCommission = 0;
-          let netSales = 0;
-
-          roundVouchers.forEach((v) => {
-            const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-            let disc = 0;
-            if (typeof v.discountAmount === 'number') {
-              disc = v.discountAmount;
-            } else if (round.commissionRate && round.commissionRate > 0) {
-              disc = Math.round(sub * (round.commissionRate / 100));
-            } else if (lottery3D.settings.defaultCommissionRate && lottery3D.settings.defaultCommissionRate > 0) {
-              disc = Math.round(sub * (lottery3D.settings.defaultCommissionRate / 100));
-            }
-
-            totalTurnover += sub;
-            totalAgentCommission += disc;
-            netSales += (v.netPayable ?? (sub - disc));
-          });
-
-          let forwardCommission = 0;
-          roundForwards.forEach((f) => {
-            forwardCommission += f.commissionAmount || 0;
-          });
-
-          let totalPayout = 0;
-          let winnersCount = 0;
-          const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
-          const straightMult = round.multiplier || lottery3D.settings.defaultMultiplier || 0;
-          const toddMult = round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0;
-
-          if (winningNum) {
-            const evalResult = evaluateWinnings(roundVouchers, winningNum, straightMult, toddMult);
-            totalPayout = evalResult.totalPayout;
-            winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
-          } else {
-            roundVouchers.forEach((v) => {
-              v.items.forEach((it) => {
-                if (it.isWon) {
-                  totalPayout += (it.wonAmount || (it.amount * straightMult));
-                  winnersCount += 1;
-                }
-              });
-            });
-          }
-
-          const netProfit = (netSales - totalPayout) + forwardCommission;
-
-          list.push({
-            id: `3d-${round.id}`,
-            date: roundDate,
-            mode: '3d',
-            modeLabel: 'အိုးစည်လေး',
-            name: round.name || `${roundDate} ထီဖွင့်ပွဲ`,
-            winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
-            turnover: totalTurnover,
-            agentCommission: totalAgentCommission,
-            netSales,
-            payout: totalPayout,
-            forwardCommission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: roundVouchers.length,
-            status: round.status,
-            rawRoundId: round.id
-          });
-        }
-      });
-    }
-
-    // ====================================================
-    // 3. Process Football (ပစ်တိုင်းထောင်)
-    // ====================================================
-    if (selectedMode === 'all' || selectedMode === 'football') {
-      const slips = football.slips.filter((s) => {
-        const slipDate = (s.createdAt || s.roundDate || '').slice(0, 10);
-        return slipDate >= startDate && slipDate <= endDate && s.status !== 'cancelled';
-      });
-
-      if (slips.length > 0) {
-        const slipsByDate: { [date: string]: FootballSlip[] } = {};
-        slips.forEach((s) => {
-          const d = (s.createdAt || s.roundDate || '').slice(0, 10) || todayStr;
-          if (!slipsByDate[d]) slipsByDate[d] = [];
-          slipsByDate[d].push(s);
-        });
-
-        Object.keys(slipsByDate).forEach((d) => {
-          const daySlips = slipsByDate[d];
-          let turnover = 0;
-          let agentCommission = 0;
-          let netSales = 0;
-          let payout = 0;
-          let winnersCount = 0;
-
-          daySlips.forEach((s) => {
-            const stake = s.stakeAmount || s.netPayable || 0;
-            const disc = s.discountAmount || 0;
-            turnover += stake;
-            agentCommission += disc;
-            netSales += (s.netPayable || (stake - disc));
-
-            if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
-              payout += (s.actualPayout || s.potentialPayout || 0);
-              winnersCount += 1;
-            }
-          });
-
-          const dayForwards = football.forwardSlips.filter((f) => (f.createdAt || f.roundDate || '').slice(0, 10) === d);
-          let forwardCommission = 0;
-          dayForwards.forEach((f) => {
-            forwardCommission += f.commissionAmount || 0;
-          });
-
-          const netProfit = (netSales - payout) + forwardCommission;
-
-          list.push({
-            id: `football-${d}`,
-            date: d,
-            mode: 'football',
-            modeLabel: 'ပစ်တိုင်းထောင်',
-            name: `${d} ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း`,
-            winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : 'စလစ်အားလုံး ရှင်းပြီး',
-            turnover,
-            agentCommission,
-            netSales,
-            payout,
-            forwardCommission,
-            netProfit,
-            isProfit: netProfit >= 0,
-            winnersCount,
-            vouchersCount: daySlips.length,
-            status: 'settled'
-          });
-        });
-      }
-    }
-
-    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      },
+      selectedMode,
+      startDate,
+      endDate
+    );
   }, [
     selectedMode,
     startDate,
@@ -475,53 +117,33 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     lottery2D.rounds,
     lottery2D.vouchers,
     lottery2D.forwardSlips,
-    lottery2D.settings.defaultMultiplier,
-    lottery2D.settings.defaultCommissionRate,
+    lottery2D.settings,
     lottery3D.rounds,
     lottery3D.vouchers,
     lottery3D.forwardSlips,
-    lottery3D.settings.defaultMultiplier,
-    lottery3D.settings.defaultToddMultiplier,
-    lottery3D.settings.defaultCommissionRate,
+    lottery3D.settings,
     football.slips,
-    football.forwardSlips,
-    todayStr
+    football.forwardSlips
   ]);
 
   // Grand Totals across all statement records in the filtered period
   const grandTotals = useMemo(() => {
-    let totalTurnover = 0;
-    let totalAgentCommission = 0;
-    let totalNetSales = 0;
-    let totalPayout = 0;
-    let totalForwardCommission = 0;
-    let totalVouchers = 0;
-    let totalWinners = 0;
-
-    statementRecords.forEach((r) => {
-      totalTurnover += r.turnover;
-      totalAgentCommission += r.agentCommission;
-      totalNetSales += r.netSales;
-      totalPayout += r.payout;
-      totalForwardCommission += r.forwardCommission;
-      totalVouchers += r.vouchersCount;
-      totalWinners += r.winnersCount;
-    });
-
-    const netProfit = (totalNetSales - totalPayout) + totalForwardCommission;
-    const profitMargin = totalTurnover > 0 ? ((netProfit / totalTurnover) * 100).toFixed(1) : '0.0';
+    const totals = computeStatementGrandTotals(statementRecords);
+    const profitMargin = totals.totalTurnover > 0 ? ((totals.totalNetProfit / totals.totalTurnover) * 100).toFixed(1) : '0.0';
 
     return {
-      totalTurnover,
-      totalAgentCommission,
-      totalNetSales,
-      totalPayout,
-      totalForwardCommission,
-      netProfit,
-      isProfit: netProfit >= 0,
+      totalTurnover: totals.totalTurnover,
+      totalAgentCommission: totals.totalAgentCommission,
+      totalNetSales: totals.netSales,
+      totalPayout: totals.totalPayout,
+      totalForwarded: totals.totalForwarded,
+      totalForwardCommission: totals.totalForwardCommission,
+      totalNetPaid: totals.totalNetPaid,
+      netProfit: totals.totalNetProfit,
+      isProfit: totals.isProfit,
       profitMargin,
-      totalVouchers,
-      totalWinners,
+      totalVouchers: totals.totalVouchers,
+      totalWinners: totals.totalWinners,
       recordsCount: statementRecords.length
     };
   }, [statementRecords]);
@@ -599,7 +221,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     try {
       if (mode === '3d') {
         const roundId = recordId.replace('3d-', '');
-        lottery3D.deleteRound(roundId);
+        if (roundId.startsWith('orphaned-')) {
+          const orphanDate = roundId.replace('orphaned-', '');
+          const toDelete = lottery3D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          toDelete.forEach(v => lottery3D.deleteVoucher(v.id));
+        } else {
+          lottery3D.deleteRound(roundId);
+        }
       } else if (mode === '2d') {
         const roundId = recordId.replace('2d-', '');
         if (roundId.startsWith('orphaned-')) {

@@ -342,16 +342,16 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Right Zone: PINNED & ALWAYS ACCESSIBLE ON PHONES/TABLETS */}
               <div className="flex items-center gap-1.5 shrink-0 pl-1 z-10">
-                {/* New Round / Reset Button (Prominent Amber Pill) */}
+                {/* View / Manage Round Button */}
                 {onOpenRoundManager && (
                   <button
                     type="button"
                     onClick={onOpenRoundManager}
                     className="px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 shrink-0 ring-1 ring-amber-300/60"
-                    title="မနက် / ညနေ အလုပ်ပြီး၍ ပွဲစဉ်အသစ်စတင်ရန် (သို့မဟုတ်) Reset လုပ်ရန်"
+                    title="ဖွင့်ထားသော ပွဲစဉ်ကြည့်ရန်နှင့် ပွဲစဉ် စီမံခန့်ခွဲရန်"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-100 shrink-0 animate-spin-reverse" />
-                    <span>{isMyanmar ? 'ပွဲစဉ်အသစ်' : 'New Round'}</span>
+                    <Calendar className="w-3.5 h-3.5 text-amber-100 shrink-0" />
+                    <span>{isMyanmar ? 'ပွဲစဉ်' : 'Round'}</span>
                   </button>
                 )}
 
@@ -770,10 +770,10 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={onOpenRoundManager}
                 className="text-xs bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white px-2.5 py-1 rounded-xl border border-amber-400 flex items-center gap-1 shadow-xs font-black cursor-pointer"
-                title="ပွဲစဉ်အသစ် စတင်ရန်"
+                title="ဖွင့်ထားသော ပွဲစဉ်ကြည့်ရန်နှင့် ပွဲစဉ် စီမံခန့်ခွဲရန်"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-100 shrink-0" />
-                <span>{isMyanmar ? 'ပွဲစဉ်အသစ်' : 'Round'}</span>
+                <Calendar className="w-3.5 h-3.5 text-amber-100 shrink-0" />
+                <span>{isMyanmar ? 'ပွဲစဉ်' : 'Round'}</span>
               </button>
             </div>
           </div>

@@ -306,14 +306,6 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const deleteRound = useCallback((roundId: string) => {
-    const roundVouchers = vouchers.filter(v => v.roundId === roundId);
-    const roundForwards = forwardSlips.filter(f => f.roundId === roundId);
-    if (roundVouchers.length > 0 || roundForwards.length > 0) {
-      if (!window.confirm(settings.language === 'my' ? 'ဤပွဲစဉ်တွင် အရောင်းဘောင်ချာ သို့မဟုတ် ဒိုင်လွှဲစာရင်းများ ရှိနေပါသည်။ ဖျက်ရန် သေချာပါသလား။' : 'Round contains vouchers or forward slips. Delete anyway?')) {
-        return;
-      }
-    }
-
     setRounds(prev => prev.filter(r => r.id !== roundId));
     setDeletedRoundIds(prev => {
       const next = [...prev.filter(id => id !== roundId), roundId];
@@ -330,7 +322,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     setVouchers(prev => prev.filter(v => v.roundId !== roundId));
     setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
-  }, [activeRoundId, vouchers, forwardSlips, visibleRounds, settings.language]);
+  }, [activeRoundId, visibleRounds]);
 
   const syncLiveRounds = useCallback(async () => {
     try {

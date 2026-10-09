@@ -18,7 +18,8 @@ import {
   ChevronDown,
   X,
   Camera,
-  Edit3
+  Edit3,
+  Lock
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig } from '../../types';
@@ -57,12 +58,14 @@ interface TwoDQuickSaleEntryProps {
   onVoucherCreated: (voucher: TwoDVoucher) => void;
   onOpenForwardModal?: (num?: string, amt?: number) => void;
   onOpenLimitsManager?: (num?: string) => void;
+  onOpenRoundManager?: () => void;
 }
 
 export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   onVoucherCreated,
   onOpenForwardModal,
-  onOpenLimitsManager
+  onOpenLimitsManager,
+  onOpenRoundManager
 }) => {
   const {
     settings,
@@ -535,7 +538,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         setNumberInput(expanded.join(' '));
         setIsRumble(false);
         amountInputRef.current?.focus();
-        showToast(isMyanmar ? `အာ (ပတ်လည်) ${expanded.length} ကွက် ပြင်ဆင်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ` : `Applied rumble (${expanded.length} numbers). Enter amount and tap Add.`, 'success');
+        showToast(isMyanmar ? `အာ ${expanded.length} ကွက် ပြင်ဆင်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ` : `Applied rumble (${expanded.length} numbers). Enter amount and tap Add.`, 'success');
         return;
       }
     }
@@ -868,7 +871,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   const handleSaveSale = () => {
     if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
       playWarningSound();
-      showToast(isMyanmar ? 'ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် ဘောင်ချာ ထုတ်၍ မရတော့ပါ' : 'Round is closed', 'error');
+      alert(isMyanmar
+        ? 'လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ'
+        : 'The current round is closed or settled. Please open a new round before saving.');
+      showToast(isMyanmar
+        ? 'လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ'
+        : 'Round is closed or settled', 'error');
       return;
     }
 
@@ -940,7 +948,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     forwardCommission?: number
   ) => {
     if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
-      showToast(isMyanmar ? 'ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် ဘောင်ချာ ထုတ်၍ မရတော့ပါ' : 'Round is closed', 'error');
+      alert(isMyanmar
+        ? 'လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ'
+        : 'The current round is closed or settled. Please open a new round before saving.');
+      showToast(isMyanmar
+        ? 'လက်ရှိပွဲစဉ် ပိတ်ထားပါသည် (သို့မဟုတ် ပေါက်ဂဏန်းအတည်ပြုပြီးဖြစ်ပါသည်)။ စာရင်းသွင်းရန် ပွဲစဉ်အသစ် အရင်ဖွင့်ပါ'
+        : 'Round is closed', 'error');
       return;
     }
 
@@ -1104,6 +1117,38 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         </div>
       )}
 
+      {/* Closed / Settled Round Alert Banner */}
+      {(!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold shrink-0">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-black text-rose-950">
+                {isMyanmar
+                  ? `လက်ရှိပွဲစဉ် [${activeRound?.name || ''}] ပိတ်ထားပါသည် (${activeRound?.status === 'settled' ? `ပေါက်မဲ ${activeRound?.winningNumber || ''} အတည်ပြုပြီး` : 'ပိတ်ထားသည်'})`
+                  : 'Current round is closed or settled'}
+              </h4>
+              <p className="text-[11px] sm:text-xs text-rose-800">
+                {isMyanmar
+                  ? 'ဂဏန်းနှင့် ထိုးကြေးများ စမ်းသပ်ရိုက်နှိပ်နိုင်သော်လည်း နောက်ပွဲစဉ်အသစ် မဖွင့်မချင်း အရောင်းစာရင်းနှင့် ဘောင်ချာများ လုံးဝမှတ်တမ်းမယူပါ/စာရင်းမသွင်းပါ။'
+                  : 'You can test inputting numbers, but no sales or vouchers will be recorded until a new round is opened.'}
+              </p>
+            </div>
+          </div>
+          {onOpenRoundManager && (
+            <button
+              type="button"
+              onClick={onOpenRoundManager}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-black shrink-0 transition-all shadow-xs cursor-pointer"
+            >
+              {isMyanmar ? 'ပွဲစဉ်အသစ် ဖွင့်ရန်' : 'Open Round'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Grid: Input Form & Cart (On Mobile/Tablet, Voucher Draft on Top) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column (Desktop Left / Mobile Bottom): Input Form (7 cols) */}
@@ -1194,7 +1239,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                     </button>
                   )}
 
-                  {/* 1. ပတ်လည် (Rumble / Reversal) */}
+                  {/* 1. အာ (Rumble / Reversal) */}
                   {enabledButtons.rumble && (
                     <button
                       type="button"
@@ -1204,10 +1249,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                           ? 'bg-teal-600 text-white ring-1 ring-teal-500'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
                       }`}
-                      title={isMyanmar ? 'ပတ်လည် (R)' : 'Rumble (R)'}
+                      title={isMyanmar ? 'အာ (R)' : 'Rumble (R)'}
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
+                      <span>{isMyanmar ? 'အာ' : 'R'}</span>
                     </button>
                   )}
 
@@ -1806,11 +1851,21 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 className={`w-full h-13 font-black text-base rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer ${
                   items.length === 0
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound))
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95'
                     : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-95'
                 }`}
               >
-                <Printer className="w-5 h-5" />
-                <span>{isMyanmar ? 'ဘောင်ချာထုတ် / အရောင်းသိမ်းမည်' : 'Save & Print Voucher'}</span>
+                {(!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) ? (
+                  <Lock className="w-5 h-5" />
+                ) : (
+                  <Printer className="w-5 h-5" />
+                )}
+                <span>
+                  {(!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound))
+                    ? (isMyanmar ? 'ပွဲစဉ်ပိတ်ထားသည် (စာရင်းမသွင်းပါ)' : 'Round Closed (Cannot Save)')
+                    : (isMyanmar ? 'ဘောင်ချာထုတ် / အရောင်းသိမ်းမည်' : 'Save & Print Voucher')}
+                </span>
               </button>
             </div>
           </div>
