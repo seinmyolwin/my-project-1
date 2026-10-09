@@ -73,17 +73,17 @@ const BUTTON_DEFINITIONS_2D: Array<{
 }> = [
   {
     key: 'straight',
-    label: 'တဲ့',
-    nameMyanmar: 'တဲ့ (တိုက်ရိုက်ထိုးကြေး)',
+    label: 'ဒဲ့',
+    nameMyanmar: 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)',
     nameEnglish: 'Straight / Direct',
-    desc: 'R မပါဘဲ တိုက်ရိုက်ဂဏန်းများအဖြစ် သွင်းမည်',
+    desc: 'ပတ်လည်မပါဘဲ တိုက်ရိုက်ဂဏန်းများအဖြစ် သွင်းမည်',
     previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black flex items-center gap-1 shadow-2xs shrink-0',
     icon: <Check className="w-3 h-3" />
   },
   {
     key: 'rumble',
-    label: 'အာ',
-    nameMyanmar: 'အာ (ပတ်လည် / R)',
+    label: 'ပတ်လည်',
+    nameMyanmar: 'ပတ်လည် (အာ / R)',
     nameEnglish: 'Rumble / Reversal',
     desc: '၂၄ ဆိုပါက ၂၄, ၄၂ နှစ်ကွက်လုံး ထည့်မည်',
     previewClass: 'px-2.5 py-1 bg-teal-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs shrink-0',

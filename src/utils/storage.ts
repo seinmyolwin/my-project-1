@@ -160,8 +160,8 @@ export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
 // 2D LOTTERY INITIAL DATA & STORAGE
 // ====================================================
 export const DEFAULT_2D_ACTION_BUTTONS: TwoDQuickActionButtonsConfig = {
-  straight: true,       // တဲ့ (တိုက်ရိုက်ထိုးကြေး)
-  rumble: true,         // အာ (ပတ်လည် / R)
+  straight: true,       // ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)
+  rumble: true,         // ပတ်လည် (အာ / R)
   break: true,          // ရိတ် (ဘရိတ် ၁၀ ကွက်)
   includes: true,       // အပါ (အပါ ၁၉ ကွက်)
   head: true,           // ထိပ် (ထိပ်စီး ၁၀ ကွက်)

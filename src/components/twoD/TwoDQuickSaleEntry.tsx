@@ -198,10 +198,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       }
     }
 
-    const hasStraightKeyword = enabledButtons.straight && /တဲ့|တည့်/i.test(rawInput);
+    const hasStraightKeyword = enabledButtons.straight && /ဒဲ့|တဲ့|တည့်/i.test(rawInput);
     const hasRInInput = enabledButtons.rumble && /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
     const hasR = !hasStraightKeyword && ((enabledButtons.rumble && isRumble) || hasRInInput);
-    const cleanForNumbers = rawInput.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const cleanForNumbers = rawInput.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
     const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
 
     // If last token is 3+ digits (like 500, 1000) and there are prior tokens, treat as amount
@@ -334,11 +334,11 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       }
     }
 
-    const hasStraightKeyword = enabledButtons.straight && /တဲ့|တည့်/i.test(rawInput);
+    const hasStraightKeyword = enabledButtons.straight && /ဒဲ့|တဲ့|တည့်/i.test(rawInput);
     const hasRInInput = enabledButtons.rumble && /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
     const effectiveRumble = hasStraightKeyword ? false : ((enabledButtons.rumble && isRumble) || hasRInInput);
 
-    const cleanForNumbers = rawInput.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const cleanForNumbers = rawInput.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
     const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
 
     if (rawTokens.length === 0) {
@@ -447,7 +447,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
   };
 
-  // 0. တဲ့ (Straight / Direct - တိုက်ရိုက် / ပတ်လည်မပါ)
+  // 0. ဒဲ့ (Straight / Direct - တိုက်ရိုက် / ပတ်လည်မပါ)
   const handleAddStraightClick = () => {
     playTapSound();
     setIsRumble(false);
@@ -458,7 +458,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     if (cleanNum) {
       let amt = parseFloat(cleanAmt);
       if (isNaN(amt) || amt <= 0) {
-        const rawTokens = cleanNum.replace(/တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ').replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+        const rawTokens = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ').replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
         if (rawTokens.length > 1) {
           const lastToken = rawTokens[rawTokens.length - 1];
           const parsedLast = parseFloat(lastToken);
@@ -473,14 +473,14 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       } else {
         amountInputRef.current?.focus();
         showToast(
-          isMyanmar ? 'တဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး \'ထည့်မည်\' ကိုနှိပ်ပါ' : 'Direct (Straight) selected. Enter amount.',
+          isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး \'ထည့်မည်\' ကိုနှိပ်ပါ' : 'Direct (Straight) selected. Enter amount.',
           'warning'
         );
       }
     } else {
       numberInputRef.current?.focus();
       showToast(
-        isMyanmar ? 'တဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးထားသည်။ ဂဏန်းရိုက်ထည့်ပါ' : 'Direct (Straight) mode active.',
+        isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးထားသည်။ ဂဏန်းရိုက်ထည့်ပါ' : 'Direct (Straight) mode active.',
         'warning'
       );
     }
@@ -1174,10 +1174,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 />
               </div>
 
-              {/* Action Buttons below Number Input: တဲ့, အာ, ရိတ်, အပါ, ထိပ်, ပိတ်, ပူး, ပါဝါ, နက္ခတ်, ညီကို, ခွေ, ခွေပူး, ခွေr, ခွေပူးr */}
+              {/* Action Buttons below Number Input: ဒဲ့, ပတ်လည်, ရိတ်, အပါ, ထိပ်, ပိတ်, ပူး, ပါဝါ, နက္ခတ်, ညီကို, ခွေ, ခွေပူး, ခွေr, ခွေပူးr */}
               {hasAnyButtonVisible && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  {/* 0. တဲ့ (Straight / Direct) */}
+                  {/* 0. ဒဲ့ (Straight / Direct) */}
                   {enabledButtons.straight && (
                     <button
                       type="button"
@@ -1187,14 +1187,14 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
                       }`}
-                      title={isMyanmar ? 'တဲ့ / တိုက်ရိုက်ထိုးကြေး (Straight / Direct)' : 'Straight / Direct'}
+                      title={isMyanmar ? 'ဒဲ့ / တိုက်ရိုက်ထိုးကြေး (Straight / Direct)' : 'Straight / Direct'}
                     >
                       <Check className="w-3 h-3" />
-                      <span>{isMyanmar ? 'တဲ့' : 'Direct'}</span>
+                      <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
                     </button>
                   )}
 
-                  {/* 1. အာ (Rumble / Reversal) */}
+                  {/* 1. ပတ်လည် (Rumble / Reversal) */}
                   {enabledButtons.rumble && (
                     <button
                       type="button"
@@ -1204,10 +1204,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                           ? 'bg-teal-600 text-white ring-1 ring-teal-500'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
                       }`}
-                      title={isMyanmar ? 'အာ / ပတ်လည် (R)' : 'Rumble (R)'}
+                      title={isMyanmar ? 'ပတ်လည် (R)' : 'Rumble (R)'}
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>{isMyanmar ? 'အာ' : 'R'}</span>
+                      <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
                     </button>
                   )}
 
@@ -1604,14 +1604,50 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-[10px]">
-                  <span className="flex items-center gap-1 text-amber-700 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 border border-amber-600" />
-                    {isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}
-                  </span>
-                  <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (latestDraftIds.length === 0 && items.length > 0) {
+                        playTapSound();
+                        setLatestDraftIds(items.map(i => i.id));
+                        showToast(isMyanmar ? 'ဂဏန်းအားလုံးကို စစ်ဆေးဆဲအဖြစ် သတ်မှတ်ထားပါသည်' : 'Marked all as draft', 'warning');
+                      }
+                    }}
+                    className={`flex items-center gap-1 font-medium transition-colors ${
+                      latestDraftIds.length > 0
+                        ? 'text-amber-800 font-bold bg-amber-100/90 px-1.5 py-0.5 rounded-full border border-amber-300'
+                        : 'text-amber-700'
+                    }`}
+                    title={isMyanmar ? 'စစ်ဆေးဆဲ (Draft)' : 'Draft items'}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400 border border-amber-600 animate-pulse" />
+                    <span>{isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}</span>
+                    {latestDraftIds.length > 0 && (
+                      <span className="font-mono text-[9px] bg-amber-200 px-1 rounded-full font-bold">
+                        {latestDraftIds.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (latestDraftIds.length > 0) {
+                        playTapSound();
+                        setLatestDraftIds([]);
+                        showToast(isMyanmar ? 'စစ်ဆေးဆဲ ဂဏန်းများကို ယာယီအတည်ပြုပြီးပါပြီ' : 'Draft items confirmed', 'success');
+                      }
+                    }}
+                    className={`flex items-center gap-1 font-medium transition-colors ${
+                      latestDraftIds.length > 0
+                        ? 'text-emerald-800 font-bold bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-full border border-emerald-300 cursor-pointer shadow-2xs active:scale-95'
+                        : 'text-emerald-700'
+                    }`}
+                    title={isMyanmar ? 'စစ်ဆေးဆဲ ဂဏန်းများအားလုံးကို ယာယီအတည်ပြုမည်' : 'Confirm all drafts'}
+                  >
                     <span className="w-2 h-2 rounded-full bg-emerald-500 border border-emerald-700" />
-                    {isMyanmar ? 'ယာယီအတည်' : 'Confirmed'}
-                  </span>
+                    <span>{isMyanmar ? 'ယာယီအတည်' : 'Confirmed'}</span>
+                  </button>
                 </div>
                 {items.length > 0 && (
                   <button
@@ -1669,15 +1705,31 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                           </span>
                         )}
                         {isDraft ? (
-                          <span className="text-[10px] bg-amber-200 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playTapSound();
+                              setLatestDraftIds(prev => prev.filter(id => id !== item.id));
+                            }}
+                            title={isMyanmar ? 'ဤဂဏန်းကို ယာယီအတည်ပြုရန် နှိပ်ပါ' : 'Click to confirm this bet'}
+                            className="text-[10px] bg-amber-200 hover:bg-amber-300 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                          >
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping" />
                             <span>{isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft'}</span>
-                          </span>
+                          </button>
                         ) : (
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playTapSound();
+                              setLatestDraftIds(prev => [...prev, item.id]);
+                            }}
+                            title={isMyanmar ? 'စစ်ဆေးဆဲအဖြစ် ပြန်ထားရန် နှိပ်ပါ' : 'Click to mark as draft'}
+                            className="text-[10px] bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 cursor-pointer transition-colors"
+                          >
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>{isMyanmar ? 'ယာယီအတည်' : 'OK'}</span>
-                          </span>
+                          </button>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">

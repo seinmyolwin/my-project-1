@@ -213,8 +213,8 @@ export interface TwoDForwardSlip {
 }
 
 export interface TwoDQuickActionButtonsConfig {
-  straight: boolean;    // တဲ့ (တိုက်ရိုက်ထိုးကြေး)
-  rumble: boolean;      // အာ (ပတ်လည် / R)
+  straight: boolean;    // ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)
+  rumble: boolean;      // ပတ်လည် (အာ / R)
   break: boolean;       // ရိတ် (ဘရိတ် ၁၀ ကွက်)
   includes: boolean;    // အပါ (အပါ ၁၉ ကွက်)
   head: boolean;        // ထိပ် (ထိပ်စီး ၁၀ ကွက်)
