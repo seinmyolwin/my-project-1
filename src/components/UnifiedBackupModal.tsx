@@ -62,13 +62,6 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   const [prunePin, setPrunePin] = useState('');
   const [prunePinError, setPrunePinError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-  const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage(null), 4000);
-  };
-
   // Calculate Date Boundaries based on retentionPeriod
   const { startDate, endDate, periodLabel } = useMemo(() => {
     switch (retentionPeriod) {
@@ -133,6 +126,9 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
       return d >= startDate && d <= endDate;
     });
   }, [football.slips, startDate, endDate]);
+
+  if (!isOpen) return null;
+  console.log('UnifiedBackupModal opened, activeTab:', activeTab);
 
   const totalFilteredCount = filtered3DVouchers.length + filtered2DVouchers.length + filteredFootballSlips.length;
 

@@ -653,6 +653,10 @@ ${settings.shopName} (${settings.shopPhone})`;
       {/* Real-time Settlement Summary Banner */}
       {(isTestingMode || isWinningConfirmed || isSettled) && activeEvalNumber.length === 3 && (
         <div className="space-y-4 animate-in fade-in duration-300">
+          <h3 className="text-sm font-black text-slate-800 uppercase flex items-center gap-2 mt-4">
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
+            {isMyanmar ? 'ဘဏ္ဍာရေး ရလဒ်များ' : 'Financial Outcomes'}
+          </h3>
           
           {/* Prominent Next Round Launcher Banner */}
           {activeRound?.status === 'settled' && !isTestingMode && (

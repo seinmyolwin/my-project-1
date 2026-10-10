@@ -832,13 +832,31 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     });
 
     let hasOverLimit = false;
+    const overLimitItemsInfo: OverLimitItemInfo[] = [];
+
     Object.entries(cartTotals).forEach(([num, totalInCart]) => {
       const limit = getNumberLimit(num);
       const existingSold = aggregates[num]?.totalSold || 0;
       if (limit > 0 && (existingSold + totalInCart > limit)) {
         hasOverLimit = true;
+        overLimitItemsInfo.push({
+          id: `overlimit-${num}-${Date.now()}`,
+          number: num,
+          limit: limit,
+          existingSold: existingSold,
+          originalAmount: totalInCart,
+          excessAmount: Math.max(0, existingSold + totalInCart - limit),
+          remainingQuota: Math.max(0, limit - existingSold)
+        });
       }
     });
+
+    if (hasOverLimit) {
+      setPendingOverLimitItems(overLimitItemsInfo);
+      setIsOverLimitModalOpen(true);
+      setIsSavingVoucher(false);
+      return;
+    }
 
     // Save voucher directly to ledger without interrupting the user
     finalizeAndSaveVoucher(stagedItems);
