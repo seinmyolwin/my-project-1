@@ -508,8 +508,8 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <Bell className="w-4 h-4" />
                     {alertCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
-                        {alertCount > 9 ? '9+' : alertCount}
+                      <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] min-w-4 px-1 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                        {alertCount}
                       </span>
                     )}
                   </button>
