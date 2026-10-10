@@ -67,17 +67,11 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
   const handleLiveSync = async () => {
+    if (mode !== '3d') return;
     setIsSyncing(true);
-    setSyncToast('ထိုင်း SET & အစိုးရထီ ဝက်ဘ်ဆိုက်မှ တိုက်ရိုက် ရယူနေပါသည်...');
+    setSyncToast('ထိုင်းအစိုးရထီ ဝက်ဘ်ဆိုက်မှ တိုက်ရိုက် ရယူနေပါသည်...');
     try {
-      if (mode === '2d') {
-        await lottery2D.syncLiveRounds();
-      } else if (mode === '3d') {
-        await lottery3D.syncLiveRounds();
-      } else {
-        await lottery2D.syncLiveRounds();
-        await lottery3D.syncLiveRounds();
-      }
+      await lottery3D.syncLiveRounds();
       setSyncToast('ယနေ့ရက်စွဲနှင့် ထွက်ဂဏန်းများ အောင်မြင်စွာ Update ပြုလုပ်ပြီးပါပြီ ✓');
       setTimeout(() => setSyncToast(null), 3000);
     } catch {
@@ -359,10 +353,17 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
         {/* ==================================================== */}
         <div className="bg-slate-900 text-slate-200 px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-              <span>ထိုင်း SET & အစိုးရထီ တိုက်ရိုက်ချိတ်ဆက်ထားသည်</span>
-            </span>
+            {mode === '3d' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                <span>ထိုင်းအစိုးရထီ တိုက်ရိုက်ချိတ်ဆက်ထားသည်</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0"></span>
+                <span>{mode === '2d' ? 'ဇီးကွက် ပွဲစဉ်မှတ်တမ်း' : 'ပစ်တိုင်းထောင် ပွဲစဉ်မှတ်တမ်း'}</span>
+              </span>
+            )}
             <span className="text-slate-400 text-[11px] flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <span>ဒီနေ့ရက်စွဲ:</span>
@@ -370,23 +371,25 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            {syncToast && (
-              <span className="text-emerald-400 font-bold text-[11px] animate-in fade-in">
-                {syncToast}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleLiveSync}
-              disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
-              title="ထိုင်းတရားဝင် ဝက်ဘ်ဆိုက်မှ အချက်အလက်များ အသစ်ရယူမည်"
-            >
-              <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'အသစ်ရယူနေသည်...' : 'Live Update'}</span>
-            </button>
-          </div>
+          {mode === '3d' && (
+            <div className="flex items-center gap-2">
+              {syncToast && (
+                <span className="text-emerald-400 font-bold text-[11px] animate-in fade-in">
+                  {syncToast}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleLiveSync}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+                title="ထိုင်းတရားဝင် ဝက်ဘ်ဆိုက်မှ အချက်အလက်များ အသစ်ရယူမည်"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'အသစ်ရယူနေသည်...' : 'Live Update'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ==================================================== */}

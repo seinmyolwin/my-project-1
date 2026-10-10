@@ -15,7 +15,8 @@ import {
   Layers,
   AlertTriangle,
   CheckSquare,
-  Square
+  Square,
+  Info
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDNumberAggregate, TwoDForwardSlip } from '../../types';

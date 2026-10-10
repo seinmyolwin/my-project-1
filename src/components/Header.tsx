@@ -54,6 +54,7 @@ interface HeaderProps {
   onOpenTitleModal?: () => void;
   onOpenViberHub?: () => void;
   onOpenTelegramHub?: () => void;
+  onEnterFocusMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -73,7 +74,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPreviousResults,
   onOpenTitleModal,
   onOpenViberHub,
-  onOpenTelegramHub
+  onOpenTelegramHub,
+  onEnterFocusMode
 }) => {
   // Contexts
   const lottery3D = useLottery();
@@ -565,15 +567,21 @@ export const Header: React.FC<HeaderProps> = ({
           {dealerMode === '3d' && (
             <nav className="flex space-x-1 sm:space-x-2 py-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
               <button
-                onClick={() => setActiveTab('sales')}
+                onClick={() => {
+                  setActiveTab('sales');
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    onEnterFocusMode?.();
+                  }
+                }}
                 className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                   activeTab === 'sales'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
                 }`}
+                title="အမြန်စာရင်းသွင်းရန် (ဖုန်း/Tablet တွင် Focus Mode သို့ တိုက်ရိုက်ဝင်ရောက်နိုင်ပါသည်)"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? 'အမှာစာ / စာရင်းသွင်း' : 'Order Entry'}</span>
+                <span>{isMyanmar ? 'အမြန်စာရင်းသွင်းရန်' : 'Quick Entry'}</span>
               </button>
 
               <button
@@ -629,15 +637,21 @@ export const Header: React.FC<HeaderProps> = ({
           {dealerMode === '2d' && (
             <nav className="flex space-x-1 sm:space-x-2 py-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
               <button
-                onClick={() => setActiveTab('sales')}
+                onClick={() => {
+                  setActiveTab('sales');
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    onEnterFocusMode?.();
+                  }
+                }}
                 className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                   activeTab === 'sales'
                     ? 'bg-teal-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
                 }`}
+                title="အမြန်စာရင်းသွင်းရန် (ဖုန်း/Tablet တွင် Focus Mode သို့ တိုက်ရိုက်ဝင်ရောက်နိုင်ပါသည်)"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{isMyanmar ? 'အမှာစာ / စာရင်းသွင်း' : 'Order Entry'}</span>
+                <span>{isMyanmar ? 'အမြန်စာရင်းသွင်းရန်' : 'Quick Entry'}</span>
               </button>
 
               <button

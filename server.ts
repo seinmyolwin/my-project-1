@@ -23,40 +23,12 @@ async function startServer() {
   // Mount Telegram and Viber messaging integration router
   app.use('/api', createMessagingRouter());
 
-  // Live Thai 2D / 3D Results proxy endpoint
+  // Live Thai 3D Results proxy endpoint
   app.get('/api/lottery/live-results', async (req, res) => {
     try {
-      let live2DData: any = null;
       let live3DData: any = null;
-      let history2DData: any[] = [];
 
-      // 1. Attempt to fetch Thai 2D live from official ThaiStock2D
-      try {
-        const response2D = await fetch('https://api.thaistock2d.com/live', {
-          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(3500)
-        });
-        if (response2D.ok) {
-          live2DData = await response2D.json();
-        }
-      } catch (err2d) {
-        // Fallback
-      }
-
-      // 2. Attempt to fetch Thai 2D history
-      try {
-        const responseHistory = await fetch('https://api.thaistock2d.com/history', {
-          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(3500)
-        });
-        if (responseHistory.ok) {
-          history2DData = await responseHistory.json();
-        }
-      } catch (errHist) {
-        // Fallback
-      }
-
-      // 3. Attempt to fetch Thai 3D latest from Thai Lottery API
+      // Attempt to fetch Thai 3D latest from Thai Lottery API
       try {
         const response3D = await fetch('https://thai-lottery-api.vercel.app/latest', {
           headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
@@ -69,25 +41,10 @@ async function startServer() {
         // Fallback
       }
 
-      // If live 2D is unavailable from external API, supply official confirmed SET 2D data
-      if (!live2DData || !live2DData.result || live2DData.result.length < 2) {
-        live2DData = {
-          time: '16:30:00',
-          date: '2026-10-06',
-          result: [
-            { set: '1324.86', value: '23415.86', twod: '86', time: '12:01:00' },
-            { set: '1320.29', value: '42186.29', twod: '29', time: '16:30:00' }
-          ],
-          live: { set: '1320.29', value: '42186.29', twod: '29', time: '16:30:00' }
-        };
-      }
-
       res.json({
         success: true,
-        source: 'Thai Stock Exchange (SET) & Official Thai GLO Lottery',
+        source: 'Official Thai GLO Lottery',
         timestamp: new Date().toISOString(),
-        live2D: live2DData,
-        history2D: history2DData,
         live3D: live3DData
       });
     } catch (error: any) {

@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   X,
   Edit3,
-  Lock
+  Lock,
+  ArrowLeft,
+  Printer
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher } from '../types';
@@ -40,12 +42,16 @@ interface QuickSaleEntryProps {
   onVoucherCreated: (voucher: Voucher) => void;
   onOpenForwardModal?: (num?: string, amt?: number) => void;
   onOpenRoundManager?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: (active: boolean) => void;
 }
 
 export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   onVoucherCreated,
   onOpenForwardModal,
-  onOpenRoundManager
+  onOpenRoundManager,
+  isFocusMode = false,
+  onToggleFocusMode
 }) => {
   const {
     activeRound,
@@ -79,10 +85,40 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   const [amountInput, setAmountInput] = useState('1000');
   const [isRumble, setIsRumble] = useState(false);
 
-  // Staged Bet Items in current voucher
-  const [stagedItems, setStagedItems] = useState<BetItem[]>([]);
+  // Staged Bet Items in current voucher (with localStorage draft checkpoint recovery)
+  const [stagedItems, setStagedItems] = useState<BetItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('pos_quick_sale_3d_draft_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   // Tracking unconfirmed/active draft items (Yellow) vs confirmed staged items (Green)
-  const [latestDraftIds, setLatestDraftIds] = useState<string[]>([]);
+  const [latestDraftIds, setLatestDraftIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('pos_quick_sale_3d_draft_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [confirmClearActive, setConfirmClearActive] = useState(false);
+
+  // Synchronize staged checkpoints to localStorage to protect against refresh / loss
+  useEffect(() => {
+    try {
+      if (stagedItems.length > 0) {
+        localStorage.setItem('pos_quick_sale_3d_draft_items', JSON.stringify(stagedItems));
+        localStorage.setItem('pos_quick_sale_3d_draft_ids', JSON.stringify(latestDraftIds));
+      } else {
+        localStorage.removeItem('pos_quick_sale_3d_draft_items');
+        localStorage.removeItem('pos_quick_sale_3d_draft_ids');
+      }
+    } catch {
+      // safe fallback for private browsing
+    }
+  }, [stagedItems, latestDraftIds]);
 
   // Batch / Quick text mode toggle
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -104,6 +140,59 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     type: 'error' | 'warning' | 'success';
     message: string;
   } | null>(null);
+
+  // Focus Mode States
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [lastAddedFeedback, setLastAddedFeedback] = useState<{
+    text: string;
+    number: string;
+    type: string;
+    amount: number;
+    count: number;
+  } | null>(null);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+  const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(false);
+  const voucherListEndRef = useRef<HTMLDivElement>(null);
+
+  // Track dynamic virtual viewport height for mobile keyboards
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const handleResize = () => {
+      setViewportHeight(window.visualViewport!.height);
+    };
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+    handleResize();
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    };
+  }, []);
+
+  // Auto-dismiss last added feedback banner after 3.5 seconds
+  useEffect(() => {
+    if (lastAddedFeedback) {
+      const timer = setTimeout(() => {
+        setLastAddedFeedback(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [lastAddedFeedback]);
+
+  // Auto-scroll voucher ticket list to bottom whenever new items are added
+  useEffect(() => {
+    if (stagedItems.length > 0) {
+      voucherListEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [stagedItems.length]);
+
+  const handleRequestExitFocus = () => {
+    if (stagedItems.length > 0) {
+      setShowExitConfirmModal(true);
+    } else {
+      onToggleFocusMode?.(false);
+    }
+  };
 
   useEffect(() => {
     if (toastNotification) {
@@ -340,21 +429,28 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
             number: cleanNum,
             amount: amount,
             isRumble: false,
+            betType: 'straight',
             originalInput: cleanNum
           });
         }
       } else {
         const perms = getPermutations(cleanNum);
+        const groupId = `r3d-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
         perms.forEach(p => {
           if (isNumberBlocked(p)) {
             blockedFound.push(p);
           } else {
-            if (!newItems.some(item => item.number === p)) {
+            if (!newItems.some(item => item.number === p && item.groupId === groupId)) {
               newItems.push({
                 id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
                 number: p,
                 amount: amount,
                 isRumble: true,
+                betType: 'rumble',
+                groupId,
+                originalNumber: cleanNum,
+                originalAmount: amount,
+                permutations: perms,
                 originalInput: `${cleanNum} R`
               });
             }
@@ -375,14 +471,29 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       playAddSound();
       setStagedItems(prev => [...prev, ...newItems]);
       setLatestDraftIds(newItems.map(i => i.id));
+      
+      const displayNum = targetNumbers.length === 1 ? targetNumbers[0] : `${targetNumbers[0]} (${targetNumbers.length} ကွက်)`;
+      const typeName = effectiveRumble ? (isMyanmar ? 'ပတ်လည်' : 'R') : (isMyanmar ? 'ဒဲ့' : 'Direct');
+      const totalEnteredAmt = amount * newItems.length;
+      setLastAddedFeedback({
+        text: `ဂဏန်း [${displayNum}] (${typeName}) ${formatAmount(totalEnteredAmt, settings.currency)}`,
+        number: displayNum,
+        type: typeName,
+        amount: totalEnteredAmt,
+        count: newItems.length
+      });
+
+      // Reset number input immediately, keep amountInput in focus mode for rapid-fire sequence!
       setNumberInput('');
-      setAmountInput('');
+      if (!isFocusMode) {
+        setAmountInput('');
+      }
       setIsRumble(false);
       numberInputRef.current?.focus();
       setToastNotification({
         type: 'success',
         message: isMyanmar
-          ? `ဂဏန်းပေါင်း (${newItems.length}) ကွက် ဘောင်ချာထဲသို့ ထည့်သွင်းပြီးပါပြီ`
+          ? `ဂဏန်း [${displayNum}] (${typeName}) ${formatAmount(totalEnteredAmt, settings.currency)} ထည့်ပြီးပါပြီ`
           : `Added ${newItems.length} items to voucher`
       });
     }
@@ -435,21 +546,13 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       const targetNumbers = rawTokens.map(t => t.padStart(3, '0')).filter(n => /^\d{3}$/.test(n));
 
       if (targetNumbers.length > 0) {
-        const expanded: string[] = [];
-        targetNumbers.forEach(n => {
-          const perms = getPermutations(n);
-          perms.forEach(r => {
-            if (!expanded.includes(r)) expanded.push(r);
-          });
-        });
-        setNumberInput(expanded.join(', '));
-        setIsRumble(false);
+        setIsRumble(true);
         amountInputRef.current?.focus();
         setToastNotification({
           type: 'success',
           message: isMyanmar
-            ? `ပတ်လည် ${expanded.length} ကွက် ပြင်ဆင်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
-            : `Applied rumble (${expanded.length} numbers). Enter amount and tap Add.`
+            ? `ပတ်လည် (R) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
+            : `Rumble (R) selected. Enter amount and tap Add.`
         });
         return;
       }
@@ -479,42 +582,70 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   // Edit Draft Item (fills input form and recalculates totals and limits upon update)
   const handleEditItem = (item: BetItem) => {
     playTapSound();
-    setNumberInput(item.number);
-    setAmountInput(String(item.amount));
-    setIsRumble(item.isRumble || false);
-    // Remove from draft list so user can edit and add back
-    setStagedItems(prev => prev.filter(i => i.id !== item.id));
-    setLatestDraftIds(prev => prev.filter(id => id !== item.id));
+    const origNum = item.originalNumber || item.number;
+    const origAmt = item.originalAmount || item.amount;
+    const isR = item.isRumble || false;
+
+    setNumberInput(origNum);
+    setAmountInput(String(origAmt));
+    setIsRumble(isR);
+
+    // If item is part of a Rumble group, remove the entire group so it doesn't leave orphaned permutations
+    if (item.groupId) {
+      const gId = item.groupId;
+      const removedIds = new Set(stagedItems.filter(i => i.groupId === gId).map(i => i.id));
+      setStagedItems(prev => prev.filter(i => i.groupId !== gId));
+      setLatestDraftIds(prev => prev.filter(id => !removedIds.has(id)));
+    } else {
+      setStagedItems(prev => prev.filter(i => i.id !== item.id));
+      setLatestDraftIds(prev => prev.filter(id => id !== item.id));
+    }
+
     numberInputRef.current?.focus();
     setToastNotification({
       type: 'warning',
-      message: `ဂဏန်း [${item.number}] အား ပြင်ဆင်ရန် အောက်ပါအကွက်တွင် ဖြည့်သွင်းထားပါသည်`
+      message: `ဂဏန်း [${origNum}] အား ပြင်ဆင်ရန် အောက်ပါအကွက်တွင် ဖြည့်သွင်းထားပါသည်`
     });
   };
 
   // Restart / Rollback from a specific Checkpoint item (Rule #9, #10)
-  // Keeps all items before this index, populates input controls with this item's data,
-  // and removes this item and any subsequent items from draft state.
+  // Keeps all items before this index (or before this entire rumble group),
+  // populates input controls with this item's data, and cleans up subsequent items.
   const handleRestartFromCheckpoint = (index: number, item: BetItem) => {
     playTapSound();
-    const preservedItems = stagedItems.slice(0, index);
+    let preservedItems: BetItem[];
+    if (item.groupId) {
+      const firstGroupIdx = stagedItems.findIndex(i => i.groupId === item.groupId);
+      preservedItems = stagedItems.slice(0, firstGroupIdx >= 0 ? firstGroupIdx : index);
+    } else {
+      preservedItems = stagedItems.slice(0, index);
+    }
+
     setStagedItems(preservedItems);
     setLatestDraftIds([]);
-    setNumberInput(item.number);
-    setAmountInput(String(item.amount));
+    setNumberInput(item.originalNumber || item.number);
+    setAmountInput(String(item.originalAmount || item.amount));
     setIsRumble(item.isRumble || false);
     numberInputRef.current?.focus();
     setToastNotification({
       type: 'warning',
-      message: `ဂဏန်း [${item.number}] မှ ပြန်လည်စတင်ရန် Input Box ထဲ ပြန်ထည့်ပေးထားပြီး ယခင် Checkpoint အထိ အပြည့်အဝ ထိန်းသိမ်းထားပါသည်`
+      message: `ဂဏန်း [${item.originalNumber || item.number}] မှ ပြန်လည်စတင်ရန် Input Box ထဲ ပြန်ထည့်ပေးထားပြီး ယခင် Checkpoint အထိ အပြည့်အဝ ထိန်းသိမ်းထားပါသည်`
     });
   };
 
-  // Remove Item
+  // Remove Item (removes entire rumble group if part of a group, avoiding orphaned permutations)
   const handleRemoveItem = (id: string) => {
     playDeleteSound();
-    setStagedItems(prev => prev.filter(item => item.id !== id));
-    setLatestDraftIds(prev => prev.filter(item => item !== id));
+    const target = stagedItems.find(i => i.id === id);
+    if (target?.groupId) {
+      const gId = target.groupId;
+      const removedIds = new Set(stagedItems.filter(i => i.groupId === gId).map(i => i.id));
+      setStagedItems(prev => prev.filter(item => item.groupId !== gId));
+      setLatestDraftIds(prev => prev.filter(item => !removedIds.has(item)));
+    } else {
+      setStagedItems(prev => prev.filter(item => item.id !== id));
+      setLatestDraftIds(prev => prev.filter(item => item !== id));
+    }
   };
 
   // Add Pattern Numbers (e.g. Triples/Doubles, Power, Natkhat)
@@ -590,7 +721,11 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     const voucherItems: VoucherItem[] = itemsToSave.map(item => ({
       number: item.number,
       amount: item.amount,
-      betType: item.isRumble ? 'rumble' : 'straight'
+      betType: item.isRumble ? 'rumble' : 'straight',
+      groupId: item.groupId,
+      originalNumber: item.originalNumber,
+      originalAmount: item.originalAmount,
+      permutations: item.permutations
     }));
 
     const finalSubtotal = itemsToSave.reduce((acc, item) => acc + item.amount, 0);
@@ -780,8 +915,615 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
   const quickAmounts = [500, 1000, 2000, 3000, 5000, 10000, 20000];
 
+  // =========================================================================
+  // 3D QUICK ENTRY FOCUS MODE (FOR PHONES & TABLETS)
+  // =========================================================================
+  if (isFocusMode) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden font-sans select-none"
+        style={viewportHeight ? { height: `${viewportHeight}px` } : { height: '100dvh' }}
+      >
+        {/* Top Distraction-free Focus Header */}
+        <header className="shrink-0 bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 shadow-2xs">
+          <button
+            type="button"
+            onClick={handleRequestExitFocus}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-xs min-h-[44px] cursor-pointer transition-colors shadow-2xs"
+            title="Focus Mode မှ ထွက်မည်"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-700" />
+            <span>{isMyanmar ? 'ထွက်မည်' : 'Exit'}</span>
+          </button>
+
+          <div className="text-center min-w-0 flex-1 px-1">
+            <h2 className="text-xs sm:text-sm font-black text-slate-900 truncate flex items-center justify-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span>{isMyanmar ? '3D အမြန်စာရင်းသွင်း' : '3D Quick Entry'}</span>
+            </h2>
+            <div className="text-[11px] text-indigo-700 font-bold truncate">
+              {activeRound?.name || 'ပွဲစဉ်'} {activeRound?.status === 'open' ? '● ဖွင့်ထားသည်' : '● ပိတ်ထားသည်'}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsScannerModalOpen(true)}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-indigo-800 border border-slate-200 cursor-pointer shadow-2xs transition-colors"
+              title="စလစ်ဓါတ်ပုံ စကင်ဖတ်ရန်"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBatchModal(true)}
+              className="min-h-[44px] px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer shadow-2xs transition-colors font-bold text-xs flex items-center gap-1"
+              title="စာသားကူးထည့်ရန်"
+            >
+              <FileText className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{isMyanmar ? 'ကူးထည့်' : 'Batch'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveVoucher}
+              disabled={stagedItems.length === 0}
+              className={`min-h-[44px] px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs cursor-pointer transition-all ${
+                stagedItems.length === 0
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white'
+              }`}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{isMyanmar ? 'ဘောင်ချာ' : 'Save'}</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Voucher Draft & Items Table on TOP (Requirement 3) */}
+        <section className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden border-b border-slate-200">
+          {/* Customer & Discount Header */}
+          <div className="bg-slate-50/90 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0">
+            <div className="flex items-center gap-2 truncate">
+              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="font-semibold text-slate-800 truncate">
+                {customerName ? customerName : (isMyanmar ? 'အထွေထွေ (General)' : 'General')}
+              </span>
+              {customerPhone && (
+                <span className="text-[11px] font-mono text-slate-500 truncate">({customerPhone})</span>
+              )}
+              {discountPercent > 0 && (
+                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
+                  -{discountPercent}%
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCustomerDetailsOpen(!isCustomerDetailsOpen)}
+              className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer shrink-0 ml-2"
+            >
+              {isCustomerDetailsOpen ? (isMyanmar ? 'ပိတ်မည်' : 'Close') : (isMyanmar ? 'အမည်ပြင်' : 'Edit')}
+            </button>
+          </div>
+
+          {/* Customer Details Drawer if opened */}
+          {isCustomerDetailsOpen && (
+            <div className="bg-slate-100/90 p-2.5 border-b border-slate-200 grid grid-cols-12 gap-2 animate-in fade-in duration-150 shrink-0">
+              <input
+                type="text"
+                placeholder={isMyanmar ? 'ထိုးသူအမည်' : 'Customer Name'}
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className="col-span-6 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-medium"
+              />
+              <input
+                type="tel"
+                placeholder={isMyanmar ? 'ဖုန်းနံပါတ်' : 'Phone'}
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                className="col-span-4 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-medium"
+              />
+              <div className="col-span-2 relative">
+                <input
+                  type="number"
+                  min={0}
+                  max={30}
+                  placeholder="%"
+                  value={discountPercent || ''}
+                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold text-center"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Checkpoints Bar (Requirement 5) */}
+          <div className="px-3 py-2 bg-slate-100/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800 text-xs">
+                {isMyanmar ? 'ထိုးဂဏန်းများ' : 'Bets'} ({stagedItems.length})
+              </span>
+              <span className="font-mono font-black text-sm text-indigo-700">
+                {formatAmount(netPayable, settings.currency)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Yellow Draft Checkpoint */}
+              <div
+                className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border ${
+                  latestDraftIds.length > 0
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-300'
+                    : 'bg-white text-slate-500 border-slate-200 opacity-60'
+                }`}
+                title={isMyanmar ? 'စစ်ဆေးဆဲ ဂဏန်းများ' : 'Draft items'}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>{isMyanmar ? 'ဝါ (စစ်ဆေးဆဲ' : 'Yellow'}: {latestDraftIds.length}</span>
+              </div>
+
+              {/* Green Confirmed Checkpoint */}
+              <div
+                className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border ${
+                  stagedItems.length - latestDraftIds.length > 0
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : 'bg-white text-slate-500 border-slate-200 opacity-60'
+                }`}
+                title={isMyanmar ? 'အတည်ပြုပြီး ဂဏန်းများ' : 'Confirmed items'}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                <span>{isMyanmar ? 'စိမ်း (အတည်' : 'Green'}: {stagedItems.length - latestDraftIds.length}</span>
+              </div>
+
+              {/* Confirm all drafts button */}
+              {latestDraftIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playTapSound();
+                    setLatestDraftIds([]);
+                    setToastNotification({
+                      type: 'success',
+                      message: isMyanmar ? 'ဂဏန်းအားလုံးကို ယာယီအတည်ပြုပြီးပါပြီ' : 'Draft items confirmed'
+                    });
+                  }}
+                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95 transition-all"
+                  title="စစ်ဆေးဆဲ ဂဏန်းများအားလုံးကို ယာယီအတည်ပြုမည်"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>{isMyanmar ? 'ယာယီအတည်' : 'OK'}</span>
+                </button>
+              )}
+
+              {/* Clear all items */}
+              {stagedItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playDeleteSound();
+                    setStagedItems([]);
+                    setLatestDraftIds([]);
+                    setToastNotification({
+                      type: 'warning',
+                      message: isMyanmar ? 'စာရင်းသွင်းထားသော ဂဏန်းအားလုံးကို ဖျက်လိုက်ပါပြီ' : 'Cleared all items'
+                    });
+                  }}
+                  className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                  title="အားလုံးဖျက်မည်"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Scrollable Items List */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1.5 bg-slate-50/50">
+            {stagedItems.length === 0 ? (
+              <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-slate-400 space-y-2 py-8">
+                <Receipt className="w-8 h-8 stroke-1 text-slate-300" />
+                <p className="text-xs font-semibold text-slate-500">
+                  {isMyanmar ? 'ဘောင်ချာထဲတွင် ဂဏန်းများ မရှိသေးပါ' : 'No items added yet'}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {isMyanmar ? 'အောက်ပါအကွက်တွင် ဂဏန်းရိုက်ပြီး “ထည့်မည်” ကို နှိပ်ပါ' : 'Type number below and press Add'}
+                </p>
+              </div>
+            ) : (
+              stagedItems.map((item, idx) => {
+                const isDraft = latestDraftIds.includes(item.id);
+                const isLatest = lastAddedFeedback && lastAddedFeedback.number.includes(item.number);
+                return (
+                  <div
+                    key={item.id}
+                    className={`py-2 px-3 flex items-center justify-between rounded-xl transition-all ${
+                      isDraft
+                        ? 'bg-amber-50/95 border-2 border-amber-400 text-amber-950 shadow-xs ring-1 ring-amber-400/40'
+                        : 'bg-emerald-50/90 border border-emerald-300 text-emerald-950 shadow-2xs'
+                    } ${isLatest ? 'animate-pulse' : ''}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-xs font-mono w-5 font-bold shrink-0 ${isDraft ? 'text-amber-700' : 'text-emerald-700'}`}>
+                        {idx + 1}.
+                      </span>
+                      <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 tracking-wider">
+                        {item.number}
+                      </span>
+                      {item.isRumble && (
+                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-900 text-[10px] font-black rounded shrink-0">
+                          R
+                        </span>
+                      )}
+                      {item.originalInput && item.originalInput !== item.number && (
+                        <span className="text-[10px] font-medium text-slate-500 truncate max-w-[80px]">
+                          {item.originalInput}
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                          isDraft
+                            ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                            : 'bg-emerald-200 text-emerald-900 border border-emerald-300'
+                        }`}
+                      >
+                        {isDraft ? (isMyanmar ? 'စစ်ဆေးဆဲ' : 'Draft') : (isMyanmar ? 'အတည်' : 'OK')}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-sm sm:text-base font-black text-emerald-700">
+                        {formatAmount(item.amount, settings.currency)}
+                      </span>
+                      {/* Touch-friendly Large Edit Button (min 44px) - Requirement 5 */}
+                      <button
+                        type="button"
+                        onClick={() => handleEditItem(item)}
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-indigo-100 text-slate-700 active:text-indigo-800 transition-colors cursor-pointer"
+                        title={isMyanmar ? 'ပြင်ဆင်မည်' : 'Edit item'}
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      {/* Touch-friendly Large Delete Button (min 44px) - Requirement 5 */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition-colors cursor-pointer"
+                        title={isMyanmar ? 'ဖျက်မည်' : 'Delete item'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={voucherListEndRef} />
+          </div>
+        </section>
+
+        {/* Bottom Docked Section: Number/Stake Input & Add (Requirement 3) */}
+        <footer className="shrink-0 bg-white border-t border-slate-200 p-2 sm:p-3 shadow-xl space-y-2">
+          {/* Instant Feedback Banner (Requirement 4) */}
+          {lastAddedFeedback && (
+            <div className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="flex items-center gap-1.5 truncate">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-200" />
+                <span className="truncate">✓ {lastAddedFeedback.text}</span>
+              </div>
+              <span className="text-[10px] text-emerald-100 font-mono shrink-0 ml-1">
+                {isMyanmar ? 'ဘောင်ချာထဲသို့ ဝင်သွားပါပြီ' : 'Added to slip'}
+              </span>
+            </div>
+          )}
+
+          {/* Quick Shortcuts Bar (3D Patterns) */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+            <button
+              type="button"
+              onClick={handleAddStraightClick}
+              className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                !isRumble ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleAddRumbleClick}
+              className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.triples, isMyanmar ? 'အပူး' : 'Triples')}
+              className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+            >
+              <span>{isMyanmar ? 'အပူး' : 'Triples'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.consecutives, isMyanmar ? 'ညီကို' : 'Brothers')}
+              className="px-2.5 py-1.5 bg-teal-50 text-teal-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+            >
+              <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getPowerPairs().slice(0, 15), isMyanmar ? 'ပါဝါ' : 'Power')}
+              className="px-2.5 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+            >
+              <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getNatkhatPairs().slice(0, 15), isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
+              className="px-2.5 py-1.5 bg-rose-50 text-rose-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+            >
+              <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
+            </button>
+          </div>
+
+          {/* Main Input Controls: Number -> Stake -> Add (Requirement 6) */}
+          <form onSubmit={handleAddBet} className="space-y-1.5">
+            <div className="grid grid-cols-12 gap-2 items-center">
+              {/* Number Input */}
+              <div className="col-span-5">
+                <input
+                  ref={numberInputRef}
+                  type="text"
+                  placeholder={isMyanmar ? 'ဂဏန်း' : 'Number'}
+                  value={numberInput}
+                  onChange={(e) => {
+                    const val = convertMyanmarToEnglishDigits(e.target.value);
+                    setNumberInput(val);
+                    if (latestDraftIds.length > 0 && val.trim().length > 0) {
+                      setLatestDraftIds([]);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (numberInput.trim().length > 0) {
+                        amountInputRef.current?.focus();
+                        amountInputRef.current?.select();
+                      }
+                    }
+                  }}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  className={`w-full h-12 px-2 text-center font-mono text-xl sm:text-2xl font-black rounded-xl border transition-all ${
+                    isInputBlocked
+                      ? 'border-rose-400 bg-rose-50 text-rose-800'
+                      : 'border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 bg-slate-50 focus:bg-white text-slate-900'
+                  }`}
+                  autoFocus
+                />
+              </div>
+
+              {/* Stake Input */}
+              <div className="col-span-4">
+                <input
+                  ref={amountInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder={isMyanmar ? 'ထိုးကြေး' : 'Stake'}
+                  value={amountInput}
+                  onChange={(e) => {
+                    const val = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '');
+                    setAmountInput(val);
+                    if (latestDraftIds.length > 0 && val.trim().length > 0) {
+                      setLatestDraftIds([]);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddBet();
+                    }
+                  }}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  className="w-full h-12 px-2 text-right font-mono text-base sm:text-lg font-black rounded-xl border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 bg-slate-50 focus:bg-white text-slate-900 transition-all"
+                />
+              </div>
+
+              {/* Add Button */}
+              <div className="col-span-3">
+                <button
+                  type="submit"
+                  disabled={isInputBlocked || isSubmitting}
+                  className={`w-full h-12 font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${
+                    isInputBlocked || isSubmitting
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                      : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white'
+                  }`}
+                >
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span>{isMyanmar ? 'ထည့်မည်' : 'Add'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stake Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+              {quickAmounts.map(amt => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => {
+                    playTapSound();
+                    setAmountInput(String(amt));
+                    numberInputRef.current?.focus();
+                  }}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 active:bg-indigo-100 text-slate-700 text-xs font-bold rounded-lg shrink-0 cursor-pointer"
+                >
+                  {amt >= 1000 ? `${amt / 1000}K` : amt}
+                </button>
+              ))}
+            </div>
+          </form>
+
+          {/* Bottom Total & Save Voucher Bar */}
+          {stagedItems.length > 0 && (
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold truncate">
+                <span>{isMyanmar ? 'ကျသင့်ငွေ:' : 'Total:'}</span>
+                <span className="font-mono font-black text-sm text-indigo-700">
+                  {formatAmount(netPayable, settings.currency)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveVoucher}
+                className="flex-1 max-w-[200px] h-10 px-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>{isMyanmar ? 'ဘောင်ချာထုတ်မည်' : 'Save Slip'}</span>
+              </button>
+            </div>
+          )}
+        </footer>
+
+        {/* Exit Confirmation Dialog (Requirement 9) */}
+        {showExitConfirmModal && (
+          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+              <div className="flex items-center gap-3 text-amber-600">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h4 className="font-black text-base text-slate-900">
+                  {isMyanmar ? 'Focus Mode မှ ထွက်မည်လား?' : 'Exit Focus Mode?'}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {isMyanmar
+                  ? `လက်ရှိဘောင်ချာထဲတွင် စာရင်းသွင်းထားသော ဂဏန်း (${stagedItems.length}) ကွက် ရှိနေပါသေးသည်။ ထွက်လိုက်ပါက အဆိုပါ ဂဏန်းများကို သိမ်းဆည်းမည် မဟုတ်ပါ။`
+                  : `You have ${stagedItems.length} items in the current slip. Exiting without saving will discard them.`}
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowExitConfirmModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer"
+                >
+                  {isMyanmar ? 'ဆက်လက်သွင်းမည်' : 'Continue'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExitConfirmModal(false);
+                    onToggleFocusMode?.(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer"
+                >
+                  {isMyanmar ? 'ထွက်မည် (ဖျက်မည်)' : 'Discard & Exit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modals for 3D Focus Mode */}
+        {showBatchModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 border border-slate-200">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                  <span>{isMyanmar ? 'စာသားကူးထည့်ရန် (Batch Paste)' : 'Batch Paste'}</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchModal(false)}
+                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <textarea
+                value={rawBatchText}
+                onChange={(e) => setRawBatchText(convertMyanmarToEnglishDigits(e.target.value))}
+                placeholder={`123=1000\n456-500\n789R=1000\n555=2000`}
+                rows={5}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-indigo-500"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-xl font-semibold cursor-pointer"
+                >
+                  {isMyanmar ? 'မလုပ်တော့ပါ' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleProcessBatchText();
+                    setShowBatchModal(false);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-xl font-bold shadow-xs cursor-pointer"
+                >
+                  {isMyanmar ? 'စာရင်းသွင်းမည်' : 'Process'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <OverLimitConfirmModal
+          isOpen={isOverLimitModalOpen}
+          onClose={() => {
+            setIsOverLimitModalOpen(false);
+            setPendingOverLimitItems([]);
+          }}
+          overLimitItems={pendingOverLimitItems}
+          customerName={customerName}
+          onConfirm={handleConfirmOverLimit}
+        />
+
+        <ImageSlipScannerModal
+          isOpen={isScannerModalOpen}
+          onClose={() => setIsScannerModalOpen(false)}
+          onAddBetsToCart={handleAddFromScanner}
+          mode="3d"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
+      {/* Mobile/Tablet Enter Focus Mode Banner */}
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => onToggleFocusMode?.(true)}
+          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all"
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>{isMyanmar ? '⚡ အမြန်စာရင်းသွင်း Focus Mode သို့ဝင်မည်' : '⚡ Enter Quick Entry Focus Mode'}</span>
+        </button>
+      </div>
       {/* Floating / Top Toast Notification */}
       {toastNotification && (
         <div
@@ -962,6 +1704,15 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                         setLatestDraftIds([]);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (numberInput.trim().length > 0) {
+                          amountInputRef.current?.focus();
+                          amountInputRef.current?.select();
+                        }
+                      }
+                    }}
                     onFocus={(e) => {
                       const target = e.currentTarget;
                       target.select();
@@ -1115,6 +1866,12 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                         setAmountInput(val);
                         if (latestDraftIds.length > 0 && val.trim().length > 0) {
                           setLatestDraftIds([]);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddBet();
                         }
                       }}
                       onFocus={(e) => {

@@ -424,18 +424,16 @@ export function generateStatementRecords(
           const evalResult = evaluateWinnings(roundVouchers, winningNum, straightMult, toddMult);
           winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
 
-          const toddPerms = new Set(getPermutations(winningNum).filter(p => p !== winningNum));
+          const toddPerms = new Set(getPermutations(winningNum));
 
           let straightSold = 0;
           let toddSold = 0;
-          roundVouchers.forEach((v) => {
-            v.items.forEach((it) => {
-              if (it.number === winningNum) {
-                straightSold += it.amount;
-              } else if (it.betType === 'rumble' && toddPerms.has(it.number)) {
-                toddSold += it.amount;
-              }
-            });
+          evalResult.winners.forEach(w => {
+            if (w.winType === 'straight') {
+              straightSold += w.betAmount;
+            } else if (w.winType === 'todd') {
+              toddSold += w.betAmount;
+            }
           });
 
           let straightForwarded = 0;
@@ -450,7 +448,7 @@ export function generateStatementRecords(
             });
           });
 
-          totalPayout = (straightSold * straightMult) + (toddSold * toddMult);
+          totalPayout = evalResult.totalPayout;
           masterPayout = (straightForwarded * straightMult) + (toddForwarded * toddMult);
           const retainedStraight = Math.max(0, straightSold - straightForwarded);
           const retainedTodd = Math.max(0, toddSold - toddForwarded);

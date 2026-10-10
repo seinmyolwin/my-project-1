@@ -267,11 +267,18 @@ export function parseTwoDBatchInput(
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         const generated = getTwoDKhwayPuuRumble(rawDigits);
+        const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
         generated.forEach((num) => {
           items.push({
             id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
             number: num,
             amount: amt,
+            isRumble: true,
+            betType: 'rumble',
+            groupId,
+            originalNumber: rawDigits,
+            originalAmount: amt,
+            permutations: generated,
             originalInput: `${rawDigits} ခွေပူးr`
           });
         });
@@ -286,11 +293,18 @@ export function parseTwoDBatchInput(
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         const generated = getTwoDKhwayRumble(rawDigits);
+        const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
         generated.forEach((num) => {
           items.push({
             id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
             number: num,
             amount: amt,
+            isRumble: true,
+            betType: 'rumble',
+            groupId,
+            originalNumber: rawDigits,
+            originalAmount: amt,
+            permutations: generated,
             originalInput: `${rawDigits} ခွေr`
           });
         });
@@ -567,12 +581,18 @@ export function parseTwoDBatchInput(
         const numStr = token.padStart(2, '0');
         if (isRumble) {
           const revs = getTwoDReversal(numStr);
+          const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
           revs.forEach(r => {
             items.push({
               id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
               number: r,
               amount: betAmount,
               isRumble: true,
+              betType: 'rumble',
+              groupId,
+              originalNumber: numStr,
+              originalAmount: betAmount,
+              permutations: revs,
               originalInput: `${numStr} R`
             });
           });
@@ -582,6 +602,7 @@ export function parseTwoDBatchInput(
             number: numStr,
             amount: betAmount,
             isRumble: false,
+            betType: 'straight',
             originalInput: numStr
           });
         }

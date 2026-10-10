@@ -207,6 +207,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     // 3. Compute retained amounts, payouts, risk levels
+    const toddMult = activeRound?.toddMultiplier || settings.defaultToddMultiplier || 0;
     (Object.values(map) as NumberAggregate[]).forEach(agg => {
       agg.retainedAmount = Math.max(0, agg.totalSold - agg.forwardedAmount);
       agg.estimatedPayout = agg.retainedAmount * multiplier;
@@ -313,15 +314,15 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       totalWinnersCount = winEval.winners.length;
 
       // Compute retained payouts after deducting forwarded bets
-      const toddPerms = new Set(getPermutations(winningNum).filter((p) => p !== winningNum));
+      const toddPerms = new Set(getPermutations(winningNum));
       let straightSold = 0;
       let toddSold = 0;
-      activeRoundVouchers.forEach((v) => {
-        if (v.status === 'cancelled') return;
-        v.items.forEach((it) => {
-          if (it.number === winningNum) straightSold += it.amount;
-          else if (it.betType === 'rumble' && toddPerms.has(it.number)) toddSold += it.amount;
-        });
+      winEval.winners.forEach(w => {
+        if (w.winType === 'straight') {
+          straightSold += w.betAmount;
+        } else if (w.winType === 'todd') {
+          toddSold += w.betAmount;
+        }
       });
 
       let straightForwarded = 0;
@@ -545,19 +546,58 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       prev.map(v => {
         if (v.roundId === activeRoundId) {
           let voucherWon = false;
-          const updatedItems = v.items.map(item => {
+          const wonGroupIdsInVoucher = new Set<string>();
+
+          // Pass 1: exact straight bets
+          const straightChecked = v.items.map(item => {
             const isRumble = item.betType === 'rumble';
             if (item.number === winningNumber && !isRumble) {
               const winPayout = calculatePayout(item.amount, sMult);
               voucherWon = true;
               return { ...item, isWon: true, wonAmount: winPayout };
-            } else if (isRumble && allPerms.has(item.number) && tMult > 0) {
-              const winPayout = calculatePayout(item.amount, tMult);
-              voucherWon = true;
-              return { ...item, isWon: true, wonAmount: winPayout };
             }
+            return item;
+          });
+
+          // Pass 2: rumble bets (only 1 win per group)
+          const updatedItems = straightChecked.map(item => {
+            const isRumble = item.betType === 'rumble';
+            if (item.number === winningNumber && !isRumble) {
+              return item;
+            }
+
+            if (isRumble && tMult > 0) {
+              if (item.groupId) {
+                if (wonGroupIdsInVoucher.has(item.groupId)) {
+                  return { ...item, isWon: false, wonAmount: 0 };
+                }
+
+                const hasExactMatchInGroup = v.items.some(
+                  i => i.groupId === item.groupId && i.number === winningNumber
+                );
+
+                const isWinningItem = hasExactMatchInGroup
+                  ? item.number === winningNumber
+                  : (item.permutations ? item.permutations.includes(winningNumber) : allPerms.has(item.number));
+
+                if (isWinningItem) {
+                  wonGroupIdsInVoucher.add(item.groupId);
+                  const winPayout = calculatePayout(item.amount, tMult);
+                  voucherWon = true;
+                  return { ...item, isWon: true, wonAmount: winPayout };
+                }
+              } else {
+                if (allPerms.has(item.number)) {
+                  const winPayout = calculatePayout(item.amount, tMult);
+                  voucherWon = true;
+                  return { ...item, isWon: true, wonAmount: winPayout };
+                }
+              }
+            }
+
             return { ...item, isWon: false, wonAmount: 0 };
           });
+
           return {
             ...v,
             status: voucherWon ? ('settled' as const) : v.status,

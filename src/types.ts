@@ -6,12 +6,21 @@ export interface BetItem {
   amount: number; // in MMK / Currency
   isRumble?: boolean; // If input as R (permutation)
   originalInput?: string; // e.g. "123 R"
+  betType?: BetType; // 'straight' or 'rumble'
+  groupId?: string; // unique group ID for this rumble group
+  originalNumber?: string; // e.g. "123"
+  originalAmount?: number; // e.g. 1000
+  permutations?: string[]; // e.g. ['123', '132', '213', '231', '312', '321']
 }
 
 export interface VoucherItem {
   number: string;
   amount: number;
   betType: BetType;
+  groupId?: string; // unique group ID for rumble group
+  originalNumber?: string; // e.g. "123"
+  originalAmount?: number; // e.g. 1000
+  permutations?: string[]; // e.g. ['123', '132', '213', '231', '312', '321']
   isWon?: boolean;
   wonAmount?: number;
 }
@@ -171,12 +180,21 @@ export interface TwoDBetItem {
   amount: number;
   isRumble?: boolean;
   originalInput?: string; // e.g. "24 R" or "အပူး"
+  betType?: BetType; // 'straight' or 'rumble'
+  groupId?: string; // unique group ID for this rumble group
+  originalNumber?: string; // e.g. "24"
+  originalAmount?: number; // e.g. 500
+  permutations?: string[]; // e.g. ['24', '42']
 }
 
 export interface TwoDVoucherItem {
   number: string;
   amount: number;
   betType: BetType;
+  groupId?: string; // unique group ID for rumble group
+  originalNumber?: string; // e.g. "24"
+  originalAmount?: number; // e.g. 500
+  permutations?: string[]; // e.g. ['24', '42']
   isRumble?: boolean;
   isWon?: boolean;
   wonAmount?: number;

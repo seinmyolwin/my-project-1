@@ -51,8 +51,6 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || ''));
   }, [activeRound?.id, activeRound?.winningNumber, activeRound?.multiplier, settings.defaultMultiplier]);
 
-  const [isFetchingLive, setIsFetchingLive] = useState(false);
-  const [liveStatusMsg, setLiveStatusMsg] = useState<string | null>(null);
   const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
 
   const isMorning = activeRound?.session === 'morning' || activeRound?.name.includes('မနက်');

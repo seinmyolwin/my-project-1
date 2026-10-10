@@ -24,7 +24,7 @@ import {
   saveStoredData
 } from '../utils/storage';
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed } from '../utils/twoDLotteryUtils';
-import { generateUpToDate2DRounds, fetchLiveOfficialFeed } from '../utils/thaiLotteryApi';
+import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString } from '../utils/moneyUtils';
 
@@ -97,7 +97,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rounds, setRounds] = useState<TwoDDrawRound[]>(() => {
     const stored = loadStoredData<TwoDDrawRound[]>(STORAGE_KEYS.ROUNDS_2D, []);
-    const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
+    const upToDate = generateUpToDate2DRounds(settings.defaultMultiplier, settings.defaultCommissionRate);
     const deleted = loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
     const deletedSet = new Set(deleted);
     const todayStr = getLocalDateString();
@@ -125,7 +125,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const checkAndSyncRounds = () => {
       const todayStr = getLocalDateString();
       setRounds(prev => {
-        const upToDate = generateUpToDate2DRounds(null, settings.defaultMultiplier, settings.defaultCommissionRate);
+        const upToDate = generateUpToDate2DRounds(settings.defaultMultiplier, settings.defaultCommissionRate);
         const map = new Map<string, TwoDDrawRound>();
         let changed = false;
 
@@ -325,40 +325,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [activeRoundId, visibleRounds]);
 
   const syncLiveRounds = useCallback(async () => {
-    try {
-      const feed = await fetchLiveOfficialFeed();
-      if (feed) {
-        const upToDate = generateUpToDate2DRounds(feed, settings.defaultMultiplier, settings.defaultCommissionRate);
-        setRounds(prev => {
-          const map = new Map<string, TwoDDrawRound>();
-          const deleted = loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
-          const deletedSet = new Set(deleted);
-
-          prev.forEach(r => {
-            if (!deletedSet.has(r.id)) {
-              map.set(r.id, r);
-            }
-          });
-
-          upToDate.forEach(r => {
-            if (!deletedSet.has(r.id)) {
-              const existing = map.get(r.id);
-              if (existing) {
-                if (existing.status !== 'settled' && r.status === 'settled' && r.winningNumber) {
-                  map.set(r.id, { ...existing, status: 'settled', winningNumber: r.winningNumber, settledAt: r.settledAt });
-                }
-              } else {
-                map.set(r.id, r);
-              }
-            }
-          });
-          return Array.from(map.values());
-        });
-      }
-    } catch (e) {
-      console.error('Error syncing live 2D rounds:', e);
-    }
-  }, [settings.defaultMultiplier, settings.defaultCommissionRate]);
+    // 2D rounds and winning numbers are managed manually by the operator
+  }, []);
 
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
     // 1. Check active round status
@@ -826,7 +794,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const resetToSampleData = useCallback(() => {
     setSettingsState(DEFAULT_2D_SETTINGS);
-    const freshRounds = generateUpToDate2DRounds(null, DEFAULT_2D_SETTINGS.defaultMultiplier, DEFAULT_2D_SETTINGS.defaultCommissionRate);
+    const freshRounds = generateUpToDate2DRounds(DEFAULT_2D_SETTINGS.defaultMultiplier, DEFAULT_2D_SETTINGS.defaultCommissionRate);
     setRounds(freshRounds);
     if (freshRounds.length > 0) setActiveRoundIdState(freshRounds[0].id);
     setVouchers(INITIAL_2D_VOUCHERS);

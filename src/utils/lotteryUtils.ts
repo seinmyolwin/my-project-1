@@ -125,12 +125,18 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
           if (cleanNum.length === 3) {
             if (isRumble) {
               const perms = getPermutations(cleanNum);
+              const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${Math.random().toString(36).substr(2, 5)}`;
               perms.forEach(p => {
                 items.push({
                   id: `item-${Date.now()}-${idCounter++}`,
                   number: p,
                   amount: amount,
-                  isRumble: false,
+                  isRumble: true,
+                  betType: 'rumble',
+                  groupId,
+                  originalNumber: cleanNum,
+                  originalAmount: amount,
+                  permutations: perms,
                   originalInput: `${cleanNum} R (${perms.length} ခွေ)`
                 });
               });
@@ -140,6 +146,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
                 number: cleanNum,
                 amount: amount,
                 isRumble: false,
+                betType: 'straight',
                 originalInput: cleanNum
               });
             }
@@ -152,12 +159,18 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
         const cleanNum = parts[0];
         if (isRumble) {
           const perms = getPermutations(cleanNum);
+          const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${Math.random().toString(36).substr(2, 5)}`;
           perms.forEach(p => {
             items.push({
               id: `item-${Date.now()}-${idCounter++}`,
               number: p,
               amount: 1000,
-              isRumble: false,
+              isRumble: true,
+              betType: 'rumble',
+              groupId,
+              originalNumber: cleanNum,
+              originalAmount: 1000,
+              permutations: perms,
               originalInput: `${cleanNum} R (${perms.length} ခွေ)`
             });
           });
@@ -167,6 +180,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
             number: cleanNum,
             amount: 1000,
             isRumble: false,
+            betType: 'straight',
             originalInput: cleanNum
           });
         }
@@ -235,10 +249,12 @@ export function evaluateWinnings(
   vouchers.forEach((v) => {
     if (v.status === 'cancelled') return;
 
+    // Track which rumble groups in this voucher have already been awarded a win
+    const wonGroupIdsInVoucher = new Set<string>();
+
+    // Pass 1: exact straight bets (ONLY applies to straight bets)
     v.items.forEach((item) => {
       const isRumbleBet = item.betType === 'rumble';
-
-      // 1. Exact straight hit (တည့်ပေါက်) - ONLY applies to straight bets
       if (item.number === winningNumber && !isRumbleBet) {
         const payout = calculatePayout(item.amount, straightMultiplier);
         totalPayout += payout;
@@ -256,25 +272,66 @@ export function evaluateWinnings(
           isPaid: v.isPaid
         });
       }
-      // 2. Todd / Rumble hit (ပတ်လည်ပေါက်) - ONLY applies to rumble bets matching any permutation
-      else if (isRumbleBet && toddSet.has(item.number) && toddMultiplier > 0) {
-        const payout = calculatePayout(item.amount, toddMultiplier);
-        totalPayout += payout;
-        toddWinningBetsCount++;
-        winners.push({
-          voucherId: v.id,
-          voucherNo: v.voucherNo,
-          customerName: v.customerName,
-          customerPhone: v.customerPhone,
-          betNumber: item.number,
-          betAmount: item.amount,
-          winType: 'todd',
-          multiplier: toddMultiplier,
-          wonPayout: payout,
-          isPaid: v.isPaid
-        });
-      }
     });
+
+    // Pass 2: Todd / Rumble bets (ONLY applies to rumble bets matching any permutation)
+    if (toddMultiplier > 0) {
+      v.items.forEach((item) => {
+        const isRumbleBet = item.betType === 'rumble';
+        if (!isRumbleBet) return;
+
+        if (item.groupId) {
+          if (wonGroupIdsInVoucher.has(item.groupId)) return;
+
+          // If the group contains the exact winningNumber, prioritize that item as winner
+          const hasExactMatchInGroup = v.items.some(
+            i => i.groupId === item.groupId && i.number === winningNumber
+          );
+
+          const isWinningItem = hasExactMatchInGroup
+            ? item.number === winningNumber
+            : (item.permutations ? item.permutations.includes(winningNumber) : toddSet.has(item.number));
+
+          if (isWinningItem) {
+            wonGroupIdsInVoucher.add(item.groupId);
+            const payout = calculatePayout(item.amount, toddMultiplier);
+            totalPayout += payout;
+            toddWinningBetsCount++;
+            winners.push({
+              voucherId: v.id,
+              voucherNo: v.voucherNo,
+              customerName: v.customerName,
+              customerPhone: v.customerPhone,
+              betNumber: item.number,
+              betAmount: item.amount,
+              winType: 'todd',
+              multiplier: toddMultiplier,
+              wonPayout: payout,
+              isPaid: v.isPaid
+            });
+          }
+        } else {
+          // Standalone rumble bet without groupId
+          if (toddSet.has(item.number)) {
+            const payout = calculatePayout(item.amount, toddMultiplier);
+            totalPayout += payout;
+            toddWinningBetsCount++;
+            winners.push({
+              voucherId: v.id,
+              voucherNo: v.voucherNo,
+              customerName: v.customerName,
+              customerPhone: v.customerPhone,
+              betNumber: item.number,
+              betAmount: item.amount,
+              winType: 'todd',
+              multiplier: toddMultiplier,
+              wonPayout: payout,
+              isPaid: v.isPaid
+            });
+          }
+        }
+      });
+    }
   });
 
   return {
