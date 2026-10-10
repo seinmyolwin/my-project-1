@@ -23,7 +23,7 @@ import {
   loadStoredData,
   saveStoredData
 } from '../utils/storage';
-import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed } from '../utils/twoDLotteryUtils';
+import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed, normalizeTwoDMultiplier } from '../utils/twoDLotteryUtils';
 import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
@@ -89,13 +89,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // 1. Core State with LocalStorage Persistence (Strictly 2D Keys)
   const [settings, setSettingsState] = useState<TwoDAppSettings>(() => {
     const loaded = loadStoredData(STORAGE_KEYS.SETTINGS_2D, DEFAULT_2D_SETTINGS);
-    let mult = loaded.defaultMultiplier;
-    // Auto-correct if mistakenly saved as 8000 or >= 500
-    if (mult === 8000 || (mult >= 500 && mult <= 10000)) {
-      mult = Math.round(mult / 100);
-    } else if (!mult || mult <= 0) {
-      mult = 80;
-    }
+    let mult = normalizeTwoDMultiplier(loaded.defaultMultiplier);
     return {
       ...loaded,
       defaultMultiplier: mult
@@ -116,12 +110,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
       if (!deletedSet.has(r.id)) {
-        let mult = r.multiplier;
-        if (mult === 8000 || (mult >= 500 && mult <= 10000)) {
-          mult = Math.round(mult / 100);
-        } else if (!mult || mult <= 0) {
-          mult = settings.defaultMultiplier || 80;
-        }
+        let mult = normalizeTwoDMultiplier(r.multiplier || settings.defaultMultiplier);
         storedMap.set(r.id, { ...r, multiplier: mult });
       }
     });
@@ -537,8 +526,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 2D Aggregates calculation (00 - 99: exactly 100 combinations)
   const aggregates = useMemo(() => {
-    let mult = activeRound?.multiplier || settings.defaultMultiplier || 80;
-    if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
+    const mult = normalizeTwoDMultiplier(activeRound?.multiplier || settings.defaultMultiplier);
     const agg: { [num: string]: TwoDNumberAggregate } = {};
 
     // Initialize all 100 numbers (00 to 99)

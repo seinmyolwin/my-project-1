@@ -17,7 +17,7 @@ import {
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
-import { evaluateTwoDWinnings } from '../../utils/twoDLotteryUtils';
+import { evaluateTwoDWinnings, normalizeTwoDMultiplier } from '../../utils/twoDLotteryUtils';
 import { getLocalDateString } from '../../utils/moneyUtils';
 import {
   SingleRoundFinancialBreakdown,
@@ -46,21 +46,20 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
 
   const isMyanmar = settings.language === 'my';
 
-  const getCleanMultiplier = (val?: number) => {
-    let m = val || settings.defaultMultiplier || 80;
-    if (m >= 500 && m <= 10000) m = Math.round(m / 100);
-    return m;
+  const getDisplayMultiplier = (val?: number) => {
+    const clean = normalizeTwoDMultiplier(val || activeRound?.multiplier || settings.defaultMultiplier || 80);
+    return String(clean * 10);
   };
 
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
   const [multiplierInput, setMultiplierInput] = useState(() =>
-    String(getCleanMultiplier(activeRound?.multiplier))
+    getDisplayMultiplier(activeRound?.multiplier)
   );
   const [multiplierHintNotice, setMultiplierHintNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
-    setMultiplierInput(String(getCleanMultiplier(activeRound?.multiplier)));
+    setMultiplierInput(getDisplayMultiplier(activeRound?.multiplier));
   }, [activeRound?.id, activeRound?.winningNumber, activeRound?.multiplier, settings.defaultMultiplier]);
 
   const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
@@ -207,16 +206,12 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
       return;
     }
 
-    let mult = parseFloat(multiplierInput);
-    if (isNaN(mult) || mult <= 0) {
+    let rawMult = parseFloat(multiplierInput);
+    if (isNaN(rawMult) || rawMult <= 0) {
       alert(isMyanmar ? 'ပေါက်ကြေးအဆ (Multiplier) မှန်ကန်စွာ ထည့်သွင်းပါ' : 'Please enter valid multiplier');
       return;
     }
-    // Auto-normalize if user typed 8000 (100 Ks = 8,000 Ks)
-    if (mult >= 500 && mult <= 10000) {
-      mult = Math.round(mult / 100);
-      setMultiplierInput(String(mult));
-    }
+    const mult = normalizeTwoDMultiplier(rawMult);
 
     // 1. Officially settle round status in context & localStorage FIRST
     settleWinningNumber(targetNum, mult);
@@ -313,8 +308,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
       return { settledVouchers: [], totalPayout: 0, totalWinnersCount: 0 };
     }
-    let mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80;
-    if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
+    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80);
     const evalRes = evaluateTwoDWinnings(activeRoundVouchers, cleanNum, mult);
 
     let totalSoldForNum = 0;
@@ -368,8 +362,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     const winningAgg = activeEvalNumber ? aggregates[activeEvalNumber] : undefined;
     const totalSoldForWinNum = winningAgg ? winningAgg.totalSold : 0;
     const retainedAmt = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
-    let mult = parseFloat(multiplierInput) || settings.defaultMultiplier || 80;
-    if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
+    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || settings.defaultMultiplier || 80);
     const retainedPayout = mult > 0 ? retainedAmt * mult : 0;
 
     const netPaid = totalForwarded - forwardedCommission;
@@ -395,10 +388,11 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     ? activeEvalNumber
     : (isSettled ? (activeRound?.winningNumber || '') : activeEvalNumber);
 
-  let currentMultiplier = isSettled && !isTestingMode
-    ? (activeRound?.multiplier || settings.defaultMultiplier || 80)
-    : (parseFloat(multiplierInput) || settings.defaultMultiplier || 80);
-  if (currentMultiplier >= 500 && currentMultiplier <= 10000) currentMultiplier = Math.round(currentMultiplier / 100);
+  const currentMultiplier = normalizeTwoDMultiplier(
+    isSettled && !isTestingMode
+      ? (activeRound?.multiplier || settings.defaultMultiplier || 80)
+      : (parseFloat(multiplierInput) || settings.defaultMultiplier || 80)
+  );
 
   const isShowingOnTheFly = isTestingMode || (isWinningConfirmed && !isSettled);
 
@@ -520,10 +514,10 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
           <div className="sm:col-span-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                {isMyanmar ? 'ပေါက်ကြေးအဆ (ဥပမာ- ၈၀ ဆ)' : 'Multiplier (e.g. 80x)'}
+                {isMyanmar ? 'ပေါက်ကြေးအဆ (ဥပမာ- ၈၀၀ ဆ)' : 'Multiplier (e.g. 800x)'}
               </label>
               <span className="text-[10px] text-slate-400 font-medium">
-                (၁၀၀ ဖိုး = ၈,၀၀၀ ကျပ်)
+                {isMyanmar ? '(၁၀ ဖိုး = ၈၀၀ ကျပ် / ၁၀၀၀ ဖိုး = ၈၀,၀၀၀ ကျပ်)' : '(10 Ks = 800 Ks / 1,000 Ks = 80,000 Ks)'}
               </span>
             </div>
             <input
@@ -533,16 +527,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
               value={multiplierInput}
               onChange={(e) => {
                 const clean = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '');
-                const num = parseInt(clean, 10);
-                // If user types 8000 or >= 500, auto-correct to 80
-                if (!isNaN(num) && num >= 500 && num <= 10000) {
-                  const fixed = Math.round(num / 100);
-                  setMultiplierInput(String(fixed));
-                  setMultiplierHintNotice(`${clean} အစား ၂ လုံးပေါက်ကြေး စံနှုန်းအရ ${fixed} ဆ သို့ ပြင်ဆင်သတ်မှတ်ပေးလိုက်ပါသည် (၁၀၀ ဖိုး = ${clean} ကျပ်)`);
-                } else {
-                  setMultiplierInput(clean);
-                  setMultiplierHintNotice(null);
-                }
+                setMultiplierInput(clean);
+                setMultiplierHintNotice(null);
               }}
               onFocus={(e) => {
                 const target = e.currentTarget;
@@ -556,26 +542,29 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
               }}
               className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
             />
-            {/* Quick Multiplier Preset Buttons */}
+            {/* Quick Multiplier Preset Buttons (800, 850, 900) */}
             <div className="flex items-center gap-1.5 mt-2">
               <span className="text-[10px] text-slate-500 font-bold shrink-0">ရွေးချယ်ရန်:</span>
-              {[80, 85, 90].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    setMultiplierInput(String(preset));
-                    setMultiplierHintNotice(null);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-                    multiplierInput === String(preset)
-                      ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-500'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                  }`}
-                >
-                  {preset} ဆ
-                </button>
-              ))}
+              {[800, 850, 900].map((preset) => {
+                const isSelected = multiplierInput === String(preset) || (preset === 800 && multiplierInput === '80') || (preset === 850 && multiplierInput === '85') || (preset === 900 && multiplierInput === '90');
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setMultiplierInput(String(preset));
+                      setMultiplierHintNotice(null);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-500'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    {preset} ဆ
+                  </button>
+                );
+              })}
             </div>
             {multiplierHintNotice && (
               <p className="text-[11px] font-bold text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 animate-in fade-in">
@@ -896,8 +885,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                   }`}>
                     {isTestingMode ? '🧪 အစမ်းတွက်ချက် စစ်ဆေးမှု (Preview)' : '✓ အတည်ပြုပြီး ရှင်းတမ်း'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
-                    ပေါက်ဂဏန်း: {currentWinningNumber || '--'} ({currentMultiplier}x)
+                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
+                    ပေါက်ဂဏန်း: {currentWinningNumber || '--'} ({multiplierInput || (currentMultiplier * 10)} ဆ)
                   </span>
                 </div>
                 <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
@@ -1158,7 +1147,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                       <th className="p-3">ဖုန်းနံပါတ်</th>
                       <th className="p-3 text-center">ပေါက်ဂဏန်း</th>
                       <th className="p-3 text-right">ထိုးကြေး</th>
-                      <th className="p-3 text-right">အလျော်ငွေ (@{currentMultiplier}x)</th>
+                      <th className="p-3 text-right">အလျော်ငွေ (@{multiplierInput || (currentMultiplier * 10)} ဆ)</th>
                       <th className="p-3 text-center">အခြေအနေ</th>
                     </tr>
                   </thead>

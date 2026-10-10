@@ -632,6 +632,17 @@ export function parseTwoDBatchInput(
 // ====================================================
 // 2D WINNING EVALUATION & PROFIT CALCULATION
 // ====================================================
+export function normalizeTwoDMultiplier(val?: number): number {
+  if (!val || isNaN(val) || val <= 0) return 80;
+  // If standard odds ratio 80, 85, 90 (e.g. 1000 Ks wins 80,000 Ks)
+  if (val >= 50 && val <= 120) return Math.round(val);
+  // If user enters 800, 850, 900 (odds per 10 Ks): 800 / 10 = 80x, 850 / 10 = 85x, 900 / 10 = 90x
+  if (val >= 500 && val <= 1200) return Math.round(val / 10);
+  // If user enters 8000, 8500, 9000 (odds per 100 Ks): 8000 / 100 = 80x
+  if (val > 1200 && val <= 12000) return Math.round(val / 100);
+  return Math.round(val);
+}
+
 export function evaluateTwoDWinnings(
   vouchers: TwoDVoucher[],
   winningNumber: string,
@@ -644,12 +655,7 @@ export function evaluateTwoDWinnings(
   let totalPayout = 0;
   let totalWinnersCount = 0;
 
-  let mult = multiplier || 0;
-  // Safe normalization: In Myanmar 2D (00-99), a multiplier >= 500 (such as 8000 for "100 ks = 8000 ks") represents 100x the odds multiplier.
-  // Normalize 8000 -> 80x, 8500 -> 85x, 9000 -> 90x.
-  if (mult >= 500 && mult <= 10000) {
-    mult = Math.round(mult / 100);
-  }
+  const mult = normalizeTwoDMultiplier(multiplier);
 
   const settledVouchers = vouchers.map(v => {
     let voucherHasWin = false;

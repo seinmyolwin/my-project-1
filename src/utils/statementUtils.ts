@@ -1,4 +1,4 @@
-import { evaluateTwoDWinnings } from './twoDLotteryUtils';
+import { evaluateTwoDWinnings, normalizeTwoDMultiplier } from './twoDLotteryUtils';
 import { evaluateWinnings, getPermutations } from './lotteryUtils';
 import { TwoDVoucher, TwoDDrawRound, Voucher, DrawRound, FootballSlip, ForwardSlip } from '../types';
 
@@ -212,8 +212,7 @@ export function generateStatementRecords(
         let retainedPayout = 0;
         let winnersCount = 0;
         const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-        let mult = round.multiplier || data.lottery2D.settings.defaultMultiplier || 80;
-        if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
+        let mult = normalizeTwoDMultiplier(round.multiplier || data.lottery2D.settings.defaultMultiplier || 80);
 
         if (winningNum) {
           const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
@@ -726,73 +725,68 @@ export function computeStatementGrandTotals(records: StatementRecord[]): Stateme
   };
 }
 
+// ====================================================
+// SINGLE-ROUND ISOLATED FINANCIAL BREAKDOWN (2D & 3D)
+// ဤပွဲစဉ်အတွက်သာ သီးသန့် ရှင်းတမ်း တွက်ချက်မှု (Header Tab စံနှုန်းအတိုင်း)
+// ====================================================
+
 export interface SingleRoundFinancialBreakdown {
-  turnover: number;          // ၁။ မူလထိုးကြေး
-  totalForwarded: number;    // ၂။ အထက်တင်ကြေး
-  agentCommission: number;   // ၃။ အောက်လက်ကော်
-  netSales: number;          // ၄။ အမှန်ရောင်းငွေ (၁ - ၂ - ၃)
-  masterPayout: number;      // ၅။ အထက်ပေါက်ကြေး
-  forwardCommission: number; // ၆။ အထက်ကော်မရှင်
-  totalPayout: number;       // ၇။ ပေးလျော်ငွေ
-  retainedPayout: number;    // ဒိုင်ပေးလျော်ငွေ (Total Payout - Master Payout)
-  netPaid: number;           // ဒိုင်ကြီးဆီ အမှန်ပေးငွေ (Total Forwarded - Forward Commission)
-  netProfit: number;         // ၈။ အသားတင်ငွေ (၄ + ၅ + ၆ - ၇)
+  turnover: number;          // ၁။ မူလထိုးကြေး စုစုပေါင်း
+  totalForwarded: number;    // ၂။ အထက်တင်ကြေး (ဒိုင်ကြီးဆီ လွှဲငွေ)
+  agentCommission: number;   // ၃။ အောက်လက်ကော် (ကိုယ်က ပေးရငွေ)
+  netSales: number;          // ၄။ အမှန်ရောင်းငွေ (ဒိုင်လက်ကျန်ရောင်းငွေ) = turnover - totalForwarded - agentCommission
+  masterPayout: number;      // ၅။ အထက်ပေါက်ကြေး (ဒိုင်ကြီး ပြန်လျော်ငွေ)
+  forwardCommission: number; // ၆။ အထက်ကော်မရှင် (ကိုယ်ရငွေ)
+  totalPayout: number;       // ၇။ ပေးလျှော်ငွေ (အောက်လက်ပေါက်ကြေး အားလုံးပေါင်း)
+  retainedPayout: number;    // ဒိုင်တာဝန် ပေးလျော်ငွေ (totalPayout - masterPayout)
+  netPaid: number;           // ဒိုင်ကြီးဆီ အမှန်ပေးငွေ (totalForwarded - forwardCommission)
+  netProfit: number;         // ၈။ ဒိုင်အသားတင် အမြတ်/အရှုံး = netSales + masterPayout + forwardCommission - totalPayout
   isProfit: boolean;
-  profitMargin: string;
+  profitMargin: number;      // %
   winnersCount: number;
   vouchersCount: number;
-  winningNumber?: string;
-  multiplier?: number;
 }
 
-/**
- * Single-Round Financial Statement Calculation for 2D (ဒီပွဲစဉ်အတွက်သာ သီးသန့် ရှင်းတမ်းတွက်ချက်ခြင်း)
- */
-export function calculateTwoDSingleRoundStatement(params: {
-  round: {
-    id?: string;
-    name?: string;
-    drawDate?: string;
-    commissionRate?: number;
-    multiplier?: number;
-  } | null;
+export interface TwoDSingleRoundStatementParams {
+  round: TwoDDrawRound | null;
   vouchers: TwoDVoucher[];
-  forwardSlips: any[];
+  forwardSlips: ForwardSlip[];
   winningNumber?: string;
   multiplier?: number;
-  settings: {
-    defaultMultiplier?: number;
-    defaultCommissionRate?: number;
-    defaultCustomerDiscount?: number;
-    currency?: string;
-  };
-}): SingleRoundFinancialBreakdown {
+  settings: any;
+}
+
+export function calculateTwoDSingleRoundStatement(
+  params: TwoDSingleRoundStatementParams
+): SingleRoundFinancialBreakdown {
   const { round, vouchers, forwardSlips, winningNumber, multiplier, settings } = params;
 
-  const activeVouchers = vouchers.filter((v) => v.status !== 'cancelled');
+  // 1. Turnover & Agent Commission (Vouchers for this round only, active/not cancelled)
+  let totalTurnover = 0;
+  let totalAgentCommission = 0;
 
-  let turnover = 0;
-  let agentCommission = 0;
+  const validVouchers = vouchers.filter((v) => v.status !== 'cancelled');
 
-  activeVouchers.forEach((v) => {
+  validVouchers.forEach((v) => {
     const subtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
-    let discount = 0;
+    let disc = 0;
     const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
       ? v.discountPercent
-      : (settings.defaultCustomerDiscount ?? settings.defaultCommissionRate ?? 0);
+      : (settings?.defaultCustomerDiscount ?? settings?.defaultCommissionRate ?? 0);
 
     if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-      discount = v.discountAmount;
+      disc = v.discountAmount;
     } else if (agentRate > 0) {
-      discount = Math.round(subtotal * (agentRate / 100));
+      disc = Math.round(subtotal * (agentRate / 100));
     } else if (round?.commissionRate && round.commissionRate > 0) {
-      discount = Math.round(subtotal * (round.commissionRate / 100));
+      disc = Math.round(subtotal * (round.commissionRate / 100));
     }
 
-    turnover += subtotal;
-    agentCommission += discount;
+    totalTurnover += subtotal;
+    totalAgentCommission += disc;
   });
 
+  // 2. Forwarded slips to master bookie for this round
   let totalForwarded = 0;
   let forwardCommission = 0;
   forwardSlips.forEach((f) => {
@@ -801,31 +795,30 @@ export function calculateTwoDSingleRoundStatement(params: {
   });
   const netPaid = totalForwarded - forwardCommission;
 
-  let mult = multiplier || round?.multiplier || settings.defaultMultiplier || 80;
-  if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
-
-  const cleanWinNum = winningNumber ? winningNumber.padStart(2, '0') : undefined;
+  // 3. Multiplier & Winning number evaluation
+  const mult = normalizeTwoDMultiplier(multiplier || round?.multiplier || settings?.defaultMultiplier || 80);
+  const winNum = winningNumber ? winningNumber.trim().padStart(2, '0') : (round?.winningNumber ? round.winningNumber.trim().padStart(2, '0') : undefined);
 
   let totalPayout = 0;
   let masterPayout = 0;
   let retainedPayout = 0;
   let winnersCount = 0;
 
-  if (cleanWinNum && cleanWinNum.length === 2 && !isNaN(Number(cleanWinNum))) {
-    const evalResult = evaluateTwoDWinnings(activeVouchers, cleanWinNum, mult);
+  if (winNum && winNum.length === 2) {
+    const evalResult = evaluateTwoDWinnings(validVouchers, winNum, mult);
     winnersCount = evalResult.totalWinnersCount;
 
     let totalSoldForWinNum = 0;
-    activeVouchers.forEach((v) => {
+    validVouchers.forEach((v) => {
       v.items.forEach((it) => {
-        if (it.number === cleanWinNum) totalSoldForWinNum += it.amount;
+        if (it.number === winNum) totalSoldForWinNum += it.amount;
       });
     });
 
     let totalForwardedForWinNum = 0;
     forwardSlips.forEach((f) => {
       f.items.forEach((it) => {
-        if (it.number === cleanWinNum) totalForwardedForWinNum += it.amount;
+        if (it.number === winNum) totalForwardedForWinNum += it.amount;
       });
     });
 
@@ -834,7 +827,7 @@ export function calculateTwoDSingleRoundStatement(params: {
     const retainedAmount = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
     retainedPayout = mult > 0 ? retainedAmount * mult : 0;
   } else {
-    activeVouchers.forEach((v) => {
+    validVouchers.forEach((v) => {
       v.items.forEach((it) => {
         if (it.isWon) {
           const amt = (it.wonAmount || (it.amount * mult));
@@ -846,14 +839,19 @@ export function calculateTwoDSingleRoundStatement(params: {
     });
   }
 
-  const netSales = turnover - totalForwarded - agentCommission;
+  // Exact formulas requested:
+  // ၁။ အမှန်ရောင်းငွေ = စုစုပေါင်းထိုးကြေး - အထက်တင်ကြေး - အောက်လက်ကော်
+  const netSales = totalTurnover - totalForwarded - totalAgentCommission;
+
+  // ၂။ ဒိုင်အသားတင် အမြတ်/အရှုံး = အမှန်ရောင်းငွေ + အထက်ပေါက်ကြေး + အထက်ကော်မရှင် - ပေးလျှော်ငွေ
   const netProfit = netSales + masterPayout + forwardCommission - totalPayout;
-  const profitMargin = turnover > 0 ? ((netProfit / turnover) * 100).toFixed(1) : '0.0';
+  const isProfit = netProfit >= 0;
+  const profitMargin = totalTurnover > 0 ? Math.round((Math.abs(netProfit) / totalTurnover) * 100) : 0;
 
   return {
-    turnover,
+    turnover: totalTurnover,
     totalForwarded,
-    agentCommission,
+    agentCommission: totalAgentCommission,
     netSales,
     masterPayout,
     forwardCommission,
@@ -861,64 +859,50 @@ export function calculateTwoDSingleRoundStatement(params: {
     retainedPayout,
     netPaid,
     netProfit,
-    isProfit: netProfit >= 0,
+    isProfit,
     profitMargin,
     winnersCount,
-    vouchersCount: activeVouchers.length,
-    winningNumber: cleanWinNum,
-    multiplier: mult
+    vouchersCount: validVouchers.length
   };
 }
 
-/**
- * Single-Round Financial Statement Calculation for 3D (ဒီပွဲစဉ်အတွက်သာ သီးသန့် ရှင်းတမ်းတွက်ချက်ခြင်း)
- */
-export function calculateThreeDSingleRoundStatement(params: {
-  round: {
-    id?: string;
-    name?: string;
-    drawDate?: string;
-    commissionRate?: number;
-    multiplier?: number;
-    toddMultiplier?: number;
-  } | null;
+export interface ThreeDSingleRoundStatementParams {
+  round: DrawRound | null;
   vouchers: Voucher[];
   forwardSlips: ForwardSlip[];
   winningNumber?: string;
-  straightMultiplier?: number;
+  multiplier?: number;
   toddMultiplier?: number;
-  settings: {
-    defaultMultiplier?: number;
-    defaultToddMultiplier?: number;
-    defaultCommissionRate?: number;
-    defaultCustomerDiscount?: number;
-    currency?: string;
-  };
-}): SingleRoundFinancialBreakdown {
-  const { round, vouchers, forwardSlips, winningNumber, straightMultiplier, toddMultiplier, settings } = params;
+  settings: any;
+}
 
-  const activeVouchers = vouchers.filter((v) => v.status !== 'cancelled');
+export function calculateThreeDSingleRoundStatement(
+  params: ThreeDSingleRoundStatementParams
+): SingleRoundFinancialBreakdown {
+  const { round, vouchers, forwardSlips, winningNumber, multiplier, toddMultiplier, settings } = params;
 
-  let turnover = 0;
-  let agentCommission = 0;
+  let totalTurnover = 0;
+  let totalAgentCommission = 0;
 
-  activeVouchers.forEach((v) => {
-    const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+  const validVouchers = vouchers.filter((v) => v.status !== 'cancelled');
+
+  validVouchers.forEach((v) => {
+    const subtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+    let disc = 0;
     const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
       ? v.discountPercent
-      : (settings.defaultCustomerDiscount ?? settings.defaultCommissionRate ?? 0);
+      : (settings?.defaultCustomerDiscount ?? settings?.defaultCommissionRate ?? 0);
 
-    let disc = 0;
     if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
       disc = v.discountAmount;
     } else if (agentRate > 0) {
-      disc = Math.round(sub * (agentRate / 100));
+      disc = Math.round(subtotal * (agentRate / 100));
     } else if (round?.commissionRate && round.commissionRate > 0) {
-      disc = Math.round(sub * (round.commissionRate / 100));
+      disc = Math.round(subtotal * (round.commissionRate / 100));
     }
 
-    turnover += sub;
-    agentCommission += disc;
+    totalTurnover += subtotal;
+    totalAgentCommission += disc;
   });
 
   let totalForwarded = 0;
@@ -929,40 +913,36 @@ export function calculateThreeDSingleRoundStatement(params: {
   });
   const netPaid = totalForwarded - forwardCommission;
 
-  const straightMult = straightMultiplier || round?.multiplier || settings.defaultMultiplier || 600;
-  const toddMult = toddMultiplier || round?.toddMultiplier || settings.defaultToddMultiplier || 100;
-  const cleanWinNum = winningNumber ? winningNumber.padStart(3, '0') : undefined;
+  const straightMult = multiplier || round?.multiplier || settings?.defaultMultiplier || 600;
+  const toddMult = toddMultiplier || round?.toddMultiplier || settings?.defaultToddMultiplier || 100;
+  const winNum = winningNumber ? winningNumber.trim().padStart(3, '0') : (round?.winningNumber ? round.winningNumber.trim().padStart(3, '0') : undefined);
 
   let totalPayout = 0;
   let masterPayout = 0;
   let retainedPayout = 0;
   let winnersCount = 0;
 
-  if (cleanWinNum && cleanWinNum.length === 3 && !isNaN(Number(cleanWinNum))) {
-    const evalResult = evaluateWinnings(activeVouchers, cleanWinNum, straightMult, toddMult);
+  if (winNum && winNum.length === 3) {
+    const evalResult = evaluateWinnings(validVouchers, winNum, straightMult, toddMult);
     winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
 
-    const toddPerms = new Set(getPermutations(cleanWinNum));
+    const toddPerms = new Set(getPermutations(winNum).filter((p) => p !== winNum));
 
     let straightSold = 0;
     let toddSold = 0;
-    evalResult.winners.forEach(w => {
-      if (w.winType === 'straight') {
-        straightSold += w.betAmount;
-      } else if (w.winType === 'todd') {
-        toddSold += w.betAmount;
-      }
+    validVouchers.forEach((v) => {
+      v.items.forEach((it) => {
+        if (it.number === winNum) straightSold += it.amount;
+        else if (it.betType === 'rumble' && toddPerms.has(it.number)) toddSold += it.amount;
+      });
     });
 
     let straightForwarded = 0;
     let toddForwarded = 0;
     forwardSlips.forEach((f) => {
       f.items.forEach((it) => {
-        if (it.number === cleanWinNum) {
-          straightForwarded += it.amount;
-        } else if (toddPerms.has(it.number)) {
-          toddForwarded += it.amount;
-        }
+        if (it.number === winNum) straightForwarded += it.amount;
+        else if (toddPerms.has(it.number)) toddForwarded += it.amount;
       });
     });
 
@@ -972,7 +952,7 @@ export function calculateThreeDSingleRoundStatement(params: {
     const retainedTodd = Math.max(0, toddSold - toddForwarded);
     retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
   } else {
-    activeVouchers.forEach((v) => {
+    validVouchers.forEach((v) => {
       v.items.forEach((it) => {
         if (it.isWon) {
           const amt = (it.wonAmount || (it.amount * straightMult));
@@ -984,14 +964,15 @@ export function calculateThreeDSingleRoundStatement(params: {
     });
   }
 
-  const netSales = turnover - totalForwarded - agentCommission;
+  const netSales = totalTurnover - totalForwarded - totalAgentCommission;
   const netProfit = netSales + masterPayout + forwardCommission - totalPayout;
-  const profitMargin = turnover > 0 ? ((netProfit / turnover) * 100).toFixed(1) : '0.0';
+  const isProfit = netProfit >= 0;
+  const profitMargin = totalTurnover > 0 ? Math.round((Math.abs(netProfit) / totalTurnover) * 100) : 0;
 
   return {
-    turnover,
+    turnover: totalTurnover,
     totalForwarded,
-    agentCommission,
+    agentCommission: totalAgentCommission,
     netSales,
     masterPayout,
     forwardCommission,
@@ -999,11 +980,9 @@ export function calculateThreeDSingleRoundStatement(params: {
     retainedPayout,
     netPaid,
     netProfit,
-    isProfit: netProfit >= 0,
+    isProfit,
     profitMargin,
     winnersCount,
-    vouchersCount: activeVouchers.length,
-    winningNumber: cleanWinNum,
-    multiplier: straightMult
+    vouchersCount: validVouchers.length
   };
 }
