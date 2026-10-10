@@ -31,7 +31,8 @@ import {
   Share2,
   FileSpreadsheet,
   Printer,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { useLottery } from '../context/LotteryContext';
@@ -42,7 +43,8 @@ import {
   StatementRecord,
   generateStatementRecords,
   computeStatementGrandTotals,
-  getStatementDateRange
+  getStatementDateRange,
+  StatementPeriodPreset
 } from '../utils/statementUtils';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
@@ -53,6 +55,7 @@ import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStored
 import {
   exportSecureMasterBackup,
   restoreSecureMasterBackup,
+  exportPeriodVouchersBackup,
   saveFileWithCustomLocation,
   shareFileDirectly,
   downloadFile,
@@ -295,7 +298,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   // Financial Statements State & Calculations
-  const [statementPeriod, setStatementPeriod] = useState<'all' | 'today' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom'>('all');
+  const [statementPeriod, setStatementPeriod] = useState<StatementPeriodPreset>('all');
   const [statementMode, setStatementMode] = useState<'all' | '3d' | '2d' | 'football'>('all');
   
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
@@ -475,6 +478,245 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'စာရင်းရှင်းတမ်း');
     XLSX.writeFile(wb, `စာရင်းရှင်းတမ်း_${statementMode}_${stmtStartDate}_${stmtEndDate}.xlsx`);
+  };
+
+  // Export All Vouchers for Selected Period to Excel
+  const handleExportPeriodAllVouchersExcel = () => {
+    const rows: any[] = [];
+    let idx = 1;
+
+    // 2D Vouchers
+    if (statementMode === 'all' || statementMode === '2d') {
+      lottery2D.vouchers
+        .filter(v => {
+          const d = (v.createdAt || '').slice(0, 10);
+          return d >= stmtStartDate && d <= stmtEndDate;
+        })
+        .forEach(v => {
+          const itemsStr = v.items?.map(it => `${it.number}=${it.amount}`).join(', ') || '-';
+          rows.push({
+            'စဉ်': idx++,
+            'လုပ်ငန်း': 'ဇီးကွက် (2D)',
+            'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
+            'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
+            'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
+            'ဖုန်းနံပါတ်': v.customerPhone || '-',
+            'ထိုးဂဏန်းများ': itemsStr,
+            'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
+            'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
+            'အမှန်ပေးငွေ (ကျပ်)': v.netPayable || 0,
+            'ငွေရှင်းပြီးမှု': v.isPaid ? 'ရှင်းပြီး' : 'ကြွေးကျန်',
+            'ပေါက်မဲ': v.items?.some(it => it.isWon) ? 'ပေါက်မဲရှိ' : '-'
+          });
+        });
+    }
+
+    // 3D Vouchers
+    if (statementMode === 'all' || statementMode === '3d') {
+      lottery3D.vouchers
+        .filter(v => {
+          const d = (v.createdAt || '').slice(0, 10);
+          return d >= stmtStartDate && d <= stmtEndDate;
+        })
+        .forEach(v => {
+          const itemsStr = v.items?.map(it => `${it.number}=${it.amount}${it.betType === 'rumble' ? 'R' : ''}`).join(', ') || '-';
+          rows.push({
+            'စဉ်': idx++,
+            'လုပ်ငန်း': 'အိုးစည်လေး (3D)',
+            'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
+            'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
+            'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
+            'ဖုန်းနံပါတ်': v.customerPhone || '-',
+            'ထိုးဂဏန်းများ': itemsStr,
+            'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
+            'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
+            'အမှန်ပေးငွေ (ကျပ်)': v.netPayable || 0,
+            'ငွေရှင်းပြီးမှု': v.isPaid ? 'ရှင်းပြီး' : 'ကြွေးကျန်',
+            'ပေါက်မဲ': v.items?.some(it => it.isWon) ? 'ပေါက်မဲရှိ' : '-'
+          });
+        });
+    }
+
+    // Football Slips
+    if (statementMode === 'all' || statementMode === 'football') {
+      football.slips
+        .filter(s => {
+          const d = s.roundDate || (s.createdAt || '').slice(0, 10);
+          return d >= stmtStartDate && d <= stmtEndDate;
+        })
+        .forEach(s => {
+          const itemsStr = s.selections?.map(sel => `${sel.matchSummary || sel.matchId} (${sel.choiceLabel})`).join(' | ') || '-';
+          rows.push({
+            'စဉ်': idx++,
+            'လုပ်ငန်း': 'ပစ်တိုင်းထောင် (ဘောလုံး)',
+            'ဘောင်ချာအမှတ်': s.slipNo || s.id,
+            'ရက်စွဲ/အချိန်': s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : '-',
+            'ဝယ်သူအမည်': s.customerName || 'အထွေထွေ',
+            'ဖုန်းနံပါတ်': s.customerPhone || '-',
+            'ထိုးဂဏန်းများ': itemsStr,
+            'မူလထိုးကြေး (ကျပ်)': s.stakeAmount || 0,
+            'အောက်လက်ကော်မရှင် (ကျပ်)': s.discountAmount || 0,
+            'အမှန်ပေးငွေ (ကျပ်)': s.netPayable || 0,
+            'ငွေရှင်းပြီးမှု': s.status === 'settled' ? 'ရှင်းပြီး' : 'ဖွင့်လှစ်ဆဲ',
+            'ပေါက်မဲ': s.outcome === 'won' || s.outcome === 'half_won' ? 'ပေါက်မဲရှိ' : '-'
+          });
+        });
+    }
+
+    if (rows.length === 0) {
+      alert('ရွေးချယ်ထားသော ကာလအတွင်း ဘောင်ချာမှတ်တမ်း မရှိပါ');
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ဘောင်ချာများ');
+    XLSX.writeFile(wb, `ဘောင်ချာမှတ်တမ်းများ_${statementMode}_${stmtStartDate}_${stmtEndDate}.xlsx`);
+  };
+
+  // Tab 5 Period-based Voucher Archive State
+  const [archivePeriod, setArchivePeriod] = useState<'week' | 'two_weeks' | 'month' | 'three_months' | 'custom' | 'all'>('month');
+  const [archiveStart, setArchiveStart] = useState(getDaysAgo(29));
+  const [archiveEnd, setArchiveEnd] = useState(todayStr);
+
+  const { archiveStartDate, archiveEndDate, archiveLabel } = React.useMemo(() => {
+    switch (archivePeriod) {
+      case 'week':
+        return { archiveStartDate: getDaysAgo(6), archiveEndDate: todayStr, archiveLabel: '၁ ပတ်စာ (၇ ရက်)' };
+      case 'two_weeks':
+        return { archiveStartDate: getDaysAgo(13), archiveEndDate: todayStr, archiveLabel: '၂ ပတ်စာ (၁၄ ရက်)' };
+      case 'month':
+        return { archiveStartDate: getDaysAgo(29), archiveEndDate: todayStr, archiveLabel: '၁ လစာ (၃၀ ရက်)' };
+      case 'three_months':
+        return { archiveStartDate: getDaysAgo(89), archiveEndDate: todayStr, archiveLabel: '၃ လစာ (၉၀ ရက်)' };
+      case 'custom':
+        return { archiveStartDate: archiveStart || getDaysAgo(29), archiveEndDate: archiveEnd || todayStr, archiveLabel: `စိတ်ကြိုက်ရက် (${archiveStart} မှ ${archiveEnd})` };
+      case 'all':
+      default:
+        return { archiveStartDate: '2020-01-01', archiveEndDate: '2099-12-31', archiveLabel: 'ကာလအားလုံး (All Vouchers)' };
+    }
+  }, [archivePeriod, archiveStart, archiveEnd, todayStr]);
+
+  const archive2DVouchers = React.useMemo(() => {
+    return lottery2D.vouchers.filter(v => {
+      const d = (v.createdAt || '').slice(0, 10);
+      return d >= archiveStartDate && d <= archiveEndDate;
+    });
+  }, [lottery2D.vouchers, archiveStartDate, archiveEndDate]);
+
+  const archive3DVouchers = React.useMemo(() => {
+    return lottery3D.vouchers.filter(v => {
+      const d = (v.createdAt || '').slice(0, 10);
+      return d >= archiveStartDate && d <= archiveEndDate;
+    });
+  }, [lottery3D.vouchers, archiveStartDate, archiveEndDate]);
+
+  const archiveFootballSlips = React.useMemo(() => {
+    return football.slips.filter(s => {
+      const d = s.roundDate || (s.createdAt || '').slice(0, 10);
+      return d >= archiveStartDate && d <= archiveEndDate;
+    });
+  }, [football.slips, archiveStartDate, archiveEndDate]);
+
+  const archiveTotalCount = archive2DVouchers.length + archive3DVouchers.length + archiveFootballSlips.length;
+
+  const handleExportArchiveExcel = () => {
+    if (archiveTotalCount === 0) {
+      setBackupMsg({ type: 'error', text: 'ရွေးချယ်ထားသော ကာလအတွင်း ဘောင်ချာမှတ်တမ်း မရှိပါ' });
+      return;
+    }
+
+    const rows: any[] = [];
+    let idx = 1;
+
+    // 2D
+    archive2DVouchers.forEach(v => {
+      const itemsStr = v.items?.map(it => `${it.number}=${it.amount}`).join(', ') || '-';
+      rows.push({
+        'စဉ်': idx++,
+        'လုပ်ငန်း': 'ဇီးကွက် (2D)',
+        'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
+        'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
+        'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
+        'ဖုန်းနံပါတ်': v.customerPhone || '-',
+        'ထိုးဂဏန်းများ': itemsStr,
+        'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
+        'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
+        'အမှန်ပေးငွေ (ကျပ်)': v.netPayable || 0,
+        'ငွေရှင်းပြီးမှု': v.isPaid ? 'ရှင်းပြီး' : 'ကြွေးကျန်',
+        'ပေါက်မဲ': v.items?.some(it => it.isWon) ? 'ပေါက်မဲရှိ' : '-'
+      });
+    });
+
+    // 3D
+    archive3DVouchers.forEach(v => {
+      const itemsStr = v.items?.map(it => `${it.number}=${it.amount}${it.betType === 'rumble' ? 'R' : ''}`).join(', ') || '-';
+      rows.push({
+        'စဉ်': idx++,
+        'လုပ်ငန်း': 'အိုးစည်လေး (3D)',
+        'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
+        'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
+        'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
+        'ဖုန်းနံပါတ်': v.customerPhone || '-',
+        'ထိုးဂဏန်းများ': itemsStr,
+        'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
+        'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
+        'အမှန်ပေးငွေ (ကျပ်)': v.netPayable || 0,
+        'ငွေရှင်းပြီးမှု': v.isPaid ? 'ရှင်းပြီး' : 'ကြွေးကျန်',
+        'ပေါက်မဲ': v.items?.some(it => it.isWon) ? 'ပေါက်မဲရှိ' : '-'
+      });
+    });
+
+    // Football
+    archiveFootballSlips.forEach(s => {
+      const itemsStr = s.selections?.map(sel => `${sel.matchSummary || sel.matchId} (${sel.choiceLabel})`).join(' | ') || '-';
+      rows.push({
+        'စဉ်': idx++,
+        'လုပ်ငန်း': 'ပစ်တိုင်းထောင် (ဘောလုံး)',
+        'ဘောင်ချာအမှတ်': s.slipNo || s.id,
+        'ရက်စွဲ/အချိန်': s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : '-',
+        'ဝယ်သူအမည်': s.customerName || 'အထွေထွေ',
+        'ဖုန်းနံပါတ်': s.customerPhone || '-',
+        'ထိုးဂဏန်းများ': itemsStr,
+        'မူလထိုးကြေး (ကျပ်)': s.stakeAmount || 0,
+        'အောက်လက်ကော်မရှင် (ကျပ်)': s.discountAmount || 0,
+        'အမှန်ပေးငွေ (ကျပ်)': s.netPayable || 0,
+        'ငွေရှင်းပြီးမှု': s.status === 'settled' ? 'ရှင်းပြီး' : 'ဖွင့်လှစ်ဆဲ',
+        'ပေါက်မဲ': s.outcome === 'won' || s.outcome === 'half_won' ? 'ပေါက်မဲရှိ' : '-'
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ဘောင်ချာများ');
+    const filename = `ဘောင်ချာမှတ်တမ်း_${archiveLabel.replace(/[/\\?%*:|"<>]/g, '_')}_${todayStr}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    setBackupMsg({ type: 'success', text: `"${filename}" အား ဒေါင်းလုဒ်သိမ်းဆည်းပြီးပါပြီ` });
+    setTimeout(() => setBackupMsg(null), 4000);
+  };
+
+  const handleExportArchiveRhmg = async () => {
+    if (archiveTotalCount === 0) {
+      setBackupMsg({ type: 'error', text: 'ရွေးချယ်ထားသော ကာလအတွင်း ဘောင်ချာမှတ်တမ်း မရှိပါ' });
+      return;
+    }
+    const pin = getStoredOwnerPin();
+    const encryptedContent = exportPeriodVouchersBackup(
+      archive3DVouchers,
+      archive2DVouchers,
+      archiveFootballSlips,
+      archiveLabel,
+      pin
+    );
+    const appName = name3D || name2D || nameFB || 'ရွှေမင်္ဂလာ';
+    const filename = `${appName}_ဘောင်ချာ_${archiveLabel.replace(/[/\\?%*:|"<>]/g, '_')}_${todayStr}.rhmg`;
+    const res = await saveFileWithCustomLocation(encryptedContent, filename, 'text/plain;charset=utf-8');
+    if (res.success) {
+      setBackupMsg({ type: 'success', text: res.message });
+    } else {
+      setBackupMsg({ type: 'error', text: res.message });
+    }
+    setTimeout(() => setBackupMsg(null), 4000);
   };
 
   // Enabled Modes State
@@ -1010,7 +1252,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100">
+                  {/* 3D Multipliers */}
+                  <div className="grid grid-cols-2 gap-2 bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100">
                     <div>
                       <label className="block text-[11px] font-bold text-indigo-950 mb-1">
                         ဒဲ့ ပေါက်ဆ (အဆ):
@@ -1031,12 +1274,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           target.select();
                           setTimeout(() => target.select(), 20);
                         }}
-                        className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
+                        className="w-full bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold text-indigo-900 text-center"
                       />
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-indigo-950 mb-1">
-                        ပတ်လည် ပေါက်ဆ:
+                        ပတ်လည် (Todd) ပေါက်ဆ:
                       </label>
                       <input
                         type="number"
@@ -1054,54 +1297,90 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           target.select();
                           setTimeout(() => target.select(), 20);
                         }}
-                        className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
+                        className="w-full bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold text-indigo-900 text-center"
                       />
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-indigo-950 mb-1">
-                        ကော်မရှင် (%):
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={comm3D}
-                        onChange={(e) => setComm3D(e.target.value)}
-                        onFocus={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        onClick={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-indigo-950 mb-1">
-                        ဝယ်သူ လျှော့ပေး (%):
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={disc3D}
-                        onChange={(e) => setDisc3D(e.target.value)}
-                        onFocus={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        onClick={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-indigo-900 text-center"
-                      />
+                  </div>
+
+                  {/* 3D Customizable Commissions: Lower (Agent / Customer) vs Upper (Master Bookie) */}
+                  <div className="bg-gradient-to-r from-amber-50/70 to-purple-50/70 p-3 rounded-2xl border border-slate-200 space-y-2">
+                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-wide block">
+                      ၃D ကော်မရှင်ခ သတ်မှတ်ချက်များ (အောက်လက် / အထက်)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* 1. အောက်လက်ကော်မရှင် (ကိုယ်က ပေးရမှာ) */}
+                      <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-black text-amber-950 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                            အောက်လက်ကော်မရှင် (%):
+                          </label>
+                          <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-bold">
+                            ကိုယ်ကပေးရမှာ
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          ဖောက်သည်များ / အောက်လက်များအား နုတ်ပေးရမည့် ကော်မရှင် %
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={disc3D}
+                            onChange={(e) => setDisc3D(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            onClick={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            className="flex-1 bg-amber-50/30 border border-amber-300 focus:border-amber-500 rounded-lg p-1.5 text-xs font-black text-amber-950 text-center font-mono"
+                          />
+                          <span className="text-xs font-bold text-amber-900">%</span>
+                        </div>
+                      </div>
+
+                      {/* 2. အထက်ကော်မရှင် (ကိုယ်ရမှာ) */}
+                      <div className="bg-white p-2.5 rounded-xl border border-purple-200 shadow-2xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-black text-purple-950 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>
+                            အထက်ကော်မရှင် (%):
+                          </label>
+                          <span className="text-[9px] bg-purple-100 text-purple-900 px-1.5 py-0.2 rounded font-bold">
+                            ကိုယ်ရမှာ
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          ဒိုင်ကြီးထံ အထက်လွှဲတင်သည့်အခါ ဒိုင်ကြီးဆီမှ ကိုယ်ရမည့် %
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={comm3D}
+                            onChange={(e) => setComm3D(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            onClick={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            className="flex-1 bg-purple-50/30 border border-purple-300 focus:border-purple-500 rounded-lg p-1.5 text-xs font-black text-purple-950 text-center font-mono"
+                          />
+                          <span className="text-xs font-bold text-purple-900">%</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1413,75 +1692,110 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 bg-teal-50/60 p-2.5 rounded-xl border border-teal-100">
-                    <div>
-                      <label className="block text-[11px] font-bold text-teal-950 mb-1">
-                        ဇီးကွက် ပေါက်ဆ:
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={mult2D}
-                        onChange={(e) => setMult2D(e.target.value)}
-                        onFocus={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        onClick={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        className="w-full bg-white border border-teal-200 rounded-lg p-1.5 text-xs font-bold text-teal-900 text-center"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-teal-950 mb-1">
-                        ကော်မရှင် (%):
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={comm2D}
-                        onChange={(e) => setComm2D(e.target.value)}
-                        onFocus={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        onClick={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        className="w-full bg-white border border-teal-200 rounded-lg p-1.5 text-xs font-bold text-teal-900 text-center"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-teal-950 mb-1">
-                        ဝယ်သူ လျှော့ပေး (%):
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={disc2D}
-                        onChange={(e) => setDisc2D(e.target.value)}
-                        onFocus={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        onClick={(e) => {
-                          const target = e.currentTarget;
-                          target.select();
-                          setTimeout(() => target.select(), 20);
-                        }}
-                        className="w-full bg-white border border-teal-200 rounded-lg p-1.5 text-xs font-bold text-teal-900 text-center"
-                      />
+                  {/* 2D Multiplier */}
+                  <div className="bg-teal-50/60 p-2.5 rounded-xl border border-teal-100">
+                    <label className="block text-[11px] font-bold text-teal-950 mb-1">
+                      ဇီးကွက် (2D) ပေါက်ဆ (အဆ):
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={mult2D}
+                      onChange={(e) => setMult2D(e.target.value)}
+                      onFocus={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                        setTimeout(() => target.select(), 20);
+                      }}
+                      className="w-full bg-white border border-teal-200 rounded-lg p-2 text-xs font-bold text-teal-900 text-center"
+                    />
+                  </div>
+
+                  {/* 2D Customizable Commissions: Lower (Agent / Customer) vs Upper (Master Bookie) */}
+                  <div className="bg-gradient-to-r from-amber-50/70 to-purple-50/70 p-3 rounded-2xl border border-slate-200 space-y-2">
+                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-wide block">
+                      ၂D ကော်မရှင်ခ သတ်မှတ်ချက်များ (အောက်လက် / အထက်)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* 1. အောက်လက်ကော်မရှင် (ကိုယ်က ပေးရမှာ) */}
+                      <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-black text-amber-950 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                            အောက်လက်ကော်မရှင် (%):
+                          </label>
+                          <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-bold">
+                            ကိုယ်ကပေးရမှာ
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          ဖောက်သည်များ / အောက်လက်များအား နုတ်ပေးရမည့် ကော်မရှင် %
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={disc2D}
+                            onChange={(e) => setDisc2D(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            onClick={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            className="flex-1 bg-amber-50/30 border border-amber-300 focus:border-amber-500 rounded-lg p-1.5 text-xs font-black text-amber-950 text-center font-mono"
+                          />
+                          <span className="text-xs font-bold text-amber-900">%</span>
+                        </div>
+                      </div>
+
+                      {/* 2. အထက်ကော်မရှင် (ကိုယ်ရမှာ) */}
+                      <div className="bg-white p-2.5 rounded-xl border border-purple-200 shadow-2xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-black text-purple-950 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>
+                            အထက်ကော်မရှင် (%):
+                          </label>
+                          <span className="text-[9px] bg-purple-100 text-purple-900 px-1.5 py-0.2 rounded font-bold">
+                            ကိုယ်ရမှာ
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          ဒိုင်ကြီးထံ အထက်လွှဲတင်သည့်အခါ ဒိုင်ကြီးဆီမှ ကိုယ်ရမည့် %
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={comm2D}
+                            onChange={(e) => setComm2D(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            onClick={(e) => {
+                              const target = e.currentTarget;
+                              target.select();
+                              setTimeout(() => target.select(), 20);
+                            }}
+                            className="flex-1 bg-purple-50/30 border border-purple-300 focus:border-purple-500 rounded-lg p-1.5 text-xs font-black text-purple-950 text-center font-mono"
+                          />
+                          <span className="text-xs font-bold text-purple-900">%</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1839,75 +2153,110 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
-                <div>
-                  <label className="block text-[11px] font-bold text-emerald-950 mb-1">
-                    ကော်မရှင် (%):
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={commFB}
-                    onChange={(e) => setCommFB(e.target.value)}
-                    onFocus={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    onClick={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-bold text-emerald-900 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-emerald-950 mb-1">
-                    ဝယ်သူ လျှော့ငွေ (%):
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={discFB}
-                    onChange={(e) => setDiscFB(e.target.value)}
-                    onFocus={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    onClick={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-bold text-emerald-900 text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-emerald-950 mb-1">
-                    အမြင့်ဆုံး လျော်ကြေး:
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={maxPayoutFB}
-                    onChange={(e) => setMaxPayoutFB(e.target.value)}
-                    onFocus={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    onClick={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-bold text-emerald-900 text-center"
-                  />
+              {/* Football Max Payout */}
+              <div className="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
+                <label className="block text-[11px] font-bold text-emerald-950 mb-1">
+                  တစ်စောင် အမြင့်ဆုံး လျော်ကြေးငွေ (Max Payout Per Slip):
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={maxPayoutFB}
+                  onChange={(e) => setMaxPayoutFB(e.target.value)}
+                  onFocus={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                    setTimeout(() => target.select(), 20);
+                  }}
+                  className="w-full bg-white border border-emerald-200 rounded-lg p-2 text-xs font-bold text-emerald-900 text-center font-mono"
+                />
+              </div>
+
+              {/* Football Customizable Commissions: Lower (Agent / Customer) vs Upper (Master Bookie) */}
+              <div className="bg-gradient-to-r from-amber-50/70 to-purple-50/70 p-3 rounded-2xl border border-slate-200 space-y-2">
+                <span className="text-[11px] font-black text-slate-800 uppercase tracking-wide block">
+                  ဘောလုံး (ပစ်တိုင်းထောင်) ကော်မရှင်ခ သတ်မှတ်ချက်များ (အောက်လက် / အထက်)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* 1. အောက်လက်ကော်မရှင် (ကိုယ်က ပေးရမှာ) */}
+                  <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-amber-950 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                        အောက်လက်ကော်မရှင် (%):
+                      </label>
+                      <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-bold">
+                        ကိုယ်ကပေးရမှာ
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      ဖောက်သည်များ / အောက်လက်များအား နုတ်ပေးရမည့် ကော်မရှင် %
+                    </p>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={discFB}
+                        onChange={(e) => setDiscFB(e.target.value)}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        className="flex-1 bg-amber-50/30 border border-amber-300 focus:border-amber-500 rounded-lg p-1.5 text-xs font-black text-amber-950 text-center font-mono"
+                      />
+                      <span className="text-xs font-bold text-amber-900">%</span>
+                    </div>
+                  </div>
+
+                  {/* 2. အထက်ကော်မရှင် (ကိုယ်ရမှာ) */}
+                  <div className="bg-white p-2.5 rounded-xl border border-purple-200 shadow-2xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-purple-950 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>
+                        အထက်ကော်မရှင် (%):
+                      </label>
+                      <span className="text-[9px] bg-purple-100 text-purple-900 px-1.5 py-0.2 rounded font-bold">
+                        ကိုယ်ရမှာ
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      ဒိုင်ကြီးထံ အထက်လွှဲတင်သည့်အခါ ဒိုင်ကြီးဆီမှ ကိုယ်ရမည့် %
+                    </p>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={commFB}
+                        onChange={(e) => setCommFB(e.target.value)}
+                        onFocus={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        onClick={(e) => {
+                          const target = e.currentTarget;
+                          target.select();
+                          setTimeout(() => target.select(), 20);
+                        }}
+                        className="flex-1 bg-purple-50/30 border border-purple-300 focus:border-purple-500 rounded-lg p-1.5 text-xs font-black text-purple-950 text-center font-mono"
+                      />
+                      <span className="text-xs font-bold text-purple-900">%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2147,6 +2496,101 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span>ဖိုင်ရွေးချယ်ပြီး ပြန်သွင်းမည်</span>
                 </button>
               </div>
+
+              {/* 3. Period-based Voucher Retention & Export */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">
+                    ၃။ ကာလအလိုက် ဘောင်ချာများ စိတ်ကြိုက်ရွေးချယ် သိမ်းဆည်းခြင်း (၁ လစာ / ၁ ပတ်စာ / စိတ်ကြိုက်)
+                  </span>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    လိုချင်သော ရက်စွဲကာလကို ရွေးပြီး ဘောင်ချာမှတ်တမ်းများအား Excel သို့မဟုတ် လုံခြုံသော Backup Archive (.rhmg) ဖိုင်အဖြစ် သီးသန့်ထုတ်ယူသိမ်းဆည်းနိုင်ပါသည်။
+                  </p>
+                </div>
+
+                {/* Period Selector Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: 'week', label: '၁ ပတ်စာ (၇ ရက်)' },
+                    { id: 'two_weeks', label: '၂ ပတ်စာ (၁၄ ရက်)' },
+                    { id: 'month', label: '၁ လစာ (၃၀ ရက်)' },
+                    { id: 'three_months', label: '၃ လစာ (၉၀ ရက်)' },
+                    { id: 'custom', label: 'စိတ်ကြိုက်ရက်' },
+                    { id: 'all', label: 'ကာလအားလုံး' }
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setArchivePeriod(p.id as any)}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        archivePeriod === p.id
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Date Pickers */}
+                {archivePeriod === 'custom' && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 font-bold">မှ:</span>
+                      <input
+                        type="date"
+                        value={archiveStart}
+                        onChange={(e) => setArchiveStart(e.target.value)}
+                        className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 font-bold">ထိ:</span>
+                      <input
+                        type="date"
+                        value={archiveEnd}
+                        onChange={(e) => setArchiveEnd(e.target.value)}
+                        className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Voucher Count Summary */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-700">
+                    <span className="text-teal-700">၂D: {archive2DVouchers.length} စောင်</span>
+                    <span>•</span>
+                    <span className="text-indigo-700">၃D: {archive3DVouchers.length} စောင်</span>
+                    <span>•</span>
+                    <span className="text-emerald-700">ဘောလုံး: {archiveFootballSlips.length} စောင်</span>
+                  </div>
+                  <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                    စုစုပေါင်း: {archiveTotalCount} စောင်
+                  </span>
+                </div>
+
+                {/* Download Actions */}
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <button
+                    type="button"
+                    onClick={handleExportArchiveExcel}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Excel (.xlsx) ဖြင့် သိမ်းဆည်းမည်</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportArchiveRhmg}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
+                  >
+                    <FolderDown className="w-4 h-4" />
+                    <span>ဖုန်းထဲတွင် နေရာရွေးပြီး သိမ်းမည် (.rhmg)</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2155,6 +2599,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ==================================================== */}
           {activeTab === 'statements' && (
             <div className="space-y-4">
+              {/* Master Consolidated 3-Business Statement Header Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 rounded-2xl border border-indigo-900/40 shadow-sm flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 flex items-center justify-center font-bold shrink-0">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-white leading-tight flex items-center gap-2 flex-wrap">
+                      <span>လုပ်ငန်းသုံးခုလုံး စုစည်းချုပ် စာရင်းရှင်းတမ်း (Master Consolidated)</span>
+                      <span className="text-[10px] px-2 py-0.5 bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 rounded-full font-bold">
+                        3D + 2D + Football စုစည်းချုပ်
+                      </span>
+                    </h4>
+                    <p className="text-[10px] text-slate-300 mt-0.5">
+                      အိုးစည်လေး၊ ဇီးကွက် နှင့် ပစ်တိုင်းထောင် လုပ်ငန်း ၃ ခုလုံး၏ စုစုပေါင်း အရောင်းထိုးကြေး၊ အောက်လက်ကော်မရှင်၊ အမှန်ရောင်းငွေ၊ ပေးလျော်ငွေ နှင့် ဒိုင်ချုပ်အသားတင် အမြတ်/အရှုံး
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Filter Controls: Period & Mode */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2162,7 +2626,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className="text-[11px] font-bold text-slate-500 mr-1">ကာလ:</span>
                     {[
                       { id: 'all', label: 'အားလုံး' },
-                      { id: 'today', label: 'ဒီနေ့' },
+                      { id: 'today', label: 'ဒီနေ့ (၁ ရက်)' },
+                      { id: 'two_days', label: '၂ ရက်စာ' },
                       { id: 'three_days', label: '၃ ရက်စာ' },
                       { id: 'five_days', label: '၅ ရက်စာ' },
                       { id: 'week', label: '၁ ပတ်စာ' },
@@ -2187,10 +2652,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[11px] font-bold text-slate-500 mr-1">လိုင်း:</span>
                     {[
-                      { id: 'all', label: 'အားလုံး' },
-                      { id: '3d', label: 'အိုးစည်လေး' },
-                      { id: '2d', label: 'ဇီးကွက်' },
-                      { id: 'football', label: 'ပစ်တိုင်းထောင်' }
+                      { id: 'all', label: '★ လုပ်ငန်း ၃ ခုလုံး ပေါင်းချုပ်' },
+                      { id: '3d', label: 'အိုးစည်လေး (3D)' },
+                      { id: '2d', label: 'ဇီးကွက် (2D)' },
+                      { id: 'football', label: 'ပစ်တိုင်းထောင် (ဘောလုံး)' }
                     ].map((m) => (
                       <button
                         key={m.id}
@@ -2354,7 +2819,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>Excel ထုတ်</span>
+                      <span>ရှင်းတမ်း Excel</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPeriodAllVouchersExcel}
+                      className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="ရွေးချယ်ထားသော ကာလအတွင်း ဘောင်ချာများ အားလုံးအား Excel ဖြင့် ထုတ်ယူမည်"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>ဘောင်ချာများ Excel</span>
                     </button>
                     <button
                       type="button"
@@ -2537,6 +3011,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div>
                     <span className="text-xs font-black text-slate-900 block">ကာလချုပ် စာရင်းရှင်းတမ်း Excel</span>
                     <span className="text-[11px] text-slate-500">အရောင်း၊ လျော်ကြေးနှင့် အသားတင် အမြတ်/အရှုံး</span>
+                  </div>
+                </button>
+
+                {/* Period Filtered All Vouchers Excel Button */}
+                <button
+                  type="button"
+                  onClick={handleExportPeriodAllVouchersExcel}
+                  className="p-3.5 bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-2xl flex items-center gap-3 transition-all cursor-pointer shadow-2xs text-left group sm:col-span-2"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-900 block">
+                      ကာလအလိုက် ဘောင်ချာများ အားလုံး စုစည်း Excel ထုတ်ယူမည်
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      ရွေးချယ်ထားသော ကာလ ({stmtStartDate} မှ {stmtEndDate}) အတွင်း 2D, 3D, Football ဘောင်ချာများ အကုန်လုံး အသေးစိတ် ထုတ်ယူမည်
+                    </span>
                   </div>
                 </button>
               </div>

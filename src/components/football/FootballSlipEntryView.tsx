@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Trophy,
   Plus,
@@ -54,6 +54,12 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
   const [customerPhone, setCustomerPhone] = useState('');
   const [stakeAmount, setStakeAmount] = useState('5000');
   const [discountPercent, setDiscountPercent] = useState<number>(settings.defaultCustomerDiscount || 0);
+
+  useEffect(() => {
+    if (typeof settings.defaultCustomerDiscount === 'number') {
+      setDiscountPercent(settings.defaultCustomerDiscount);
+    }
+  }, [settings.defaultCustomerDiscount]);
 
   // Selected match legs
   const [selections, setSelections] = useState<FootballBetSelection[]>([]);

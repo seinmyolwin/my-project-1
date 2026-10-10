@@ -518,3 +518,43 @@ export function restoreUnifiedMasterBackup(jsonString: string): boolean {
     return false;
   }
 }
+
+/**
+ * Exports period-filtered vouchers across 3D, 2D, and Football into an encrypted .rhmg archive
+ */
+export function exportPeriodVouchersBackup(
+  vouchers3D: any[],
+  vouchers2D: any[],
+  slipsFB: any[],
+  periodLabel: string,
+  ownerPin: string = ''
+): string {
+  const data = {
+    app: 'ရွှေမင်္ဂလာ စာရင်းစီမံခန့်ခွဲမှုစနစ် (Voucher Archive)',
+    version: '3.0',
+    exportTimestamp: new Date().toISOString(),
+    format: 'SHWE_MINGALAR_VOUCHERS_ARCHIVE',
+    period: periodLabel,
+    payload: {
+      '3d_vouchers': vouchers3D,
+      '2d_vouchers': vouchers2D,
+      'football_slips': slipsFB
+    }
+  };
+  const rawJson = JSON.stringify(data);
+  const checksum = generateChecksum(rawJson);
+  const encryptedPayload = encryptPayload(rawJson, ownerPin);
+
+  return [
+    CIPHER_HEADER,
+    `Format: SMG-VOUCHERS-ARCHIVE-V3`,
+    `Period: ${periodLabel}`,
+    `Date: ${new Date().toISOString()}`,
+    `App: Shwe-Mingalar-Management-System`,
+    `Checksum: ${checksum}`,
+    ``,
+    encryptedPayload,
+    ``,
+    CIPHER_FOOTER
+  ].join('\n');
+}

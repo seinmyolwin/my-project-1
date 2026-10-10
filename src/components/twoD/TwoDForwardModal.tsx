@@ -52,6 +52,12 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (typeof settings.defaultCommissionRate === 'number') {
+      setCommissionRate(settings.defaultCommissionRate);
+    }
+  }, [settings.defaultCommissionRate]);
+
   // Draft Forward Items (with selection and custom amounts)
   const [draftItems, setDraftItems] = useState<ForwardDraftItem[]>([]);
 

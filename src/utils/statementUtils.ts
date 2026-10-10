@@ -10,28 +10,34 @@ export interface StatementRecord {
   name: string;
   session?: 'morning' | 'evening' | 'special';
   winningResult: string;
-  turnover: number;          // စုစုပေါင်း ထိုးကြေး (Gross Turnover)
-  agentCommission: number;   // အောက်လက်/ဝယ်သူ ကော်မရှင် ပေးရငွေ (Agent Discount Out)
-  netSales: number;          // အမှန်ရောင်းရငွေ (Turnover - Agent Commission)
-  payout: number;            // ဒိုင်ပေးလျော်ငွေ (Retained local payout)
-  totalForwarded: number;    // ဒိုင်ကြီးဆီ လွှဲတင်ငွေ (Total amount sent to master bookie)
-  forwardCommission: number; // ဒိုင်ကြီးဆီ လွှဲတင်ကော်မရှင် ရငွေ (Commission earned from bookie)
+  turnover: number;          // ၁။ မူလထိုးကြေး စုစုပေါင်း (Gross Turnover - ဘာမှမနုတ်ထား)
+  totalForwarded: number;    // ၂။ အထက်တင်ကြေး (Total Forwarded to Master Bookie)
+  agentCommission: number;   // ၃။ အောက်လက်ကော်မရှင်ခ (Agent Discount Out - ကိုယ်က ပေးရငွေ)
+  netSales: number;          // ၄။ အမှန်ရောင်းငွေ (Net Sales Retained = Turnover - Forwarded - AgentCommission)
+  masterPayout: number;      // ၅။ အထက်ပေါက်ကြေး (Master Payout In - ဒိုင်ကြီးဆီမှ ပြန်ရငွေ)
+  forwardCommission: number; // ၆။ အထက်ကော်မရှင်ခ (Master Commission In - ကိုယ်ရငွေ)
+  totalPayout: number;       // ၇။ ပေးလျှော်ငွေ (Gross Payout to all customers)
+  payout: number;            // ဒိုင်ပေးလျော်ငွေ (Retained Payout = Total Payout - Master Payout)
   netPaid: number;           // ဒိုင်ကြီးဆီ အမှန်ပေးငွေ (Total Forwarded - Forward Commission)
-  netProfit: number;         // ဒိုင် အသားတင် အမြတ်/အရှုံး (Net Sales - Net Paid - Payout)
+  netProfit: number;         // ၈။ ဒိုင် အသားတင် အမြတ်/အရှုံး (အမှန်ရောင်းငွေ + အထက်ပေါက်ကြေး + အထက်ကော်မရှင်ခ - ပေးလျှော်ငွေ)
   isProfit: boolean;
   winnersCount: number;
   vouchersCount: number;
   status: 'settled' | 'open' | 'closed';
   rawRoundId?: string;
+  vouchersList?: any[];      // ဘောင်ချာများ တစောင်ချင်း စစ်ဆေးနိုင်ရန်
+  forwardList?: any[];       // လွှဲစာရင်းများ
 }
 
 export interface StatementGrandTotals {
   totalTurnover: number;
+  totalForwarded: number;
   totalAgentCommission: number;
   netSales: number;
-  totalPayout: number;
-  totalForwarded: number;
+  totalMasterPayout: number;
   totalForwardCommission: number;
+  totalPayout: number;
+  retainedPayout: number;
   totalNetPaid: number;
   totalNetProfit: number;
   isProfit: boolean;
@@ -39,7 +45,7 @@ export interface StatementGrandTotals {
   totalVouchers: number;
 }
 
-export type StatementPeriodPreset = 'all' | 'today' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom';
+export type StatementPeriodPreset = 'all' | 'today' | 'two_days' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom';
 
 // Local date string helper (YYYY-MM-DD) based on user's timezone
 export function getLocalDateStr(d: Date = new Date()): string {
@@ -67,6 +73,8 @@ export function getStatementDateRange(
       return { startDate: '2020-01-01', endDate: '2099-12-31' };
     case 'today':
       return { startDate: todayStr, endDate: todayStr };
+    case 'two_days':
+      return { startDate: getDaysAgoStr(1, today), endDate: todayStr }; // Today + Yesterday (2 days)
     case 'three_days':
       return { startDate: getDaysAgoStr(2, today), endDate: todayStr }; // Today, Yesterday, 2 days ago (3 days)
     case 'five_days':
@@ -88,6 +96,7 @@ export function getStatementPeriodLabel(preset: StatementPeriodPreset): string {
   switch (preset) {
     case 'all': return 'ကာလအားလုံး စာရင်းရှင်းတမ်း';
     case 'today': return 'ဒီနေ့ စာရင်းရှင်းတမ်း (၁ ရက်စာ)';
+    case 'two_days': return '၂ ရက်စာ စာရင်းရှင်းတမ်း';
     case 'three_days': return '၃ ရက်စာ စာရင်းရှင်းတမ်း';
     case 'five_days': return '၅ ရက်တဖြတ် စာရင်းရှင်းတမ်း';
     case 'week': return '၁ ပတ်စာ စာရင်းရှင်းတမ်း';
@@ -105,6 +114,7 @@ export interface StatementDataSources {
     settings: {
       defaultMultiplier?: number;
       defaultCommissionRate?: number;
+      defaultCustomerDiscount?: number;
       currency?: string;
     };
   };
@@ -116,12 +126,18 @@ export interface StatementDataSources {
       defaultMultiplier?: number;
       defaultToddMultiplier?: number;
       defaultCommissionRate?: number;
+      defaultCustomerDiscount?: number;
       currency?: string;
     };
   };
   football: {
     slips: FootballSlip[];
     forwardSlips: any[];
+    settings?: {
+      defaultCommissionRate?: number;
+      defaultCustomerDiscount?: number;
+      currency?: string;
+    };
   };
 }
 
@@ -142,7 +158,6 @@ export function generateStatementRecords(
   // ====================================================
   if (mode === 'all' || mode === '2d') {
     const processedRoundIds = new Set<string>();
-
     const allRoundIds2D = new Set(data.lottery2D.rounds.map((r) => r.id));
 
     data.lottery2D.rounds.forEach((round) => {
@@ -161,25 +176,25 @@ export function generateStatementRecords(
 
         let totalTurnover = 0;
         let totalAgentCommission = 0;
-        let netSales = 0;
 
         roundVouchers.forEach((v) => {
           const voucherSubtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
           
           let voucherDiscount = 0;
-          if (typeof v.discountAmount === 'number') {
+          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+            ? v.discountPercent
+            : (data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0);
+
+          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
             voucherDiscount = v.discountAmount;
+          } else if (agentRate > 0) {
+            voucherDiscount = Math.round(voucherSubtotal * (agentRate / 100));
           } else if (round.commissionRate && round.commissionRate > 0) {
             voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
-          } else if (data.lottery2D.settings.defaultCommissionRate && data.lottery2D.settings.defaultCommissionRate > 0) {
-            voucherDiscount = Math.round(voucherSubtotal * (data.lottery2D.settings.defaultCommissionRate / 100));
           }
-
-          const voucherNet = v.netPayable ?? (voucherSubtotal - voucherDiscount);
 
           totalTurnover += voucherSubtotal;
           totalAgentCommission += voucherDiscount;
-          netSales += voucherNet;
         });
 
         // Forward slips to master bookie
@@ -191,8 +206,10 @@ export function generateStatementRecords(
         });
         const netPaid = totalForwarded - forwardCommission;
 
-        // Payout & Winners calculation
+        // Payout & Master Payout calculation
         let totalPayout = 0;
+        let masterPayout = 0;
+        let retainedPayout = 0;
         let winnersCount = 0;
         const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
         const mult = round.multiplier || data.lottery2D.settings.defaultMultiplier || 0;
@@ -213,20 +230,30 @@ export function generateStatementRecords(
               if (it.number === winningNum) totalForwardedForWinNum += it.amount;
             });
           });
+
+          totalPayout = mult > 0 ? totalSoldForWinNum * mult : 0;
+          masterPayout = mult > 0 ? totalForwardedForWinNum * mult : 0;
           const retainedAmount = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
-          totalPayout = mult > 0 ? retainedAmount * mult : 0;
+          retainedPayout = mult > 0 ? retainedAmount * mult : 0;
         } else {
           roundVouchers.forEach((v) => {
             v.items.forEach((it) => {
               if (it.isWon) {
-                totalPayout += (it.wonAmount || (it.amount * mult));
+                const amt = (it.wonAmount || (it.amount * mult));
+                totalPayout += amt;
+                retainedPayout += amt;
                 winnersCount += 1;
               }
             });
           });
         }
 
-        const netProfit = netSales - netPaid - totalPayout;
+        // Exact Formula requested by user:
+        // ၁။ အမှန်ရောင်းငွေ = စုစုပေါင်းထိုးကြေး (မူလအတိုင်း) - အထက်တင်ကြေး - အောက်လက်ကော်မရှင်ခ
+        const netSales = totalTurnover - totalForwarded - totalAgentCommission;
+
+        // ၂။ ဒိုင်အသားတင် အမြတ်/အရှုံး = အမှန်ရောင်းငွေ + အထက်ပေါက်ကြေး + အထက်ကော်မရှင်ခ - ပေးလျှော်ငွေ
+        const netProfit = netSales + masterPayout + forwardCommission - totalPayout;
 
         list.push({
           id: `2d-${round.id}`,
@@ -237,18 +264,22 @@ export function generateStatementRecords(
           session: round.session,
           winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
           turnover: totalTurnover,
+          totalForwarded,
           agentCommission: totalAgentCommission,
           netSales,
-          payout: totalPayout,
-          totalForwarded,
+          masterPayout,
           forwardCommission,
+          totalPayout,
+          payout: retainedPayout,
           netPaid,
           netProfit,
           isProfit: netProfit >= 0,
           winnersCount,
           vouchersCount: roundVouchers.length,
           status: round.status,
-          rawRoundId: round.id
+          rawRoundId: round.id,
+          vouchersList: roundVouchers,
+          forwardList: roundForwards
         });
       }
     });
@@ -271,22 +302,24 @@ export function generateStatementRecords(
         const vList = groupedByDate[d];
         let turnover = 0;
         let agentCommission = 0;
-        let netSales = 0;
         let payout = 0;
         let winnersCount = 0;
 
         vList.forEach(v => {
           const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+            ? v.discountPercent
+            : (data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0);
+
           let disc = 0;
-          if (typeof v.discountAmount === 'number') {
+          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
             disc = v.discountAmount;
-          } else if (data.lottery2D.settings.defaultCommissionRate) {
-            disc = Math.round(sub * (data.lottery2D.settings.defaultCommissionRate / 100));
+          } else if (agentRate > 0) {
+            disc = Math.round(sub * (agentRate / 100));
           }
 
           turnover += sub;
           agentCommission += disc;
-          netSales += (v.netPayable ?? (sub - disc));
           v.items.forEach(it => {
             if (it.isWon) {
               payout += (it.wonAmount || (it.amount * (data.lottery2D.settings.defaultMultiplier || 0)));
@@ -295,6 +328,7 @@ export function generateStatementRecords(
           });
         });
 
+        const netSales = turnover - agentCommission;
         const netProfit = netSales - payout;
 
         list.push({
@@ -306,17 +340,21 @@ export function generateStatementRecords(
           session: 'morning',
           winningResult: payout > 0 ? `${winnersCount} ဦးပေါက်` : 'မထွက်သေး',
           turnover,
+          totalForwarded: 0,
           agentCommission,
           netSales,
-          payout,
-          totalForwarded: 0,
+          masterPayout: 0,
           forwardCommission: 0,
+          totalPayout: payout,
+          payout,
           netPaid: 0,
           netProfit,
           isProfit: netProfit >= 0,
           winnersCount,
           vouchersCount: vList.length,
-          status: payout > 0 ? 'settled' : 'open'
+          status: payout > 0 ? 'settled' : 'open',
+          vouchersList: vList,
+          forwardList: []
         });
       });
     }
@@ -327,7 +365,6 @@ export function generateStatementRecords(
   // ====================================================
   if (mode === 'all' || mode === '3d') {
     const processed3DRoundIds = new Set<string>();
-
     const allRoundIds3D = new Set(data.lottery3D.rounds.map((r) => r.id));
 
     data.lottery3D.rounds.forEach((round) => {
@@ -346,22 +383,24 @@ export function generateStatementRecords(
 
         let totalTurnover = 0;
         let totalAgentCommission = 0;
-        let netSales = 0;
 
         roundVouchers.forEach((v) => {
           const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+            ? v.discountPercent
+            : (data.lottery3D.settings.defaultCustomerDiscount ?? data.lottery3D.settings.defaultCommissionRate ?? 0);
+
           let disc = 0;
-          if (typeof v.discountAmount === 'number') {
+          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
             disc = v.discountAmount;
+          } else if (agentRate > 0) {
+            disc = Math.round(sub * (agentRate / 100));
           } else if (round.commissionRate && round.commissionRate > 0) {
             disc = Math.round(sub * (round.commissionRate / 100));
-          } else if (data.lottery3D.settings.defaultCommissionRate && data.lottery3D.settings.defaultCommissionRate > 0) {
-            disc = Math.round(sub * (data.lottery3D.settings.defaultCommissionRate / 100));
           }
 
           totalTurnover += sub;
           totalAgentCommission += disc;
-          netSales += (v.netPayable ?? (sub - disc));
         });
 
         // 3D Forward slips to master bookie
@@ -374,6 +413,8 @@ export function generateStatementRecords(
         const netPaid = totalForwarded - forwardCommission;
 
         let totalPayout = 0;
+        let masterPayout = 0;
+        let retainedPayout = 0;
         let winnersCount = 0;
         const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
         const straightMult = round.multiplier || data.lottery3D.settings.defaultMultiplier || 0;
@@ -383,7 +424,6 @@ export function generateStatementRecords(
           const evalResult = evaluateWinnings(roundVouchers, winningNum, straightMult, toddMult);
           winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
 
-          // Deduct forwarded bets for 3D winning calculation
           const toddPerms = new Set(getPermutations(winningNum).filter(p => p !== winningNum));
 
           let straightSold = 0;
@@ -410,22 +450,26 @@ export function generateStatementRecords(
             });
           });
 
+          totalPayout = (straightSold * straightMult) + (toddSold * toddMult);
+          masterPayout = (straightForwarded * straightMult) + (toddForwarded * toddMult);
           const retainedStraight = Math.max(0, straightSold - straightForwarded);
           const retainedTodd = Math.max(0, toddSold - toddForwarded);
-
-          totalPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
+          retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
         } else {
           roundVouchers.forEach((v) => {
             v.items.forEach((it) => {
               if (it.isWon) {
-                totalPayout += (it.wonAmount || (it.amount * straightMult));
+                const amt = (it.wonAmount || (it.amount * straightMult));
+                totalPayout += amt;
+                retainedPayout += amt;
                 winnersCount += 1;
               }
             });
           });
         }
 
-        const netProfit = netSales - netPaid - totalPayout;
+        const netSales = totalTurnover - totalForwarded - totalAgentCommission;
+        const netProfit = netSales + masterPayout + forwardCommission - totalPayout;
 
         list.push({
           id: `3d-${round.id}`,
@@ -435,18 +479,22 @@ export function generateStatementRecords(
           name: round.name || `${roundDate} ထီဖွင့်ပွဲ`,
           winningResult: winningNum || (round.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး'),
           turnover: totalTurnover,
+          totalForwarded,
           agentCommission: totalAgentCommission,
           netSales,
-          payout: totalPayout,
-          totalForwarded,
+          masterPayout,
           forwardCommission,
+          totalPayout,
+          payout: retainedPayout,
           netPaid,
           netProfit,
           isProfit: netProfit >= 0,
           winnersCount,
           vouchersCount: roundVouchers.length,
           status: round.status,
-          rawRoundId: round.id
+          rawRoundId: round.id,
+          vouchersList: roundVouchers,
+          forwardList: roundForwards
         });
       }
     });
@@ -469,22 +517,24 @@ export function generateStatementRecords(
         const vList = grouped3DByDate[d];
         let turnover = 0;
         let agentCommission = 0;
-        let netSales = 0;
         let payout = 0;
         let winnersCount = 0;
 
         vList.forEach(v => {
           const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+            ? v.discountPercent
+            : (data.lottery3D.settings.defaultCustomerDiscount ?? data.lottery3D.settings.defaultCommissionRate ?? 0);
+
           let disc = 0;
-          if (typeof v.discountAmount === 'number') {
+          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
             disc = v.discountAmount;
-          } else if (data.lottery3D.settings.defaultCommissionRate) {
-            disc = Math.round(sub * (data.lottery3D.settings.defaultCommissionRate / 100));
+          } else if (agentRate > 0) {
+            disc = Math.round(sub * (agentRate / 100));
           }
 
           turnover += sub;
           agentCommission += disc;
-          netSales += (v.netPayable ?? (sub - disc));
           v.items.forEach(it => {
             if (it.isWon) {
               payout += (it.wonAmount || (it.amount * (data.lottery3D.settings.defaultMultiplier || 0)));
@@ -493,6 +543,7 @@ export function generateStatementRecords(
           });
         });
 
+        const netSales = turnover - agentCommission;
         const netProfit = netSales - payout;
 
         list.push({
@@ -503,17 +554,21 @@ export function generateStatementRecords(
           name: `${d} 3D အရောင်းမှတ်တမ်းများ`,
           winningResult: payout > 0 ? `${winnersCount} ဦးပေါက်` : 'မထွက်သေး',
           turnover,
+          totalForwarded: 0,
           agentCommission,
           netSales,
-          payout,
-          totalForwarded: 0,
+          masterPayout: 0,
           forwardCommission: 0,
+          totalPayout: payout,
+          payout,
           netPaid: 0,
           netProfit,
           isProfit: netProfit >= 0,
           winnersCount,
           vouchersCount: vList.length,
-          status: payout > 0 ? 'settled' : 'open'
+          status: payout > 0 ? 'settled' : 'open',
+          vouchersList: vList,
+          forwardList: []
         });
       });
     }
@@ -545,19 +600,25 @@ export function generateStatementRecords(
 
         let turnover = 0;
         let agentCommission = 0;
-        let netSales = 0;
         let totalPayout = 0;
+        let masterPayout = 0;
         let retainedPayout = 0;
         let winnersCount = 0;
 
         daySlips.forEach((s) => {
           const stake = s.stakeAmount || s.netPayable || 0;
-          const disc = s.discountAmount || 0;
+          const agentRate = (typeof s.discountPercent === 'number' && s.discountPercent > 0)
+            ? s.discountPercent
+            : (data.football.settings?.defaultCustomerDiscount ?? data.football.settings?.defaultCommissionRate ?? 0);
+
+          const disc = s.discountAmount > 0
+            ? s.discountAmount
+            : agentRate > 0 ? Math.round(stake * (agentRate / 100)) : 0;
+
           turnover += stake;
           agentCommission += disc;
-          netSales += (s.netPayable || (stake - disc));
 
-          // Forward ratio for this slip (identical to FootballContext)
+          // Forward ratio for this slip
           const forwardedStakeForSlip = dayForwards
             .filter((f) => f.slipId === s.id || (f.slipNo && f.slipNo === s.slipNo))
             .reduce((sum, f) => sum + (f.stakeAmount || f.totalAmount || 0), 0);
@@ -568,7 +629,9 @@ export function generateStatementRecords(
             : 0;
 
           totalPayout += actPayout;
-          retainedPayout += actPayout * (1 - forwardRatio);
+          const slipMasterPayout = actPayout * forwardRatio;
+          masterPayout += slipMasterPayout;
+          retainedPayout += (actPayout - slipMasterPayout);
 
           if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
             winnersCount += 1;
@@ -583,7 +646,8 @@ export function generateStatementRecords(
         });
         const netPaid = totalForwarded - forwardCommission;
 
-        const netProfit = netSales - netPaid - retainedPayout;
+        const netSales = turnover - totalForwarded - agentCommission;
+        const netProfit = netSales + masterPayout + forwardCommission - totalPayout;
 
         list.push({
           id: `football-${d}`,
@@ -593,17 +657,21 @@ export function generateStatementRecords(
           name: `${d} ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း`,
           winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : 'စလစ်အားလုံး ရှင်းပြီး',
           turnover,
+          totalForwarded,
           agentCommission,
           netSales,
-          payout: retainedPayout,
-          totalForwarded,
+          masterPayout,
           forwardCommission,
+          totalPayout,
+          payout: retainedPayout,
           netPaid,
           netProfit,
           isProfit: netProfit >= 0,
           winnersCount,
           vouchersCount: daySlips.length,
-          status: 'settled'
+          status: 'settled',
+          vouchersList: daySlips,
+          forwardList: dayForwards
         });
       });
     }
@@ -615,11 +683,13 @@ export function generateStatementRecords(
 
 export function computeStatementGrandTotals(records: StatementRecord[]): StatementGrandTotals {
   let totalTurnover = 0;
+  let totalForwarded = 0;
   let totalAgentCommission = 0;
   let netSales = 0;
-  let totalPayout = 0;
-  let totalForwarded = 0;
+  let totalMasterPayout = 0;
   let totalForwardCommission = 0;
+  let totalPayout = 0;
+  let retainedPayout = 0;
   let totalNetPaid = 0;
   let totalNetProfit = 0;
   let totalWinners = 0;
@@ -627,11 +697,13 @@ export function computeStatementGrandTotals(records: StatementRecord[]): Stateme
 
   records.forEach((r) => {
     totalTurnover += r.turnover;
+    totalForwarded += r.totalForwarded;
     totalAgentCommission += r.agentCommission;
     netSales += r.netSales;
-    totalPayout += r.payout;
-    totalForwarded += r.totalForwarded;
+    totalMasterPayout += (r.masterPayout || 0);
     totalForwardCommission += r.forwardCommission;
+    totalPayout += (r.totalPayout || r.payout);
+    retainedPayout += r.payout;
     totalNetPaid += r.netPaid;
     totalNetProfit += r.netProfit;
     totalWinners += r.winnersCount;
@@ -640,11 +712,13 @@ export function computeStatementGrandTotals(records: StatementRecord[]): Stateme
 
   return {
     totalTurnover,
+    totalForwarded,
     totalAgentCommission,
     netSales,
-    totalPayout,
-    totalForwarded,
+    totalMasterPayout,
     totalForwardCommission,
+    totalPayout,
+    retainedPayout,
     totalNetPaid,
     totalNetProfit,
     isProfit: totalNetProfit >= 0,

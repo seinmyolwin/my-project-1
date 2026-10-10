@@ -86,6 +86,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   const [discountPercent, setDiscountPercent] = useState<number>(settings.defaultCustomerDiscount || 0);
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (typeof settings.defaultCustomerDiscount === 'number') {
+      setDiscountPercent(settings.defaultCustomerDiscount);
+    }
+  }, [settings.defaultCustomerDiscount]);
+
   // Single Bet Input
   const [numberInput, setNumberInput] = useState('');
   const [amountInput, setAmountInput] = useState('');

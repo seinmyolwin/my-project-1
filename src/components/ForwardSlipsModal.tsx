@@ -61,6 +61,12 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate || 0);
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (typeof settings.defaultCommissionRate === 'number') {
+      setCommissionRate(settings.defaultCommissionRate);
+    }
+  }, [settings.defaultCommissionRate]);
+
   // Draft items
   const [draftItems, setDraftItems] = useState<DraftForwardItem[]>([]);
   const [manualNum, setManualNum] = useState('');
