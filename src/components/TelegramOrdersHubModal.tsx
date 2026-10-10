@@ -22,7 +22,9 @@ import {
   Bot,
   Link2,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   TelegramIncomingOrder,
@@ -98,6 +100,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [isRegisteringWebhook, setIsRegisteringWebhook] = useState(false);
   const [webhookActionMsg, setWebhookActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [showBotToken, setShowBotToken] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -949,17 +952,17 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
             <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-6 max-w-2xl mx-auto space-y-4 shadow-xs">
               <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Bot className="w-4 h-4 text-sky-600" />
-                <span>Telegram Bot API & ဖုန်း ၃ လုံး တိုက်ရိုက် မက်ဆေ့ပို့/ယူ (Multi-Phone Live Sync)</span>
+                <span>Telegram Bot API & အမှာစာများ အချိန်နှင့်တစ်ပြေးညီ (Real-time Sync) လက်ခံခြင်း</span>
               </h4>
 
-              {/* Multi-Phone Instruction Box */}
+              {/* Instruction Box */}
               <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-4 text-xs text-sky-950 space-y-2 shadow-xs">
                 <div className="font-bold flex items-center gap-1.5 text-sky-900">
-                  <Phone className="w-4 h-4 text-sky-600" />
-                  <span>ဖုန်း ၃ လုံးမှ တိုက်ရိုက် မက်ဆေ့ပို့/မက်ဆေ့ယူ အသုံးပြုပုံ (Multi-Phone Live Sync)</span>
+                  <Bot className="w-4 h-4 text-sky-600" />
+                  <span>Telegram Bot API ချိတ်ဆက်ခြင်း & အမှာစာများ လက်ခံပုံ</span>
                 </div>
                 <p className="text-slate-700 leading-relaxed">
-                  ဤအပလီကေးရှင်းကို ဖုန်း ၃ လုံးစလုံးတွင် ဖွင့်ပြီး တူညီသော <b>Telegram Bot Token</b> ကို ချိတ်ဆက်ပါ။ Webhook ချိတ်ဆက်ထားပါက ဖောက်သည်များထံမှ ဝင်လာသော Telegram မက်ဆေ့များနှင့် အမှာစာများကို ဖုန်း ၃ လုံးစလုံးတွင် <b>၄ စက္ကန့်အတွင်း အချိန်နှင့်တစ်ပြေးညီ (Real-time Sync)</b> အလိုအလျောက် ရရှိမည်ဖြစ်ပြီး၊ မည်သည့်ဖုန်းမှမဆို အတည်ပြုခြင်း၊ ငြင်းပယ်ခြင်းနှင့် တိုက်ရိုက် မက်ဆေ့ပို့ခြင်းများကို အပြည့်အဝ လုပ်ဆောင်နိုင်ပါသည်။
+                  Telegram Bot Token ထည့်သွင်းပြီး Webhook ချိတ်ဆက်ထားခြင်းဖြင့် ဖောက်သည်များထံမှ ဝင်လာသော Telegram မက်ဆေ့များနှင့် ထိုးကြေးအမှာစာများကို အလိုအလျောက် ရရှိမည်ဖြစ်ပြီး၊ မည်သည့်စက်ပစ္စည်း (Device/Browser) မှမဆို အချိန်နှင့်တစ်ပြေးညီ စစ်ဆေးခြင်း၊ အတည်ပြုခြင်းနှင့် ငြင်းပယ်ခြင်းများကို အပြည့်အဝ လုပ်ဆောင်နိုင်ပါသည်။
                 </p>
               </div>
 
@@ -993,13 +996,23 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                     </button>
                   )}
                 </div>
-                <input
-                  type="password"
-                  value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
-                  placeholder={config.hasServerToken ? "•••••••••••••••• (လက်ရှိ Token ရှိသည် - ဖျက်လိုပါက 'Token ဖျက်မည်' ကိုနှိပ်ပါ)" : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
-                />
+                <div className="relative">
+                  <input
+                    type={showBotToken ? "text" : "password"}
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    placeholder={config.hasServerToken ? "•••••••••••••••• (လက်ရှိ Token ရှိသည် - ဖျက်လိုပါက 'Token ဖျက်မည်' ကိုနှိပ်ပါ)" : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-10 py-2 text-xs font-mono text-slate-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBotToken(!showBotToken)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title={showBotToken ? "Token ဖုံးမည်" : "Token ကြည့်မည်"}
+                  >
+                    {showBotToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div>
