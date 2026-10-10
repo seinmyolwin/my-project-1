@@ -313,6 +313,7 @@ function setItemWithBackup(key: string, val: string | null) {
 
 function validateBackupSchema(parsed: any): boolean {
   if (!parsed || typeof parsed !== 'object') return false;
+  if (parsed.version !== '3.0') return false;
   if (!parsed.payload || typeof parsed.payload !== 'object') return false;
   const p = parsed.payload;
   if (p['3d'] !== undefined && (typeof p['3d'] !== 'object' || p['3d'] === null)) return false;
@@ -371,6 +372,12 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
         } catch {
           return { success: false, message: 'ဖိုင်ဖွင့်၍ မရပါ (PIN နံပါတ် မှားယွင်းနိုင်ပါသည်)' };
         }
+      }
+
+      // 1. Verify Checksum
+      const computedChecksum = generateChecksum(decryptedJson);
+      if (computedChecksum !== headerChecksum) {
+        return { success: false, message: 'ဖိုင်၏ Checksum မကိုက်ညီပါ (Data Integrity Error)' };
       }
 
       const parsed = JSON.parse(decryptedJson);

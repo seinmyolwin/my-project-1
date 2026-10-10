@@ -591,15 +591,26 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     setIsRumble(isR);
 
     // If item is part of a Rumble group, remove the entire group so it doesn't leave orphaned permutations
+    let itemsToRemove: Set<string>;
     if (item.groupId) {
-      const gId = item.groupId;
-      const removedIds = new Set(stagedItems.filter(i => i.groupId === gId).map(i => i.id));
-      setStagedItems(prev => prev.filter(i => i.groupId !== gId));
-      setLatestDraftIds(prev => prev.filter(id => !removedIds.has(id)));
+      itemsToRemove = new Set(stagedItems.filter(i => i.groupId === item.groupId).map(i => i.id));
     } else {
-      setStagedItems(prev => prev.filter(i => i.id !== item.id));
-      setLatestDraftIds(prev => prev.filter(id => id !== item.id));
+      itemsToRemove = new Set([item.id]);
     }
+    
+    // Find index of item to be removed
+    const itemIndex = stagedItems.findIndex(i => itemsToRemove.has(i.id));
+
+    setStagedItems(prev => {
+        const nextItems = prev.filter(i => !itemsToRemove.has(i.id));
+        
+        // Mark all items after the removed one as draft
+        const nextDraftIds = new Set(latestDraftIds.filter(id => !itemsToRemove.has(id)));
+        nextItems.slice(itemIndex).forEach(i => nextDraftIds.add(i.id));
+        setLatestDraftIds(Array.from(nextDraftIds));
+        
+        return nextItems;
+    });
 
     numberInputRef.current?.focus();
     setToastNotification({
@@ -635,16 +646,40 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
   // Remove Item (removes entire rumble group if part of a group, avoiding orphaned permutations)
   const handleRemoveItem = (id: string) => {
-    playDeleteSound();
     const target = stagedItems.find(i => i.id === id);
+    if (!target) return;
+
+    // Check if it's a confirmed (Green) item
+    const isConfirmed = !latestDraftIds.includes(target.id);
+    if (isConfirmed && !window.confirm(isMyanmar ? 'ဤအတည်ပြုပြီး ဂဏန်းကို ဖျက်မည်လား?' : 'Delete confirmed item?')) {
+        return;
+    }
+
+    playDeleteSound();
+
+    // Find index of item to be removed
+    const targetIndex = stagedItems.findIndex(i => i.id === id);
+    
+    // If we remove an item, all items after it (which might have been Green/Confirmed)
+    // should be invalidated, or at least re-evaluated.
+    // The requirement says: "If you Edit/Delete a green item, subsequent checkpoints need to be invalidated"
+    
+    let itemsToRemove: Set<string>;
     if (target?.groupId) {
-      const gId = target.groupId;
-      const removedIds = new Set(stagedItems.filter(i => i.groupId === gId).map(i => i.id));
-      setStagedItems(prev => prev.filter(item => item.groupId !== gId));
-      setLatestDraftIds(prev => prev.filter(item => !removedIds.has(item)));
+      itemsToRemove = new Set(stagedItems.filter(i => i.groupId === target.groupId).map(i => i.id));
     } else {
-      setStagedItems(prev => prev.filter(item => item.id !== id));
-      setLatestDraftIds(prev => prev.filter(item => item !== id));
+      itemsToRemove = new Set([id]);
+    }
+    
+    // Check if we are removing a confirmed item (green)
+    const isRemovingConfirmed = stagedItems.some(i => itemsToRemove.has(i.id) && !latestDraftIds.includes(i.id));
+
+    setStagedItems(prev => prev.filter(item => !itemsToRemove.has(item.id)));
+    setLatestDraftIds(prev => prev.filter(item => !itemsToRemove.has(item)));
+    
+    // If removing confirmed items, mark everything as draft for re-review
+    if (isRemovingConfirmed) {
+      setLatestDraftIds(stagedItems.filter(i => !itemsToRemove.has(i.id)).map(i => i.id));
     }
   };
 

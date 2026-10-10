@@ -38,6 +38,18 @@ export function obscurePin(pin: string | null): string | null {
 }
 
 /**
+ * Hashes PIN code using SHA-256 for safe storage
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + 'SHWE_MINGALAR_SALT_2026');
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
  * Extracts or verifies obscured PIN against input PIN
  */
 export function verifyObscuredPin(inputPin: string, obscured: string | null): boolean {

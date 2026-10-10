@@ -26,7 +26,7 @@ import {
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed } from '../utils/twoDLotteryUtils';
 import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
-import { getLocalDateString } from '../utils/moneyUtils';
+import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -389,8 +389,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
     }
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const discountAmount = Math.round((subtotal * discountPercent) / 100);
-    const netPayable = subtotal - discountAmount;
+    const discountAmount = safeRound((subtotal * discountPercent) / 100);
+    const netPayable = safeRound(subtotal - discountAmount);
     return addVoucher({
       roundId: activeRound.id,
       customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
@@ -419,8 +419,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const addForwardSlip = useCallback((slipData: Omit<TwoDForwardSlip, 'id' | 'slipNo' | 'createdAt'>): TwoDForwardSlip => {
     const todayStr = getLocalDateString().replace(/-/g, '').slice(2);
     const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
-    const commAmt = Math.round((slipData.totalAmount * commRate) / 100);
-    const netPaid = slipData.totalAmount - commAmt;
+    const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
+    const netPaid = safeRound(slipData.totalAmount - commAmt);
 
     const todayCount = forwardSlips.filter(f => (f.createdAt || '').slice(0, 10) === getLocalDateString()).length + 1;
     const seqPad = String(todayCount).padStart(3, '0');
@@ -554,8 +554,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Calculate retained, payouts, and risk levels
     Object.keys(agg).forEach(k => {
       const item = agg[k];
-      item.retainedAmount = item.totalSold - item.forwardedAmount;
-      item.estimatedPayout = mult > 0 ? item.retainedAmount * mult : 0;
+      item.retainedAmount = safeRound(item.totalSold - item.forwardedAmount);
+      item.estimatedPayout = mult > 0 ? safeRound(item.retainedAmount * mult) : 0;
 
       const usageRatio = item.limit > 0 ? item.totalSold / item.limit : 0;
       if (item.isBlocked || usageRatio >= 1.0) {
@@ -670,8 +670,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       retainedPayout = mult > 0 ? retainedAmount * mult : 0;
     }
 
-    const netPaid = totalForwarded - forwardedCommission;
-    const netProfit = netRevenue - netPaid - retainedPayout;
+    const netPaid = safeRound(totalForwarded - forwardedCommission);
+    const netProfit = safeRound(netRevenue - netPaid - retainedPayout);
 
     return {
       totalSales,
