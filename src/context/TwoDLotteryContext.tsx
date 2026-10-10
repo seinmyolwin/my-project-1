@@ -677,7 +677,6 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     if (activeRound?.winningNumber) {
       let mult = activeRound.multiplier || settings.defaultMultiplier || 80;
-      if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
       const formattedNum = activeRound.winningNumber.padStart(2, '0');
       const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
       totalWinnersCount = evalResult.totalWinnersCount;
@@ -721,9 +720,6 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     let mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 80;
-    if (mult >= 500 && mult <= 10000) {
-      mult = Math.round(mult / 100);
-    }
     if (mult <= 0) {
       alert(settings.language === 'my' ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
       return;

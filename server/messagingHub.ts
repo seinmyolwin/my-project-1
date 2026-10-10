@@ -24,34 +24,7 @@ export interface TelegramIncomingOrder {
   notes?: string;
 }
 
-export interface ViberIncomingOrder {
-  id: string;
-  senderName: string;
-  senderPhone: string;
-  senderId?: string;
-  senderAvatar?: string;
-  orderType: 'text' | 'photo';
-  category: '3d' | '2d' | 'football';
-  rawText?: string;
-  photoUrl?: string;
-  receivedAt: string;
-  status: 'pending_review' | 'approved' | 'rejected';
-  parsedItems: {
-    id: string;
-    number: string;
-    amount: number;
-    betType: 'straight' | 'rumble';
-    isRumble?: boolean;
-  }[];
-  subtotal: number;
-  discountPercent: number;
-  discountAmount: number;
-  netPayable: number;
-  notes?: string;
-  rejectionReason?: string;
-  approvedVoucherNo?: string;
-  verifiedAt?: string;
-}
+
 
 interface ServerStoreData {
   telegram: {
@@ -64,17 +37,7 @@ interface ServerStoreData {
     statusMessage?: string;
     connectedAt?: string;
   };
-  viber: {
-    botToken: string;
-    accountName: string;
-    phoneNumber: string;
-    webhookUrl: string;
-    status: 'connected' | 'disconnected' | 'error';
-    statusMessage?: string;
-    connectedAt?: string;
-  };
   telegramOrders: TelegramIncomingOrder[];
-  viberOrders: ViberIncomingOrder[];
 }
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -82,7 +45,6 @@ const STORE_FILE = path.join(DATA_DIR, 'messaging_store.json');
 
 // In-memory idempotency sets (capped at 5000 items)
 const processedTgUpdates = new Set<number>();
-const processedViberTokens = new Set<string>();
 
 function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 5000) {
   if (set.size >= maxSize) {
@@ -113,17 +75,7 @@ function loadStore(): ServerStoreData {
           statusMessage: parsed.telegram?.statusMessage || '',
           connectedAt: parsed.telegram?.connectedAt
         },
-        viber: {
-          botToken: process.env.VIBER_AUTH_TOKEN || parsed.viber?.botToken || '',
-          accountName: parsed.viber?.accountName || 'ရွှေမင်္ဂလာ Viber စာရင်းလက်ခံစနစ်',
-          phoneNumber: parsed.viber?.phoneNumber || '09-798889900',
-          webhookUrl: parsed.viber?.webhookUrl || '',
-          status: parsed.viber?.status || 'disconnected',
-          statusMessage: parsed.viber?.statusMessage || '',
-          connectedAt: parsed.viber?.connectedAt
-        },
-        telegramOrders: Array.isArray(parsed.telegramOrders) ? parsed.telegramOrders : [],
-        viberOrders: Array.isArray(parsed.viberOrders) ? parsed.viberOrders : []
+        telegramOrders: Array.isArray(parsed.telegramOrders) ? parsed.telegramOrders : []
       };
     }
   } catch (err) {
@@ -140,16 +92,7 @@ function loadStore(): ServerStoreData {
       status: 'disconnected',
       statusMessage: ''
     },
-    viber: {
-      botToken: process.env.VIBER_AUTH_TOKEN || '',
-      accountName: 'ရွှေမင်္ဂလာ Viber စာရင်းလက်ခံစနစ်',
-      phoneNumber: '09-798889900',
-      webhookUrl: '',
-      status: 'disconnected',
-      statusMessage: ''
-    },
-    telegramOrders: [],
-    viberOrders: []
+    telegramOrders: []
   };
 }
 
@@ -282,59 +225,7 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any) {
   }
 }
 
-/* =========================================================================
-   VIBER SERVICE METHODS
-   ========================================================================= */
 
-function getViberToken(): string {
-  return process.env.VIBER_AUTH_TOKEN || store.viber.botToken || '';
-}
-
-async function callViberApi(endpoint: string, body: any = {}) {
-  const token = getViberToken();
-  if (!token) {
-    return { ok: false, error: 'NO_TOKEN', message: 'Viber Auth Token is not configured' };
-  }
-
-  const url = `https://chatapi.viber.com/pa/${endpoint}`;
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'X-Viber-Auth-Token': token,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(6000)
-    });
-
-    let data: any = null;
-    try {
-      data = await response.json();
-    } catch {
-      return { ok: false, status: response.status, message: 'Invalid JSON response from Viber' };
-    }
-
-    if (response.ok && data?.status === 0) {
-      return { ok: true, result: data };
-    }
-
-    if (response.status === 401 || response.status === 403 || data?.status === 1) {
-      return { ok: false, status: 401, message: 'Invalid Viber Auth Token (Unauthorized)' };
-    }
-    if (response.status === 429) {
-      return { ok: false, status: 429, message: 'Viber API rate limit reached' };
-    }
-
-    return { ok: false, status: response.status, message: data?.status_message || `Viber error (status: ${data?.status})` };
-  } catch (err: any) {
-    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
-      return { ok: false, status: 408, message: 'Connection to Viber timed out' };
-    }
-    return { ok: false, status: 500, message: 'Network failure connecting to Viber API' };
-  }
-}
 
 /* =========================================================================
    EXPRESS ROUTER
@@ -692,330 +583,6 @@ export function createMessagingRouter(): Router {
   router.delete('/telegram/orders/:id', (req: Request, res: Response) => {
     const { id } = req.params;
     store.telegramOrders = store.telegramOrders.filter(o => o.id !== id);
-    saveStore();
-    res.json({ success: true });
-  });
-
-
-  // ----------------- VIBER ROUTES ----------------- //
-
-  // 1. Viber Status Check
-  router.get('/viber/status', async (req: Request, res: Response) => {
-    const token = getViberToken();
-    if (!token) {
-      return res.json({
-        ok: false,
-        status: 'disconnected',
-        hasToken: false,
-        message: 'Viber Auth Token is not configured on the server'
-      });
-    }
-
-    const test = await callViberApi('get_account_details');
-    if (test.ok && test.result) {
-      store.viber.status = 'connected';
-      store.viber.connectedAt = new Date().toISOString();
-      store.viber.statusMessage = `Connected to ${test.result.name || 'Viber Bot'}`;
-      saveStore();
-
-      return res.json({
-        ok: true,
-        status: 'connected',
-        hasToken: true,
-        account: {
-          name: test.result.name,
-          uri: test.result.uri,
-          subscribersCount: test.result.subscribers_count
-        },
-        message: `Viber Bot [${test.result.name || 'Bot'}] သို့ အောင်မြင်စွာ ချိတ်ဆက်ထားပါသည်`
-      });
-    }
-
-    store.viber.status = 'error';
-    store.viber.statusMessage = test.message;
-    saveStore();
-
-    return res.json({
-      ok: false,
-      status: 'error',
-      hasToken: true,
-      message: test.message
-    });
-  });
-
-  // 2. Viber Connection Test
-  router.post('/viber/test', async (req: Request, res: Response) => {
-    const { botToken } = req.body || {};
-    const testToken = (botToken && typeof botToken === 'string' && botToken.trim()) || getViberToken();
-
-    if (!testToken) {
-      return res.json({
-        status: 'disconnected',
-        message: 'Viber Auth Token မရှိသေးပါ'
-      });
-    }
-
-    try {
-      const response = await fetch('https://chatapi.viber.com/pa/get_account_details', {
-        method: 'POST',
-        headers: {
-          'X-Viber-Auth-Token': testToken.trim(),
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({}),
-        signal: AbortSignal.timeout(6000)
-      });
-
-      const data = await response.json().catch(() => null);
-
-      if (response.ok && data?.status === 0) {
-        return res.json({
-          status: 'connected',
-          message: `Viber Bot အကောင့် [${data.name || 'Bot'}] သို့ တရားဝင် အောင်မြင်စွာ ချိတ်ဆက်ထားသည်`,
-          account: {
-            name: data.name,
-            uri: data.uri,
-            subscribersCount: data.subscribers_count
-          }
-        });
-      }
-
-      if (response.status === 401 || response.status === 403 || data?.status === 1) {
-        return res.json({
-          status: 'error',
-          message: 'Viber API Key / Token မမှန်ကန်ပါ (Unauthorized)'
-        });
-      }
-
-      return res.json({
-        status: 'error',
-        message: data?.status_message || `Viber Server မှ တုံ့ပြန်မှု မအောင်မြင်ပါ (status: ${data?.status})`
-      });
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.name === 'TimeoutError') {
-        return res.json({
-          status: 'timeout',
-          message: 'Viber API ချိတ်ဆက်မှု အချိန်လွန်သွားပါသည် (Timeout)'
-        });
-      }
-      return res.json({
-        status: 'error',
-        message: 'Viber Server သို့ ချိတ်ဆက်၍ မရပါ (Network Failure)'
-      });
-    }
-  });
-
-  // 3. Viber Config GET
-  router.get('/viber/config', (req: Request, res: Response) => {
-    const token = getViberToken();
-    res.json({
-      hasToken: Boolean(token),
-      maskedToken: maskToken(token),
-      accountName: store.viber.accountName,
-      phoneNumber: store.viber.phoneNumber,
-      webhookUrl: store.viber.webhookUrl,
-      status: store.viber.status,
-      statusMessage: store.viber.statusMessage,
-      connectedAt: store.viber.connectedAt
-    });
-  });
-
-  // 4. Viber Config POST
-  router.post('/viber/config', async (req: Request, res: Response) => {
-    const { botToken, accountName, phoneNumber, webhookUrl } = req.body || {};
-
-    if (accountName) store.viber.accountName = String(accountName).trim();
-    if (phoneNumber) store.viber.phoneNumber = String(phoneNumber).trim();
-    if (webhookUrl !== undefined) store.viber.webhookUrl = String(webhookUrl).trim();
-
-    if (botToken && typeof botToken === 'string' && botToken.trim()) {
-      store.viber.botToken = botToken.trim();
-    }
-
-    const token = getViberToken();
-    if (token) {
-      const test = await callViberApi('get_account_details');
-      if (test.ok && test.result) {
-        store.viber.status = 'connected';
-        store.viber.connectedAt = new Date().toISOString();
-        store.viber.statusMessage = `Connected to ${test.result.name || 'Viber Bot'}`;
-      } else {
-        store.viber.status = 'error';
-        store.viber.statusMessage = test.message;
-      }
-    } else {
-      store.viber.status = 'disconnected';
-      store.viber.statusMessage = 'Token missing';
-    }
-
-    saveStore();
-
-    res.json({
-      success: true,
-      hasToken: Boolean(token),
-      maskedToken: maskToken(token),
-      status: store.viber.status,
-      statusMessage: store.viber.statusMessage,
-      connectedAt: store.viber.connectedAt
-    });
-  });
-
-  // 5. Viber Set Webhook
-  router.post('/viber/set-webhook', async (req: Request, res: Response) => {
-    const { webhookUrl } = req.body || {};
-    const url = webhookUrl || store.viber.webhookUrl;
-
-    if (!url || !url.startsWith('https://')) {
-      return res.status(400).json({
-        ok: false,
-        message: 'HTTPS Webhook URL is required by Viber'
-      });
-    }
-
-    const result = await callViberApi('set_webhook', {
-      url,
-      event_types: ['delivered', 'seen', 'failed', 'subscribed', 'unsubscribed', 'conversation_started', 'message'],
-      send_name: true,
-      send_photo: true
-    });
-
-    if (result.ok) {
-      store.viber.webhookUrl = url;
-      saveStore();
-      return res.json({ ok: true, message: 'Viber Webhook registered successfully' });
-    }
-
-    return res.status(502).json({ ok: false, message: result.message });
-  });
-
-  // 6. Viber Webhook Receiver Endpoint
-  router.post('/viber/webhook', (req: Request, res: Response) => {
-    // 1. Verify Viber Content Signature if auth token is configured
-    const viberToken = getViberToken();
-    const incomingSignature = req.headers['x-viber-content-signature'];
-
-    if (viberToken && incomingSignature) {
-      try {
-        const rawBody = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
-        const expectedSig = crypto.createHmac('sha256', viberToken).update(rawBody).digest('hex');
-        const incomingBuf = Buffer.from(String(incomingSignature));
-        const expBuf = Buffer.from(expectedSig);
-        if (incomingBuf.length !== expBuf.length || !crypto.timingSafeEqual(incomingBuf, expBuf)) {
-          return res.status(403).json({ error: 'Invalid Viber signature' });
-        }
-      } catch (sigErr) {
-        return res.status(403).json({ error: 'Signature verification failure' });
-      }
-    }
-
-    const body = req.body;
-    if (!body || typeof body !== 'object') {
-      return res.status(400).json({ error: 'Invalid payload' });
-    }
-
-    // 1. Handshake verification event
-    if (body.event === 'webhook') {
-      return res.status(200).json({ status: 0, status_message: 'ok' });
-    }
-
-    // 2. Incoming Message Event
-    if (body.event === 'message' && body.message) {
-      const messageToken = String(body.message_token || '');
-      if (messageToken && processedViberTokens.has(messageToken)) {
-        return res.status(200).json({ status: 0, duplicate: true });
-      }
-      if (messageToken) {
-        addToIdempotencySet(processedViberTokens, messageToken);
-      }
-
-      const sender = body.sender || {};
-      const senderName = sender.name || 'Viber User';
-      const senderId = sender.id || '';
-      const text = body.message?.text || '';
-      const photoUrl = body.message?.media || undefined;
-
-      const { items, totalAmount, detectedCategory } = parseBetText(text, '3d');
-
-      const newOrder: ViberIncomingOrder = {
-        id: `viber-ord-${Date.now()}-${messageToken.slice(-6)}`,
-        senderName,
-        senderPhone: sender.phone || '',
-        senderId,
-        senderAvatar: sender.avatar,
-        orderType: photoUrl ? 'photo' : 'text',
-        category: detectedCategory,
-        rawText: text,
-        photoUrl,
-        receivedAt: new Date().toISOString(),
-        status: 'pending_review',
-        parsedItems: items.map((it, idx) => ({
-          id: `item-${Date.now()}-${idx}`,
-          number: it.number,
-          amount: it.amount,
-          betType: it.isRumble ? 'rumble' : 'straight',
-          isRumble: it.isRumble
-        })),
-        subtotal: totalAmount,
-        discountPercent: 0,
-        discountAmount: 0,
-        netPayable: totalAmount,
-        notes: `Viber Webhook token [${messageToken}]`
-      };
-
-      store.viberOrders.unshift(newOrder);
-      if (store.viberOrders.length > 300) {
-        store.viberOrders = store.viberOrders.slice(0, 300);
-      }
-      saveStore();
-    }
-
-    return res.status(200).json({ status: 0 });
-  });
-
-  // 7. Viber Outbound Message
-  router.post('/viber/send-message', async (req: Request, res: Response) => {
-    const { receiver, text, type = 'text' } = req.body || {};
-    if (!receiver || !text) {
-      return res.status(400).json({ ok: false, message: 'receiver and text are required' });
-    }
-
-    const result = await callViberApi('send_message', {
-      receiver: String(receiver),
-      min_api_version: 1,
-      type,
-      text: String(text)
-    });
-
-    return res.json(result);
-  });
-
-  // 8. Viber Orders Queue API
-  router.get('/viber/orders', (req: Request, res: Response) => {
-    res.json(store.viberOrders);
-  });
-
-  router.patch('/viber/orders/:id', (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status, notes, rejectionReason, approvedVoucherNo } = req.body || {};
-    const order = store.viberOrders.find(o => o.id === id);
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    if (status) order.status = status;
-    if (notes !== undefined) order.notes = notes;
-    if (rejectionReason !== undefined) order.rejectionReason = rejectionReason;
-    if (approvedVoucherNo !== undefined) order.approvedVoucherNo = approvedVoucherNo;
-    order.verifiedAt = new Date().toISOString();
-    saveStore();
-
-    res.json(order);
-  });
-
-  router.delete('/viber/orders/:id', (req: Request, res: Response) => {
-    const { id } = req.params;
-    store.viberOrders = store.viberOrders.filter(o => o.id !== id);
     saveStore();
     res.json({ success: true });
   });

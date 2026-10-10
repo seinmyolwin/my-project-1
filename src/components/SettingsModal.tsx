@@ -802,7 +802,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [masterAgentPhone2D, setMasterAgentPhone2D] = useState(lottery2D.settings.defaultMasterAgentPhone || '09-970001111');
   const getCleanMult2D = (val?: number) => {
     let m = val || lottery2D.settings.defaultMultiplier || 80;
-    if (m >= 500 && m <= 10000) m = Math.round(m / 100);
     return m;
   };
   const [mult2D, setMult2D] = useState(String(getCleanMult2D(lottery2D.settings.defaultMultiplier)));
@@ -878,11 +877,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       defaultMasterAgentName: masterAgentName2D.trim() || undefined,
       defaultMasterAgentPhone: masterAgentPhone2D.trim() || undefined,
       currency,
-      defaultMultiplier: (() => {
-        let p = !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : (lottery2D.settings.defaultMultiplier || 80);
-        if (p >= 500 && p <= 10000) p = Math.round(p / 100);
-        return p || 80;
-      })(),
+      defaultMultiplier: !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : (lottery2D.settings.defaultMultiplier || 80),
       defaultCommissionRate: !isNaN(parseFloat(comm2D)) ? parseFloat(comm2D) : lottery2D.settings.defaultCommissionRate,
       defaultCustomerDiscount: !isNaN(parseFloat(disc2D)) ? parseFloat(disc2D) : lottery2D.settings.defaultCustomerDiscount,
       globalStockLimit: !isNaN(parseFloat(globalLimit2D)) ? parseFloat(globalLimit2D) : 200000,
@@ -1797,9 +1792,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <label className="block text-[11px] font-bold text-teal-950">
                         ဇီးကွက် (2D) ပေါက်ဆ (အဆ):
                       </label>
-                      <span className="text-[10px] text-teal-700 font-medium">
-                        (၁၀၀ ဖိုး = ၈,၀၀၀ ကျပ် ပေါက်ပါက ၈၀ ဆ)
-                      </span>
                     </div>
                     <input
                       type="number"
@@ -1807,13 +1799,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       pattern="[0-9]*"
                       value={mult2D}
                       onChange={(e) => {
-                        const val = e.target.value;
-                        const num = parseInt(val, 10);
-                        if (!isNaN(num) && num >= 500 && num <= 10000) {
-                          setMult2D(String(Math.round(num / 100)));
-                        } else {
-                          setMult2D(val);
-                        }
+                        setMult2D(e.target.value);
                       }}
                       onFocus={(e) => {
                         const target = e.currentTarget;
@@ -1827,24 +1813,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }}
                       className="w-full bg-white border border-teal-200 rounded-lg p-2 text-xs font-bold text-teal-900 text-center font-mono"
                     />
-                    {/* Quick Presets */}
-                    <div className="flex items-center gap-1.5 mt-2 justify-center">
-                      <span className="text-[10px] text-slate-500 font-bold">ရွေးချယ်ရန်:</span>
-                      {[80, 85, 90].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setMult2D(String(preset))}
-                          className={`px-2.5 py-0.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-                            mult2D === String(preset)
-                              ? 'bg-teal-700 text-white shadow-2xs'
-                              : 'bg-white hover:bg-teal-100 text-teal-800 border border-teal-200'
-                          }`}
-                        >
-                          {preset} ဆ
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   {/* 2D Customizable Commissions: Lower (Agent / Customer) vs Upper (Master Bookie) */}
@@ -2624,7 +2592,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                 <span className="text-xs font-black text-slate-900 block">၁။ Master Encrypted Backup (.rhmg) ဖိုင်သိမ်းဆည်းရန်</span>
                 <p className="text-[11px] text-slate-500">
-                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် + Viber စာရင်းအားလုံး ပါဝင်ပါသည်။
+                  အိုးစည်လေး + ဇီးကွက် + ပစ်တိုင်းထောင် + ဆက်တင် + Telegram စာရင်းအားလုံး ပါဝင်ပါသည်။
                 </p>
                 <button
                   type="button"

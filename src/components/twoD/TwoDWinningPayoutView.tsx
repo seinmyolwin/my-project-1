@@ -514,11 +514,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
           <div className="sm:col-span-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                {isMyanmar ? 'ပေါက်ကြေးအဆ (ဥပမာ- ၈၀၀ ဆ)' : 'Multiplier (e.g. 800x)'}
+                {isMyanmar ? 'ပေါက်ကြေးအဆ' : 'Multiplier'}
               </label>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {isMyanmar ? '(၁၀ ဖိုး = ၈၀၀ ကျပ် / ၁၀၀၀ ဖိုး = ၈၀,၀၀၀ ကျပ်)' : '(10 Ks = 800 Ks / 1,000 Ks = 80,000 Ks)'}
-              </span>
             </div>
             <input
               type="text"
@@ -542,30 +539,6 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
               }}
               className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
             />
-            {/* Quick Multiplier Preset Buttons (800, 850, 900) */}
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-[10px] text-slate-500 font-bold shrink-0">ရွေးချယ်ရန်:</span>
-              {[800, 850, 900].map((preset) => {
-                const isSelected = multiplierInput === String(preset) || (preset === 800 && multiplierInput === '80') || (preset === 850 && multiplierInput === '85') || (preset === 900 && multiplierInput === '90');
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => {
-                      setMultiplierInput(String(preset));
-                      setMultiplierHintNotice(null);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-500'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    {preset} ဆ
-                  </button>
-                );
-              })}
-            </div>
             {multiplierHintNotice && (
               <p className="text-[11px] font-bold text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 animate-in fade-in">
                 💡 {multiplierHintNotice}

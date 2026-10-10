@@ -46,6 +46,7 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations, parseQuickBetText } from '../utils/lotteryUtils';
+import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../utils/imageOcrUtils';
 import { BetItem, VoucherItem, TwoDVoucherItem, FootballBetSelection, FootballBetType } from '../types';
 import { safeRound } from '../utils/moneyUtils';
@@ -101,7 +102,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    syncTelegramConfig().then(cfg => {
+    const pollData = async () => {
+      const cfg = await syncTelegramConfig();
       if (cfg) {
         setConfig(cfg);
         if (cfg.webhookUrl && !cfg.webhookUrl.includes('telegram.shwemingalar.app')) {
@@ -112,12 +114,15 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         if (cfg.channelId) setChannelId(cfg.channelId);
         if (cfg.accountName) setAccountName(cfg.accountName);
       }
-    });
-    fetchTelegramOrdersFromServer().then(ordList => {
+      const ordList = await fetchTelegramOrdersFromServer();
       if (ordList && ordList.length > 0) {
         setOrders(ordList);
       }
-    });
+    };
+
+    pollData();
+    const interval = setInterval(pollData, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   if (!isOpen) return null;
@@ -237,6 +242,16 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   // Approve Order into Active Voucher
   const handleApproveOrder = (order: TelegramIncomingOrder) => {
+    if (order.status === 'approved') {
+      alert('⚠️ ဤအမှာစာအား ယခင်ကပင် ဒိုင်စာရင်းသို့ အတည်ပြုပြီးဖြစ်ပါသည် (Duplicate approval blocked)');
+      return;
+    }
+    const fp = generateSubmissionFingerprint('TG_APPROVE', { id: order.id, raw: order.rawText, total: order.totalAmount });
+    if (isDuplicateSubmission(fp, 4000)) {
+      alert('⚠️ ခေတ္တစောင့်ပါ၊ ဤအမှာစာကို ယခုလေးတင် အတည်ပြုပြီးဖြစ်ပါသည်');
+      return;
+    }
+
     const betItems: BetItem[] = order.parsedItems.map((pi, idx) => ({
       id: `tg-bet-${Date.now()}-${idx}`,
       number: pi.number,
@@ -934,8 +949,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
             <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-6 max-w-2xl mx-auto space-y-4 shadow-xs">
               <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Bot className="w-4 h-4 text-sky-600" />
-                <span>Telegram Bot API & Webhook ဆက်တင်များ</span>
+                <span>Telegram Bot API & ဖုန်း ၃ လုံး တိုက်ရိုက် မက်ဆေ့ပို့/ယူ (Multi-Phone Live Sync)</span>
               </h4>
+
+              {/* Multi-Phone Instruction Box */}
+              <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-4 text-xs text-sky-950 space-y-2 shadow-xs">
+                <div className="font-bold flex items-center gap-1.5 text-sky-900">
+                  <Phone className="w-4 h-4 text-sky-600" />
+                  <span>ဖုန်း ၃ လုံးမှ တိုက်ရိုက် မက်ဆေ့ပို့/မက်ဆေ့ယူ အသုံးပြုပုံ (Multi-Phone Live Sync)</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed">
+                  ဤအပလီကေးရှင်းကို ဖုန်း ၃ လုံးစလုံးတွင် ဖွင့်ပြီး တူညီသော <b>Telegram Bot Token</b> ကို ချိတ်ဆက်ပါ။ Webhook ချိတ်ဆက်ထားပါက ဖောက်သည်များထံမှ ဝင်လာသော Telegram မက်ဆေ့များနှင့် အမှာစာများကို ဖုန်း ၃ လုံးစလုံးတွင် <b>၄ စက္ကန့်အတွင်း အချိန်နှင့်တစ်ပြေးညီ (Real-time Sync)</b> အလိုအလျောက် ရရှိမည်ဖြစ်ပြီး၊ မည်သည့်ဖုန်းမှမဆို အတည်ပြုခြင်း၊ ငြင်းပယ်ခြင်းနှင့် တိုက်ရိုက် မက်ဆေ့ပို့ခြင်းများကို အပြည့်အဝ လုပ်ဆောင်နိုင်ပါသည်။
+                </p>
+              </div>
 
               {configSuccess && (
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs font-bold">

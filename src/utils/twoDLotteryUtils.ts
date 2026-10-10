@@ -634,12 +634,6 @@ export function parseTwoDBatchInput(
 // ====================================================
 export function normalizeTwoDMultiplier(val?: number): number {
   if (!val || isNaN(val) || val <= 0) return 80;
-  // If standard odds ratio 80, 85, 90 (e.g. 1000 Ks wins 80,000 Ks)
-  if (val >= 50 && val <= 120) return Math.round(val);
-  // If user enters 800, 850, 900 (odds per 10 Ks): 800 / 10 = 80x, 850 / 10 = 85x, 900 / 10 = 90x
-  if (val >= 500 && val <= 1200) return Math.round(val / 10);
-  // If user enters 8000, 8500, 9000 (odds per 100 Ks): 8000 / 100 = 80x
-  if (val > 1200 && val <= 12000) return Math.round(val / 100);
   return Math.round(val);
 }
 
