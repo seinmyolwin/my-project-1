@@ -523,23 +523,6 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
-                {/* ဒိုင်ကြီးဆီတင်မည် (Forward to Master Bookie) Quick Action */}
-                {dealerMode !== 'football' && onOpenForwardModal && (
-                  <button
-                    onClick={onOpenForwardModal}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-600 via-indigo-600 to-indigo-700 hover:from-amber-700 hover:to-indigo-800 text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
-                    title="အထက်ဒိုင်ကြီးဆီ ပိုနေသောဂဏန်းများ လွှဲတင်ရန်"
-                  >
-                    <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
-                    <span className="hidden sm:inline">{isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward'}</span>
-                    {activeExcessCount > 0 && (
-                      <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse">
-                        {activeExcessCount}
-                      </span>
-                    )}
-                  </button>
-                )}
-
                 {/* စာရင်းရှင်းတမ်း (Financial Statements) Quick Action */}
                 <button
                   onClick={() => onOpenStatements?.()}

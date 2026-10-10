@@ -43,6 +43,13 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
   const [filterType, setFilterType] = useState<'all' | 'hot' | 'danger' | 'warning' | 'blocked' | 'empty'>('all');
   const [selectedDigitFilter, setSelectedDigitFilter] = useState<string | null>(null);
 
+  // Excess over-limit numbers count for batch master forwarding
+  const excessCount = useMemo(() => {
+    return (Object.values(aggregates) as TwoDNumberAggregate[]).filter(
+      (a) => a.limit > 0 && Math.max(0, a.totalSold - (a.forwardedAmount || 0)) > a.limit
+    ).length;
+  }, [aggregates]);
+
   // Category counts
   const counts = useMemo(() => {
     const list = Object.values(aggregates) as TwoDNumberAggregate[];
@@ -264,11 +271,16 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
             <button
               type="button"
               onClick={() => onOpenForwardModal()}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
+              className="px-3.5 py-2 bg-gradient-to-r from-amber-600 via-indigo-600 to-indigo-700 hover:from-amber-700 hover:to-indigo-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
               title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward to Master'}</span>
+              {excessCount > 0 && (
+                <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse ml-0.5">
+                  {excessCount}
+                </span>
+              )}
             </button>
           )}
 

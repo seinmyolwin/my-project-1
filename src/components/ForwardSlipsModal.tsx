@@ -130,17 +130,16 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     if (initialNumber && initialAmount && initialAmount > 0) {
       const clean = initialNumber.padStart(3, '0');
       const agg = aggregates[clean];
-      setDraftItems([
-        {
-          id: `init-3d-${clean}`,
-          number: clean,
-          totalSold: agg?.totalSold || initialAmount,
-          limit: agg?.limit || 0,
-          excessAmount: initialAmount,
-          forwardAmount: initialAmount,
-          selected: true
-        }
-      ]);
+      const initItem: DraftForwardItem = {
+        id: `init-3d-${clean}`,
+        number: clean,
+        totalSold: agg?.totalSold || initialAmount,
+        limit: agg?.limit || 0,
+        excessAmount: initialAmount,
+        forwardAmount: initialAmount,
+        selected: true
+      };
+      setDraftItems([initItem]);
     } else {
       setDraftItems(excessList);
     }

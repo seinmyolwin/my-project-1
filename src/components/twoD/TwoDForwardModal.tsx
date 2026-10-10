@@ -120,20 +120,19 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     }
 
     if (initialNumber && initialAmount && initialAmount > 0) {
-      // Direct single number trigger
+      // Direct single number trigger (only load this specific number)
       const cleanNum = initialNumber.padStart(2, '0');
       const agg = aggregates[cleanNum];
-      setDraftItems([
-        {
-          id: `init-${cleanNum}`,
-          number: cleanNum,
-          totalSold: agg?.totalSold || initialAmount,
-          limit: agg?.limit || 0,
-          excessAmount: initialAmount,
-          forwardAmount: initialAmount,
-          selected: true
-        }
-      ]);
+      const initItem: ForwardDraftItem = {
+        id: `init-${cleanNum}`,
+        number: cleanNum,
+        totalSold: agg?.totalSold || initialAmount,
+        limit: agg?.limit || 0,
+        excessAmount: initialAmount,
+        forwardAmount: initialAmount,
+        selected: true
+      };
+      setDraftItems([initItem]);
     } else {
       // Auto-load all over-limit numbers
       setDraftItems(excessList);
@@ -522,9 +521,26 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
               </div>
             </form>
 
+            {/* Reassuring Notice for Dealer Retention */}
+            <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-amber-950 shadow-2xs">
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 min-w-0">
+                <p className="font-bold">
+                  {isMyanmar
+                    ? 'သတိပြုရန် - အထက်ဒိုင်ဆီသို့ ဤနေရာမှ တကယ်ဘောင်ချာထုတ်ပြီး မတင်မချင်း အလိုအလျောက် မနှုတ်ပါ'
+                    : 'Notice: Excess bets are NOT deducted as forwarded until confirmed with a voucher.'}
+                </p>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  {isMyanmar
+                    ? 'သတ်မှတ်ဘရိတ်ထက် ပိုလာသော်လည်း အထက်ဒိုင်သို့ မတင်ဘဲ ကိုယ်တိုင်အကုန်စားလိုပါက မရွေးချယ်ဘဲ ချန်ထားနိုင်ပါသည်။ ဤနေရာတွင် တကယ်လွှဲတင်မည့် ဂဏန်းများကိုသာ ရွေးချယ်၍ ဘောင်ချာ အတည်ပြုထုတ်ပေးပါ။'
+                    : 'If you want to absorb/retain excess bets yourself without forwarding, simply deselect them. Only confirmed slips will be deducted as forwarded in the ledger.'}
+                </p>
+              </div>
+            </div>
+
             {/* Over-Limit / Excess Numbers Selection Table */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -538,8 +554,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                     )}
                     <span>
                       {draftItems.length > 0 && draftItems.every((i) => i.selected)
-                        ? 'အားလုံး ရွေးထားသည်'
-                        : 'အားလုံး ရွေးမည်'}
+                        ? (isMyanmar ? 'အားလုံး ဖြုတ်မည် (ကိုယ်တိုင်စားမည်)' : 'Deselect All')
+                        : (isMyanmar ? 'အားလုံး ရွေးမည် (ဒိုင်ကြီးတင်မည်)' : 'Select All')}
                     </span>
                   </button>
                   <span className="text-[11px] text-slate-500 font-medium">
@@ -547,15 +563,17 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                   </span>
                 </div>
 
-                {excessList.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setDraftItems(excessList)}
-                    className="text-[11px] font-bold text-teal-700 hover:underline cursor-pointer"
-                  >
-                    ပိုနေသောဂဏန်းများ အကုန်ပြန်ယူမည်
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {excessList.length > 0 && draftItems.length < excessList.length && (
+                    <button
+                      type="button"
+                      onClick={() => setDraftItems(excessList)}
+                      className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                    >
+                      ပိုနေသောဂဏန်းများ အကုန်ဆွဲယူမည် ({excessList.length} လုံး)
+                    </button>
+                  )}
+                </div>
               </div>
 
               {draftItems.length === 0 ? (

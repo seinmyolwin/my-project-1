@@ -81,6 +81,13 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
     return list;
   }, [aggregates, limits, blockedNumbers, activeRound, settings]);
 
+  // Excess over-limit numbers count for batch master forwarding
+  const excessCount = useMemo(() => {
+    return (Object.values(aggregates) as NumberAggregate[]).filter(
+      (a) => a.limit > 0 && Math.max(0, a.totalSold - (a.forwardedAmount || 0)) > a.limit
+    ).length;
+  }, [aggregates]);
+
   // Category counts
   const counts = useMemo(() => {
     return {
@@ -366,11 +373,16 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenForwardModal()}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-600 via-indigo-600 to-indigo-700 hover:from-amber-700 hover:to-indigo-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0"
                 title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward to Master'}</span>
+                {excessCount > 0 && (
+                  <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse ml-0.5">
+                    {excessCount}
+                  </span>
+                )}
               </button>
             )}
 
