@@ -10,20 +10,29 @@ import {
   Info
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
+import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { formatAmount } from '../utils/lotteryUtils';
+import { BookieMode } from '../types';
 
 interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenForwardModal: (num?: string, amount?: number) => void;
+  dealerMode?: BookieMode;
 }
 
 export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   isOpen,
   onClose,
-  onOpenForwardModal
+  onOpenForwardModal,
+  dealerMode = '3d'
 }) => {
-  const { settings, lowStockAlerts, aggregates } = useLottery();
+  const lottery3D = useLottery();
+  const lottery2D = useTwoDLottery();
+
+  const settings = dealerMode === '3d' ? lottery3D.settings : dealerMode === '2d' ? lottery2D.settings : lottery3D.settings;
+  const lowStockAlerts = dealerMode === '3d' ? lottery3D.lowStockAlerts : dealerMode === '2d' ? lottery2D.lowStockAlerts : [];
+  const aggregates = dealerMode === '3d' ? lottery3D.aggregates : dealerMode === '2d' ? lottery2D.aggregates : {};
 
   if (!isOpen) return null;
 

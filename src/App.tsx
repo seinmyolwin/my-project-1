@@ -534,6 +534,7 @@ function AppContent() {
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
         onOpenForwardModal={handleOpenForwardModal}
+        dealerMode={dealerMode}
       />
 
       {/* Settings Modal */}

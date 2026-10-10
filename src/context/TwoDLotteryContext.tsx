@@ -225,20 +225,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
-    const loaded = loadStoredData(STORAGE_KEYS.VOUCHERS_2D, INITIAL_2D_VOUCHERS);
-    // Sanitize any vouchers that were previously calculated with 8000x multiplier
-    return loaded.map(v => ({
-      ...v,
-      items: v.items.map(item => {
-        if (item.isWon && item.wonAmount && item.amount > 0 && item.wonAmount >= item.amount * 500) {
-          return {
-            ...item,
-            wonAmount: Math.round(item.wonAmount / 100)
-          };
-        }
-        return item;
-      })
-    }));
+    return loadStoredData(STORAGE_KEYS.VOUCHERS_2D, INITIAL_2D_VOUCHERS);
   });
 
   const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() =>

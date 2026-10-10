@@ -48,7 +48,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
 
   const getDisplayMultiplier = (val?: number) => {
     const clean = normalizeTwoDMultiplier(val || activeRound?.multiplier || settings.defaultMultiplier || 80);
-    return String(clean * 10);
+    return String(clean);
   };
 
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
