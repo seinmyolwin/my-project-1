@@ -20,7 +20,11 @@ import { useLottery } from '../context/LotteryContext';
 import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 
-export const WinningPayoutView: React.FC = () => {
+interface WinningPayoutViewProps {
+  onOpenStatement?: () => void;
+}
+
+export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStatement }) => {
   const {
     activeRound,
     settings,
@@ -554,7 +558,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={exportToExcel}
@@ -563,6 +567,16 @@ ${settings.shopName} (${settings.shopPhone})`;
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>Excel ပြန်ဒေါင်းမည်</span>
               </button>
+              {onOpenStatement && (
+                <button
+                  type="button"
+                  onClick={onOpenStatement}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>၃D ရှင်းတမ်း အပြည့်အစုံ</span>
+                </button>
+              )}
             </div>
           </div>
         )}

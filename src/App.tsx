@@ -151,6 +151,13 @@ function AppContent() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isPreviousResultsOpen, setIsPreviousResultsOpen] = useState(false);
   const [isStatementsOpen, setIsStatementsOpen] = useState(false);
+  const [statementModalMode, setStatementModalMode] = useState<'all' | '3d' | '2d' | 'football'>(dealerMode);
+
+  const handleOpenStatements = useCallback((mode?: 'all' | '3d' | '2d' | 'football') => {
+    setStatementModalMode(mode || dealerMode);
+    setIsStatementsOpen(true);
+  }, [dealerMode]);
+
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [isViberHubOpen, setIsViberHubOpen] = useState(false);
   const [isTelegramHubOpen, setIsTelegramHubOpen] = useState(false);
@@ -349,7 +356,7 @@ function AppContent() {
         onOpenForwardModal={() => handleOpenForwardModal()}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenHelp={() => setIsHelpOpen(true)}
-        onOpenStatements={() => setIsStatementsOpen(true)}
+        onOpenStatements={() => handleOpenStatements(dealerMode)}
         onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
         onOpenTitleModal={() => setIsTitleModalOpen(true)}
         onOpenViberHub={() => setIsViberHubOpen(true)}
@@ -385,7 +392,7 @@ function AppContent() {
             )}
 
             {activeTab3D === 'winning' && (
-              <WinningPayoutView />
+              <WinningPayoutView onOpenStatement={() => handleOpenStatements('3d')} />
             )}
 
             {activeTab3D === 'vouchers' && (
@@ -417,7 +424,7 @@ function AppContent() {
             )}
 
             {activeTab2D === 'winning' && (
-              <TwoDWinningPayoutView />
+              <TwoDWinningPayoutView onOpenStatement={() => handleOpenStatements('2d')} />
             )}
 
             {activeTab2D === 'vouchers' && (
@@ -440,7 +447,7 @@ function AppContent() {
             )}
 
             {activeTabFB === 'slips_list' && (
-              <FootballSlipsListView />
+              <FootballSlipsListView onOpenStatement={() => handleOpenStatements('football')} />
             )}
           </>
         )}
@@ -528,6 +535,7 @@ function AppContent() {
         initialTab={dealerMode}
         enabledModes={enabledModes}
         onUpdateEnabledModes={(modes) => setEnabledModes(modes)}
+        onOpenMasterStatement={() => handleOpenStatements('all')}
       />
 
       {/* First-Time PIN & Business Setup Modal */}
@@ -594,7 +602,7 @@ function AppContent() {
       <FinancialStatementsModal
         isOpen={isStatementsOpen}
         onClose={() => setIsStatementsOpen(false)}
-        initialMode={dealerMode}
+        initialMode={statementModalMode}
       />
 
       {/* Viber Orders & Direct Ingest Review Hub Modal */}

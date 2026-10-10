@@ -907,42 +907,33 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       return;
     }
 
-    // Check if any numbers in this voucher exceed limits
+    // Check if any numbers in this voucher exceed limits (tracked for batch forwarding)
     const itemSums: { [num: string]: number } = {};
     items.forEach(i => {
       itemSums[i.number] = (itemSums[i.number] || 0) + i.amount;
     });
 
-    const pendingOverLimits: OverLimitItemInfo[] = [];
+    let hasOverLimit = false;
     Object.keys(itemSums).forEach(num => {
       const addedAmt = itemSums[num];
       const currentSold = aggregates[num]?.totalSold || 0;
       const lmt = getNumberLimit(num);
       if (lmt > 0 && currentSold + addedAmt > lmt) {
-        const remainingQuota = Math.max(0, lmt - currentSold);
-        const excessAmount = (currentSold + addedAmt) - lmt;
-        pendingOverLimits.push({
-          id: num,
-          number: num,
-          originalAmount: addedAmt,
-          existingSold: currentSold,
-          limit: lmt,
-          remainingQuota,
-          excessAmount,
-          action: 'forward_excess'
-        });
+        hasOverLimit = true;
       }
     });
 
-    if (pendingOverLimits.length > 0) {
-      playWarningSound();
-      setPendingOverLimitItems(pendingOverLimits);
-      setIsOverLimitModalOpen(true);
-      return;
-    }
-
-    // Save voucher directly only if all items are within limits
+    // Save voucher directly to ledger without interrupting the user
     createFinalVoucher(items);
+
+    if (hasOverLimit) {
+      showToast(
+        isMyanmar
+          ? 'ဘောင်ချာသိမ်းပြီးပါပြီ (ဘရိတ်ကျော်ဂဏန်းများကို \'ဒိုင်ကြီးဆီတင်မည်\' တွင် စုစည်းထားပါသည်)'
+          : 'Voucher saved. Excess numbers recorded for Master Agent forward.',
+        'warning'
+      );
+    }
   };
 
   // Create Voucher with decision resolutions
@@ -1616,32 +1607,48 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         <div className="order-1 lg:order-2 lg:col-span-5 space-y-5">
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col h-full min-h-[500px]">
             {/* Batch Master Agent Forwarding Trigger */}
-            {onOpenForwardModal && (
-              <div className="mb-2 sm:mb-3.5 bg-gradient-to-r from-indigo-50 to-slate-50 border border-indigo-200 rounded-xl p-1.5 sm:p-2.5 flex items-center justify-between gap-1.5 sm:gap-2 shadow-2xs">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <div className="w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                    <ShieldAlert className="w-3 h-3 sm:w-4 sm:h-4" />
+            {onOpenForwardModal && (() => {
+              const excessAggs = (Object.values(aggregates) as TwoDNumberAggregate[]).filter(
+                a => a.limit > 0 && Math.max(0, a.totalSold - (a.forwardedAmount || 0)) > a.limit
+              );
+              const totalExcessAmount = excessAggs.reduce(
+                (sum, a) => sum + (Math.max(0, a.totalSold - (a.forwardedAmount || 0)) - a.limit),
+                0
+              );
+              return (
+                <div className="mb-2 sm:mb-3.5 bg-gradient-to-r from-amber-50 via-teal-50 to-slate-50 border border-amber-200/80 rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 sm:gap-2 shadow-2xs">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0">
+                      <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
+                    </div>
+                    <div className="min-w-0 truncate">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-teal-950 block truncate">
+                          {isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward to Master'}
+                        </span>
+                        {excessAggs.length > 0 && (
+                          <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                            {excessAggs.length} ကွက်
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-teal-800 font-semibold truncate block">
+                        {excessAggs.length > 0
+                          ? `သတ်မှတ်ဘရိတ်ကျော်: ${excessAggs.length} လုံး (${formatAmount(totalExcessAmount, settings.currency)})`
+                          : 'ပိုနေသော 2D ဂဏန်းများကို စုစည်းလွှဲတင်ရန်'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="min-w-0 truncate">
-                    <span className="text-xs font-bold text-indigo-950 block truncate">
-                      {isMyanmar ? 'အပိုတင်မည်' : 'Forward to Master'}
-                    </span>
-                    <span className="text-[10px] text-indigo-700 font-medium truncate hidden md:block">
-                      {(Object.values(aggregates) as TwoDNumberAggregate[]).filter(a => a.limit > 0 && a.totalSold > a.limit).length > 0
-                        ? `သတ်မှတ်ချက်ကျော် ပိုနေ: ${(Object.values(aggregates) as TwoDNumberAggregate[]).filter(a => a.limit > 0 && a.totalSold > a.limit).length} လုံး`
-                        : 'ပိုနေသောဂဏန်းများကို စုစည်းလွှဲတင်ရန်'}
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenForwardModal()}
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-lg transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onOpenForwardModal()}
-                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
-                >
-                  {isMyanmar ? 'အပိုတင်မည်' : 'Forward'}
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Cart Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

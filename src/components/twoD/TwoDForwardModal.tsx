@@ -44,13 +44,30 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   initialNumber,
   initialAmount
 }) => {
-  const { settings, activeRound, aggregates, addForwardSlip } = useTwoDLottery();
+  const { settings, activeRound, aggregates, addForwardSlip, updateSettings } = useTwoDLottery();
   const isMyanmar = settings.language === 'my';
+
+  // Saved Master Agents List
+  const [savedAgents, setSavedAgents] = useState<Array<{ name: string; phone?: string; commissionRate?: number }>>(() => {
+    try {
+      const stored = localStorage.getItem('shwe_master_agents_list');
+      if (stored) return JSON.parse(stored);
+    } catch {
+      // fallback
+    }
+    return [
+      { name: settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)', phone: settings.defaultMasterAgentPhone || '09-970001111', commissionRate: settings.defaultCommissionRate ?? 15 },
+      { name: 'ကိုမင်းအောင် (ဒိုင်ကြီး)', phone: '09-790002222', commissionRate: 12 },
+      { name: 'ဒေါ်ခင်သန်း (ရန်ကုန်ဒိုင်ချုပ်)', phone: '09-450003333', commissionRate: 14 },
+      { name: 'ဦးဘုန်း (မန္တလေးဒိုင်ကြီး)', phone: '09-250004444', commissionRate: 15 }
+    ];
+  });
 
   const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
   const [notes, setNotes] = useState('');
+  const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
 
   useEffect(() => {
     if (typeof settings.defaultCommissionRate === 'number') {
@@ -98,6 +115,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     if (!isOpen) {
       setCreatedSlip(null);
       setCopySuccess(false);
+      setSavedDefaultSuccess(false);
       return;
     }
 
@@ -120,7 +138,43 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       // Auto-load all over-limit numbers
       setDraftItems(excessList);
     }
-  }, [isOpen, initialNumber, initialAmount, excessList, aggregates]);
+  }, [isOpen]);
+
+  // Handle setting active master agent as default
+  const handleSaveAsDefaultAgent = () => {
+    const name = masterAgentName.trim();
+    if (!name) return;
+    const phone = masterAgentPhone.trim();
+    const rate = Number(commissionRate) || 0;
+
+    // Save in settings
+    updateSettings({
+      defaultMasterAgentName: name,
+      defaultMasterAgentPhone: phone,
+      defaultCommissionRate: rate
+    });
+
+    // Save in savedAgents list
+    setSavedAgents(prev => {
+      const filtered = prev.filter(a => a.name !== name);
+      const updated = [{ name, phone, commissionRate: rate }, ...filtered];
+      try {
+        localStorage.setItem('shwe_master_agents_list', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    setSavedDefaultSuccess(true);
+    setTimeout(() => setSavedDefaultSuccess(false), 3000);
+  };
+
+  const handleSelectSavedAgent = (agent: { name: string; phone?: string; commissionRate?: number }) => {
+    setMasterAgentName(agent.name);
+    if (agent.phone) setMasterAgentPhone(agent.phone);
+    if (typeof agent.commissionRate === 'number') setCommissionRate(agent.commissionRate);
+  };
 
   if (!isOpen) return null;
 
@@ -142,7 +196,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     const cleaned = convertMyanmarToEnglishDigits(newAmtStr).replace(/\D/g, '');
     const numVal = parseInt(cleaned, 10) || 0;
     setDraftItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, forwardAmount: Math.min(numVal, item.totalSold) } : item))
+      prev.map((item) => (item.id === id ? { ...item, forwardAmount: numVal } : item))
     );
   };
 
@@ -151,37 +205,47 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     setDraftItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  // Add Manual Number to draft
+  // Add Manual Number to draft (Single or Bulk)
   const handleAddManual = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = manualNum.trim().padStart(2, '0');
-    const amt = parseFloat(manualAmt);
-    if (clean.length === 2 && !isNaN(amt) && amt > 0) {
-      const existing = draftItems.find((i) => i.number === clean);
-      if (existing) {
-        setDraftItems((prev) =>
-          prev.map((i) =>
-            i.number === clean ? { ...i, forwardAmount: Math.min(i.forwardAmount + amt, i.totalSold), selected: true } : i
-          )
-        );
+    const cleaned = convertMyanmarToEnglishDigits(manualNum).trim();
+    if (!cleaned) return;
+
+    // Support single or multiple tokens separated by comma, space, semicolon, newline
+    const tokens = cleaned
+      .split(/[\s,;\n]+/)
+      .map((t) => t.replace(/\D/g, ''))
+      .filter((t) => t.length > 0);
+
+    const amt = parseFloat(convertMyanmarToEnglishDigits(manualAmt).replace(/\D/g, '')) || 0;
+    if (tokens.length === 0 || amt <= 0) return;
+
+    const newDrafts = [...draftItems];
+    tokens.forEach((token) => {
+      const numStr = token.slice(0, 2).padStart(2, '0');
+      const existingIdx = newDrafts.findIndex((i) => i.number === numStr);
+      if (existingIdx !== -1) {
+        newDrafts[existingIdx] = {
+          ...newDrafts[existingIdx],
+          forwardAmount: newDrafts[existingIdx].forwardAmount + amt,
+          selected: true
+        };
       } else {
-        const agg = aggregates[clean];
-        const sold = agg?.totalSold || 0;
-        setDraftItems((prev) => [
-          ...prev,
-          {
-            id: `manual-${clean}-${Date.now()}`,
-            number: clean,
-            totalSold: sold,
-            limit: agg?.limit || 0,
-            excessAmount: Math.min(amt, sold),
-            forwardAmount: Math.min(amt, sold),
-            selected: true
-          }
-        ]);
+        const agg = aggregates[numStr];
+        newDrafts.push({
+          id: `manual-2d-${numStr}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          number: numStr,
+          totalSold: agg?.totalSold || 0,
+          limit: agg?.limit || 0,
+          excessAmount: amt,
+          forwardAmount: amt,
+          selected: true
+        });
       }
-      setManualNum('');
-    }
+    });
+
+    setDraftItems(newDrafts);
+    setManualNum('');
   };
 
   // Selected items to be forwarded
@@ -340,69 +404,122 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
         ) : (
           /* Forward Configuration Form */
           <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
-            {/* Master Agent Info Row */}
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">ဒိုင်ချုပ် အမည်</label>
-                <input
-                  type="text"
-                  value={masterAgentName}
-                  onChange={(e) => setMasterAgentName(e.target.value)}
-                  className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-indigo-500"
-                />
+            {/* Master Agent Info & Customization Row */}
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-teal-600" />
+                  <span>{isMyanmar ? 'အထက်ဒိုင်ကြီး အချက်အလက်' : 'Master Bookie Profile'}</span>
+                </span>
+                
+                {/* Save as default button */}
+                <button
+                  type="button"
+                  onClick={handleSaveAsDefaultAgent}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                    savedDefaultSuccess
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                  }`}
+                  title="လက်ရှိ ဒိုင်ချုပ်အမည်နှင့် အချက်အလက်များကို ပုံသေဒိုင်အဖြစ် မှတ်သားထားမည်"
+                >
+                  <CheckCircle2 className={`w-3.5 h-3.5 ${savedDefaultSuccess ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span>{savedDefaultSuccess ? 'မူလဒိုင်အဖြစ် သိမ်းဆည်းပြီး ✓' : 'မူလဒိုင်အဖြစ် မှတ်မည်'}</span>
+                </button>
               </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">ဖုန်းနံပါတ်</label>
-                <input
-                  type="text"
-                  value={masterAgentPhone}
-                  onChange={(e) => setMasterAgentPhone(e.target.value)}
-                  className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-mono text-slate-900 outline-none focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">ကော်မရှင် ရာခိုင်နှုန်း (%)</label>
-                <div className="relative">
+
+              {/* Quick Preset Agents Pill Bar */}
+              {savedAgents.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+                  <span className="text-slate-400 shrink-0 text-[10px] font-bold">ရွေးချယ်ရန်:</span>
+                  {savedAgents.map((ag, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectSavedAgent(ag)}
+                      className={`px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap cursor-pointer transition-all ${
+                        masterAgentName === ag.name
+                          ? 'bg-teal-600 text-white border-teal-600 font-bold shadow-2xs'
+                          : 'bg-white hover:bg-teal-50 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {ag.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ဒိုင်ချုပ် အမည်</label>
                   <input
-                    type="number"
-                    value={commissionRate}
-                    onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
-                    className="w-full h-9 px-3 pr-7 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 outline-none focus:border-indigo-500"
+                    type="text"
+                    value={masterAgentName}
+                    onChange={(e) => setMasterAgentName(e.target.value)}
+                    placeholder="ဒိုင်ကြီး အမည် ရိုက်ထည့်ပါ"
+                    className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                   />
-                  <Percent className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ဖုန်းနံပါတ်</label>
+                  <input
+                    type="text"
+                    value={masterAgentPhone}
+                    onChange={(e) => setMasterAgentPhone(e.target.value)}
+                    placeholder="09-xxxxxxxxx"
+                    className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-mono text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ကော်မရှင် ရာခိုင်နှုန်း (%)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={commissionRate}
+                      onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
+                      className="w-full h-9 px-3 pr-7 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
+                    />
+                    <Percent className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Add Custom Single Number */}
-            <form onSubmit={handleAddManual} className="flex items-center gap-2 text-xs">
-              <input
-                type="text"
-                maxLength={2}
-                placeholder="ဂဏန်း (24)"
-                value={manualNum}
-                onChange={(e) =>
-                  setManualNum(
-                    convertMyanmarToEnglishDigits(e.target.value)
-                      .replace(/\D/g, '')
-                      .slice(0, 2)
-                  )
-                }
-                className="w-24 h-9 px-2 text-center font-mono font-bold rounded-xl border border-slate-300 bg-white"
-              />
-              <input
-                type="text"
-                placeholder="ငွေပမာဏ"
-                value={manualAmt}
-                onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                className="flex-1 h-9 px-3 text-right font-mono font-bold rounded-xl border border-slate-300 bg-white"
-              />
-              <button
-                type="submit"
-                className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs cursor-pointer shrink-0"
-              >
-                + ထပ်ထည့်
-              </button>
+            {/* Quick Add Custom 2D Numbers (Single or Bulk) */}
+            <form onSubmit={handleAddManual} className="bg-teal-50/50 p-2.5 rounded-2xl border border-teal-100 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-teal-950 flex items-center gap-1">
+                  <Plus className="w-3.5 h-3.5 text-teal-600" />
+                  <span>{isMyanmar ? 'အခြား စိတ်ကြိုက်ဂဏန်းများ ထည့်ရန်' : 'Add Custom Bets to Forward'}</span>
+                </span>
+                <span className="text-[10px] text-teal-700 font-medium">
+                  {isMyanmar ? 'ဂဏန်း ၁ လုံး သို့မဟုတ် အများ (12, 34, 56) ခွဲ၍ ထည့်နိုင်ပါသည်' : 'Single or multiple separated by comma/space'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder={isMyanmar ? 'ဂဏန်း (ဥပမာ: 24 သို့ 12, 34, 56)' : 'Numbers (e.g. 24 or 12, 34)'}
+                  value={manualNum}
+                  onChange={(e) => setManualNum(e.target.value)}
+                  className="flex-1 h-9 px-3 font-mono font-bold rounded-xl border border-slate-300 bg-white outline-none focus:border-teal-500 shadow-2xs"
+                />
+                <div className="w-32 relative">
+                  <input
+                    type="text"
+                    placeholder="ငွေပမာဏ"
+                    value={manualAmt}
+                    onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                    className="w-full h-9 px-2.5 text-right font-mono font-bold rounded-xl border border-slate-300 bg-white outline-none focus:border-teal-500 shadow-2xs"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="h-9 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-xs cursor-pointer shrink-0 active:scale-95 transition-all"
+                >
+                  + ထည့်မည်
+                </button>
+              </div>
             </form>
 
             {/* Over-Limit / Excess Numbers Selection Table */}

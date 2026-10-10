@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trophy,
   FileSpreadsheet,
+  TrendingUp,
   X
 } from 'lucide-react';
 import { useFootball } from '../../context/FootballContext';
@@ -19,7 +20,11 @@ import { FootballSlip } from '../../types';
 import { formatAmount } from '../../utils/lotteryUtils';
 import { printVoucherSlip } from '../../utils/printUtils';
 
-export const FootballSlipsListView: React.FC = () => {
+interface FootballSlipsListViewProps {
+  onOpenStatement?: () => void;
+}
+
+export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ onOpenStatement }) => {
   const {
     settings,
     activeDate,
@@ -220,6 +225,18 @@ export const FootballSlipsListView: React.FC = () => {
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>{isMyanmar ? 'Excel' : 'Export'}</span>
           </button>
+
+          {onOpenStatement && (
+            <button
+              type="button"
+              onClick={onOpenStatement}
+              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
+              title="ပစ်တိုင်းထောင် ကာလအလိုက် စာရင်းရှင်းတမ်း အစီရင်ခံစာ"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>{isMyanmar ? 'ရှင်းတမ်း' : 'Statements'}</span>
+            </button>
+          )}
         </div>
       </div>
 

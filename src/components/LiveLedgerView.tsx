@@ -362,6 +362,18 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
               <option value="num_asc">{isMyanmar ? 'ဂဏန်းစဉ် (၀၀၀ - ၉၉၉)' : 'Number Ascending'}</option>
             </select>
 
+            {onOpenForwardModal && (
+              <button
+                type="button"
+                onClick={() => onOpenForwardModal()}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward to Master'}</span>
+              </button>
+            )}
+
             <button
               onClick={exportToExcel}
               className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-2xs transition-colors cursor-pointer"

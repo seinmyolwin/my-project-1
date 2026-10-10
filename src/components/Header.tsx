@@ -170,6 +170,16 @@ export const Header: React.FC<HeaderProps> = ({
   const latestSettled3D = lottery3D.rounds.find((r) => r.status === 'settled' || !!r.winningNumber);
   const latestFinishedFB = football.matches.find((m) => m.status === 'finished');
 
+  const excessCount3D = Object.values(lottery3D.aggregates).filter(
+    (a: any) => a.limit > 0 && Math.max(0, a.totalSold - (a.forwardedAmount || 0)) > a.limit
+  ).length;
+
+  const excessCount2D = Object.values(lottery2D.aggregates).filter(
+    (a: any) => a.limit > 0 && Math.max(0, a.totalSold - (a.forwardedAmount || 0)) > a.limit
+  ).length;
+
+  const activeExcessCount = dealerMode === '3d' ? excessCount3D : dealerMode === '2d' ? excessCount2D : 0;
+
   return (
     <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-30 shadow-xs">
       {!isHeaderCollapsed && (
@@ -508,6 +518,23 @@ export const Header: React.FC<HeaderProps> = ({
                     {alertCount > 0 && (
                       <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
                         {alertCount > 9 ? '9+' : alertCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* ဒိုင်ကြီးဆီတင်မည် (Forward to Master Bookie) Quick Action */}
+                {dealerMode !== 'football' && onOpenForwardModal && (
+                  <button
+                    onClick={onOpenForwardModal}
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-600 via-indigo-600 to-indigo-700 hover:from-amber-700 hover:to-indigo-800 text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+                    title="အထက်ဒိုင်ကြီးဆီ ပိုနေသောဂဏန်းများ လွှဲတင်ရန်"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
+                    <span className="hidden sm:inline">{isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward'}</span>
+                    {activeExcessCount > 0 && (
+                      <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse">
+                        {activeExcessCount}
                       </span>
                     )}
                   </button>

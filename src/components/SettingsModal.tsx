@@ -69,6 +69,7 @@ interface SettingsModalProps {
   initialTab?: '3d' | '2d' | 'football' | 'general' | 'backup' | 'statements' | 'excel';
   enabledModes: EnabledModes;
   onUpdateEnabledModes: (modes: EnabledModes) => void;
+  onOpenMasterStatement?: () => void;
 }
 
 const BUTTON_DEFINITIONS_2D: Array<{
@@ -201,7 +202,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   initialTab = '3d',
   enabledModes,
-  onUpdateEnabledModes
+  onUpdateEnabledModes,
+  onOpenMasterStatement
 }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
@@ -394,7 +396,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         },
         football: {
           slips: football.slips,
-          forwardSlips: football.forwardSlips
+          forwardSlips: football.forwardSlips,
+          settings: football.settings
         }
       },
       statementMode,
@@ -414,7 +417,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     lottery3D.forwardSlips,
     lottery3D.settings,
     football.slips,
-    football.forwardSlips
+    football.forwardSlips,
+    football.settings
   ]);
 
   // Grand Totals for Statements using Single Source of Truth
@@ -424,11 +428,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     return {
       totalTurnover: totals.totalTurnover,
+      totalForwarded: totals.totalForwarded,
       totalAgentCommission: totals.totalAgentCommission,
       netSales: totals.netSales,
-      totalPayout: totals.totalPayout,
-      totalForwarded: totals.totalForwarded,
+      totalMasterPayout: totals.totalMasterPayout,
       totalForwardCommission: totals.totalForwardCommission,
+      totalPayout: totals.totalPayout,
+      retainedPayout: totals.retainedPayout,
       totalNetPaid: totals.totalNetPaid,
       netProfit: totals.totalNetProfit,
       isProfit: totals.isProfit,
@@ -446,12 +452,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       'လုပ်ငန်းလိုင်း': r.modeLabel,
       'ပွဲစဉ်အမည်': r.name,
       'ပေါက်ဂဏန်း/ရလဒ်': r.winningResult,
-      'စုစုပေါင်း ထိုးကြေး (ကျပ်)': r.turnover,
-      'အောက်လက် ကော်မရှင် (ကျပ်)': r.agentCommission,
-      'အမှန်ရောင်းရငွေ (ကျပ်)': r.netSales,
-      'ပေးလျော်ငွေ (ကျပ်)': r.payout,
-      'ဒိုင်ကြီးလွှဲ ကော်မရှင်ရငွေ (ကျပ်)': r.forwardCommission,
-      'ဒိုင် အသားတင် အမြတ်/အရှုံး (ကျပ်)': (r.isProfit ? '+' : '-') + Math.abs(r.netProfit),
+      '၁။ မူလထိုးကြေး (ကျပ်)': r.turnover,
+      '၂။ အထက်တင်ကြေး (ကျပ်)': r.totalForwarded,
+      '၃။ အောက်လက်ကော်မရှင် (ကျပ်)': r.agentCommission,
+      '၄။ အမှန်ရောင်းငွေ (ကျပ်)': r.netSales,
+      '၅။ အထက်ပေါက်ကြေး (ကျပ်)': r.masterPayout,
+      '၆။ အထက်ကော်မရှင်ခ (ကျပ်)': r.forwardCommission,
+      '၇။ ပေးလျှော်ငွေ (ကျပ်)': r.totalPayout,
+      '၈။ ဒိုင်အသားတင် အမြတ်/အရှုံး (ကျပ်)': (r.isProfit ? '+' : '-') + Math.abs(r.netProfit),
       'ပေါက်သူဦးရေ': r.winnersCount,
       'ဘောင်ချာစောင်ရေ': r.vouchersCount,
       'အခြေအနေ': r.status === 'settled' ? 'ရှင်းတမ်းပြီး' : 'ဖွင့်လှစ်ဆဲ'
@@ -463,12 +471,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       'လုပ်ငန်းလိုင်း': '-',
       'ပွဲစဉ်အမည်': `${stmtStartDate} မှ ${stmtEndDate} အထိ`,
       'ပေါက်ဂဏန်း/ရလဒ်': '-',
-      'စုစုပေါင်း ထိုးကြေး (ကျပ်)': stmtGrandTotals.totalTurnover,
-      'အောက်လက် ကော်မရှင် (ကျပ်)': stmtGrandTotals.totalAgentCommission,
-      'အမှန်ရောင်းရငွေ (ကျပ်)': stmtGrandTotals.netSales,
-      'ပေးလျော်ငွေ (ကျပ်)': stmtGrandTotals.totalPayout,
-      'ဒိုင်ကြီးလွှဲ ကော်မရှင်ရငွေ (ကျပ်)': stmtGrandTotals.totalForwardCommission,
-      'ဒိုင် အသားတင် အမြတ်/အရှုံး (ကျပ်)': (stmtGrandTotals.isProfit ? '+' : '-') + Math.abs(stmtGrandTotals.netProfit),
+      '၁။ မူလထိုးကြေး (ကျပ်)': stmtGrandTotals.totalTurnover,
+      '၂။ အထက်တင်ကြေး (ကျပ်)': stmtGrandTotals.totalForwarded,
+      '၃။ အောက်လက်ကော်မရှင် (ကျပ်)': stmtGrandTotals.totalAgentCommission,
+      '၄။ အမှန်ရောင်းငွေ (ကျပ်)': stmtGrandTotals.netSales,
+      '၅။ အထက်ပေါက်ကြေး (ကျပ်)': stmtGrandTotals.totalMasterPayout,
+      '၆။ အထက်ကော်မရှင်ခ (ကျပ်)': stmtGrandTotals.totalForwardCommission,
+      '၇။ ပေးလျှော်ငွေ (ကျပ်)': stmtGrandTotals.totalPayout,
+      '၈။ ဒိုင်အသားတင် အမြတ်/အရှုံး (ကျပ်)': (stmtGrandTotals.isProfit ? '+' : '-') + Math.abs(stmtGrandTotals.netProfit),
       'ပေါက်သူဦးရေ': stmtGrandTotals.totalWinners,
       'ဘောင်ချာစောင်ရေ': stmtGrandTotals.totalVouchers,
       'အခြေအနေ': stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'
@@ -763,6 +773,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name3D, setName3D] = useState(lottery3D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop3D, setShop3D] = useState(lottery3D.settings.shopName || '');
   const [phone3D, setPhone3D] = useState(lottery3D.settings.shopPhone || '');
+  const [masterAgentName3D, setMasterAgentName3D] = useState(lottery3D.settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
+  const [masterAgentPhone3D, setMasterAgentPhone3D] = useState(lottery3D.settings.defaultMasterAgentPhone || '09-970001111');
   const [mult3D, setMult3D] = useState(String(lottery3D.settings.defaultMultiplier ?? ''));
   const [todd3D, setTodd3D] = useState(String(lottery3D.settings.defaultToddMultiplier ?? ''));
   const [comm3D, setComm3D] = useState(String(lottery3D.settings.defaultCommissionRate ?? ''));
@@ -786,6 +798,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name2D, setName2D] = useState(lottery2D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop2D, setShop2D] = useState(lottery2D.settings.shopName || '');
   const [phone2D, setPhone2D] = useState(lottery2D.settings.shopPhone || '');
+  const [masterAgentName2D, setMasterAgentName2D] = useState(lottery2D.settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
+  const [masterAgentPhone2D, setMasterAgentPhone2D] = useState(lottery2D.settings.defaultMasterAgentPhone || '09-970001111');
   const [mult2D, setMult2D] = useState(String(lottery2D.settings.defaultMultiplier ?? ''));
   const [comm2D, setComm2D] = useState(String(lottery2D.settings.defaultCommissionRate ?? ''));
   const [disc2D, setDisc2D] = useState(String(lottery2D.settings.defaultCustomerDiscount || 0));
@@ -828,6 +842,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       appName: name3D.trim() || 'ရွှေမင်္ဂလာ',
       shopName: shop3D.trim(),
       shopPhone: phone3D.trim(),
+      defaultMasterAgentName: masterAgentName3D.trim() || undefined,
+      defaultMasterAgentPhone: masterAgentPhone3D.trim() || undefined,
       currency,
       defaultMultiplier: !isNaN(parseInt(mult3D, 10)) ? parseInt(mult3D, 10) : lottery3D.settings.defaultMultiplier,
       defaultToddMultiplier: !isNaN(parseInt(todd3D, 10)) ? parseInt(todd3D, 10) : lottery3D.settings.defaultToddMultiplier,
@@ -843,6 +859,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       appName: name2D.trim() || 'ရွှေမင်္ဂလာ',
       shopName: shop2D.trim(),
       shopPhone: phone2D.trim(),
+      defaultMasterAgentName: masterAgentName2D.trim() || undefined,
+      defaultMasterAgentPhone: masterAgentPhone2D.trim() || undefined,
       currency,
       defaultMultiplier: !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : lottery2D.settings.defaultMultiplier,
       defaultCommissionRate: !isNaN(parseFloat(comm2D)) ? parseFloat(comm2D) : lottery2D.settings.defaultCommissionRate,
@@ -1384,6 +1402,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
 
+                  {/* 3D Master Agent Profile */}
+                  <div className="bg-purple-50/50 p-2.5 rounded-xl border border-purple-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-purple-950 mb-1">
+                        အထက်ဒိုင်ကြီး အမည် (Master Bookie Name):
+                      </label>
+                      <input
+                        type="text"
+                        value={masterAgentName3D}
+                        onChange={(e) => setMasterAgentName3D(e.target.value)}
+                        placeholder="ဒိုင်ကြီး အမည်"
+                        className="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-purple-950 mb-1">
+                        ဒိုင်ကြီး ဖုန်းနံပါတ်:
+                      </label>
+                      <input
+                        type="text"
+                        value={masterAgentPhone3D}
+                        onChange={(e) => setMasterAgentPhone3D(e.target.value)}
+                        placeholder="09-xxxxxxxxx"
+                        className="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-900"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -1796,6 +1842,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           <span className="text-xs font-bold text-purple-900">%</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* 2D Master Agent Profile */}
+                  <div className="bg-teal-50/50 p-2.5 rounded-xl border border-teal-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-teal-950 mb-1">
+                        အထက်ဒိုင်ကြီး အမည် (Master Bookie Name):
+                      </label>
+                      <input
+                        type="text"
+                        value={masterAgentName2D}
+                        onChange={(e) => setMasterAgentName2D(e.target.value)}
+                        placeholder="ဒိုင်ကြီး အမည်"
+                        className="w-full bg-white border border-teal-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-teal-950 mb-1">
+                        ဒိုင်ကြီး ဖုန်းနံပါတ်:
+                      </label>
+                      <input
+                        type="text"
+                        value={masterAgentPhone2D}
+                        onChange={(e) => setMasterAgentPhone2D(e.target.value)}
+                        placeholder="09-xxxxxxxxx"
+                        className="w-full bg-white border border-teal-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-900"
+                      />
                     </div>
                   </div>
 
@@ -2617,6 +2691,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </p>
                   </div>
                 </div>
+                {onOpenMasterStatement && (
+                  <button
+                    type="button"
+                    onClick={onOpenMasterStatement}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0 whitespace-nowrap active:scale-95"
+                    title="လုပ်ငန်းသုံးခုလုံး ပေါင်းချုပ် စာရင်းရှင်းတမ်း အပြည့်အစုံကို ဇယားကြီးဖြင့် ကြည့်မည်"
+                  >
+                    <TrendingUp className="w-3.5 h-3.5 text-white" />
+                    <span className="hidden sm:inline">ဇယားအပြည့် ဖွင့်မည်</span>
+                  </button>
+                )}
               </div>
 
               {/* Filter Controls: Period & Mode */}
@@ -2715,91 +2800,101 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </p>
                 </div>
 
-                {/* Summary Stats Overview Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                {/* Summary Stats Overview Cards matching Exact 8-Step Formula */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                   {/* 1. Gross Turnover */}
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                    <span className="text-[10px] text-slate-500 font-bold block uppercase mb-0.5">၁။ စုစုပေါင်း ထိုးကြေး</span>
-                    <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-slate-500 block mb-0.5 uppercase">၁။ မူလထိုးကြေး</span>
+                    <div className="text-sm font-black text-slate-900 font-mono">
                       {formatAmount(stmtGrandTotals.totalTurnover, currency)}
                     </div>
-                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                      {stmtGrandTotals.totalVouchers} စောင် ({stmtRecords.length} ပွဲ)
+                    <span className="text-[9px] text-slate-400 block font-medium">
+                      {stmtGrandTotals.totalVouchers} စောင်
                     </span>
                   </div>
 
-                  {/* 2. Agent Commission */}
-                  <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200 shadow-2xs">
-                    <span className="text-[10px] text-amber-900 font-bold block uppercase flex items-center justify-between mb-0.5">
-                      <span>၂။ အောက်လက် ကော်မရှင်</span>
-                      <span className="text-[9px] px-1 py-0.2 bg-amber-200 text-amber-900 rounded font-black">နုတ်ပေးငွေ</span>
+                  {/* 2. Total Forwarded */}
+                  <div className="bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-indigo-900 block mb-0.5 uppercase">၂။ အထက်တင်ကြေး</span>
+                    <div className="text-sm font-black text-indigo-950 font-mono">
+                      {formatAmount(stmtGrandTotals.totalForwarded, currency)}
+                    </div>
+                    <span className="text-[9px] text-indigo-600 block font-medium">
+                      ဒိုင်ကြီးဆီ လွှဲငွေ
                     </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-amber-900">
+                  </div>
+
+                  {/* 3. Agent Commission */}
+                  <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-amber-900 block mb-0.5 uppercase">၃။ အောက်လက်ကော်</span>
+                    <div className="text-sm font-black text-amber-900 font-mono">
                       -{formatAmount(stmtGrandTotals.totalAgentCommission, currency)}
                     </div>
-                    <span className="text-[10px] text-amber-700 font-medium mt-0.5 block">
-                      အောက်လက်ပေး ကော်မရှင်ခ
+                    <span className="text-[9px] text-amber-700 block font-medium">
+                      နုတ်ပေးငွေ
                     </span>
                   </div>
 
-                  {/* 3. Net Sales */}
-                  <div className="bg-sky-50/80 p-3 rounded-2xl border border-sky-200 shadow-2xs">
-                    <span className="text-[10px] text-sky-900 font-bold block uppercase flex items-center justify-between mb-0.5">
-                      <span>၃။ အမှန်ရောင်းငွေ</span>
-                      <span className="text-[9px] px-1 py-0.2 bg-sky-200 text-sky-900 rounded font-black">လက်ခံရငွေ</span>
-                    </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-sky-950">
+                  {/* 4. Net Sales */}
+                  <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-sky-900 block mb-0.5 uppercase">၄။ အမှန်ရောင်းငွေ</span>
+                    <div className="text-sm font-black text-sky-950 font-mono">
                       {formatAmount(stmtGrandTotals.netSales, currency)}
                     </div>
-                    <span className="text-[10px] text-sky-700 font-medium mt-0.5 block">
-                      ထိုးကြေး - ကော်မရှင်
+                    <span className="text-[9px] text-sky-700 block font-medium">
+                      ဒိုင်လက်ကျန်ရောင်းငွေ
                     </span>
                   </div>
 
-                  {/* 4. Total Payout */}
-                  <div className="bg-rose-50/80 p-3 rounded-2xl border border-rose-200 shadow-2xs">
-                    <span className="text-[10px] text-rose-700 font-bold block uppercase flex items-center justify-between mb-0.5">
-                      <span>၄။ ပေါက်မဲ လျော်ကြေး</span>
-                      <span className="text-[9px] px-1 py-0.2 bg-rose-200 text-rose-900 rounded font-black">ပေးငွေ</span>
-                    </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-rose-700">
-                      {formatAmount(stmtGrandTotals.totalPayout, currency)}
+                  {/* 5. Master Payout */}
+                  <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-emerald-900 block mb-0.5 uppercase">၅။ အထက်ပေါက်ကြေး</span>
+                    <div className="text-sm font-black text-emerald-900 font-mono">
+                      +{formatAmount(stmtGrandTotals.totalMasterPayout, currency)}
                     </div>
-                    <span className="text-[10px] text-rose-600 font-bold mt-0.5 block">
+                    <span className="text-[9px] text-emerald-700 block font-medium">
+                      ဒိုင်ကြီး ပြန်လျော်ငွေ
+                    </span>
+                  </div>
+
+                  {/* 6. Forward Commission */}
+                  <div className="bg-purple-50 p-2.5 rounded-xl border border-purple-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-purple-900 block mb-0.5 uppercase">၆။ အထက်ကော်မရှင်</span>
+                    <div className="text-sm font-black text-purple-900 font-mono">
+                      +{formatAmount(stmtGrandTotals.totalForwardCommission, currency)}
+                    </div>
+                    <span className="text-[9px] text-purple-700 block font-medium">
+                      ကိုယ်ရမည့် ကော်မရှင်
+                    </span>
+                  </div>
+
+                  {/* 7. Total Payout */}
+                  <div className="bg-rose-50 p-2.5 rounded-xl border border-rose-200 shadow-2xs">
+                    <span className="text-[9px] font-bold text-rose-800 block mb-0.5 uppercase">၇။ ပေးလျှော်ငွေ</span>
+                    <div className="text-sm font-black text-rose-800 font-mono">
+                      -{formatAmount(stmtGrandTotals.totalPayout, currency)}
+                    </div>
+                    <span className="text-[9px] text-rose-600 block font-medium">
                       ပေါက်သူ {stmtGrandTotals.totalWinners} ဦး
                     </span>
                   </div>
 
-                  {/* 5. Forward Commission */}
-                  <div className="bg-indigo-50/80 p-3 rounded-2xl border border-indigo-200 shadow-2xs">
-                    <span className="text-[10px] text-indigo-800 font-bold block uppercase flex items-center justify-between mb-0.5">
-                      <span>၅။ ဒိုင်ကြီးလွှဲ ကော်မရှင်</span>
-                      <span className="text-[9px] px-1 py-0.2 bg-indigo-200 text-indigo-900 rounded font-black">ရငွေ</span>
-                    </span>
-                    <div className="text-base sm:text-lg font-black font-mono text-indigo-900">
-                      +{formatAmount(stmtGrandTotals.totalForwardCommission, currency)}
-                    </div>
-                    <span className="text-[10px] text-indigo-700 font-medium mt-0.5 block">
-                      ဒိုင်ကြီးဆီမှ ပြန်ရငွေ
-                    </span>
-                  </div>
-
-                  {/* 6. Net Profit / Loss */}
-                  <div className={`p-3 rounded-2xl border shadow-2xs ${
-                    stmtGrandTotals.isProfit ? 'bg-emerald-50/95 border-emerald-300' : 'bg-rose-50/95 border-rose-300'
+                  {/* 8. Net Profit / Loss */}
+                  <div className={`p-2.5 rounded-xl border shadow-2xs ${
+                    stmtGrandTotals.isProfit ? 'bg-teal-50 border-teal-300' : 'bg-rose-100 border-rose-300'
                   }`}>
-                    <span className={`text-[10px] font-bold block uppercase mb-0.5 ${
-                      stmtGrandTotals.isProfit ? 'text-emerald-800' : 'text-rose-800'
+                    <span className={`text-[9px] font-bold block mb-0.5 uppercase ${
+                      stmtGrandTotals.isProfit ? 'text-teal-900' : 'text-rose-900'
                     }`}>
-                      ၆။ ဒိုင် အသားတင် {stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
+                      ၈။ အသားတင် {stmtGrandTotals.isProfit ? 'အမြတ်' : 'အရှုံး'}
                     </span>
-                    <div className={`text-base sm:text-lg font-black font-mono ${
-                      stmtGrandTotals.isProfit ? 'text-emerald-700' : 'text-rose-700'
+                    <div className={`text-sm font-black font-mono ${
+                      stmtGrandTotals.isProfit ? 'text-teal-800' : 'text-rose-800'
                     }`}>
                       {stmtGrandTotals.isProfit ? '+' : '-'}{formatAmount(Math.abs(stmtGrandTotals.netProfit), currency)}
                     </div>
-                    <span className={`text-[10px] font-bold block mt-0.5 ${
-                      stmtGrandTotals.isProfit ? 'text-emerald-600' : 'text-rose-600'
+                    <span className={`text-[9px] font-bold block ${
+                      stmtGrandTotals.isProfit ? 'text-teal-700' : 'text-rose-700'
                     }`}>
                       {stmtGrandTotals.isProfit ? 'မြတ်' : 'ရှုံး'} ({stmtGrandTotals.profitMargin}%)
                     </span>

@@ -19,7 +19,11 @@ import { verifyOwnerPassword } from '../../utils/securityUtils';
 import { evaluateTwoDWinnings } from '../../utils/twoDLotteryUtils';
 import { getLocalDateString } from '../../utils/moneyUtils';
 
-export const TwoDWinningPayoutView: React.FC = () => {
+interface TwoDWinningPayoutViewProps {
+  onOpenStatement?: () => void;
+}
+
+export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ onOpenStatement }) => {
   const {
     settings,
     activeRound,
@@ -668,7 +672,7 @@ export const TwoDWinningPayoutView: React.FC = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={exportToExcel}
@@ -677,6 +681,16 @@ export const TwoDWinningPayoutView: React.FC = () => {
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>Excel ပြန်ဒေါင်းမည်</span>
               </button>
+              {onOpenStatement && (
+                <button
+                  type="button"
+                  onClick={onOpenStatement}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>၂D ရှင်းတမ်း အပြည့်အစုံ</span>
+                </button>
+              )}
             </div>
           </div>
         )}

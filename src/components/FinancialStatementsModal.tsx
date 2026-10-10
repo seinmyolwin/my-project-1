@@ -582,7 +582,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               {periodLabel} ({startDate === allTimeStartStr ? 'စတင်ချိန်' : startDate} မှ {endDate === allTimeEndStr ? 'ယခု' : endDate} အထိ)
             </p>
             <p className="text-[10px] text-slate-500 mt-0.5">
-              အမျိုးအစား: {selectedMode === 'all' ? 'လုပ်ငန်းအားလုံးချုပ်' : selectedMode === '3d' ? 'အိုးစည်လေး (3D)' : selectedMode === '2d' ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (ဘောလုံး)'}
+              အမျိုးအစား: {effectiveMode === 'all' ? 'လုပ်ငန်းအားလုံးချုပ်' : effectiveMode === '3d' ? 'အိုးစည်လေး (3D)' : effectiveMode === '2d' ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (ဘောလုံး)'}
             </p>
           </div>
 
