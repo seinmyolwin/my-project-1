@@ -193,7 +193,7 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   shopPhone: '09-798889900',
   shopAddress: 'ရန်ကုန်မြို့ / မန္တလေးမြို့',
   currency: 'Ks',
-  defaultMultiplier: 85, // 85x for 2D
+  defaultMultiplier: 80, // 80x for 2D (Standard Myanmar 2D payout)
   defaultCommissionRate: 12,
   defaultCustomerDiscount: 0,
   globalStockLimit: 200000, // 200,000 Ks per 2D number
@@ -207,7 +207,7 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   quickActionButtons: DEFAULT_2D_ACTION_BUTTONS
 };
 
-export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds();
+export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds(80, 12);
 
 export const INITIAL_2D_LIMITS: NumberLimit = {
   '82': 100000,

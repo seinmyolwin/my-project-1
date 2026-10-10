@@ -800,7 +800,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [phone2D, setPhone2D] = useState(lottery2D.settings.shopPhone || '');
   const [masterAgentName2D, setMasterAgentName2D] = useState(lottery2D.settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
   const [masterAgentPhone2D, setMasterAgentPhone2D] = useState(lottery2D.settings.defaultMasterAgentPhone || '09-970001111');
-  const [mult2D, setMult2D] = useState(String(lottery2D.settings.defaultMultiplier ?? ''));
+  const getCleanMult2D = (val?: number) => {
+    let m = val || lottery2D.settings.defaultMultiplier || 80;
+    if (m >= 500 && m <= 10000) m = Math.round(m / 100);
+    return m;
+  };
+  const [mult2D, setMult2D] = useState(String(getCleanMult2D(lottery2D.settings.defaultMultiplier)));
   const [comm2D, setComm2D] = useState(String(lottery2D.settings.defaultCommissionRate ?? ''));
   const [disc2D, setDisc2D] = useState(String(lottery2D.settings.defaultCustomerDiscount || 0));
   const [globalLimit2D, setGlobalLimit2D] = useState(String(lottery2D.settings.globalStockLimit || 200000));
@@ -873,7 +878,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       defaultMasterAgentName: masterAgentName2D.trim() || undefined,
       defaultMasterAgentPhone: masterAgentPhone2D.trim() || undefined,
       currency,
-      defaultMultiplier: !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : lottery2D.settings.defaultMultiplier,
+      defaultMultiplier: (() => {
+        let p = !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : (lottery2D.settings.defaultMultiplier || 80);
+        if (p >= 500 && p <= 10000) p = Math.round(p / 100);
+        return p || 80;
+      })(),
       defaultCommissionRate: !isNaN(parseFloat(comm2D)) ? parseFloat(comm2D) : lottery2D.settings.defaultCommissionRate,
       defaultCustomerDiscount: !isNaN(parseFloat(disc2D)) ? parseFloat(disc2D) : lottery2D.settings.defaultCustomerDiscount,
       globalStockLimit: !isNaN(parseFloat(globalLimit2D)) ? parseFloat(globalLimit2D) : 200000,
@@ -1784,15 +1793,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   {/* 2D Multiplier */}
                   <div className="bg-teal-50/60 p-2.5 rounded-xl border border-teal-100">
-                    <label className="block text-[11px] font-bold text-teal-950 mb-1">
-                      ဇီးကွက် (2D) ပေါက်ဆ (အဆ):
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-teal-950">
+                        ဇီးကွက် (2D) ပေါက်ဆ (အဆ):
+                      </label>
+                      <span className="text-[10px] text-teal-700 font-medium">
+                        (၁၀၀ ဖိုး = ၈,၀၀၀ ကျပ် ပေါက်ပါက ၈၀ ဆ)
+                      </span>
+                    </div>
                     <input
                       type="number"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       value={mult2D}
-                      onChange={(e) => setMult2D(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const num = parseInt(val, 10);
+                        if (!isNaN(num) && num >= 500 && num <= 10000) {
+                          setMult2D(String(Math.round(num / 100)));
+                        } else {
+                          setMult2D(val);
+                        }
+                      }}
                       onFocus={(e) => {
                         const target = e.currentTarget;
                         target.select();
@@ -1803,8 +1825,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         target.select();
                         setTimeout(() => target.select(), 20);
                       }}
-                      className="w-full bg-white border border-teal-200 rounded-lg p-2 text-xs font-bold text-teal-900 text-center"
+                      className="w-full bg-white border border-teal-200 rounded-lg p-2 text-xs font-bold text-teal-900 text-center font-mono"
                     />
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1.5 mt-2 justify-center">
+                      <span className="text-[10px] text-slate-500 font-bold">ရွေးချယ်ရန်:</span>
+                      {[80, 85, 90].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setMult2D(String(preset))}
+                          className={`px-2.5 py-0.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                            mult2D === String(preset)
+                              ? 'bg-teal-700 text-white shadow-2xs'
+                              : 'bg-white hover:bg-teal-100 text-teal-800 border border-teal-200'
+                          }`}
+                        >
+                          {preset} ဆ
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* 2D Customizable Commissions: Lower (Agent / Customer) vs Upper (Master Bookie) */}

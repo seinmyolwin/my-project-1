@@ -138,8 +138,8 @@ export function generateUpToDate2DRounds(
         closingTime: '16:25',
         status: isToday ? 'open' : 'closed',
         winningNumber: undefined,
-        multiplier: defaultMultiplier ?? 0,
-        commissionRate: defaultCommissionRate ?? 0,
+        multiplier: defaultMultiplier ?? 80,
+        commissionRate: defaultCommissionRate ?? 12,
         settledAt: undefined
       });
 
@@ -152,8 +152,8 @@ export function generateUpToDate2DRounds(
         closingTime: '12:00',
         status: isToday ? 'open' : 'closed',
         winningNumber: undefined,
-        multiplier: defaultMultiplier ?? 0,
-        commissionRate: defaultCommissionRate ?? 0,
+        multiplier: defaultMultiplier ?? 80,
+        commissionRate: defaultCommissionRate ?? 12,
         settledAt: undefined
       });
     }

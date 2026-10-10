@@ -179,7 +179,7 @@ export interface TwoDDrawRound {
   closingTime: string; // "12:00" or "16:25"
   status: 'open' | 'closed' | 'settled';
   winningNumber?: string; // 2 digits: "00" - "99"
-  multiplier: number; // default 85 (e.g. 1000 ks wins 85,000 ks)
+  multiplier: number; // default 80 (e.g. 1000 ks wins 80,000 ks)
   commissionRate: number; // e.g. 12%
   settledAt?: string;
 }

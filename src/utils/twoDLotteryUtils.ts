@@ -644,8 +644,12 @@ export function evaluateTwoDWinnings(
   let totalPayout = 0;
   let totalWinnersCount = 0;
 
-  const mult = multiplier || 0;
-  console.log(`[DEBUG] evaluateTwoDWinnings: winningNumber=${winningNumber}, multiplier=${multiplier}, mult=${mult}`);
+  let mult = multiplier || 0;
+  // Safe normalization: In Myanmar 2D (00-99), a multiplier >= 500 (such as 8000 for "100 ks = 8000 ks") represents 100x the odds multiplier.
+  // Normalize 8000 -> 80x, 8500 -> 85x, 9000 -> 90x.
+  if (mult >= 500 && mult <= 10000) {
+    mult = Math.round(mult / 100);
+  }
 
   const settledVouchers = vouchers.map(v => {
     let voucherHasWin = false;

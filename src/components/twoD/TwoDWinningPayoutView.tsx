@@ -11,13 +11,18 @@ import {
   User,
   Phone,
   FileSpreadsheet,
-  AlertCircle
+  AlertCircle,
+  Receipt
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
 import { evaluateTwoDWinnings } from '../../utils/twoDLotteryUtils';
 import { getLocalDateString } from '../../utils/moneyUtils';
+import {
+  SingleRoundFinancialBreakdown,
+  calculateTwoDSingleRoundStatement
+} from '../../utils/statementUtils';
 
 interface TwoDWinningPayoutViewProps {
   onOpenStatement?: () => void;
@@ -41,14 +46,21 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
 
   const isMyanmar = settings.language === 'my';
 
+  const getCleanMultiplier = (val?: number) => {
+    let m = val || settings.defaultMultiplier || 80;
+    if (m >= 500 && m <= 10000) m = Math.round(m / 100);
+    return m;
+  };
+
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
-  const [multiplierInput, setMultiplierInput] = useState(
-    String(activeRound?.multiplier || settings.defaultMultiplier || '')
+  const [multiplierInput, setMultiplierInput] = useState(() =>
+    String(getCleanMultiplier(activeRound?.multiplier))
   );
+  const [multiplierHintNotice, setMultiplierHintNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
-    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || ''));
+    setMultiplierInput(String(getCleanMultiplier(activeRound?.multiplier)));
   }, [activeRound?.id, activeRound?.winningNumber, activeRound?.multiplier, settings.defaultMultiplier]);
 
   const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
@@ -195,10 +207,15 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
       return;
     }
 
-    const mult = parseFloat(multiplierInput);
+    let mult = parseFloat(multiplierInput);
     if (isNaN(mult) || mult <= 0) {
       alert(isMyanmar ? 'ပေါက်ကြေးအဆ (Multiplier) မှန်ကန်စွာ ထည့်သွင်းပါ' : 'Please enter valid multiplier');
       return;
+    }
+    // Auto-normalize if user typed 8000 (100 Ks = 8,000 Ks)
+    if (mult >= 500 && mult <= 10000) {
+      mult = Math.round(mult / 100);
+      setMultiplierInput(String(mult));
     }
 
     // 1. Officially settle round status in context & localStorage FIRST
@@ -296,7 +313,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
       return { settledVouchers: [], totalPayout: 0, totalWinnersCount: 0 };
     }
-    const mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 0;
+    let mult = parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80;
+    if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
     const evalRes = evaluateTwoDWinnings(activeRoundVouchers, cleanNum, mult);
 
     let totalSoldForNum = 0;
@@ -350,7 +368,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     const winningAgg = activeEvalNumber ? aggregates[activeEvalNumber] : undefined;
     const totalSoldForWinNum = winningAgg ? winningAgg.totalSold : 0;
     const retainedAmt = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
-    const mult = parseFloat(multiplierInput) || settings.defaultMultiplier || 0;
+    let mult = parseFloat(multiplierInput) || settings.defaultMultiplier || 80;
+    if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
     const retainedPayout = mult > 0 ? retainedAmt * mult : 0;
 
     const netPaid = totalForwarded - forwardedCommission;
@@ -376,9 +395,10 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     ? activeEvalNumber
     : (isSettled ? (activeRound?.winningNumber || '') : activeEvalNumber);
 
-  const currentMultiplier = isSettled && !isTestingMode
-    ? (activeRound?.multiplier || settings.defaultMultiplier || 0)
-    : (parseFloat(multiplierInput) || settings.defaultMultiplier || 0);
+  let currentMultiplier = isSettled && !isTestingMode
+    ? (activeRound?.multiplier || settings.defaultMultiplier || 80)
+    : (parseFloat(multiplierInput) || settings.defaultMultiplier || 80);
+  if (currentMultiplier >= 500 && currentMultiplier <= 10000) currentMultiplier = Math.round(currentMultiplier / 100);
 
   const isShowingOnTheFly = isTestingMode || (isWinningConfirmed && !isSettled);
 
@@ -405,6 +425,18 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     });
     return max;
   }, [winningTickets, currentWinningNumber]);
+
+  // Single-Round Financial Statement Breakdown (Strictly isolated for this round)
+  const singleRoundStatement: SingleRoundFinancialBreakdown = useMemo(() => {
+    return calculateTwoDSingleRoundStatement({
+      round: activeRound,
+      vouchers: activeRoundVouchers,
+      forwardSlips: activeRoundForwardSlips,
+      winningNumber: currentWinningNumber,
+      multiplier: currentMultiplier,
+      settings
+    });
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, currentWinningNumber, currentMultiplier, settings]);
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
@@ -486,15 +518,32 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
           </div>
 
           <div className="sm:col-span-4">
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {isMyanmar ? `အလျော်ဆ (ဥပမာ- ${settings.defaultMultiplier || ''} ဆ)` : `Multiplier (e.g. ${settings.defaultMultiplier || ''}x)`}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                {isMyanmar ? 'ပေါက်ကြေးအဆ (ဥပမာ- ၈၀ ဆ)' : 'Multiplier (e.g. 80x)'}
+              </label>
+              <span className="text-[10px] text-slate-400 font-medium">
+                (၁၀၀ ဖိုး = ၈,၀၀၀ ကျပ်)
+              </span>
+            </div>
             <input
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
               value={multiplierInput}
-              onChange={(e) => setMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+              onChange={(e) => {
+                const clean = convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, '');
+                const num = parseInt(clean, 10);
+                // If user types 8000 or >= 500, auto-correct to 80
+                if (!isNaN(num) && num >= 500 && num <= 10000) {
+                  const fixed = Math.round(num / 100);
+                  setMultiplierInput(String(fixed));
+                  setMultiplierHintNotice(`${clean} အစား ၂ လုံးပေါက်ကြေး စံနှုန်းအရ ${fixed} ဆ သို့ ပြင်ဆင်သတ်မှတ်ပေးလိုက်ပါသည် (၁၀၀ ဖိုး = ${clean} ကျပ်)`);
+                } else {
+                  setMultiplierInput(clean);
+                  setMultiplierHintNotice(null);
+                }
+              }}
               onFocus={(e) => {
                 const target = e.currentTarget;
                 target.select();
@@ -507,6 +556,32 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
               }}
               className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
             />
+            {/* Quick Multiplier Preset Buttons */}
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[10px] text-slate-500 font-bold shrink-0">ရွေးချယ်ရန်:</span>
+              {[80, 85, 90].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setMultiplierInput(String(preset));
+                    setMultiplierHintNotice(null);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                    multiplierInput === String(preset)
+                      ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-500'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {preset} ဆ
+                </button>
+              ))}
+            </div>
+            {multiplierHintNotice && (
+              <p className="text-[11px] font-bold text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200 mt-2 animate-in fade-in">
+                💡 {multiplierHintNotice}
+              </p>
+            )}
           </div>
 
           <div className="sm:col-span-4 flex flex-col gap-1.5">
@@ -803,78 +878,243 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
             </div>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs">
-              <span className="text-xs text-slate-500 font-bold block mb-1">
-                {isMyanmar ? 'ပေါက်ဂဏန်း' : 'Winning Number'}
-              </span>
-              <div className="text-4xl font-black text-amber-600 font-mono">
-                {currentWinningNumber}
+          {/* Active Round Isolated Financial Statement Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-indigo-500/30 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shrink-0">
+                <Receipt className="w-5 h-5" />
               </div>
-              <span className="text-xs text-slate-400 font-medium">
-                {isMyanmar ? 'အလျော်ဆ' : 'Multiplier'}: {currentMultiplier}x
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-black text-white">
+                    {activeRound?.name || 'လက်ရှိ ၂D ပွဲစဉ်'}
+                  </h3>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${
+                    isTestingMode 
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-400/40' 
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                  }`}>
+                    {isTestingMode ? '🧪 အစမ်းတွက်ချက် စစ်ဆေးမှု (Preview)' : '✓ အတည်ပြုပြီး ရှင်းတမ်း'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
+                    ပေါက်ဂဏန်း: {currentWinningNumber || '--'} ({currentMultiplier}x)
+                  </span>
+                </div>
+                <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-teal-300 font-bold">📌 ဤရှင်းတမ်းသည် ဤပွဲစဉ် ({activeRound?.session === 'morning' ? 'မနက် ၁၂:၀၁' : 'ညနေ ၀၄:၃၀'}) အတွက်သာ ဖြစ်ပြီး အခြားပွဲစဉ်များနှင့် ရောနှောခြင်းမရှိပါ။</span>
+                  <span className="text-slate-400">• ဘောင်ချာ {singleRoundStatement.vouchersCount} စောင် • ပေါက်သူ {singleRoundStatement.winnersCount} ဦး</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <span className="text-[10px] text-slate-300 font-bold block uppercase tracking-wider">ဒိုင် အသားတင် ရလဒ်</span>
+                <span className={`text-base sm:text-lg font-black font-mono px-3 py-1 rounded-xl border block ${
+                  singleRoundStatement.isProfit
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                }`}>
+                  {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Comprehensive 8-Step Formula Cards matching Header Financial Statement tab */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+            {/* 1. မူလထိုးကြေး */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-2xs hover:bg-white transition-all">
+              <span className="text-[10px] font-black text-slate-500 block mb-0.5 uppercase tracking-wide">
+                ၁။ မူလထိုးကြေး
+              </span>
+              <div className="text-sm font-black text-slate-900 font-mono">
+                {formatAmount(singleRoundStatement.turnover, settings.currency)}
+              </div>
+              <span className="text-[9px] text-slate-400 block font-medium mt-0.5">
+                ထိုးကြေး အားလုံးပေါင်း
               </span>
             </div>
 
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs">
-              <span className="text-xs text-slate-500 font-bold block mb-1">
-                {isMyanmar ? 'ပေါက်သူ အရေအတွက်' : 'Total Winners'}
+            {/* 2. အထက်တင်ကြေး */}
+            <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-3 shadow-2xs hover:bg-indigo-50 transition-all">
+              <span className="text-[10px] font-black text-indigo-900 block mb-0.5 uppercase tracking-wide">
+                ၂။ အထက်တင်ကြေး
               </span>
-              <div className="text-3xl font-black text-slate-900 font-mono">
-                {currentWinnersCount} {isMyanmar ? 'ဦး' : 'tickets'}
+              <div className="text-sm font-black text-indigo-950 font-mono">
+                {formatAmount(singleRoundStatement.totalForwarded, settings.currency)}
               </div>
-              <span className="text-xs text-emerald-600 font-bold">
-                {isMyanmar ? 'ပေါက်မဲဘောင်ချာများ' : 'Winning vouchers'}
+              <span className="text-[9px] text-indigo-600 block font-medium mt-0.5">
+                ဒိုင်ကြီးဆီ လွှဲငွေ
               </span>
             </div>
 
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs">
-              <span className="text-xs text-rose-700 font-bold block mb-1">
-                {isMyanmar ? 'စုစုပေါင်း လျော်ကြေးငွေ (ဖောက်သည်)' : 'Total Customer Payout'}
+            {/* 3. အောက်လက်ကော် */}
+            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 shadow-2xs hover:bg-amber-50 transition-all">
+              <span className="text-[10px] font-black text-amber-900 block mb-0.5 uppercase tracking-wide">
+                ၃။ အောက်လက်ကော်
               </span>
-              <div className="text-2xl sm:text-3xl font-black text-rose-700 font-mono">
-                {formatAmount(currentTotalPayout, settings.currency)}
+              <div className="text-sm font-black text-amber-900 font-mono">
+                -{formatAmount(singleRoundStatement.agentCommission, settings.currency)}
               </div>
-              <span className="text-xs text-rose-600 font-medium block mt-1">
-                {isMyanmar ? `ဒိုင်ပေးရမည့်ငွေ: ${formatAmount(currentRetainedPayout, settings.currency)}` : `Retained Payout: ${formatAmount(currentRetainedPayout, settings.currency)}`}
+              <span className="text-[9px] text-amber-700 block font-medium mt-0.5">
+                ကိုယ်က ပေးရမည့်ငွေ
               </span>
             </div>
 
-            <div
-              className={`rounded-3xl p-5 border shadow-2xs ${
-                currentIsProfit
-                  ? 'bg-emerald-50/80 border-emerald-300'
-                  : 'bg-rose-50/80 border-rose-300'
-              }`}
-            >
-              <span
-                className={`text-xs font-bold block mb-1 ${
-                  currentIsProfit ? 'text-emerald-700' : 'text-rose-700'
-                }`}
-              >
-                {isMyanmar ? 'ဒိုင် အသားတင် အမြတ် / အရှုံး' : 'Dealer Net Profit/Loss'}
+            {/* 4. အမှန်ရောင်းငွေ */}
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-3 shadow-2xs hover:bg-sky-50/80 transition-all">
+              <span className="text-[10px] font-black text-sky-900 block mb-0.5 uppercase tracking-wide">
+                ၄။ အမှန်ရောင်းငွေ
               </span>
-              <div
-                className={`text-2xl sm:text-3xl font-black font-mono flex items-center gap-1.5 ${
-                  currentIsProfit ? 'text-emerald-800' : 'text-rose-800'
-                }`}
-              >
-                {currentIsProfit ? (
-                  <TrendingUp className="w-6 h-6 shrink-0 text-emerald-600" />
-                ) : (
-                  <TrendingDown className="w-6 h-6 shrink-0 text-rose-600" />
-                )}
-                <span>{formatAmount(Math.abs(currentNetProfit), settings.currency)}</span>
+              <div className="text-sm font-black text-sky-950 font-mono">
+                {formatAmount(singleRoundStatement.netSales, settings.currency)}
               </div>
-              <span
-                className={`text-xs font-black ${
-                  currentIsProfit ? 'text-emerald-700' : 'text-rose-700'
-                }`}
-              >
-                {currentIsProfit
-                  ? (isMyanmar ? 'အသားတင် အမြတ်ငွေ ရရှိပါသည်' : 'Net Profit')
-                  : (isMyanmar ? 'အရှုံးပေါ်နေပါသည်' : 'Net Loss')}
+              <span className="text-[9px] text-sky-700 block font-medium mt-0.5">
+                ဒိုင်လက်ကျန်ရောင်းငွေ
               </span>
+            </div>
+
+            {/* 5. အထက်ပေါက်ကြေး */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 shadow-2xs hover:bg-emerald-50/80 transition-all">
+              <span className="text-[10px] font-black text-emerald-900 block mb-0.5 uppercase tracking-wide">
+                ၅။ အထက်ပေါက်ကြေး
+              </span>
+              <div className="text-sm font-black text-emerald-900 font-mono">
+                +{formatAmount(singleRoundStatement.masterPayout, settings.currency)}
+              </div>
+              <span className="text-[9px] text-emerald-700 block font-medium mt-0.5">
+                ဒိုင်ကြီး ပြန်လျော်ငွေ
+              </span>
+            </div>
+
+            {/* 6. အထက်ကော်မရှင် */}
+            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 shadow-2xs hover:bg-purple-50/80 transition-all">
+              <span className="text-[10px] font-black text-purple-900 block mb-0.5 uppercase tracking-wide">
+                ၆။ အထက်ကော်မရှင်
+              </span>
+              <div className="text-sm font-black text-purple-900 font-mono">
+                +{formatAmount(singleRoundStatement.forwardCommission, settings.currency)}
+              </div>
+              <span className="text-[9px] text-purple-700 block font-medium mt-0.5">
+                ကိုယ်ရမည့် ကော်မရှင်ခ
+              </span>
+            </div>
+
+            {/* 7. ပေးလျှော်ငွေ */}
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 shadow-2xs hover:bg-rose-50/80 transition-all">
+              <span className="text-[10px] font-black text-rose-800 block mb-0.5 uppercase tracking-wide">
+                ၇။ ပေးလျှော်ငွေ
+              </span>
+              <div className="text-sm font-black text-rose-800 font-mono">
+                -{formatAmount(singleRoundStatement.totalPayout, settings.currency)}
+              </div>
+              <span className="text-[9px] text-rose-600 block font-medium mt-0.5">
+                အောက်လက်ပေါက်ကြေး
+              </span>
+            </div>
+
+            {/* 8. ဒိုင်အသားတင် အမြတ်/အရှုံး */}
+            <div className={`rounded-2xl p-3 border shadow-2xs transition-all ${
+              singleRoundStatement.isProfit ? 'bg-teal-50 border-teal-300' : 'bg-rose-100 border-rose-300'
+            }`}>
+              <span className={`text-[10px] font-black block mb-0.5 uppercase tracking-wide ${
+                singleRoundStatement.isProfit ? 'text-teal-900' : 'text-rose-900'
+              }`}>
+                ၈။ အသားတင် {singleRoundStatement.isProfit ? 'အမြတ်' : 'အရှုံး'}
+              </span>
+              <div className={`text-sm font-black font-mono ${
+                singleRoundStatement.isProfit ? 'text-teal-800' : 'text-rose-800'
+              }`}>
+                {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
+              </div>
+              <span className={`text-[9px] font-black block mt-0.5 ${
+                singleRoundStatement.isProfit ? 'text-teal-700' : 'text-rose-700'
+              }`}>
+                {singleRoundStatement.isProfit ? 'အမြတ်' : 'အရှုံး'} ({singleRoundStatement.profitMargin}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Single-Round Financial Statement Table Row (Matching Header tab format) */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+            <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+              <span className="font-black text-xs flex items-center gap-2">
+                <Receipt className="w-3.5 h-3.5 text-teal-400" />
+                <span>
+                  ဤပွဲစဉ် စာရင်းရှင်းတမ်းဇယား (Header Tab ရှင်းတမ်း စံနှုန်းအတိုင်း)
+                </span>
+              </span>
+              <span className="text-[10px] text-slate-300 font-bold">
+                {activeRound?.drawDate || getLocalDateString()} • {activeRound?.session === 'morning' ? 'မနက် ၁၂:၀၁' : 'ညနေ ၀၄:၃၀'}
+              </span>
+            </div>
+            <div className="overflow-x-auto whitespace-nowrap text-xs">
+              <table className="w-full text-left">
+                <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">ရက်စွဲ</th>
+                    <th className="py-2.5 px-3">ပွဲစဉ်</th>
+                    <th className="py-2.5 px-3 text-center">ပေါက်ဂဏန်း</th>
+                    <th className="py-2.5 px-3 text-right">၁။ မူလထိုးကြေး</th>
+                    <th className="py-2.5 px-3 text-right text-indigo-900">၂။ အထက်တင်ကြေး</th>
+                    <th className="py-2.5 px-3 text-right text-amber-800">၃။ အောက်လက်ကော်</th>
+                    <th className="py-2.5 px-3 text-right text-sky-900">၄။ အမှန်ရောင်းငွေ</th>
+                    <th className="py-2.5 px-3 text-right text-emerald-800">၅။ အထက်ပေါက်ကြေး</th>
+                    <th className="py-2.5 px-3 text-right text-purple-800">၆။ အထက်ကော်</th>
+                    <th className="py-2.5 px-3 text-right text-rose-700">၇။ ပေးလျှော်ငွေ</th>
+                    <th className="py-2.5 px-3 text-right font-black">၈။ ဒိုင်အသားတင်</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="hover:bg-slate-50 transition-colors">
+                    <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
+                      {activeRound?.drawDate || getLocalDateString()}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">
+                      <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-teal-100 text-teal-900 border border-teal-200 mr-1.5">
+                        ဇီးကွက်
+                      </span>
+                      {activeRound?.name || '၂D ပွဲစဉ်'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-mono font-black text-amber-950 bg-amber-50">
+                      <span className="bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md text-xs">
+                        {currentWinningNumber || '--'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                      {formatAmount(singleRoundStatement.turnover, settings.currency)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-900">
+                      {singleRoundStatement.totalForwarded > 0 ? formatAmount(singleRoundStatement.totalForwarded, settings.currency) : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-800">
+                      {singleRoundStatement.agentCommission > 0 ? `-${formatAmount(singleRoundStatement.agentCommission, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-sky-950 bg-sky-50/50">
+                      {formatAmount(singleRoundStatement.netSales, settings.currency)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800 bg-emerald-50/40">
+                      {singleRoundStatement.masterPayout > 0 ? `+${formatAmount(singleRoundStatement.masterPayout, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-800 bg-purple-50/40">
+                      {singleRoundStatement.forwardCommission > 0 ? `+${formatAmount(singleRoundStatement.forwardCommission, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 bg-rose-50/40">
+                      {singleRoundStatement.totalPayout > 0 ? `-${formatAmount(singleRoundStatement.totalPayout, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black">
+                      <span className={`px-2 py-0.5 rounded-md font-mono text-xs ${
+                        singleRoundStatement.isProfit
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}>
+                        {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 

@@ -34,7 +34,12 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
 
   const [dateStr, setDateStr] = useState(getLocalDateString());
   const [session, setSession] = useState<'morning' | 'evening'>('morning');
-  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || ''));
+  const getCleanMultiplier = (val?: number) => {
+    let m = val || settings.defaultMultiplier || 80;
+    if (m >= 500 && m <= 10000) m = Math.round(m / 100);
+    return m;
+  };
+  const [multiplier, setMultiplier] = useState(String(getCleanMultiplier(settings.defaultMultiplier)));
 
   if (!isOpen) return null;
 
@@ -79,12 +84,17 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
     const sessionName = session === 'morning' ? 'မနက် (12:01 PM)' : 'ညနေ (04:30 PM)';
     const name = `${dateStr} ${sessionName}`;
 
+    let parsedMult = parseFloat(multiplier) || settings.defaultMultiplier || 80;
+    if (parsedMult >= 500 && parsedMult <= 10000) {
+      parsedMult = Math.round(parsedMult / 100);
+    }
+
     createRound({
       name,
       drawDate: dateStr,
       session,
       closingTime: session === 'morning' ? '12:00' : '16:25',
-      multiplier: parseFloat(multiplier) || settings.defaultMultiplier,
+      multiplier: parsedMult,
       status: 'open',
       commissionRate: settings.defaultCommissionRate
     });
@@ -245,15 +255,28 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
           </div>
 
           <div className="text-xs">
-            <label className="block font-bold text-slate-700 mb-1">
-              {isMyanmar ? 'အလျော်ဆ (Multiplier)' : 'Multiplier'}
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-bold text-slate-700">
+                {isMyanmar ? 'အလျော်ဆ (ဥပမာ- ၈၀ ဆ)' : 'Multiplier (e.g. 80x)'}
+              </label>
+              <span className="text-[10px] text-slate-400 font-medium">
+                (၁၀၀ ဖိုး = ၈,၀၀၀ ကျပ်)
+              </span>
+            </div>
             <input
               type="number"
               inputMode="numeric"
               pattern="[0-9]*"
               value={multiplier}
-              onChange={(e) => setMultiplier(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                const num = parseInt(val, 10);
+                if (!isNaN(num) && num >= 500 && num <= 10000) {
+                  setMultiplier(String(Math.round(num / 100)));
+                } else {
+                  setMultiplier(val);
+                }
+              }}
               onFocus={(e) => {
                 const target = e.currentTarget;
                 target.select();
@@ -264,9 +287,27 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
                 target.select();
                 setTimeout(() => target.select(), 20);
               }}
-              placeholder="85"
+              placeholder="80"
               className="w-full h-9 px-3 rounded-xl border border-slate-300 bg-white font-mono font-bold text-slate-800 outline-none focus:border-teal-500 shadow-2xs"
             />
+            {/* Presets */}
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <span className="text-[10px] text-slate-500 font-bold shrink-0">ရွေးချယ်ရန်:</span>
+              {[80, 85, 90].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setMultiplier(String(preset))}
+                  className={`px-2 py-0.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                    multiplier === String(preset)
+                      ? 'bg-teal-600 text-white shadow-2xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {preset} ဆ
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-1">

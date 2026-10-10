@@ -87,9 +87,20 @@ const TwoDLotteryContext = createContext<TwoDLotteryContextType | undefined>(und
 
 export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // 1. Core State with LocalStorage Persistence (Strictly 2D Keys)
-  const [settings, setSettingsState] = useState<TwoDAppSettings>(() =>
-    loadStoredData(STORAGE_KEYS.SETTINGS_2D, DEFAULT_2D_SETTINGS)
-  );
+  const [settings, setSettingsState] = useState<TwoDAppSettings>(() => {
+    const loaded = loadStoredData(STORAGE_KEYS.SETTINGS_2D, DEFAULT_2D_SETTINGS);
+    let mult = loaded.defaultMultiplier;
+    // Auto-correct if mistakenly saved as 8000 or >= 500
+    if (mult === 8000 || (mult >= 500 && mult <= 10000)) {
+      mult = Math.round(mult / 100);
+    } else if (!mult || mult <= 0) {
+      mult = 80;
+    }
+    return {
+      ...loaded,
+      defaultMultiplier: mult
+    };
+  });
 
   const [deletedRoundIds, setDeletedRoundIds] = useState<string[]>(() => {
     return loadStoredData<string[]>('2d_ledger_deleted_rounds_v1', []);
@@ -105,7 +116,13 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
       if (!deletedSet.has(r.id)) {
-        storedMap.set(r.id, r);
+        let mult = r.multiplier;
+        if (mult === 8000 || (mult >= 500 && mult <= 10000)) {
+          mult = Math.round(mult / 100);
+        } else if (!mult || mult <= 0) {
+          mult = settings.defaultMultiplier || 80;
+        }
+        storedMap.set(r.id, { ...r, multiplier: mult });
       }
     });
 
@@ -218,9 +235,22 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return rounds[0]?.id || 'round-2d-default';
   });
 
-  const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() =>
-    loadStoredData(STORAGE_KEYS.VOUCHERS_2D, INITIAL_2D_VOUCHERS)
-  );
+  const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
+    const loaded = loadStoredData(STORAGE_KEYS.VOUCHERS_2D, INITIAL_2D_VOUCHERS);
+    // Sanitize any vouchers that were previously calculated with 8000x multiplier
+    return loaded.map(v => ({
+      ...v,
+      items: v.items.map(item => {
+        if (item.isWon && item.wonAmount && item.amount > 0 && item.wonAmount >= item.amount * 500) {
+          return {
+            ...item,
+            wonAmount: Math.round(item.wonAmount / 100)
+          };
+        }
+        return item;
+      })
+    }));
+  });
 
   const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() =>
     loadStoredData(STORAGE_KEYS.FORWARD_SLIPS_2D, INITIAL_2D_FORWARD_SLIPS)
@@ -507,7 +537,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 2D Aggregates calculation (00 - 99: exactly 100 combinations)
   const aggregates = useMemo(() => {
-    const mult = activeRound?.multiplier || settings.defaultMultiplier || 0;
+    let mult = activeRound?.multiplier || settings.defaultMultiplier || 80;
+    if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
     const agg: { [num: string]: TwoDNumberAggregate } = {};
 
     // Initialize all 100 numbers (00 to 99)
@@ -657,7 +688,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
-      const mult = activeRound.multiplier || settings.defaultMultiplier || 0;
+      let mult = activeRound.multiplier || settings.defaultMultiplier || 80;
+      if (mult >= 500 && mult <= 10000) mult = Math.round(mult / 100);
       const formattedNum = activeRound.winningNumber.padStart(2, '0');
       const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
       totalWinnersCount = evalResult.totalWinnersCount;
@@ -700,7 +732,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return;
     }
 
-    const mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 0;
+    let mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 80;
+    if (mult >= 500 && mult <= 10000) {
+      mult = Math.round(mult / 100);
+    }
     if (mult <= 0) {
       alert(settings.language === 'my' ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
       return;

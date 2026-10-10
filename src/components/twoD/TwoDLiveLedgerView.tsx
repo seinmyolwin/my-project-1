@@ -147,7 +147,11 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
             )}
           </div>
           <span className="text-[11px] text-rose-600 font-medium">
-            @{activeRound?.multiplier || settings.defaultMultiplier || 0}x {isMyanmar ? 'ဆဖြင့် တွက်ချက်' : 'multiplier'}
+            @{(() => {
+              let m = activeRound?.multiplier || settings.defaultMultiplier || 80;
+              if (m >= 500 && m <= 10000) m = Math.round(m / 100);
+              return m;
+            })()}x {isMyanmar ? 'ဆဖြင့် တွက်ချက်' : 'multiplier'}
           </span>
         </div>
 
