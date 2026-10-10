@@ -14,9 +14,19 @@ import {
   FootballMatch,
   FootballSlip,
   FootballForwardSlip,
-  FootballLeague
+  FootballLeague,
+  ThreeDQuickActionButtonsConfig
 } from '../types';
 import { generateUpToDate2DRounds, generateUpToDate3DRounds } from './thaiLotteryApi';
+
+export const DEFAULT_3D_ACTION_BUTTONS: ThreeDQuickActionButtonsConfig = {
+  straight: true,
+  rumble: true,
+  triples: true,
+  brothers: true,
+  power: true,
+  natkhat: true
+};
 
 export const DEFAULT_SETTINGS: AppSettings = {
   appName: 'ရွှေမင်္ဂလာ',
@@ -35,7 +45,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   printPaperSize: '80mm',
   voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၃ ရက်အတွင်း ငွေလာရောက်ထုတ်ယူနိုင်ပါသည်။',
   defaultMasterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
-  defaultMasterAgentPhone: '09-970001111'
+  defaultMasterAgentPhone: '09-970001111',
+  quickActionButtons: DEFAULT_3D_ACTION_BUTTONS
 };
 
 export const INITIAL_ROUNDS: DrawRound[] = generateUpToDate3DRounds();

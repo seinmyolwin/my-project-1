@@ -46,7 +46,7 @@ import {
   getStatementDateRange,
   StatementPeriodPreset
 } from '../utils/statementUtils';
-import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig } from '../types';
+import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig, ThreeDQuickActionButtonsConfig } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
 import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
@@ -210,7 +210,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const football = useFootball();
 
   const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football' | 'general' | 'backup' | 'statements' | 'excel'>(initialTab);
-  const [subTab3D, setSubTab3D] = useState<'rates' | 'limits' | 'blocked'>('rates');
+  const [subTab3D, setSubTab3D] = useState<'rates' | 'limits' | 'blocked' | 'buttons'>('rates');
   const [subTab2D, setSubTab2D] = useState<'rates' | 'limits' | 'blocked' | 'buttons'>('rates');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -810,6 +810,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     ...(lottery2D.settings.quickActionButtons || {})
   }));
 
+  const [actionButtons3D, setActionButtons3D] = useState<ThreeDQuickActionButtonsConfig>(() => ({
+    straight: true,
+    rumble: true,
+    triples: true,
+    brothers: true,
+    power: true,
+    natkhat: true,
+    ...(lottery3D.settings.quickActionButtons || {})
+  }));
+
   // 2D Single Number Limit State
   const [numLimit2DInput, setNumLimit2DInput] = useState('');
   const [amtLimit2DInput, setAmtLimit2DInput] = useState('50000');
@@ -851,7 +861,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       defaultCustomerDiscount: !isNaN(parseInt(disc3D, 10)) ? parseInt(disc3D, 10) : lottery3D.settings.defaultCustomerDiscount,
       globalStockLimit: !isNaN(parseInt(globalLimit3D, 10)) ? parseInt(globalLimit3D, 10) : lottery3D.settings.globalStockLimit,
       lowStockAlertPercentage: !isNaN(parseInt(alertPct3D, 10)) ? parseInt(alertPct3D, 10) : lottery3D.settings.lowStockAlertPercentage,
-      voucherFooterMessage: footer3D.trim()
+      voucherFooterMessage: footer3D.trim(),
+      quickActionButtons: actionButtons3D
     });
 
     // 2. Save 2D
@@ -1235,6 +1246,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }`}
                 >
                   ၃။ ဒိုင်ကာဂဏန်းများ ({filteredBlocked3D.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubTab3D('buttons')}
+                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                    subTab3D === 'buttons' ? 'bg-white text-indigo-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ၄။ ခလုတ်များ
                 </button>
               </div>
 
@@ -1654,6 +1674,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </span>
                         ))
                       )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Subtab 4: Quick Action Buttons Config */}
+              {subTab3D === 'buttons' && (
+                <div className="space-y-3">
+                  <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3">
+                    <h4 className="text-xs font-black text-indigo-950 mb-2 flex items-center gap-1.5">
+                      <Sliders className="w-4 h-4 text-indigo-600" />
+                      <span>3D အမြန်စာရင်းသွင်း ခလုတ်များ စီမံခြင်း</span>
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(actionButtons3D).map(([key, enabled]) => (
+                        <label key={key} className="flex items-center justify-between bg-white p-2 rounded-lg border border-indigo-100 cursor-pointer">
+                          <span className="text-xs font-bold text-slate-800 capitalize">{key}</span>
+                          <input
+                            type="checkbox"
+                            checked={!!enabled}
+                            onChange={(e) => setActionButtons3D(prev => ({ ...prev, [key]: e.target.checked }))}
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                          />
+                        </label>
+                      ))}
                     </div>
                   </div>
                 </div>

@@ -84,6 +84,15 @@ export interface BlockedNumbers {
   [number: string]: boolean; // completely closed numbers
 }
 
+export interface ThreeDQuickActionButtonsConfig {
+  straight: boolean;
+  rumble: boolean;
+  triples: boolean;
+  brothers: boolean;
+  power: boolean;
+  natkhat: boolean;
+}
+
 export interface AppSettings {
   appName: string; // Customizable App Name e.g. "ရွှေမင်္ဂလာ"
   shopName: string;
@@ -102,6 +111,7 @@ export interface AppSettings {
   voucherFooterMessage: string;
   defaultMasterAgentName?: string;
   defaultMasterAgentPhone?: string;
+  quickActionButtons?: ThreeDQuickActionButtonsConfig;
 }
 
 export type OverLimitAction = 'forward_excess' | 'forward_all' | 'accept_locally' | 'cap_at_limit' | 'reject';

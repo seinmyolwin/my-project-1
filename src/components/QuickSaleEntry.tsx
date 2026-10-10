@@ -846,7 +846,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
           existingSold: existingSold,
           originalAmount: totalInCart,
           excessAmount: Math.max(0, existingSold + totalInCart - limit),
-          remainingQuota: Math.max(0, limit - existingSold)
+          remainingQuota: Math.max(0, limit - existingSold),
+          action: 'forward_excess'
         });
       }
     });
@@ -1272,52 +1273,64 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
           {/* Quick Shortcuts Bar (3D Patterns) */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-            <button
-              type="button"
-              onClick={handleAddStraightClick}
-              className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
-                !isRumble ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
-              }`}
-            >
-              <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleAddRumbleClick}
-              className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
-                isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
-              }`}
-            >
-              <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.triples, isMyanmar ? 'အပူး' : 'Triples')}
-              className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-            >
-              <span>{isMyanmar ? 'အပူး' : 'Triples'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.consecutives, isMyanmar ? 'ညီကို' : 'Brothers')}
-              className="px-2.5 py-1.5 bg-teal-50 text-teal-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-            >
-              <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getPowerPairs().slice(0, 15), isMyanmar ? 'ပါဝါ' : 'Power')}
-              className="px-2.5 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-            >
-              <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getNatkhatPairs().slice(0, 15), isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-              className="px-2.5 py-1.5 bg-rose-50 text-rose-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-            >
-              <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
-            </button>
+            {(!settings.quickActionButtons || settings.quickActionButtons.straight) && (
+              <button
+                type="button"
+                onClick={handleAddStraightClick}
+                className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                  !isRumble ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
+              </button>
+            )}
+            {(!settings.quickActionButtons || settings.quickActionButtons.rumble) && (
+              <button
+                type="button"
+                onClick={handleAddRumbleClick}
+                className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                  isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
+              </button>
+            )}
+            {(!settings.quickActionButtons || settings.quickActionButtons.triples) && (
+              <button
+                type="button"
+                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.triples, isMyanmar ? 'အပူး' : 'Triples')}
+                className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+              >
+                <span>{isMyanmar ? 'အပူး' : 'Triples'}</span>
+              </button>
+            )}
+            {(!settings.quickActionButtons || settings.quickActionButtons.brothers) && (
+              <button
+                type="button"
+                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.consecutives, isMyanmar ? 'ညီကို' : 'Brothers')}
+                className="px-2.5 py-1.5 bg-teal-50 text-teal-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+              >
+                <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
+              </button>
+            )}
+            {(!settings.quickActionButtons || settings.quickActionButtons.power) && (
+              <button
+                type="button"
+                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getPowerPairs().slice(0, 15), isMyanmar ? 'ပါဝါ' : 'Power')}
+                className="px-2.5 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+              >
+                <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
+              </button>
+            )}
+            {(!settings.quickActionButtons || settings.quickActionButtons.natkhat) && (
+              <button
+                type="button"
+                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getNatkhatPairs().slice(0, 15), isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
+                className="px-2.5 py-1.5 bg-rose-50 text-rose-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+              >
+                <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
+              </button>
+            )}
           </div>
 
           {/* Main Input Controls: Number -> Stake -> Add (Requirement 6) */}

@@ -645,12 +645,14 @@ export function evaluateTwoDWinnings(
   let totalWinnersCount = 0;
 
   const mult = multiplier || 0;
+  console.log(`[DEBUG] evaluateTwoDWinnings: winningNumber=${winningNumber}, multiplier=${multiplier}, mult=${mult}`);
 
   const settledVouchers = vouchers.map(v => {
     let voucherHasWin = false;
     const updatedItems = v.items.map(item => {
       if (item.number === winningNumber) {
         const winAmt = calculatePayout(item.amount, mult);
+        console.log(`[DEBUG] evaluateTwoDWinnings: item.number=${item.number}, item.amount=${item.amount}, winAmt=${winAmt}`);
         totalPayout += winAmt;
         voucherHasWin = true;
         totalWinnersCount++;

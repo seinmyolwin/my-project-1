@@ -51,6 +51,11 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   const [includePinProtection, setIncludePinProtection] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 3500);
+  };
+
   // Period-based Voucher Retention State
   const [retentionPeriod, setRetentionPeriod] = useState<VoucherRetentionPeriod>('month');
   const todayStr = getLocalDateStr();

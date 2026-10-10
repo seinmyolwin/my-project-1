@@ -396,6 +396,16 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     return activeRoundVouchers.filter(v => v.items.some(item => item.isWon));
   }, [isShowingOnTheFly, activeRoundVouchers, twoDWinningResults]);
 
+  const maxStake = useMemo(() => {
+    let max = 0;
+    winningTickets.forEach(voucher => {
+      const winItems = voucher.items.filter(i => i.isWon || i.number === currentWinningNumber);
+      const totalStake = winItems.reduce((sum, i) => sum + i.amount, 0);
+      if (totalStake > max) max = totalStake;
+    });
+    return max;
+  }, [winningTickets, currentWinningNumber]);
+
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
       {/* Settle Form Card */}
@@ -920,7 +930,10 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
 
                       return (
                         <tr key={voucher.id} className="hover:bg-amber-50/40 transition-colors">
-                          <td className="p-3 font-bold text-slate-900">{voucher.voucherNo}</td>
+                          <td className="p-3 font-bold text-slate-900 flex items-center gap-1">
+                            {totalStake === maxStake && maxStake > 0 && <span className="text-amber-500 text-lg leading-none">★</span>}
+                            {voucher.voucherNo}
+                          </td>
                           <td className="p-3 font-sans text-slate-800 font-bold">{voucher.customerName}</td>
                           <td className="p-3 text-slate-500">{voucher.customerPhone || '-'}</td>
                           <td className="p-3 text-center">
