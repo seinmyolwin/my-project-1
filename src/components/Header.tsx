@@ -539,10 +539,11 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Help */}
                 <button
                   onClick={onOpenHelp}
-                  className="p-1.5 sm:p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-                  title="အသုံးပြုနည်း လမ်းညွှန်ချက်"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+                  title="အသုံးပြုနည်း လမ်းညွှန်"
                 >
                   <HelpCircle className="w-4 h-4" />
+                  <span>လမ်းညွှန်</span>
                 </button>
               </div>
             </div>
