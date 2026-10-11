@@ -46,6 +46,7 @@ interface FinancialStatementsModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'all' | '3d' | '2d' | 'football';
+  initialDate?: string;
 }
 
 export type { StatementRecord };
@@ -53,14 +54,15 @@ export type { StatementRecord };
 export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> = ({
   isOpen,
   onClose,
-  initialMode = 'all'
+  initialMode = 'all',
+  initialDate
 }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
   const football = useFootball();
 
   const [selectedMode, setSelectedMode] = useState<'all' | '3d' | '2d' | 'football'>(initialMode);
-  const [periodPreset, setPeriodPreset] = useState<StatementPeriodPreset>('five_days');
+  const [periodPreset, setPeriodPreset] = useState<StatementPeriodPreset>(initialDate ? 'custom' : 'five_days');
 
   const [selectedRecord, setSelectedRecord] = useState<StatementRecord | null>(null);
   const [inspectingVoucher, setInspectingVoucher] = useState<any | null>(null);
@@ -72,13 +74,23 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   // Tab switch between rounds table and consolidated vouchers list
   const [viewMode, setViewMode] = useState<'rounds' | 'vouchers'>('rounds');
   const [voucherSearch, setVoucherSearch] = useState('');
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<{ label: string; key: keyof StatementRecord } | null>(null);
 
-  // Sync selectedMode if initialMode changes
+  const handleMetricClick = (label: string, key: keyof StatementRecord) => {
+    setSelectedMetric({ label, key });
+    setIsDetailModalOpen(true);
+  };
   React.useEffect(() => {
     if (isOpen && initialMode) {
       setSelectedMode(initialMode);
     }
-  }, [isOpen, initialMode]);
+    if (isOpen && initialDate) {
+      setPeriodPreset('custom');
+      setCustomStartDate(initialDate);
+      setCustomEndDate(initialDate);
+    }
+  }, [isOpen, initialMode, initialDate]);
 
   // Exact local date boundaries
   const todayStr = getLocalDateStr();
@@ -90,8 +102,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const allTimeStartStr = '2020-01-01';
   const allTimeEndStr = '2099-12-31';
 
-  const [customStartDate, setCustomStartDate] = useState(fiveDaysAgoStr);
-  const [customEndDate, setCustomEndDate] = useState(todayStr);
+  const [customStartDate, setCustomStartDate] = useState(initialDate || fiveDaysAgoStr);
+  const [customEndDate, setCustomEndDate] = useState(initialDate || todayStr);
 
   const currency = lottery2D.settings.currency || lottery3D.settings.currency || 'Ks';
 
@@ -570,6 +582,30 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           )}
         </div>
 
+        {/* Detail Modal */}
+        {isDetailModalOpen && selectedMetric && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <h3 className="font-black text-sm">{selectedMetric.label} (ရက်အလိုက်)</h3>
+                <button onClick={() => setIsDetailModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto p-4 space-y-2">
+                {statementRecords.map((rec) => (
+                  <div key={rec.id} className="flex justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    <span className="font-bold text-slate-700">{rec.date} ({rec.name})</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {formatAmount(Math.abs(rec[selectedMetric.key] as number), currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal Body */}
         <div id="printable-statement-modal" className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 text-xs">
           
@@ -623,7 +659,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             
             {/* 1. မူလထိုးကြေး (စုစုပေါင်း) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleMetricClick('မူလထိုးကြေး', 'turnover')}>
               <span className="text-[9px] font-bold text-slate-500 block mb-0.5 uppercase">
                 ၁။ မူလထိုးကြေး
               </span>
@@ -636,7 +672,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 2. အထက်တင်ကြေး (လွှဲငွေ) */}
-            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-indigo-100/70 transition-colors" onClick={() => handleMetricClick('အထက်တင်ကြေး', 'totalForwarded')}>
               <span className="text-[9px] font-bold text-indigo-900 block mb-0.5 uppercase">
                 ၂။ အထက်တင်ကြေး
               </span>
@@ -649,7 +685,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 3. အောက်လက်ကော်မရှင် (ကိုယ်ကပေးငွေ) */}
-            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-amber-100/80 transition-colors" onClick={() => handleMetricClick('အောက်လက်ကော်', 'agentCommission')}>
               <span className="text-[9px] font-bold text-amber-900 block mb-0.5 uppercase">
                 ၃။ အောက်လက်ကော်
               </span>
@@ -662,7 +698,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 4. အမှန်ရောင်းငွေ (ဒိုင်လက်ကျန်) = ၁ - ၂ - ၃ */}
-            <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-sky-100 transition-colors" onClick={() => handleMetricClick('အမှန်ရောင်းငွေ', 'netSales')}>
               <span className="text-[9px] font-bold text-sky-900 block mb-0.5 uppercase">
                 ၄။ အမှန်ရောင်းငွေ
               </span>
@@ -675,7 +711,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 5. အထက်ပေါက်ကြေး (ဒိုင်ကြီးဆီမှ ပြန်ရငွေ) */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => handleMetricClick('အထက်ပေါက်ကြေး', 'masterPayout')}>
               <span className="text-[9px] font-bold text-emerald-900 block mb-0.5 uppercase">
                 ၅။ အထက်ပေါက်ကြေး
               </span>
@@ -688,7 +724,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 6. အထက်ကော်မရှင် (ဒိုင်ကြီးဆီမှ ရငွေ) */}
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-purple-100 transition-colors" onClick={() => handleMetricClick('အထက်ကော်မရှင်', 'forwardCommission')}>
               <span className="text-[9px] font-bold text-purple-900 block mb-0.5 uppercase">
                 ၆။ အထက်ကော်မရှင်
               </span>
@@ -701,7 +737,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 7. ပေးလျှော်ငွေ (ဖောက်သည် အားလုံးအတွက်) */}
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 shadow-2xs">
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 shadow-2xs cursor-pointer hover:bg-rose-100 transition-colors" onClick={() => handleMetricClick('ပေးလျှော်ငွေ', 'totalPayout')}>
               <span className="text-[9px] font-bold text-rose-800 block mb-0.5 uppercase">
                 ၇။ ပေးလျှော်ငွေ
               </span>
@@ -714,9 +750,9 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
 
             {/* 8. ဒိုင်အသားတင် အမြတ်/အရှုံး = ၄ + ၅ + ၆ - ၇ */}
-            <div className={`rounded-xl p-2.5 border shadow-2xs ${
-              grandTotals.isProfit ? 'bg-teal-50 border-teal-300' : 'bg-rose-100 border-rose-300'
-            }`}>
+            <div className={`rounded-xl p-2.5 border shadow-2xs cursor-pointer transition-colors ${
+              grandTotals.isProfit ? 'bg-teal-50 border-teal-300 hover:bg-teal-100' : 'bg-rose-100 border-rose-300 hover:bg-rose-200'
+            }`} onClick={() => handleMetricClick('အသားတင်', 'netProfit')}>
               <span className={`text-[9px] font-bold block mb-0.5 uppercase ${
                 grandTotals.isProfit ? 'text-teal-900' : 'text-rose-900'
               }`}>

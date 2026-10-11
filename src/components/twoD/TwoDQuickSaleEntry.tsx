@@ -522,7 +522,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       setLatestDraftIds(newItems.map(i => i.id));
       
       const displayNum = targetNumbers.length === 1 ? targetNumbers[0] : `${targetNumbers[0]} (${targetNumbers.length} ကွက်)`;
-      const typeName = effectiveRumble ? (isMyanmar ? 'ပတ်လည်' : 'R') : (isMyanmar ? 'ဒဲ့' : 'Direct');
+      const typeName = effectiveRumble ? (isMyanmar ? 'အာ' : 'R') : (isMyanmar ? 'ဒဲ့' : 'Direct');
       const totalEnteredAmt = amt * newItems.length;
       setLastAddedFeedback({
         text: `ဂဏန်း [${displayNum}] (${typeName}) ${formatAmount(totalEnteredAmt, settings.currency)}`,
@@ -1533,7 +1533,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
                 }`}
               >
-                <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
+                <span>{isMyanmar ? 'အာ' : 'R'}</span>
               </button>
             )}
             {enabledButtons.break && (

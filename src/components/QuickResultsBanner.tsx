@@ -8,9 +8,10 @@ import { BookieMode } from '../types';
 interface QuickResultsBannerProps {
   mode: BookieMode;
   onOpenHistory: () => void;
+  onOpenStatement: (date: string) => void;
 }
 
-export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, onOpenHistory }) => {
+export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, onOpenHistory, onOpenStatement }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
   const football = useFootball();
@@ -123,7 +124,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* 1. Yesterday (အရင်ရက် / မနေ့က) */}
           {yesterdayDateStr && (
-            <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-2xs">
+            <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-2xs cursor-pointer hover:bg-slate-700 transition-colors" onClick={() => onOpenStatement(yesterdayDateStr)}>
               <div className="text-[10px] font-bold text-slate-300 mb-1 flex items-center justify-between gap-2">
                 <span>မနေ့က</span>
                 <span className="text-slate-400 font-mono text-[9px]">({formatDisplayDate(yesterdayDateStr)})</span>
@@ -146,7 +147,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           )}
 
           {/* 2. Today (ဒီနေ့) */}
-          <div className="bg-teal-950/80 border border-teal-700/70 rounded-xl px-2.5 py-1.5 shadow-2xs">
+          <div className="bg-teal-950/80 border border-teal-700/70 rounded-xl px-2.5 py-1.5 shadow-2xs cursor-pointer hover:bg-teal-900 transition-colors" onClick={() => onOpenStatement(todayDateStr)}>
             <div className="text-[10px] font-bold text-teal-200 mb-1 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>

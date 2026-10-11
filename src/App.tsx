@@ -128,7 +128,7 @@ function AppContent() {
       else if (enabledModes['2d']) setDealerMode('2d');
       else if (enabledModes['football']) setDealerMode('football');
     }
-  }, [enabledModes['3d'], enabledModes['2d'], enabledModes['football'], dealerMode]);
+  }, [enabledModes['3d'], enabledModes['2d'], enabledModes['football']]);
   const [printingVoucher3D, setPrintingVoucher3D] = useState<Voucher | null>(null);
   const [printingVoucher2D, setPrintingVoucher2D] = useState<TwoDVoucher | null>(null);
 
@@ -154,9 +154,11 @@ function AppContent() {
   const [isPreviousResultsOpen, setIsPreviousResultsOpen] = useState(false);
   const [isStatementsOpen, setIsStatementsOpen] = useState(false);
   const [statementModalMode, setStatementModalMode] = useState<'all' | '3d' | '2d' | 'football'>(dealerMode);
+  const [statementInitialDate, setStatementInitialDate] = useState<string | undefined>(undefined);
 
-  const handleOpenStatements = useCallback((mode?: 'all' | '3d' | '2d' | 'football') => {
+  const handleOpenStatements = useCallback((mode?: 'all' | '3d' | '2d' | 'football', date?: string) => {
     setStatementModalMode(mode || dealerMode);
+    setStatementInitialDate(date);
     setIsStatementsOpen(true);
   }, [dealerMode]);
 
@@ -373,6 +375,7 @@ function AppContent() {
             <QuickResultsBanner
               mode={dealerMode}
               onOpenHistory={() => setIsPreviousResultsOpen(true)}
+              onOpenStatement={(date) => handleOpenStatements(dealerMode, date)}
             />
           </div>
         )}
@@ -610,8 +613,12 @@ function AppContent() {
       {/* Period Financial Statements & Profit/Loss Modal */}
       <FinancialStatementsModal
         isOpen={isStatementsOpen}
-        onClose={() => setIsStatementsOpen(false)}
+        onClose={() => {
+          setIsStatementsOpen(false);
+          setStatementInitialDate(undefined);
+        }}
         initialMode={statementModalMode}
+        initialDate={statementInitialDate}
       />
 
       {/* Telegram Orders & Bot Hub Modal */}

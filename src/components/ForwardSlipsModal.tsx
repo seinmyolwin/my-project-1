@@ -19,6 +19,10 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { ForwardSlip, ForwardSlipItem, NumberAggregate } from '../types';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
+import { printVoucherSlip } from '../utils/printUtils';
+
+// Helper to simplify agent name
+const simplifyAgentName = (name: string) => name.split('(')[0].trim();
 
 interface ForwardSlipsModalProps {
   isOpen: boolean;
@@ -323,16 +327,20 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                 {isMyanmar ? '3D ဒိုင်ကြီးဆီ လွှဲတင်စာရင်း အောင်မြင်စွာ မှတ်တမ်းတင်ပြီးပါပြီ' : '3D Forward Slip Created Successfully'}
               </h4>
               <p className="text-xs text-slate-500 font-mono">
-                {createdSlip.slipNo} • {createdSlip.masterAgentName}
+                {createdSlip.slipNo} • {simplifyAgentName(createdSlip.masterAgentName)}
               </p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 font-mono text-xs space-y-3">
+            <div id="printable-forward-slip" className="bg-white border border-slate-200 rounded-2xl p-4 font-mono text-xs space-y-3">
+              <div className="text-center border-b border-dashed border-slate-300 pb-2 mb-2">
+                 <h2 className="font-black text-sm">{isMyanmar ? 'အထက်တင်ဘောင်ချာ' : 'Forward Slip'}</h2>
+                 <p className="text-[10px] text-slate-500">ဒိုင်: {simplifyAgentName(createdSlip.masterAgentName)}</p>
+              </div>
               <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-2">
                 <span>ပွဲစဉ်: {activeRound?.name}</span>
                 <span>ဂဏန်း {createdSlip.items.length} တွဲ</span>
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 divide-y divide-slate-100">
+              <div className="space-y-1.5 divide-y divide-slate-100">
                 {createdSlip.items.map((it, idx) => (
                   <div key={idx} className="pt-1.5 flex justify-between items-center text-slate-800">
                     <span className="font-bold text-sm bg-indigo-50 border border-indigo-200 text-indigo-900 px-2 py-0.5 rounded">
@@ -369,7 +377,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printVoucherSlip('printable-forward-slip', `အထက်တင်ဘောင်ချာ - ${createdSlip.slipNo}`)}
                 className="py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
               >
                 <Printer className="w-4 h-4" />

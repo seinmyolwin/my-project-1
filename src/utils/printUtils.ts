@@ -84,7 +84,7 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
           box-sizing: border-box !important;
         }
         /* Ensure the printable content itself fits exactly inside A6 */
-        #printable-voucher {
+        #printable-voucher, #printable-forward-slip {
           width: 100% !important;
           max-width: 100% !important;
           margin: 0 !important;
@@ -93,16 +93,14 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
           color: #0f172a !important;
           border: 1px solid #cbd5e1 !important;
           box-sizing: border-box !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          page-break-after: avoid !important;
-          break-after: avoid !important;
         }
-        #printable-voucher * {
+        #printable-voucher *, #printable-forward-slip * {
           visibility: visible !important;
         }
         #printable-voucher [class*="overflow-y-auto"],
-        #printable-voucher [class*="max-h-"] {
+        #printable-voucher [class*="max-h-"],
+        #printable-forward-slip [class*="overflow-y-auto"],
+        #printable-forward-slip [class*="max-h-"] {
           max-height: none !important;
           overflow: visible !important;
         }
