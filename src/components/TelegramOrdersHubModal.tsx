@@ -987,6 +987,17 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 <p className="text-slate-700 leading-relaxed">
                   Telegram Bot Token ထည့်သွင်းပြီး Webhook ချိတ်ဆက်ထားခြင်းဖြင့် ဖောက်သည်များထံမှ ဝင်လာသော Telegram မက်ဆေ့များနှင့် ထိုးကြေးအမှာစာများကို အလိုအလျောက် ရရှိမည်ဖြစ်ပြီး၊ မည်သည့်စက်ပစ္စည်း (Device/Browser) မှမဆို အချိန်နှင့်တစ်ပြေးညီ စစ်ဆေးခြင်း၊ အတည်ပြုခြင်းနှင့် ငြင်းပယ်ခြင်းများကို အပြည့်အဝ လုပ်ဆောင်နိုင်ပါသည်။
                 </p>
+                
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1">
+                    <span>⚠️ ဂရု (Group) ထဲမှ ဂဏန်းများ အလိုအလျောက် မတက်လာပါက (Troubleshooting):</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-950">
+                    <li><b>Telegram Privacy Mode:</b> Telegram Bot များကို မူလအားဖြင့် Group ထဲတွင် အခြားသူများပြောသော စာများကို Bot အား @mention မလုပ်ထားလျှင် မမြင်ရပါ။</li>
+                    <li><b>ဖြေရှင်းရန် (၁):</b> BotFather သို့သွား၍ <code className="bg-amber-100 px-1 rounded">/setprivacy</code> ရွေးပြီး <code className="bg-amber-100 px-1 rounded">Disable</code> လုပ်ပါ။</li>
+                    <li><b>ဖြေရှင်းရန် (၂):</b> (သို့မဟုတ်) Group ထဲတွင် ဂဏန်းပို့သည့်အခါ <code className="bg-amber-100 px-1 rounded">@ssh672_bot 23 45 800/200</code> ဟု Bot နာမည်ကို တွဲ၍ (သို့) <code className="bg-amber-100 px-1 rounded">/</code> ဖြင့် စတင်၍ ပို့ပါ။</li>
+                  </ul>
+                </div>
               </div>
 
               {configSuccess && (
