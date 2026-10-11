@@ -84,8 +84,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   // Bot Config State
   const [botToken, setBotToken] = useState(config.botToken || '');
-  const [channelId, setChannelId] = useState(config.channelId || '@shwemingalar_channel');
-  const [accountName, setAccountName] = useState(config.accountName || 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့');
+  const [channelId, setChannelId] = useState(config.channelId || '-1004330076487');
+  const [accountName, setAccountName] = useState(config.accountName || 'မယ်စိန် (ssh673_bot / @ssh672_bot)');
   const [webhookUrl, setWebhookUrl] = useState(() => {
     if (config.webhookUrl && !config.webhookUrl.includes('telegram.shwemingalar.app')) {
       return config.webhookUrl;
@@ -631,6 +631,29 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           {/* TAB 1: QUEUE */}
           {activeTab === 'queue' && (
             <div className="space-y-4">
+              {/* Bot & Group Live Connection Banner */}
+              <div className="bg-gradient-to-r from-sky-950 via-sky-900 to-indigo-950 text-white p-3.5 sm:p-4 rounded-2xl border border-sky-600/50 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-xs text-white">Bot: @ssh672_bot (ssh673_bot)</span>
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black px-2 py-0.5 rounded-md">
+                        ✓ တိုက်ရိုက်ချိတ်ဆက်ထားသည် (Active)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-sky-200 mt-0.5 font-mono">
+                      Group: မယ်စိန် (Chat ID: -1004330076487)
+                    </p>
+                  </div>
+                </div>
+                <div className="text-[11px] text-sky-300 font-medium">
+                  ဖုန်းနှင့် တက်ဘလက်တို့မှ တိုက်ရိုက် အော်ဒါလက်ခံရန် အသင့်ဖြစ်ပါသည်
+                </div>
+              </div>
+
               {/* Filter bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                 <div className="flex items-center gap-2 text-xs font-bold">

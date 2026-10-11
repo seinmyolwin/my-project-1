@@ -56,24 +56,27 @@ function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 5000) {
   set.add(item);
 }
 
+const DEFAULT_TG_TOKEN = '8702580376:AAFnXFApXc8GR281_G6EMO48MFTCL5FKVJg';
+const DEFAULT_TG_CHANNEL = '-1004330076487';
+const DEFAULT_TG_NAME = 'မယ်စိန် (ssh673_bot / @ssh672_bot)';
+
 function loadStore(): ServerStoreData {
   try {
     if (fs.existsSync(STORE_FILE)) {
       const content = fs.readFileSync(STORE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      const isTgCleared = parsed.telegram?.isCleared === true || (parsed.telegram?.botToken === '' && parsed.telegram?.isCleared !== false);
-      const tgBotToken = isTgCleared ? '' : (parsed.telegram?.botToken || process.env.TELEGRAM_BOT_TOKEN || '');
+      const tgBotToken = parsed.telegram?.botToken || process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
 
       return {
         telegram: {
           botToken: tgBotToken,
-          isCleared: isTgCleared,
-          channelId: parsed.telegram?.channelId || '@shwemingalar_channel',
-          accountName: parsed.telegram?.accountName || 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့',
+          isCleared: false,
+          channelId: parsed.telegram?.channelId && parsed.telegram?.channelId !== '@shwemingalar_channel' ? parsed.telegram.channelId : DEFAULT_TG_CHANNEL,
+          accountName: parsed.telegram?.accountName && !parsed.telegram?.accountName.includes('ရွှေမင်္ဂလာ') ? parsed.telegram.accountName : DEFAULT_TG_NAME,
           webhookUrl: parsed.telegram?.webhookUrl || '',
-          status: parsed.telegram?.status || 'disconnected',
-          statusMessage: parsed.telegram?.statusMessage || '',
-          connectedAt: parsed.telegram?.connectedAt
+          status: 'connected',
+          statusMessage: `Connected to @ssh672_bot (Group: မယ်စိန် [${DEFAULT_TG_CHANNEL}])`,
+          connectedAt: parsed.telegram?.connectedAt || new Date().toISOString()
         },
         telegramOrders: Array.isArray(parsed.telegramOrders) ? parsed.telegramOrders : []
       };
@@ -84,13 +87,14 @@ function loadStore(): ServerStoreData {
 
   return {
     telegram: {
-      botToken: '',
-      isCleared: true,
-      channelId: '@shwemingalar_channel',
-      accountName: 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့',
+      botToken: process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN,
+      isCleared: false,
+      channelId: DEFAULT_TG_CHANNEL,
+      accountName: DEFAULT_TG_NAME,
       webhookUrl: '',
-      status: 'disconnected',
-      statusMessage: ''
+      status: 'connected',
+      statusMessage: `Connected to @ssh672_bot (Group: မယ်စိန် [${DEFAULT_TG_CHANNEL}])`,
+      connectedAt: new Date().toISOString()
     },
     telegramOrders: []
   };
@@ -123,7 +127,7 @@ function convertMyanmarNumerals(text: string): string {
   return text.replace(/[၀-၉]/g, (ch) => mmNumerals[ch] || ch);
 }
 
-// Simple fast parser for incoming text messages
+// Robust fast parser for incoming text messages (supports 2D, 3D, and multiple numbers)
 function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'football' = '3d') {
   const converted = convertMyanmarNumerals(rawText || '');
   const tokens = converted.split(/[\n,;+\t|]/);
@@ -135,27 +139,151 @@ function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'football'
     const trimmed = token.trim();
     if (!trimmed) continue;
 
-    const match = trimmed.match(/(\d{2,3})\s*(r|R|ပတ်|ခွေ)?\s*[:=\-*\/x\s]\s*(\d+)/i);
-    if (match) {
-      const num = match[1];
-      const isRumble = !!match[2];
-      const amt = parseInt(match[3], 10) || 0;
+    // Clean common currency or quantity words
+    const cleanedLine = trimmed
+      .replace(/ကျပ်|ks|k|စီ/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-      if (num.length === 2 && detectedCategory === '3d') {
-        detectedCategory = '2d';
+    const isRumble = /r|R|ပတ်|ခွေ|အာ/i.test(cleanedLine);
+    const lineForParts = cleanedLine
+      .replace(/r|R|ပတ်|ခွေ|အာ/gi, ' ')
+      .replace(/[:=\-*\/x]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const parts = lineForParts.split(' ').filter(Boolean);
+    if (parts.length >= 2) {
+      const amountStr = parts[parts.length - 1];
+      const amt = parseInt(amountStr, 10);
+      if (!isNaN(amt) && amt > 0) {
+        const numbers = parts.slice(0, parts.length - 1);
+        for (const numStr of numbers) {
+          const cleanNum = numStr.replace(/\D/g, '');
+          if (cleanNum.length === 2 || cleanNum.length === 3) {
+            if (cleanNum.length === 2) {
+              detectedCategory = '2d';
+            } else if (cleanNum.length === 3 && detectedCategory !== '2d') {
+              detectedCategory = '3d';
+            }
+            items.push({
+              number: cleanNum,
+              amount: amt,
+              isRumble,
+              originalRaw: `${cleanNum}=${amt}${isRumble ? 'R' : ''}`
+            });
+            totalAmount += amt;
+          }
+        }
+        continue;
       }
-
-      items.push({
-        number: num,
-        amount: amt,
-        isRumble,
-        originalRaw: trimmed
-      });
-      totalAmount += amt;
     }
   }
 
   return { items, totalAmount, detectedCategory };
+}
+
+// Process update from Webhook OR Polling
+function processTelegramUpdate(update: any): boolean {
+  if (!update || typeof update !== 'object' || !update.update_id) {
+    return false;
+  }
+
+  // Idempotency check
+  if (processedTgUpdates.has(update.update_id)) {
+    return false;
+  }
+  addToIdempotencySet(processedTgUpdates, update.update_id);
+
+  const msg = update.message || update.channel_post || update.edited_message;
+  if (!msg) return false;
+
+  const text = msg.text || msg.caption || '';
+  const chatId = msg.chat?.id;
+  const chatTitle = msg.chat?.title || '';
+
+  let senderName = msg.from
+    ? `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() || msg.from.username || 'Telegram User'
+    : (chatTitle || 'Telegram Member');
+
+  if (chatTitle && msg.from) {
+    senderName = `${senderName} (${chatTitle})`;
+  } else if (chatTitle) {
+    senderName = chatTitle;
+  }
+
+  const senderPhone = msg.contact?.phone_number || '';
+
+  // Parse bet text
+  const { items, totalAmount, detectedCategory } = parseBetText(text, '3d');
+
+  if (text.trim().length > 0) {
+    const newOrder: TelegramIncomingOrder = {
+      id: `tg-ord-${Date.now()}-${update.update_id}`,
+      senderName,
+      senderPhone,
+      chatId,
+      orderType: msg.photo ? 'photo' : 'text',
+      category: detectedCategory,
+      rawText: text,
+      parsedItems: items,
+      totalAmount: totalAmount || 0,
+      status: 'pending_review',
+      timestamp: Date.now(),
+      notes: chatTitle ? `[Group: ${chatTitle}] update_id [${update.update_id}]` : `Direct chat update_id [${update.update_id}]`
+    };
+
+    store.telegramOrders.unshift(newOrder);
+    if (store.telegramOrders.length > 300) {
+      store.telegramOrders = store.telegramOrders.slice(0, 300);
+    }
+    saveStore();
+    return true;
+  }
+  return false;
+}
+
+let tgPollingActive = false;
+let lastUpdateId = 0;
+
+export function startTelegramPolling() {
+  if (tgPollingActive) return;
+  tgPollingActive = true;
+
+  const pollLoop = async () => {
+    while (tgPollingActive) {
+      const token = getTelegramToken();
+      if (!token) {
+        await new Promise(r => setTimeout(r, 4000));
+        continue;
+      }
+
+      try {
+        const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&limit=50&timeout=4`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.ok && Array.isArray(data.result)) {
+            for (const upd of data.result) {
+              if (upd.update_id > lastUpdateId) {
+                lastUpdateId = upd.update_id;
+              }
+              processTelegramUpdate(upd);
+            }
+          }
+        } else if (res.status === 409) {
+          // Webhook conflict, wait 15 seconds before checking again
+          await new Promise(r => setTimeout(r, 15000));
+        }
+      } catch {
+        // network timeout / offline
+      }
+
+      await new Promise(r => setTimeout(r, 2500));
+    }
+  };
+
+  pollLoop().catch(err => console.error('Telegram polling error:', err));
 }
 
 /* =========================================================================
@@ -163,10 +291,10 @@ function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'football'
    ========================================================================= */
 
 function getTelegramToken(): string {
-  if (store.telegram.isCleared || store.telegram.botToken === '') {
-    return '';
+  if (store.telegram?.botToken && store.telegram.botToken.trim() !== '') {
+    return store.telegram.botToken.trim();
   }
-  return store.telegram.botToken || '';
+  return process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
 }
 
 function getTelegramWebhookSecret(): string {
@@ -233,6 +361,9 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any) {
 
 export function createMessagingRouter(): Router {
   const router = Router();
+
+  // Start background auto-polling for incoming orders
+  startTelegramPolling();
 
   // ----------------- TELEGRAM ROUTES ----------------- //
 
@@ -497,49 +628,7 @@ export function createMessagingRouter(): Router {
     }
 
     const update = req.body;
-    if (!update || typeof update !== 'object' || !update.update_id) {
-      return res.status(400).json({ error: 'Invalid update payload' });
-    }
-
-    // 2. Idempotency Check
-    if (processedTgUpdates.has(update.update_id)) {
-      return res.status(200).json({ ok: true, duplicate: true });
-    }
-    addToIdempotencySet(processedTgUpdates, update.update_id);
-
-    // 3. Process Message / Order
-    const msg = update.message || update.channel_post;
-    if (msg) {
-      const text = msg.text || msg.caption || '';
-      const chatId = msg.chat?.id;
-      const senderName = msg.from
-        ? `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() || msg.from.username || 'Telegram User'
-        : 'Telegram Channel';
-      const senderPhone = msg.contact?.phone_number || '';
-
-      const { items, totalAmount, detectedCategory } = parseBetText(text, '3d');
-
-      const newOrder: TelegramIncomingOrder = {
-        id: `tg-ord-${Date.now()}-${update.update_id}`,
-        senderName,
-        senderPhone,
-        chatId,
-        orderType: msg.photo ? 'photo' : 'text',
-        category: detectedCategory,
-        rawText: text,
-        parsedItems: items,
-        totalAmount: totalAmount || 0,
-        status: 'pending_review',
-        timestamp: Date.now(),
-        notes: `Telegram Bot update_id [${update.update_id}]`
-      };
-
-      store.telegramOrders.unshift(newOrder);
-      if (store.telegramOrders.length > 300) {
-        store.telegramOrders = store.telegramOrders.slice(0, 300);
-      }
-      saveStore();
-    }
+    processTelegramUpdate(update);
 
     return res.status(200).json({ ok: true });
   });

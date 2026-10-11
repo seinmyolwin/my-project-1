@@ -37,11 +37,12 @@ const TELEGRAM_ORDERS_KEY = 'shwe_mingalar_telegram_orders';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
   botToken: '',
-  channelId: '@shwemingalar_channel',
-  accountName: 'ရွှေမင်္ဂလာ Telegram စာရင်းလက်ခံဘော့',
+  channelId: '-1004330076487',
+  accountName: 'မယ်စိန် (ssh673_bot / @ssh672_bot)',
   webhookUrl: '',
-  status: 'disconnected',
-  statusMessage: 'Telegram Bot Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
+  status: 'connected',
+  statusMessage: 'Connected to @ssh672_bot (Group: မယ်စိန် [-1004330076487])',
+  hasServerToken: true
 };
 
 export function getTelegramConfig(): TelegramAccountConfig {

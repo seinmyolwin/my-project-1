@@ -319,7 +319,7 @@ export const Header: React.FC<HeaderProps> = ({
                     title="Telegram Bot တိုက်ရိုက် အရောင်းနှင့် စာရင်းစိစစ်ရာနေရာ"
                   >
                     <Bot className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                    <span className="hidden md:inline">{isMyanmar ? 'Telegram' : 'Telegram'}</span>
+                    <span className="inline text-[11px] sm:text-xs">Telegram</span>
                     {telegramPendingCount > 0 && (
                       <span className="bg-sky-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
                         {telegramPendingCount}
@@ -777,6 +777,24 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
               </div>
+            )}
+
+            {/* Collapsed Mode Telegram Shortcut */}
+            {isHeaderCollapsed && onOpenTelegramHub && (
+              <button
+                type="button"
+                onClick={onOpenTelegramHub}
+                className="relative px-2 py-1 bg-sky-900/80 hover:bg-sky-800 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs active:scale-95"
+                title="Telegram Orders Hub"
+              >
+                <Bot className="w-3.5 h-3.5 text-sky-400" />
+                <span className="text-[11px] font-mono">TG</span>
+                {telegramPendingCount > 0 && (
+                  <span className="bg-sky-500 text-white font-mono text-[9px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                    {telegramPendingCount}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Mobile Round Switcher */}
