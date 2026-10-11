@@ -94,6 +94,56 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
 
   for (const line of lines) {
     try {
+      const myanmarConverted = convertMyanmarToEnglishDigits(line);
+
+      // Check for 3D direct / rumble slash ratio pattern (e.g. "123 456 1000/200" or "123=1000/200")
+      const slash3DMatch = myanmarConverted.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
+                           myanmarConverted.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
+      if (slash3DMatch) {
+        const numbersRaw = slash3DMatch[1].trim();
+        const straightAmt = parseInt(slash3DMatch[2], 10);
+        const rumbleAmt = parseInt(slash3DMatch[3], 10);
+
+        if (!isNaN(straightAmt) && straightAmt > 0 && !isNaN(rumbleAmt) && rumbleAmt > 0) {
+          const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
+          for (const tok of numTokens) {
+            const cleanNum = tok.replace(/[^0-9]/g, '');
+            if (cleanNum.length === 3) {
+              // 1. Straight item
+              items.push({
+                id: `item-${Date.now()}-${idCounter++}`,
+                number: cleanNum,
+                amount: straightAmt,
+                isRumble: false,
+                betType: 'straight',
+                originalInput: `${cleanNum} ဒဲ့ (${straightAmt})`
+              });
+
+              // 2. Rumble items (all unique permutations)
+              const perms = getPermutations(cleanNum);
+              const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${Math.random().toString(36).substr(2, 5)}`;
+              perms.forEach(p => {
+                items.push({
+                  id: `item-${Date.now()}-${idCounter++}`,
+                  number: p,
+                  amount: rumbleAmt,
+                  isRumble: true,
+                  betType: 'rumble',
+                  groupId,
+                  originalNumber: cleanNum,
+                  originalAmount: rumbleAmt,
+                  permutations: perms,
+                  originalInput: `${cleanNum} အာ (${rumbleAmt})`
+                });
+              });
+            } else {
+              errors.push(`ဂဏန်း [${tok}] သည် ၃ လုံး (000-999) မဟုတ်ပါ`);
+            }
+          }
+          continue;
+        }
+      }
+
       // Normalize line: replace Myanmar digits with standard digits
       const normalized = convertMyanmarToEnglishDigits(line)
         .replace(/[=:\-_/]/g, ' ')

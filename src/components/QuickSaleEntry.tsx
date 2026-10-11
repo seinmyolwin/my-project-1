@@ -44,6 +44,7 @@ interface QuickSaleEntryProps {
   onOpenRoundManager?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: (active: boolean) => void;
+  onOpenCommandRules?: () => void;
 }
 
 export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
@@ -51,7 +52,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   onOpenForwardModal,
   onOpenRoundManager,
   isFocusMode = false,
-  onToggleFocusMode
+  onToggleFocusMode,
+  onOpenCommandRules
 }) => {
   const {
     activeRound,
@@ -1705,20 +1707,29 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
             {/* Batch Text Drawer (if toggled) */}
             {showBatchModal && (
               <div className="bg-slate-50 border border-indigo-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    {isMyanmar ? 'SMS / စာသားများမှ တိုက်ရိုက်ကူးထည့်ရန် (Shallow Parser)' : 'Paste Text from SMS/Chat'}
+                    {isMyanmar ? 'SMS / စာသားများမှ တိုက်ရိုက်ကူးထည့်ရန် (3D Parser)' : 'Paste Text from SMS/Chat'}
                   </span>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    နမူနာ: 123=1000, 456=500, 789R=1000
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenCommandRules?.()}
+                      className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>ထိုးကြေးယူနည်း လမ်းညွှန်ကြည့်ရန်</span>
+                    </button>
+                    <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+                      နမူနာ: 123 456 1000/200
+                    </span>
+                  </div>
                 </div>
                 <textarea
                   value={rawBatchText}
                   onChange={(e) => setRawBatchText(convertMyanmarToEnglishDigits(e.target.value))}
                   onFocus={(e) => e.target.select()}
-                  placeholder={`123=1000\n456-500\n789R=1000\n555=2000`}
+                  placeholder={`123 456 1000/200\n123=1000\n456-500\n789 R 1000\n555=2000`}
                   rows={4}
                   className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
                 />

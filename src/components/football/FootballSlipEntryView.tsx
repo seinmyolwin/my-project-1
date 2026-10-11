@@ -11,7 +11,9 @@ import {
   Tag,
   Shield,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Terminal,
+  BookOpen
 } from 'lucide-react';
 import { useFootball } from '../../context/FootballContext';
 import { FootballBetSelection, FootballSlip, FootballMatch } from '../../types';
@@ -20,6 +22,7 @@ import { safeRound } from '../../utils/moneyUtils';
 
 interface FootballSlipEntryViewProps {
   onSlipCreated: (slip: FootballSlip) => void;
+  onOpenCommandRules?: () => void;
 }
 
 const isMatchExpired = (match: FootballMatch): boolean => {
@@ -46,7 +49,10 @@ const isMatchExpired = (match: FootballMatch): boolean => {
   }
 };
 
-export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ onSlipCreated }) => {
+export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({
+  onSlipCreated,
+  onOpenCommandRules
+}) => {
   const { settings, matches, activeDate, addSlip } = useFootball();
   const isMyanmar = settings.language === 'my';
 
@@ -54,6 +60,11 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
   const [customerPhone, setCustomerPhone] = useState('');
   const [stakeAmount, setStakeAmount] = useState('5000');
   const [discountPercent, setDiscountPercent] = useState<number>(settings.defaultCustomerDiscount || 0);
+
+  // Quick Command Entry state
+  const [isQuickCommandOpen, setIsQuickCommandOpen] = useState(false);
+  const [commandText, setCommandText] = useState('');
+  const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof settings.defaultCustomerDiscount === 'number') {
@@ -63,6 +74,95 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
 
   // Selected match legs
   const [selections, setSelections] = useState<FootballBetSelection[]>([]);
+
+  // Process text commands for football
+  const handleProcessCommandText = () => {
+    if (!commandText.trim()) return;
+    const clean = convertMyanmarToEnglishDigits(commandText);
+    const lines = clean.split(/[\r\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const newPicks: FootballBetSelection[] = [];
+    let detectedStake = 0;
+
+    for (const line of lines) {
+      const tokens = line.split(/\s+/).filter(Boolean);
+      if (tokens.length === 0) continue;
+
+      let lineStake = 0;
+      let textWithoutStake = line;
+      const lastToken = tokens[tokens.length - 1];
+      const parsedAmt = parseInt(lastToken, 10);
+      if (!isNaN(parsedAmt) && parsedAmt > 0 && lastToken.length >= 3) {
+        lineStake = parsedAmt;
+        detectedStake = parsedAmt;
+        textWithoutStake = tokens.slice(0, tokens.length - 1).join(' ');
+      }
+
+      const isOver = /over|အပေါ်/i.test(textWithoutStake);
+      const isUnder = /under|အောက်/i.test(textWithoutStake);
+      const isAwayBody = /away/i.test(textWithoutStake);
+      const targetQuery = textWithoutStake.replace(/over|under|အပေါ်|အောက်|body/gi, '').trim().toLowerCase();
+
+      const matched = matches.find(m => {
+        if (isMatchExpired(m)) return false;
+        const h = m.homeTeam.toLowerCase();
+        const a = m.awayTeam.toLowerCase();
+        return h.includes(targetQuery) || a.includes(targetQuery) ||
+               targetQuery.includes(h) || targetQuery.includes(a);
+      });
+
+      if (matched) {
+        let betType: 'body_home' | 'body_away' | 'over' | 'under' = 'body_home';
+        let odds = matched.bodyOdds;
+        let choiceLabel = `${matched.homeTeam} (Body)`;
+        let lineDescription = `အကြော ${matched.handicapValue}`;
+
+        if (isOver) {
+          betType = 'over';
+          odds = matched.goalOdds;
+          choiceLabel = `ဂိုးပေါင်း အပေါ် (${matched.overUnderValue})`;
+          lineDescription = `ဂိုးပေါင်း ${matched.overUnderValue}`;
+        } else if (isUnder) {
+          betType = 'under';
+          odds = matched.goalOdds;
+          choiceLabel = `ဂိုးပေါင်း အောက် (${matched.overUnderValue})`;
+          lineDescription = `ဂိုးပေါင်း ${matched.overUnderValue}`;
+        } else if (isAwayBody || matched.awayTeam.toLowerCase().includes(targetQuery)) {
+          betType = 'body_away';
+          odds = matched.bodyOdds;
+          choiceLabel = `${matched.awayTeam} (Body)`;
+        }
+
+        if (!newPicks.some(p => p.matchId === matched.id)) {
+          newPicks.push({
+            matchId: matched.id,
+            matchSummary: `${matched.homeTeam} vs ${matched.awayTeam}`,
+            league: matched.league,
+            betType,
+            choiceLabel,
+            lineDescription,
+            odds,
+            outcome: 'pending'
+          });
+        }
+      }
+    }
+
+    if (newPicks.length > 0) {
+      setSelections(prev => {
+        const existingIds = new Set(newPicks.map(p => p.matchId));
+        return [...prev.filter(s => !existingIds.has(s.matchId)), ...newPicks];
+      });
+      if (detectedStake > 0) {
+        setStakeAmount(String(detectedStake));
+      }
+      setCommandFeedback(`(${newPicks.length}) ပွဲ အောင်မြင်စွာ ရွေးချယ်ပြီးပါပြီ!`);
+      setTimeout(() => setCommandFeedback(null), 3000);
+      setCommandText('');
+      setIsQuickCommandOpen(false);
+    } else {
+      alert(isMyanmar ? 'ကိုက်ညီသော ပွဲစဉ် ရှာမတွေ့ပါ (အသင်းအမည်ကို စစ်ဆေးပါ)' : 'No matching matches found');
+    }
+  };
 
   // Toggle selection on a match
   const handleSelectBet = (
@@ -229,10 +329,105 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({ on
                 </span>
               </div>
             </div>
-            <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200">
-              {matches.length} {isMyanmar ? 'ပွဲ ရရှိနိုင်ပါသည်' : 'available'}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsQuickCommandOpen(!isQuickCommandOpen)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                <span>{isMyanmar ? 'အမြန်ကွန်မန်း' : 'Quick Command'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenCommandRules?.()}
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                title="ထိုးကြေးယူနည်း လမ်းညွှန်"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">ယူနည်းလမ်းညွှန်</span>
+              </button>
+
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200">
+                {matches.length} {isMyanmar ? 'ပွဲ' : 'matches'}
+              </span>
+            </div>
           </div>
+
+          {/* Quick Command Drawer for Football */}
+          {isQuickCommandOpen && (
+            <div className="bg-emerald-50/80 border border-emerald-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                  <Terminal className="w-4 h-4 text-emerald-600" />
+                  <span>ဘောလုံး အမြန်စာသား ကွန်မန်းဖြင့် ထိုးရန် (Quick Football Command)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickCommandOpen(false)}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                >
+                  ပိတ်မည်
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                <span className="text-[11px] font-bold text-emerald-800">နမူနာ ကွန်မန်းများ:</span>
+                <button
+                  type="button"
+                  onClick={() => setCommandText('Arsenal 5000')}
+                  className="px-2 py-0.5 bg-white border border-emerald-200 text-emerald-900 font-mono text-[11px] rounded-lg cursor-pointer"
+                >
+                  Arsenal 5000
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCommandText('Chelsea Over 3000')}
+                  className="px-2 py-0.5 bg-white border border-emerald-200 text-emerald-900 font-mono text-[11px] rounded-lg cursor-pointer"
+                >
+                  Chelsea Over 3000
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCommandText('Arsenal Chelsea 5000')}
+                  className="px-2 py-0.5 bg-white border border-emerald-200 text-emerald-900 font-mono text-[11px] rounded-lg cursor-pointer"
+                >
+                  မောင်းအတွဲ (2-folds)
+                </button>
+              </div>
+
+              <textarea
+                rows={3}
+                value={commandText}
+                onChange={(e) => setCommandText(e.target.value)}
+                placeholder={`ဥပမာ-\nArsenal 5000\nChelsea Over 5000\nArsenal Chelsea 3000`}
+                className="w-full p-2.5 bg-white font-mono text-xs rounded-xl border border-emerald-200 focus:outline-none focus:border-emerald-500"
+              />
+
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-emerald-800">
+                  {commandFeedback || 'အသင်းအမည်၊ Over/Under နှင့် ထိုးကြေးငွေ ရိုက်ထည့်ပါ'}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onOpenCommandRules?.()}
+                    className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                  >
+                    လမ်းညွှန်ကြည့်ရန်
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProcessCommandText}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer active:scale-95"
+                  >
+                    ရွေးချယ်မည်
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Fixtures Selector Cards */}
           <div className="space-y-3">

@@ -22,7 +22,8 @@ import {
   Sliders,
   DollarSign,
   Clock,
-  RotateCcw
+  RotateCcw,
+  Terminal
 } from 'lucide-react';
 
 const img3D = new URL('../assets/images/3d_manual_screenshot_1791710120960.jpg', import.meta.url).href;
@@ -32,10 +33,10 @@ const imgFB = new URL('../assets/images/football_manual_screenshot_1791710146156
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenCommandRules?: () => void;
 }
 
-export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
-  // Exactly THREE manual tabs as strictly commanded
+export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, onOpenCommandRules }) => {
   const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football'>('3d');
 
   if (!isOpen) return null;
@@ -111,6 +112,21 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           >
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
             <span>Football — ပစ်တိုင်းထောင်</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenCommandRules) {
+                onClose();
+                onOpenCommandRules();
+              }
+            }}
+            className="px-3.5 sm:px-5 py-3 text-xs sm:text-sm font-black rounded-t-xl transition-all flex items-center gap-1.5 cursor-pointer border-t border-x bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs ml-auto"
+            title="ထိုးကြေး ဂဏန်း ယူနည်းလမ်းညွှန် (Commands & Rules Engine)"
+          >
+            <Terminal className="w-4 h-4 text-amber-200" />
+            <span>ထိုးကြေးယူနည်း</span>
           </button>
         </div>
 

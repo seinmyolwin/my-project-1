@@ -428,6 +428,54 @@ console.log('✅ 7.6 Permutation winning evaluation: Permutation 132 awards Todd
 
 console.log('✅ ALL 8 RUMBLE AND PERMUTATION REQUIREMENTS VERIFIED!\n');
 
+// ==============================================================================
+// TEST 8: Custom Command Syntax & Ratio Parsing (User Request Verification)
+// ==============================================================================
+console.log('--- TEST 8: Custom Command Syntax & Slash Ratio Parsing ---');
+
+// Case 8.1: Exact user Myanmar request "၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀"
+const parsedSlash1 = parseTwoDBatchInput('၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀');
+const itemsSlash1 = Array.isArray(parsedSlash1) ? parsedSlash1 : (parsedSlash1 as any).items;
+
+assert(itemsSlash1.length === 6, `Expected exactly 6 items for "၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀", got ${itemsSlash1.length}`);
+
+// Verify direct bets: 23, 45, 26 all have 800
+const direct23 = itemsSlash1.find((i: any) => i.number === '23' && !i.isRumble);
+const direct45 = itemsSlash1.find((i: any) => i.number === '45' && !i.isRumble);
+const direct26 = itemsSlash1.find((i: any) => i.number === '26' && !i.isRumble);
+assert(direct23 && direct23.amount === 800, '23 direct bet must be 800');
+assert(direct45 && direct45.amount === 800, '45 direct bet must be 800');
+assert(direct26 && direct26.amount === 800, '26 direct bet must be 800');
+
+// Verify reversal bets: 32, 54, 62 all have 200
+const rev32 = itemsSlash1.find((i: any) => i.number === '32' && i.isRumble);
+const rev54 = itemsSlash1.find((i: any) => i.number === '54' && i.isRumble);
+const rev62 = itemsSlash1.find((i: any) => i.number === '62' && i.isRumble);
+assert(rev32 && rev32.amount === 200, '32 reverse bet must be 200');
+assert(rev54 && rev54.amount === 200, '54 reverse bet must be 200');
+assert(rev62 && rev62.amount === 200, '62 reverse bet must be 200');
+console.log('✅ 8.1 User request "၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀" parsed into 23(800), 45(800), 26(800), 32(200), 54(200), 62(200) successfully!');
+
+// Case 8.2: Subsequent user example "၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀"
+const parsedSlash2 = parseTwoDBatchInput('၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀');
+const itemsSlash2 = Array.isArray(parsedSlash2) ? parsedSlash2 : (parsedSlash2 as any).items;
+assert(itemsSlash2.length === 6, `Expected 6 items for "၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀", got ${itemsSlash2.length}`);
+
+const direct34 = itemsSlash2.find((i: any) => i.number === '34' && !i.isRumble);
+const rev43 = itemsSlash2.find((i: any) => i.number === '43' && i.isRumble);
+assert(direct34 && direct34.amount === 1000, '34 direct bet must be 1000');
+assert(rev43 && rev43.amount === 500, '43 reverse bet must be 500');
+console.log('✅ 8.2 Subsequent example "၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀" parsed into 34(1000), 46(1000), 37(1000), 43(500), 64(500), 73(500) successfully!');
+
+// Case 8.3: 3D Slash ratio command "123 456 1000/200"
+const parsed3DSlash = parseQuickBetText('123 456 1000/200');
+assert(parsed3DSlash.items.length === 14, `Expected 14 items for 3D "123 456 1000/200", got ${parsed3DSlash.items.length}`);
+const s123 = parsed3DSlash.items.find(i => i.number === '123' && !i.isRumble);
+const r123 = parsed3DSlash.items.filter(i => i.isRumble && i.originalNumber === '123');
+assert(s123 && s123.amount === 1000, '3D 123 straight amount must be 1000');
+assert(r123.length === 6 && r123[0].amount === 200, '3D 123 rumble must have 6 permutations with amount 200');
+console.log('✅ 8.3 3D command "123 456 1000/200" parsed into straight(1000) and rumble(200) successfully!\n');
+
 console.log('==================================================');
 console.log('ALL LOGIC TESTS PASSED SUCCESSFULLY! 🎉');
 console.log('==================================================');

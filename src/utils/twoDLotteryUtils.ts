@@ -260,6 +260,69 @@ export function parseTwoDBatchInput(
   const lines = cleanText.split(/[\r\n]+/);
 
   function processSingleLine(line: string) {
+    // Pattern 0: Direct / Reverse slash ratio pattern (e.g. "23 45 26 800/200" or "34 46 37 1000/500")
+    // Extracts direct numbers for the 1st amount, and reversal (အာ) numbers for the 2nd amount
+    const slashRatioMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
+                            line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
+    if (slashRatioMatch) {
+      const numbersRaw = slashRatioMatch[1].trim();
+      const directAmt = parseInt(slashRatioMatch[2], 10);
+      const revAmt = parseInt(slashRatioMatch[3], 10);
+
+      if (!isNaN(directAmt) && directAmt > 0 && !isNaN(revAmt) && revAmt > 0) {
+        // Extract all number tokens
+        const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
+        const validTokens: string[] = [];
+
+        for (const tok of numTokens) {
+          if (/^\d{1,2}$/.test(tok)) {
+            validTokens.push(tok.padStart(2, '0'));
+          } else {
+            warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+          }
+        }
+
+        if (validTokens.length > 0) {
+          validTokens.forEach((numStr) => {
+            // 1. Direct bet (e.g. 23 = 800)
+            items.push({
+              id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              number: numStr,
+              amount: directAmt,
+              isRumble: false,
+              betType: 'straight',
+              originalInput: `${numStr} ဒဲ့ (${directAmt})`
+            });
+
+            // 2. Reverse / အာ bet (e.g. 32 = 200)
+            const revs = getTwoDReversal(numStr);
+            const reverseNum = revs.length > 1 ? revs[1] : revs[0];
+            if (reverseNum !== numStr) {
+              items.push({
+                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                number: reverseNum,
+                amount: revAmt,
+                isRumble: true,
+                betType: 'rumble',
+                originalInput: `${numStr} အာ (${reverseNum} = ${revAmt})`
+              });
+            } else {
+              // If double number (e.g. 22), add reversal with revAmt
+              items.push({
+                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                number: numStr,
+                amount: revAmt,
+                isRumble: true,
+                betType: 'rumble',
+                originalInput: `${numStr} အာ (${revAmt})`
+              });
+            }
+          });
+          return;
+        }
+      }
+    }
+
     // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble)
     if (/(?:ခွေပူး(?:r|အာ)|ခွေ\s*ပူး\s*(?:r|အာ)|ပါခွေ(?:r|အာ)|ခွေ(?:r|အာ)ပူး)/i.test(line)) {
       const nums = line.match(/\d+/g);

@@ -24,7 +24,9 @@ import {
   Receipt,
   User,
   Phone,
-  Percent
+  Percent,
+  BookOpen,
+  Terminal
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig } from '../../types';
@@ -66,6 +68,7 @@ interface TwoDQuickSaleEntryProps {
   onOpenRoundManager?: () => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: (active: boolean) => void;
+  onOpenCommandRules?: () => void;
 }
 
 export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
@@ -74,7 +77,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   onOpenLimitsManager,
   onOpenRoundManager,
   isFocusMode = false,
-  onToggleFocusMode
+  onToggleFocusMode,
+  onOpenCommandRules
 }) => {
   const {
     settings,
@@ -2738,14 +2742,27 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 rows={6}
                 value={batchText}
                 onChange={(e) => setBatchText(e.target.value)}
-                placeholder={`ဥပမာ-\n1234 ခွေ 500\n1234 ခွေပူး 500\n1234 ခွေအာ 500\n1234 ခွေပူးအာ 500\n24 1000\n24R 500\nအပူး 1000\n5 ဘရိတ် 2000`}
+                placeholder={`ဥပမာ-\n၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀\n၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀\n1234 ခွေ 500\n1234 ခွေပူး 500\n1234 ခွေအာ 500\n24 1000\n24R 500\nအပူး 1000\n5 ဘရိတ် 2000`}
                 className="w-full p-3 font-mono text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
               ></textarea>
-              <p className="text-[11px] text-slate-500">
-                {isMyanmar
-                  ? 'Format: ဂဏန်းနှင့် ငွေပမာဏကို ခြား၍ ရိုက်ထည့်နိုင်ပါသည် (ဥပမာ- 1234 ခွေ 500, 1234 ခွေပူး 500, 1234 ခွေအာ 500, 1234 ခွေပူးအာ 500, 24R 1000, အပူး 1000)'
-                  : 'Enter numbers with amounts separated by spaces or newlines (e.g., 1234 Khway 500).'}
-              </p>
+              <div className="flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-1">
+                <span>
+                  {isMyanmar
+                    ? 'အထူးကွန်မန်း: ၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀ (ဒဲ့ ၈၀၀၊ အာ ၂၀၀ အလိုအလျောက်ယူသည်)'
+                    : 'Format: 23 45 26 800/200 (Direct 800, Reverse 200)'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBatchOpen(false);
+                    onOpenCommandRules?.();
+                  }}
+                  className="font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>ထိုးကြေးယူနည်း လမ်းညွှန်ကြည့်ရန်</span>
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

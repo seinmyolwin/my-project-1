@@ -48,6 +48,7 @@ import { FinancialStatementsModal } from './components/FinancialStatementsModal'
 import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
 import { TelegramOrdersHubModal } from './components/TelegramOrdersHubModal';
+import { CommandRulesModal } from './components/CommandRulesModal';
 
 // Security & Setup Modals
 import { FirstTimePinSetupModal } from './components/FirstTimePinSetupModal';
@@ -164,6 +165,7 @@ function AppContent() {
 
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [isTelegramHubOpen, setIsTelegramHubOpen] = useState(false);
+  const [isCommandRulesOpen, setIsCommandRulesOpen] = useState(false);
 
   // Check if any modal is active
   const hasActiveModal =
@@ -183,7 +185,8 @@ function AppContent() {
     isHelpOpen ||
     isPreviousResultsOpen ||
     isTitleModalOpen ||
-    isTelegramHubOpen;
+    isTelegramHubOpen ||
+    isCommandRulesOpen;
 
   const closeActiveModal = useCallback(() => {
     if (printingVoucher3D) setPrintingVoucher3D(null);
@@ -203,6 +206,7 @@ function AppContent() {
     else if (isHelpOpen) setIsHelpOpen(false);
     else if (isPreviousResultsOpen) setIsPreviousResultsOpen(false);
     else if (isTitleModalOpen) setIsTitleModalOpen(false);
+    else if (isCommandRulesOpen) setIsCommandRulesOpen(false);
   }, [
     printingVoucher3D,
     printingVoucher2D,
@@ -219,7 +223,9 @@ function AppContent() {
     isBackupModalOpen,
     isHelpOpen,
     isPreviousResultsOpen,
-    isTitleModalOpen
+    isTitleModalOpen,
+    isTelegramHubOpen,
+    isCommandRulesOpen
   ]);
 
   const isSubTab =
@@ -364,6 +370,7 @@ function AppContent() {
           onOpenTitleModal={() => setIsTitleModalOpen(true)}
           onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
           onEnterFocusMode={() => setIsFocusMode(true)}
+          onOpenCommandRules={() => setIsCommandRulesOpen(true)}
         />
       )}
 
@@ -390,6 +397,7 @@ function AppContent() {
                 onOpenRoundManager={handleOpenRoundManager}
                 isFocusMode={isFocusMode}
                 onToggleFocusMode={setIsFocusMode}
+                onOpenCommandRules={() => setIsCommandRulesOpen(true)}
               />
             )}
 
@@ -424,6 +432,7 @@ function AppContent() {
                 onOpenRoundManager={handleOpenRoundManager}
                 isFocusMode={isFocusMode}
                 onToggleFocusMode={setIsFocusMode}
+                onOpenCommandRules={() => setIsCommandRulesOpen(true)}
               />
             )}
 
@@ -454,6 +463,7 @@ function AppContent() {
             {activeTabFB === 'slip_entry' && (
               <FootballSlipEntryView
                 onSlipCreated={() => setActiveTabFB('slips_list')}
+                onOpenCommandRules={() => setIsCommandRulesOpen(true)}
               />
             )}
 
@@ -634,6 +644,25 @@ function AppContent() {
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
       />
+
+      {/* Command Rules & Betting Syntax Modal */}
+      {isCommandRulesOpen && (
+        <CommandRulesModal
+          isOpen={isCommandRulesOpen}
+          onClose={() => setIsCommandRulesOpen(false)}
+          activeMode={dealerMode}
+          onApplyToActiveCart={(mode, items) => {
+            if (mode === '2d') {
+              setActiveTab2D('sales');
+            } else if (mode === '3d') {
+              setActiveTab3D('sales');
+            } else {
+              setActiveTabFB('slip_entry');
+            }
+            setIsCommandRulesOpen(false);
+          }}
+        />
+      )}
 
       {/* Offline Status Badge */}
       <OfflineIndicator />
