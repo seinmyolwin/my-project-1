@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 const img3D = new URL('../assets/images/3d_manual_screenshot_1791710120960.jpg', import.meta.url).href;
-const img2D = new URL('../assets/images/2d_manual_screenshot_1791710099057.jpg', import.meta.url).href;
+const img2D = new URL('../assets/images/twod_ledger_screenshot_1791714931140.jpg', import.meta.url).href;
 const imgFB = new URL('../assets/images/football_manual_screenshot_1791710146156.jpg', import.meta.url).href;
 
 interface HelpModalProps {
@@ -385,7 +385,7 @@ const ThreeDManualView: React.FC = () => {
           <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden p-3 sm:p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-black text-xs text-indigo-900 bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg">
-                ပုံ (၁) — အိုးစည်လေး (3D) ပင်မမျက်နှာပြင်နှင့် အမြန်စာရင်းသွင်းလွှာ
+                ပုံ (၁) — အိုးစည်လေး (3D) တိုက်ရိုက်စာရင်းချုပ် (Live Ledger) နှင့် ဂဏန်းအလိုက် ရောင်းရငွေ/ကန့်သတ်ချက် မျက်နှာပြင်
               </span>
               <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                 ✓ တကယ့် App Screenshot (Verified Application Screen)
@@ -395,15 +395,15 @@ const ThreeDManualView: React.FC = () => {
             <div className="rounded-xl overflow-hidden border border-slate-300 shadow-xs max-h-[360px] flex items-center justify-center bg-slate-950">
               <img
                 src={img3D}
-                alt="3D Module Main Application Interface"
+                alt="3D Live Ledger and Number Sales Limits Interface"
                 className="w-full h-auto max-h-[360px] object-contain"
               />
             </div>
 
             <div className="text-xs space-y-1 text-slate-700 bg-white p-3 rounded-xl border border-slate-200">
-              <p><b>ပုံတွင် ပြသထားသောအရာ:</b> 3D ပင်မစနစ်၏ အပေါ်ဘား၊ အမြန်စာရင်းသွင်းအကွက်များ၊ စာရင်းချုပ် Tab များနှင့် ဘောက်ချာ ထိန်းချုပ်နေရာများ။</p>
-              <p><b>အသုံးပြုသူ အဓိက အာရုံစိုက်ရမည့်နေရာ:</b> အလယ်ဗဟိုရှိ "ဂဏန်း (Number)" နှင့် "ငွေပမာဏ (Amount)" အကွက်များ၊ ညာဘက်ရှိ "စာရင်းထဲထည့်မည်" ခလုတ်။</p>
-              <p><b>ဆက်လက် လုပ်ဆောင်ရမည့်အဆင့်:</b> ဂဏန်းရိုက်ထည့်ပြီးပါက အောက်ခြေရှိ "ဘောင်ချာ သိမ်းဆည်းမည်" ခလုတ်ကို နှိပ်၍ အတည်ပြုရန်။</p>
+              <p><b>ပုံတွင် ပြသထားသောအရာ:</b> 3D ဂဏန်းများ (000 မှ 999) အလိုက် လက်ရှိရောင်းချထားသော ရောင်းရငွေ (Sales Amount e.g. 1,000 Ks, 500 Ks)၊ သတ်မှတ်ထားသော ကန့်သတ် Limit (e.g. 100,000 Ks)၊ ပေါက်ပါက ပေးလျော်ရမည့် လျော်ကြေး (Payout e.g. 600,000 Ks) နှင့် ဖြတ်ငွေ/ဒိုင်ကိုင်ငွေ/အထက်ဒိုင်တင်ငွေ အခြေအနေများ။</p>
+              <p><b>အသုံးပြုသူ အဓိက အာရုံစိုက်ရမည့်နေရာ:</b> 3-ဂဏန်း ကော်လံများ၊ ရောင်းရငွေ ပမာဏ၊ Limit ကန့်သတ်ချက်သို့ နီးကပ်လာမှုနှင့် ပေါက်ပါက ပေးလျော်ရမည့် ခန့်မှန်းလျော်ကြေးများ။</p>
+              <p><b>ဆက်လက် လုပ်ဆောင်ရမည့်အဆင့်:</b> စာရင်းများ စစ်ဆေးပြီးနောက် ဘရိတ်/Limit ကျော်လွန်နေသော ဂဏန်းများကို "အထက်ဒိုင်တင်မည်" ဖြင့် လွှဲတင်ခြင်း သို့မဟုတ် ပေါက်မဲထွက်ချိန်တွင် "ပေါက်ဂဏန်းရွေးချယ်/ထည့်သွင်းခြင်း" ပြုလုပ်ရန်။</p>
             </div>
           </div>
 
@@ -691,25 +691,25 @@ const TwoDManualView: React.FC = () => {
           <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden p-3 sm:p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-black text-xs text-teal-900 bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg">
-                ပုံ (၂) — ဇီးကွက် (2D) ပင်မမျက်နှာပြင်နှင့် ၂ လုံး ဂဏန်းကွက်စနစ်
+                ပုံ (၂) — ဇီးကွက် (2D) တိုက်ရိုက်စာရင်းချုပ် (Live Ledger) နှင့် ၂ လုံး ဂဏန်းကွက် အရောင်းအခြေအနေ
               </span>
               <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                 ✓ တကယ့် App Screenshot (Verified Application Screen)
               </span>
             </div>
             
-            <div className="rounded-xl overflow-hidden border border-slate-300 shadow-xs max-h-[360px] flex items-center justify-center bg-slate-950">
+            <div className="rounded-xl overflow-hidden border border-slate-300 shadow-xs max-h-[380px] flex items-center justify-center bg-slate-950">
               <img
                 src={img2D}
-                alt="2D Module Main Application Interface"
-                className="w-full h-auto max-h-[360px] object-contain"
+                alt="2D Module Live Ledger and Number Grid Interface"
+                className="w-full h-auto max-h-[380px] object-contain"
               />
             </div>
 
             <div className="text-xs space-y-1 text-slate-700 bg-white p-3 rounded-xl border border-slate-200">
-              <p><b>ပုံတွင် ပြသထားသောအရာ:</b> 2D စနစ်၏ အမြန်စာရင်းသွင်းလွှာ၊ မြန်မာ့ထိုးကွက် Shortcut Bar၊ မနက်/ညနေ Session ခလုတ်များနှင့် ဂဏန်းကွက်ဇယား။</p>
-              <p><b>အသုံးပြုသူ အဓိက အာရုံစိုက်ရမည့်နေရာ:</b> အလယ်ရှိ ၂ လုံးဂဏန်း ရိုက်ထည့်ကွက်နှင့် အပေါ်ဘက်ရှိ မြန်မာ့ထိုးကွက် ခလုတ်များ (ဘရိတ်၊ အပါ၊ ထိပ်၊ ပိတ်)။</p>
-              <p><b>ဆက်လက် လုပ်ဆောင်ရမည့်အဆင့်:</b> လိုအပ်သော ထိုးကွက်များ ထည့်သွင်းပြီးနောက် "ဘောင်ချာ သိမ်းဆည်းမည်" ကို နှိပ်ရန်။</p>
+              <p><b>ပုံတွင် ပြသထားသောအရာ:</b> 2D စနစ်၏ တိုက်ရိုက်အရောင်းစာရင်းချုပ် (2D Live Ledger)၊ ပွဲချိန်/Session (12:01 PM)၊ အရောင်းဖွင့်ထားမှု Status၊ စုစုပေါင်းရောင်းရငွေ (1,485,000 Ks)၊ သက်ဆိုင်ရာ ၂ လုံးဂဏန်းအလိုက် ရောင်းရငွေ (ဥပမာ- 30 မှ 59 ထိ)၊ သတ်မှတ် Limit ရာခိုင်နှုန်းနှင့် Hot ဂဏန်း သတိပေးအရောင်များ၊ အမြန်အရောင်းနှင့် ပွဲချိန်ခလုတ်များ။</p>
+              <p><b>အသုံးပြုသူ အဓိက အာရုံစိုက်ရမည့်နေရာ:</b> ဂဏန်းတစ်ခုချင်းစီအောက်ရှိ လက်ရှိရောင်းရငွေ (Ks)၊ Limit ရာခိုင်နှုန်း Bar နှင့် ကန့်သတ်ချက်နီးကပ်/ကျော်လွန်နေသော Hot ဂဏန်းများ (လိမ္မော်/အနီရောင် Highlight ပြထားသည့် ကွက်များ)။</p>
+              <p><b>ဆက်လက် လုပ်ဆောင်ရမည့်အဆင့်:</b> ရောင်းအားများသော ဂဏန်းများကို ကန့်သတ်ရန် "ပွဲချိန် / Limit" သို့မဟုတ် အမြန်ရောင်းချရန် "အမြန်အရောင်း" သို့မဟုတ် စာရင်းချုပ်ရန် "အထွက်ဂဏန်းထည့် / လျော်ကြေးရှင်း" ကို အသုံးပြုခြင်း။</p>
             </div>
           </div>
         </div>
