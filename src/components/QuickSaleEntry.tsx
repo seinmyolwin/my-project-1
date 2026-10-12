@@ -506,64 +506,79 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     playTapSound();
     setIsRumble(false);
     const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
-    const cleanAmt = convertMyanmarToEnglishDigits(amountInput).trim();
     if (cleanNum) {
-      let amt = parseInt(cleanAmt, 10);
-      if (isNaN(amt) || amt <= 0) {
-        const rawTokens = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ').replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
-        if (rawTokens.length > 1) {
-          const lastToken = rawTokens[rawTokens.length - 1];
-          const parsedLast = parseInt(lastToken, 10);
-          if (!isNaN(parsedLast) && parsedLast > 0) {
-            amt = parsedLast;
-          }
-        }
-      }
-      if (!isNaN(amt) && amt > 0) {
-        handleAddBet();
-      } else {
-        amountInputRef.current?.focus();
-      }
-    } else {
-      numberInputRef.current?.focus();
-    }
-  };
-
-  // ပတ်လည် (Rumble / Permutations) Handler matching 2D & user spec
-  const handleAddRumbleClick = () => {
-    playTapSound();
-    const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
-    if (rawInput) {
-      const cleanForNumbers = rawInput.replace(/r|R|ပတ်လည်|အာ|ပတ်/gi, ' ');
+      const cleanForNumbers = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
       const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
-      if (rawTokens.length > 1) {
-        const lastToken = rawTokens[rawTokens.length - 1];
-        if (lastToken.length >= 4 && /^\d+$/.test(lastToken)) {
-          const amtVal = rawTokens.pop();
-          if (amtVal && (!amountInput || amountInput === '0')) {
-            setAmountInput(amtVal);
-          }
-        }
-      }
       const targetNumbers = rawTokens.map(t => t.padStart(3, '0')).filter(n => /^\d{3}$/.test(n));
-
       if (targetNumbers.length > 0) {
-        setIsRumble(true);
+        setNumberInput(targetNumbers.join(' '));
         amountInputRef.current?.focus();
         setToastNotification({
           type: 'success',
-          message: isMyanmar
-            ? `ပတ်လည် (R) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ`
-            : `Rumble (R) selected. Enter amount and tap Add.`
+          message: isMyanmar ? `ဒဲ့ [${targetNumbers.join(' ')}] (${targetNumbers.length} ကွက်) ဂဏန်းကွက်ထဲ ထည့်သွင်းပြီးပါပြီ။ ထိုးကြေးထည့်ပါ` : `Direct: ${targetNumbers.length} numbers selected.`
         });
-        return;
+      } else {
+        amountInputRef.current?.focus();
+        setToastNotification({
+          type: 'success',
+          message: isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်) ရွေးထားပါသည်' : 'Direct selected'
+        });
       }
+    } else {
+      numberInputRef.current?.focus();
+      setToastNotification({
+        type: 'warning',
+        message: isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်) အတွက် ဂဏန်း ရိုက်ထည့်ပါ' : 'Enter number for direct bet'
+      });
     }
-    const nextState = !isRumble;
-    setIsRumble(nextState);
+  };
+
+  // ပတ်လည် / အာ (Rumble / Permutations) Handler
+  const handleAddRumbleClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    if (!cleanNum) {
+      playWarningSound();
+      setToastNotification({
+        type: 'warning',
+        message: isMyanmar ? 'အာ (R) အတွက် ဂဏန်း ရိုက်ထည့်ပါ (ဥပမာ- ၁၂၃)' : 'Enter number to reverse (e.g. 123)'
+      });
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const cleanForNumbers = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const targetNumbers = rawTokens.map(t => t.padStart(3, '0')).filter(n => /^\d{3}$/.test(n));
+
+    if (targetNumbers.length === 0) {
+      playWarningSound();
+      setToastNotification({
+        type: 'warning',
+        message: isMyanmar ? 'အာ (R) အတွက် ၃ လုံးဂဏန်း (၀၀၀ မှ ၉၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter valid 3-digit number (000-999)'
+      });
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const reversedList: string[] = [];
+    targetNumbers.forEach(n => {
+      const perms = getPermutations(n);
+      perms.forEach(p => {
+        if (!reversedList.includes(p)) {
+          reversedList.push(p);
+        }
+      });
+    });
+
+    setNumberInput(reversedList.join(' '));
+    setIsRumble(false);
+    amountInputRef.current?.focus();
     setToastNotification({
-      type: nextState ? 'success' : 'warning',
-      message: isMyanmar ? (nextState ? 'ပတ်လည် (R) ဖွင့်ထားပါသည်' : 'ပတ်လည် (R) ပိတ်ထားပါသည်') : (nextState ? 'Rumble ON' : 'Rumble OFF')
+      type: 'success',
+      message: isMyanmar
+        ? `အာ [${reversedList.join(' ')}] (${reversedList.length} ကွက်) ဂဏန်းကွက်ထဲ ထည့်သွင်းပြီးပါပြီ။ ထိုးကြေးထည့်ပါ`
+        : `Rumble: [${reversedList.join(' ')}] (${reversedList.length} numbers). Enter amount.`
     });
   };
 
@@ -1294,7 +1309,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                   isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
                 }`}
               >
-                <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
+                <span>{isMyanmar ? 'အာ' : 'R'}</span>
               </button>
             )}
             {(!settings.quickActionButtons || settings.quickActionButtons.triples) && (
@@ -1833,7 +1848,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                   <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
                 </button>
 
-                {/* 1. ပတ်လည် (Rumble / Permutations) */}
+                {/* 1. ပတ်လည် / အာ (Rumble / Permutations) */}
                 <button
                   type="button"
                   onClick={handleAddRumbleClick}
@@ -1842,10 +1857,10 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white ring-1 ring-indigo-500 shadow-xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
                   }`}
-                  title={isMyanmar ? 'ပတ်လည် (R)' : 'Rumble'}
+                  title={isMyanmar ? 'အာ (R)' : 'Rumble'}
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>{isMyanmar ? 'ပတ်လည်' : 'R'}</span>
+                  <span>{isMyanmar ? 'အာ' : 'R'}</span>
                 </button>
 
                 {/* 2. အပူး (Triples) */}

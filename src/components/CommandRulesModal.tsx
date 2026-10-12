@@ -355,7 +355,7 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
                         rows={5}
                         value={input2d}
                         onChange={(e) => setInput2d(e.target.value)}
-                        placeholder="ဥပမာ - ၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀ သို့မဟုတ် ၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀"
+                        placeholder="ဥပမာ - ၂၄=၁၀၀၀ ၊ ၂၄ အာ ၅၀၀ ၊ ၅ ထိပ် ၁၀၀၀ ၊ ၅ ဘရိတ် ၁၀၀၀ ၊ အပူး ၅၀၀ ၊ ၁၂၃၄ ခွေ ၅၀၀"
                         className="w-full p-3 font-mono text-xs rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 bg-white"
                       />
                     </div>
@@ -451,8 +451,15 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
 
               {/* 2D Rules List ("ဒီခုလုပ်သည် ဒီလိုယူသည်" concise display) */}
               <div className="space-y-3">
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl flex items-center gap-2.5 text-xs text-teal-900 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>
+                    အောက်ပါ ဂဏန်းယူနည်း စည်းမျဉ်းများသည် အမြဲတမ်းအတည် ဖြစ်သည်။ ဂဏန်းကွက်ထဲတွင် ကြိုက်သည့်ဂဏန်းထည့်၍ ခလုတ်နှိပ်ပါက ယူမည့်ဂဏန်းအားလုံး ဂဏန်းကွက်ထဲသို့ တိုက်ရိုက် ထည့်သွင်းပေးပါသည်။
+                  </span>
+                </div>
+
                 <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                  <span>ဇီးကွက် (2D) အတည်ပြုပြီး စည်းမျဉ်းများနှင့် ဂဏန်းယူပုံများ</span>
+                  <span>ဇီးကွက် (2D) အတည်ပြုပြီး ခလုတ်များနှင့် ဂဏန်းယူပုံ လမ်းညွှန်များ</span>
                   <button onClick={handleResetDefaults} className="text-slate-400 hover:text-slate-700 flex items-center gap-1 cursor-pointer">
                     <RotateCcw className="w-3 h-3" />
                     <span>မူလအတိုင်းပြန်ထား</span>
@@ -524,7 +531,7 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
                         rows={5}
                         value={input3d}
                         onChange={(e) => setInput3d(e.target.value)}
-                        placeholder="ဥပမာ - 123 456 1000/200 သို့မဟုတ် 123 R 1000"
+                        placeholder="ဥပမာ - 123=1000 ၊ 123 R 1000 ၊ 123 456 1000/200 ၊ အပူး 500"
                         className="w-full p-3 font-mono text-xs rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white"
                       />
                     </div>
@@ -620,8 +627,15 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
 
               {/* 3D Rules List */}
               <div className="space-y-3">
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center gap-2.5 text-xs text-indigo-900 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>
+                    အောက်ပါ ၃လုံး (3D) ဂဏန်းယူနည်း စည်းမျဉ်းများသည် အမြဲတမ်းအတည် ဖြစ်သည်။ ဂဏန်းကွက်ထဲတွင် ကြိုက်သည့်ဂဏန်းထည့်၍ ခလုတ်နှိပ်ပါက ယူမည့်ဂဏန်းအားလုံး ဂဏန်းကွက်ထဲသို့ တိုက်ရိုက် ထည့်သွင်းပေးပါသည်။
+                  </span>
+                </div>
+
                 <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                  <span>အိုးစည်လေး (3D) စည်းမျဉ်းများနှင့် ဂဏန်းယူပုံများ</span>
+                  <span>အိုးစည်လေး (3D) အတည်ပြုပြီး ခလုတ်များနှင့် ဂဏန်းယူပုံ လမ်းညွှန်များ</span>
                   <button onClick={handleResetDefaults} className="text-slate-400 hover:text-slate-700 flex items-center gap-1 cursor-pointer">
                     <RotateCcw className="w-3 h-3" />
                     <span>မူလအတိုင်းပြန်ထား</span>

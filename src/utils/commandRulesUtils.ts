@@ -21,55 +21,21 @@ export interface CommandRule {
   createdAt?: string;
 }
 
-export const STORAGE_KEY_COMMAND_RULES = 'bookie_custom_command_rules_v1';
+export const STORAGE_KEY_COMMAND_RULES = 'bookie_custom_command_rules_v2';
 
-// Default standard rules for 2D, 3D, and Football
+// Default standard rules for 2D, 3D, and Football (အမြဲတမ်းအတည် ဂဏန်းယူနည်း စည်းမျဉ်းများ)
 export const DEFAULT_COMMAND_RULES: CommandRule[] = [
-  // 2D Rules
+  // ----------------------------------------------------
+  // 2D Rules (ဇီးကွက် အမြဲတမ်းအတည် ဂဏန်းယူနည်းများ)
+  // ----------------------------------------------------
   {
-    id: 'rule-2d-ratio-slash',
+    id: 'rule-2d-straight',
     module: '2d',
-    name: 'တိုက်ရိုက် နှင့် အာ သီးသန့်ခွဲထိုးခြင်း [၈၀၀/၂၀၀]',
-    syntaxPattern: '[ဂဏန်းများ] [ဒဲ့ကြေး]/[အာကြေး]',
-    exampleInput: '၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀',
-    exampleOutput: '၂၃=၈၀၀, ၄၅=၈၀၀, ၂၆=၈၀၀, ၃၂=၂၀၀, ၅၄=၂၀၀, ၆၂=၂၀၀',
-    description: 'ရိုက်ထည့်ထားသော ဂဏန်းများကို ပထမထိုးကြေး (၈၀၀) ဖြင့် ဒဲ့ယူပြီး၊ ၎င်းတို့၏ ပြန်လှည့် (အာ) ဂဏန်းများကို ဒုတိယထိုးကြေး (၂၀၀) ဖြင့် အလိုအလျောက် သီးခြားခွဲယူပါသည် (ဥပမာ: ၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀ ဆိုပါက ၃၄,၄၆,၃၇=၁၀၀၀ နှင့် ၄၃,၆၄,၇၃=၅၀၀ ယူပါသည်)',
-    isCustom: false,
-    isEnabled: true,
-    category: 'ratio'
-  },
-  {
-    id: 'rule-2d-khway-all',
-    module: '2d',
-    name: 'ခွေ / ခွေပူး / ခွေအာ / ခွေပူးအာ (အတွဲလိုက် ခွေနည်းများ)',
-    syntaxPattern: '[ဂဏန်း] ခွေ [ကြေး] / ခွေပူး / ခွေအာ / ခွေပူးအာ',
-    exampleInput: '1234 ခွေ 500',
-    exampleOutput: '12, 13, 14, 23, 24, 34 (၆ ကွက်) တစ်ကွက် ၅၀၀ ကျပ်',
-    description: 'ပေးထားသော ဂဏန်းများမှ အတွဲလိုက်ခွေယူခြင်း (ခွေ)၊ အပူးပါခွေယူခြင်း (ခွေပူး)၊ အာခွေ (ခွေအာ) နှင့် အပူးပါအာခွေ (ခွေပူးအာ) အားလုံးကို အလိုအလျောက် ဖြန့်ထုတ်တွက်ချက်ပေးပါသည်',
-    isCustom: false,
-    isEnabled: true,
-    category: 'combination'
-  },
-  {
-    id: 'rule-2d-special-sets',
-    module: '2d',
-    name: 'အပူး / ပါဝါ / နက္ခတ် / ညီကို (အထူးဂဏန်းအတွဲများ)',
-    syntaxPattern: 'အပူး [ကြေး] / ပါဝါ [ကြေး] / နက္ခတ် [ကြေး] / ညီကို [ကြေး]',
-    exampleInput: 'အပူး 1000',
-    exampleOutput: '00, 11, 22, 33, 44, 55, 66, 77, 88, 99 (၁၀ ကွက်) ၁၀၀၀ စီ',
-    description: 'အပူး (၁၀ ကွက်)၊ ပါဝါ (၁၀ ကွက်)၊ နက္ခတ် (၁၀ ကွက်) နှင့် ညီကို (၁၀ ကွက်) အုပ်စုလိုက် စာရင်းသွင်းယူပါသည်',
-    isCustom: false,
-    isEnabled: true,
-    category: 'special_set'
-  },
-  {
-    id: 'rule-2d-head-tail-break',
-    module: '2d',
-    name: 'ထိပ် / ပိတ် / ဘရိတ် / စုံမ အုပ်စုများ',
-    syntaxPattern: '[ဂဏန်း] ထိပ် [ကြေး] / [ဂဏန်း] ပိတ် [ကြေး] / [ဂဏန်း] ဘရိတ် [ကြေး]',
-    exampleInput: '5 ထိပ် 1000\n4 ဘရိတ် 2000',
-    exampleOutput: '50-59 (၁၀ ကွက်) ၁၀၀၀ စီ ၊ ဘရိတ် ၄ ရသောဂဏန်း (၁၀ ကွက်) ၂၀၀၀ စီ',
-    description: 'ထိပ်စီးဂဏန်း (Head)၊ နောက်ပိတ်ဂဏန်း (Tail)၊ ပေါင်းခြင်းဘရိတ် (Break) နှင့် စုံစုံ/မမ/စုံမ/မစုံ ဂဏန်းများကို အလိုအလျောက် ရွေးထုတ်ယူပါသည်',
+    name: 'ဒဲ့ (Direct / Straight ထိုးနည်း)',
+    syntaxPattern: '[ဂဏန်း] ဒဲ့ [ကြေး] သို့မဟုတ် [ဂဏန်း]=[ကြေး]',
+    exampleInput: '၂၄ ဒဲ့ ၁၀၀၀ သို့ ၂၄=၁၀၀၀',
+    exampleOutput: '၂၄ = ၁,၀၀၀ ကျပ် (တိုက်ရိုက် ၁ ကွက်)',
+    description: 'ဂဏန်းကွက်ထဲ ကြိုက်သည့်ဂဏန်းရိုက်ပြီး "ဒဲ့" နှိပ်ပါက ထိုဂဏန်းအတိုင်း တိုက်ရိုက်ယူပါသည် (ဥပမာ: ၂၄ -> 24)',
     isCustom: false,
     isEnabled: true,
     category: 'combination'
@@ -77,14 +43,170 @@ export const DEFAULT_COMMAND_RULES: CommandRule[] = [
   {
     id: 'rule-2d-rumble-r',
     module: '2d',
-    name: 'အာ / R (ပြန်လှည့် ၂ ကွက်တွဲ)',
-    syntaxPattern: '[ဂဏန်းများ] R [ကြေး] သို့မဟုတ် [ဂဏန်းများ] အာ [ကြေး]',
-    exampleInput: '24 57 R 1000',
-    exampleOutput: '24=1000, 42=1000, 57=1000, 75=1000 (၄ ကွက်)',
-    description: 'ဂဏန်းနှင့် ၎င်း၏ အပြန် (အာ) ကို သတ်မှတ်ထားသော တူညီသည့်ထိုးကြေးဖြင့် တွဲဖက်စာရင်းသွင်းယူပါသည်',
+    name: 'အာ / R (Reversal အပြန်အလှန် လှည့်တွဲယူနည်း)',
+    syntaxPattern: '[ဂဏန်း] အာ [ကြေး] သို့မဟုတ် [ဂဏန်း] R [ကြေး]',
+    exampleInput: '၂၄ အာ ၅၀၀ သို့ ၂၄R ၅၀၀',
+    exampleOutput: '24=500, 42=500 (အပြန်အလှန် ၂ ကွက်)',
+    description: 'ဂဏန်းကွက်ထဲ ကြိုက်သည့်ဂဏန်းရိုက်ပြီး "အာ" နှိပ်ပါက အပြန်အလှန်ဂဏန်းအားလုံး ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည် (ဥပမာ: ၂၄ -> 24 42 ၊ ၂၄ ၃၅ -> 24 42 35 53)',
     isCustom: false,
     isEnabled: true,
     category: 'combination'
+  },
+  {
+    id: 'rule-2d-break',
+    module: '2d',
+    name: 'ရိတ် / ဘရိတ် (Break ပေါင်းခြင်း ၁၀ ကွက်)',
+    syntaxPattern: '[ဂဏန်း] ရိတ် [ကြေး] သို့မဟုတ် [ဂဏန်း] ဘရိတ် [ကြေး]',
+    exampleInput: '၅ ရိတ် ၁၀၀၀ သို့ ၅ ဘရိတ် ၁၀၀၀',
+    exampleOutput: '05, 14, 23, 32, 41, 50, 69, 78, 87, 96 (၁၀ ကွက်) ၁၀၀၀ စီ',
+    description: 'ဂဏန်းတစ်လုံးရိုက်ပြီး "ရိတ်" နှိပ်ပါက ပေါင်းခြင်းဘရိတ် ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည် (ဥပမာ: ၅ -> ၁၀ ကွက်)',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-includes',
+    module: '2d',
+    name: 'အပါ (Includes ပါဝင်သော ၁၉ ကွက်)',
+    syntaxPattern: '[ဂဏန်း] အပါ [ကြေး] သို့မဟုတ် [ဂဏန်း] ပါ [ကြေး]',
+    exampleInput: '၅ အပါ ၁၀၀၀ သို့ ၅ ပါ ၁၀၀၀',
+    exampleOutput: '05, 15, 25, 35, 45, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 65, 75, 85, 95 (၁၉ ကွက်) ၁၀၀၀ စီ',
+    description: 'ဂဏန်းတစ်လုံးရိုက်ပြီး "အပါ" နှိပ်ပါက ထိုဂဏန်းပါဝင်သော ၁၉ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-head',
+    module: '2d',
+    name: 'ထိပ် / ထိပ်စီး (Head ၁၀ ကွက်)',
+    syntaxPattern: '[ဂဏန်း] ထိပ် [ကြေး]',
+    exampleInput: '၁ ထိပ် ၁၀၀၀',
+    exampleOutput: '10, 11, 12, 13, 14, 15, 16, 17, 18, 19 (၁၀ ကွက်) ၁၀၀၀ စီ',
+    description: 'ဂဏန်းတစ်လုံးရိုက်ပြီး "ထိပ်" နှိပ်ပါက ထိပ်စီး ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-tail',
+    module: '2d',
+    name: 'ပိတ် / နောက်ပိတ် (Tail ၁၀ ကွက်)',
+    syntaxPattern: '[ဂဏန်း] ပိတ် [ကြေး]',
+    exampleInput: '၂ ပိတ် ၁၀၀၀',
+    exampleOutput: '02, 12, 22, 32, 42, 52, 62, 72, 82, 92 (၁၀ ကွက်) ၁၀၀၀ စီ',
+    description: 'ဂဏန်းတစ်လုံးရိုက်ပြီး "ပိတ်" နှိပ်ပါက နောက်ပိတ် ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-doubles',
+    module: '2d',
+    name: 'ပူး / အပူး (Doubles ၁၀ ကွက်)',
+    syntaxPattern: 'ပူး [ကြေး] သို့မဟုတ် အပူး [ကြေး]',
+    exampleInput: 'အပူး ၁၀၀၀ သို့ ပူး ၁၀၀၀',
+    exampleOutput: '00, 11, 22, 33, 44, 55, 66, 77, 88, 99 (၁၀ ကွက်) ၁၀၀၀ စီ',
+    description: '"ပူး" နှိပ်လိုက်သည်နှင့် အပူး ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'special_set'
+  },
+  {
+    id: 'rule-2d-power',
+    module: '2d',
+    name: 'ပါဝါ (Power Pairs ၁၀ ကွက်)',
+    syntaxPattern: 'ပါဝါ [ကြေး]',
+    exampleInput: 'ပါဝါ ၁၀၀၀',
+    exampleOutput: '05, 50, 16, 61, 27, 72, 38, 83, 49, 94 (၁၀ ကွက်) ၁၀၀၀ စီ',
+    description: '"ပါဝါ" နှိပ်လိုက်သည်နှင့် ပါဝါ ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'special_set'
+  },
+  {
+    id: 'rule-2d-natkhat',
+    module: '2d',
+    name: 'နက္ခတ် (Natkhat Pairs ၁၀ ကွက်)',
+    syntaxPattern: 'နက္ခတ် [ကြေး]',
+    exampleInput: 'နက္ခတ် ၁၀၀၀',
+    exampleOutput: '07, 70, 18, 81, 24, 42, 35, 53, 69, 96 (၁၀ ကွက်) ၁၀၀၀ စီ',
+    description: '"နက္ခတ်" နှိပ်လိုက်သည်နှင့် နက္ခတ် ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'special_set'
+  },
+  {
+    id: 'rule-2d-brothers',
+    module: '2d',
+    name: 'ညီကို (Brothers / Sequential ၂၀ ကွက်)',
+    syntaxPattern: 'ညီကို [ကြေး]',
+    exampleInput: 'ညီကို ၁၀၀၀',
+    exampleOutput: '01, 10, 12, 21, 23, 32, 34, 43, 45, 54, 56, 65, 67, 76, 78, 87, 89, 98, 90, 09 (၂၀ ကွက်) ၁၀၀၀ စီ',
+    description: '"ညီကို" နှိပ်လိုက်သည်နှင့် ညီကို ၂၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'special_set'
+  },
+  {
+    id: 'rule-2d-khway',
+    module: '2d',
+    name: 'ခွေ (ရိုးရိုးခွေ - အရှေ့မှအနောက်သို့သာတွဲ ၆ ကွက်)',
+    syntaxPattern: '[ဂဏန်းများ] ခွေ [ကြေး]',
+    exampleInput: '1234 ခွေ 500',
+    exampleOutput: '12, 13, 14, 23, 24, 34 (၆ ကွက်) ၅၀၀ စီ',
+    description: 'ဂဏန်းရိုက်ပြီး "ခွေ" နှိပ်ပါက ရိုးရိုးခွေ ၆ ကွက် (၂၃၄၅၆ ဆိုပါက ၁၀ ကွက်) ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-khway-puu',
+    module: '2d',
+    name: 'ခွေပူး (ခွေ + အပူးပါ ၁၀ ကွက်)',
+    syntaxPattern: '[ဂဏန်းများ] ခွေပူး [ကြေး]',
+    exampleInput: '1234 ခွေပူး 500',
+    exampleOutput: '12, 13, 14, 23, 24, 34, 11, 22, 33, 44 (၁၀ ကွက်) ၅၀၀ စီ',
+    description: 'ဂဏန်းရိုက်ပြီး "ခွေပူး" နှိပ်ပါက ခွေ ၆ ကွက် + အပူး ၄ ကွက် ပေါင်း ၁၀ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-khway-r',
+    module: '2d',
+    name: 'ခွေr / ခွေအာ (ခွေအာ လှည့်တွဲ ၁၂ ကွက်)',
+    syntaxPattern: '[ဂဏန်းများ] ခွေr [ကြေး] သို့မဟုတ် [ဂဏန်းများ] ခွေအာ [ကြေး]',
+    exampleInput: '1234 ခွေr 500 သို့ 1234 ခွေအာ 500',
+    exampleOutput: '12, 21, 13, 31, 14, 41, 23, 32, 24, 42, 34, 43 (၁၂ ကွက်) ၅၀၀ စီ',
+    description: 'ဂဏန်းရိုက်ပြီး "ခွေr" နှိပ်ပါက အပြန်အလှန်လှည့်တွဲ ၁၂ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-khway-puu-r',
+    module: '2d',
+    name: 'ခွေပူးr / ခွေပူးအာ (ခွေ + အပူး + အာ အကုန်ပါ ၁၆ ကွက်)',
+    syntaxPattern: '[ဂဏန်းများ] ခွေပူးr [ကြေး] သို့မဟုတ် [ဂဏန်းများ] ခွေပူးအာ [ကြေး]',
+    exampleInput: '1234 ခွေပူးr 500',
+    exampleOutput: 'ခွေအာ ၁၂ ကွက် + အပူး ၄ ကွက် = စုစုပေါင်း ၁၆ ကွက် (၅၀၀ စီ)',
+    description: 'ဂဏန်းရိုက်ပြီး "ခွေပူးr" နှိပ်ပါက ခွေအာ ၁၂ ကွက် နှင့် အပူး ၄ ကွက် အကုန်ပါ ၁၆ ကွက် ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'combination'
+  },
+  {
+    id: 'rule-2d-ratio-slash',
+    module: '2d',
+    name: 'ဒဲ့ နှင့် အာ သီးသန့်ခွဲထိုးခြင်း [၈၀၀/၂၀၀]',
+    syntaxPattern: '[ဂဏန်းများ] [ဒဲ့ကြေး]/[အာကြေး]',
+    exampleInput: '၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀',
+    exampleOutput: '၂၃=၈၀၀, ၄၅=၈၀၀, ၂၆=၈၀၀ (ဒဲ့) ၊ ၃၂=၂၀၀, ၅၄=၂၀၀, ၆၂=၂၀၀ (အာ)',
+    description: 'ရိုက်ထည့်ထားသော ဂဏန်းများကို ပထမထိုးကြေး (၈၀၀) ဖြင့် ဒဲ့ယူပြီး၊ ၎င်းတို့၏ ပြန်လှည့် (အာ) ဂဏန်းများကို ဒုတိယထိုးကြေး (၂၀၀) ဖြင့် သီးခြားခွဲယူပါသည်',
+    isCustom: false,
+    isEnabled: true,
+    category: 'ratio'
   },
 
   // 3D Rules

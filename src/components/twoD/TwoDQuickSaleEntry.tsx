@@ -552,43 +552,73 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
   };
 
-  // 0. ဒဲ့ (Straight / Direct - တိုက်ရိုက် / ပတ်လည်မပါ)
+  // 0. ဒဲ့ (Straight / Direct - တိုက်ရိုက်ဂဏန်းများ ဂဏန်းကွက်ထဲ ထည့်သွင်းခြင်း)
   const handleAddStraightClick = () => {
     playTapSound();
     setIsRumble(false);
-
     const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
-    const cleanAmt = convertMyanmarToEnglishDigits(amountInput).trim();
-
     if (cleanNum) {
-      let amt = parseFloat(cleanAmt);
-      if (isNaN(amt) || amt <= 0) {
-        const rawTokens = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ').replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
-        if (rawTokens.length > 1) {
-          const lastToken = rawTokens[rawTokens.length - 1];
-          const parsedLast = parseFloat(lastToken);
-          if (!isNaN(parsedLast) && parsedLast > 0) {
-            amt = parsedLast;
-          }
-        }
-      }
-
-      if (!isNaN(amt) && amt > 0) {
-        handleAddItem();
-      } else {
+      const cleanForNumbers = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+      const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+      const targetNumbers = rawTokens.map(t => t.length === 1 ? `0${t}` : t).filter(n => /^\d{2}$/.test(n));
+      if (targetNumbers.length > 0) {
+        setNumberInput(targetNumbers.join(' '));
         amountInputRef.current?.focus();
         showToast(
-          isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး \'ထည့်မည်\' ကိုနှိပ်ပါ' : 'Direct (Straight) selected. Enter amount.',
-          'warning'
+          isMyanmar ? `ဒဲ့ [${targetNumbers.join(' ')}] (${targetNumbers.length} ကွက်) ဂဏန်းကွက်ထဲ ထည့်သွင်းပြီးပါပြီ။ ထိုးကြေးထည့်ပါ` : `Direct: ${targetNumbers.length} numbers selected.`,
+          'success'
         );
+      } else {
+        amountInputRef.current?.focus();
+        showToast(isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်) ရွေးထားပါသည်' : 'Direct mode active.', 'success');
       }
     } else {
       numberInputRef.current?.focus();
-      showToast(
-        isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး) ရွေးထားသည်။ ဂဏန်းရိုက်ထည့်ပါ' : 'Direct (Straight) mode active.',
-        'warning'
-      );
+      showToast(isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်) အတွက် ဂဏန်း ရိုက်ထည့်ပါ' : 'Enter number for direct bet', 'warning');
     }
+  };
+
+  // 1. Rumble/Reversal (အာ: e.g. 24 -> 24 42 အပြန်အလှန်ဂဏန်းအားလုံး ဂဏန်းကွက်ထဲ တိုက်ရိုက်ပေါ်လာခြင်း)
+  const handleAddRumbleClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(numberInput).trim();
+    if (!cleanNum) {
+      playWarningSound();
+      showToast(isMyanmar ? 'အာ (R) အတွက် ဂဏန်း ရိုက်ထည့်ပါ (ဥပမာ- ၂၄)' : 'Enter number to reverse (e.g. 24)', 'warning');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const cleanForNumbers = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const targetNumbers = rawTokens.map(t => t.length === 1 ? `0${t}` : t).filter(n => /^\d{2}$/.test(n));
+
+    if (targetNumbers.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'အာ (R) အတွက် ၂ လုံးဂဏန်း (၀၀ မှ ၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter valid 2-digit number (00-99)', 'error');
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    const reversedList: string[] = [];
+    targetNumbers.forEach(n => {
+      const revs = getTwoDReversal(n);
+      revs.forEach(r => {
+        if (!reversedList.includes(r)) {
+          reversedList.push(r);
+        }
+      });
+    });
+
+    setNumberInput(reversedList.join(' '));
+    setIsRumble(false);
+    amountInputRef.current?.focus();
+    showToast(
+      isMyanmar
+        ? `အာ [${reversedList.join(' ')}] (${reversedList.length} ကွက်) ဂဏန်းကွက်ထဲ ထည့်သွင်းပြီးပါပြီ။ ထိုးကြေးထည့်ပါ`
+        : `Rumble: [${reversedList.join(' ')}] (${reversedList.length} numbers). Enter amount.`,
+      'success'
+    );
   };
 
   // 1. Rumble/Reversal (အာ: e.g. 24 -> fills "24" in number box, isRumble ON)
@@ -655,26 +685,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       setItems(prev => prev.filter(item => item.id !== id));
       setLatestDraftIds(prev => prev.filter(item => item !== id));
     }
-  };
-
-  const handleAddRumbleClick = () => {
-    playTapSound();
-    const rawInput = convertMyanmarToEnglishDigits(numberInput).trim();
-    if (rawInput) {
-      const cleanForNumbers = rawInput.replace(/r|R|အာ|ပတ်လည်|ပတ်/gi, ' ');
-      const rawTokens = cleanForNumbers.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
-      const targetNumbers = rawTokens.map(t => t.padStart(2, '0')).filter(n => /^\d{2}$/.test(n));
-
-      if (targetNumbers.length > 0) {
-        setIsRumble(true);
-        amountInputRef.current?.focus();
-        showToast(isMyanmar ? `အာ (R) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' နှိပ်ပါ` : `Rumble (R) selected. Enter amount and tap Add.`, 'success');
-        return;
-      }
-    }
-    const nextState = !isRumble;
-    setIsRumble(nextState);
-    showToast(isMyanmar ? (nextState ? 'အာ (R) ဖွင့်ထားပါသည်' : 'အာ (R) ပိတ်ထားပါသည်') : (nextState ? 'Rumble ON' : 'Rumble OFF'), nextState ? 'success' : 'warning');
   };
 
   // 2. Break numbers for digit (ဘရိတ်: fills 10 break numbers into number box)

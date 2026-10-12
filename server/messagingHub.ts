@@ -1,4 +1,5 @@
-import { Request, Response, Router } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -359,8 +360,8 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any) {
    EXPRESS ROUTER
    ========================================================================= */
 
-export function createMessagingRouter(): Router {
-  const router = Router();
+export function createMessagingRouter() {
+  const router = express.Router();
 
   // Start background auto-polling for incoming orders
   startTelegramPolling();
