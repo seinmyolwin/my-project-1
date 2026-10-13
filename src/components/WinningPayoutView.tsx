@@ -18,7 +18,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
+import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits, parseExcelToRoundData3D } from '../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import {
   SingleRoundFinancialBreakdown,
@@ -42,7 +42,8 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     updateVoucher,
     rounds,
     createRound,
-    setActiveRoundId
+    setActiveRoundId,
+    importRoundWithVouchers
   } = useLottery();
 
   const isMyanmar = settings.language === 'my';
@@ -590,6 +591,36 @@ ${settings.shopName} (${settings.shopPhone})`;
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>Excel ပြန်ဒေါင်းမည်</span>
               </button>
+              <label className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer">
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Excel မှ ပြန်သွင်းမည်</span>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const res = await parseExcelToRoundData3D(file);
+                    if (!res || res.vouchers.length === 0) {
+                      alert(isMyanmar ? 'Excel ဖိုင်မှ ဒေတာဖတ်ရှု၍ မရပါ။ ဖိုင်ပုံစံ မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ။' : 'Failed to import Excel round data.');
+                      return;
+                    }
+                    importRoundWithVouchers({
+                      name: res.roundName,
+                      drawDate: new Date().toISOString().slice(0, 10),
+                      closingTime: '15:30',
+                      status: res.winningNumber ? 'settled' : 'open',
+                      multiplier: settings.defaultMultiplier || 600,
+                      toddMultiplier: settings.defaultToddMultiplier || 100,
+                      commissionRate: settings.defaultCommissionRate || 10,
+                      winningNumber: res.winningNumber
+                    }, res.vouchers);
+                    alert(isMyanmar ? `[${res.roundName}] ပွဲစဉ်စာရင်းနှင့် ဘောင်ချာများကို Excel ဖိုင်မှ အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ!` : `Successfully imported round and vouchers from Excel!`);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
               {onOpenStatement && (
                 <button
                   type="button"

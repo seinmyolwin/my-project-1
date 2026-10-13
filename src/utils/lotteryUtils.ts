@@ -529,3 +529,95 @@ export function exportLotteryDataToExcel(
   const fileName = `3D_Ledger_${round.name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+/**
+ * Parse exported 3D Excel round report to restore round and vouchers
+ */
+export async function parseExcelToRoundData3D(file: File): Promise<{
+  roundName: string;
+  winningNumber?: string;
+  vouchers: Voucher[];
+} | null> {
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+    
+    const sheetName = workbook.SheetNames.find(n => n.includes('ဘောင်ချာ') || n.includes('Voucher')) || workbook.SheetNames[1] || workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return null;
+
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    if (!rows || rows.length === 0) return null;
+
+    let winningNumber: string | undefined = undefined;
+    const winSheetName = workbook.SheetNames.find(n => n.includes('ပေါက်') || n.includes('Winner'));
+    if (winSheetName) {
+      const winRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[winSheetName]);
+      for (const r of winRows) {
+        const num = String(r['ပေါက်ဂဏန်း (Won Number)'] || r['ဂဏန်း (Number)'] || '');
+        if (num.length === 3 && /^\d{3}$/.test(num)) {
+          winningNumber = num;
+          break;
+        }
+      }
+    }
+
+    const vouchers: Voucher[] = [];
+    let idCounter = 1;
+
+    for (const r of rows) {
+      const voucherNo = String(r['ဘောင်ချာအမှတ် (Voucher No)'] || `V-${Date.now()}-${idCounter}`);
+      const customerName = String(r['ဝယ်သူအမည် (Customer)'] || 'အမည်မသိ');
+      const phone = String(r['ဖုန်းနံပါတ် (Phone)'] || '');
+      const betsStr = String(r['ထိုးဂဏန်းများ (Bets)'] || '');
+      const subtotal = parseFloat(String(r['စုစုပေါင်း ထိုးကြေး (Total Stake)'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const discount = parseFloat(String(r['ကော်မရှင်/လျှော့ငွေ (Commission)'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const net = parseFloat(String(r['အသားတင်ကျသင့်ငွေ (Net Amount)'] || subtotal - discount).replace(/[^0-9.]/g, '')) || subtotal;
+      const statusStr = String(r['အခြေအနေ (Status)'] || '');
+      const isCancelled = statusStr.includes('ပယ်ဖျက်') || statusStr.includes('Cancelled');
+      const isPaid = statusStr.includes('ပေးပြီး') || statusStr.includes('Paid');
+
+      const parsed = parseQuickBetText(betsStr);
+      const items = parsed.items.length > 0 ? parsed.items.map(i => ({
+        ...i,
+        betType: (i.betType || 'straight') as 'straight' | 'rumble'
+      })) : [
+        {
+          id: `item-imp-${idCounter}`,
+          number: '000',
+          amount: subtotal || 1000,
+          isRumble: false,
+          betType: 'straight' as const,
+          originalInput: betsStr || '000'
+        }
+      ];
+
+      vouchers.push({
+        id: `voucher-imp-${Date.now()}-${idCounter++}`,
+        roundId: '',
+        voucherNo,
+        customerName,
+        customerPhone: phone !== '-' ? phone : undefined,
+        items,
+        subtotal: subtotal || items.reduce((s, i) => s + i.amount, 0),
+        discountPercent: 10,
+        discountAmount: discount,
+        netPayable: net,
+        status: isCancelled ? 'cancelled' : winningNumber ? 'settled' : 'active',
+        createdAt: new Date().toISOString(),
+        isPaid
+      });
+    }
+
+    const roundName = file.name.replace(/\.[^/.]+$/, '').replace(/3D_Ledger_/g, '').replace(/_/g, ' ');
+    return {
+      roundName: roundName || `${new Date().toISOString().slice(0, 10)} အိုးစည်လေး ပွဲစဉ် (Excel တင်သွင်း)`,
+      winningNumber,
+      vouchers
+    };
+  } catch (err) {
+    console.error('Failed to parse 3D Excel round:', err);
+    return null;
+  }
+}
+

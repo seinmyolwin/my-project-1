@@ -922,3 +922,110 @@ export function exportTwoDLotteryToExcel(
   const fileName = `2D_${round.drawDate}_${round.session}_${shopName.replace(/\s+/g, '_')}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+/**
+ * Parse exported 2D Excel round report to restore round and vouchers
+ */
+export async function parseExcelToRoundData2D(file: File): Promise<{
+  roundName: string;
+  winningNumber?: string;
+  vouchers: any[];
+} | null> {
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+    
+    const sheetName = workbook.SheetNames.find(n => n.includes('ဘောင်ချာ') || n.includes('Voucher')) || workbook.SheetNames[1] || workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return null;
+
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    if (!rows || rows.length === 0) return null;
+
+    let winningNumber: string | undefined = undefined;
+    const winSheetName = workbook.SheetNames.find(n => n.includes('ပေါက်') || n.includes('Winner') || n.includes('စာရင်းချုပ်'));
+    if (winSheetName) {
+      const winRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[winSheetName]);
+      for (const r of winRows) {
+        const key = String(r['အကြောင်းအရာ'] || r['ပေါက်ဂဏန်း'] || '');
+        const val = String(r['ပမာဏ'] || r['ပေါက်ဂဏန်း (Won Number)'] || r['ဂဏန်း (Number)'] || '');
+        if (key.includes('ပေါက်ဂဏန်း') && val.length === 2 && /^\d{2}$/.test(val)) {
+          winningNumber = val;
+          break;
+        } else if (val.length === 2 && /^\d{2}$/.test(val)) {
+          winningNumber = val;
+          break;
+        }
+      }
+    }
+
+    const vouchers: any[] = [];
+    let idCounter = 1;
+
+    for (const r of rows) {
+      const voucherNo = String(r['ဘောင်ချာအမှတ် (Voucher No)'] || r['ဘောင်ချာအမှတ်'] || `2D-V-${Date.now()}-${idCounter}`);
+      const customerName = String(r['ဝယ်သူအမည် (Customer)'] || r['ထိုးသူအမည်'] || 'အမည်မသိ');
+      const phone = String(r['ဖုန်းနံပါတ် (Phone)'] || r['ဖုန်းနံပါတ်'] || '');
+      const betsStr = String(r['ထိုးဂဏန်းများ (Bets)'] || r['ထိုးဂဏန်းများ'] || '');
+      const subtotal = parseFloat(String(r['စုစုပေါင်း ထိုးကြေး (Total Stake)'] || r['ထိုးကြေးငွေ'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const discount = parseFloat(String(r['ကော်မရှင်/လျှော့ငွေ (Commission)'] || '0').replace(/[^0-9.]/g, '')) || 0;
+      const net = parseFloat(String(r['အသားတင်ကျသင့်ငွေ (Net Amount)'] || subtotal - discount).replace(/[^0-9.]/g, '')) || subtotal;
+      const statusStr = String(r['အခြေအနေ (Status)'] || r['ရှင်းပြီး/မပြီး'] || '');
+      const isCancelled = statusStr.includes('ပယ်ဖျက်') || statusStr.includes('Cancelled');
+      const isPaid = statusStr.includes('ပေးပြီး') || statusStr.includes('Paid') || statusStr.includes('ငွေရှင်းပြီး');
+
+      const items: any[] = [];
+      const parts = betsStr.split(/[,;]+/);
+      for (const p of parts) {
+        const sub = p.trim();
+        const match = sub.match(/^(\d{2})\s*(?:=|-|:)\s*(\d+)$/) || sub.match(/^(\d{2})\s+(\d+)$/);
+        if (match) {
+          items.push({
+            id: `item-2d-imp-${idCounter++}`,
+            number: match[1],
+            amount: parseInt(match[2], 10) || 1000,
+            betType: 'straight' as const,
+            originalInput: sub
+          });
+        }
+      }
+
+      if (items.length === 0) {
+        items.push({
+          id: `item-2d-imp-${idCounter++}`,
+          number: '00',
+          amount: subtotal || 1000,
+          betType: 'straight' as const,
+          originalInput: betsStr || '00'
+        });
+      }
+
+      vouchers.push({
+        id: `voucher-2d-imp-${Date.now()}-${idCounter++}`,
+        roundId: '',
+        voucherNo,
+        customerName,
+        customerPhone: phone !== '-' ? phone : undefined,
+        items,
+        subtotal: subtotal || items.reduce((s, i) => s + i.amount, 0),
+        discountRate: 5,
+        discountAmount: discount,
+        netPayable: net,
+        status: isCancelled ? 'cancelled' : winningNumber ? 'settled' : 'active',
+        createdAt: new Date().toISOString(),
+        isPaid
+      });
+    }
+
+    const roundName = file.name.replace(/\.[^/.]+$/, '').replace(/2D_/g, '').replace(/_/g, ' ');
+    return {
+      roundName: roundName || `${new Date().toISOString().slice(0, 10)} ဇီးကွက် ပွဲစဉ် (Excel တင်သွင်း)`,
+      winningNumber,
+      vouchers
+    };
+  } catch (err) {
+    console.error('Failed to parse 2D Excel round:', err);
+    return null;
+  }
+}
+

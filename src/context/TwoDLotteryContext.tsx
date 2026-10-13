@@ -81,6 +81,7 @@ interface TwoDLotteryContextType {
   clearAllData: () => void;
   exportJSONBackup: () => string;
   importJSONBackup: (jsonString: string) => boolean;
+  importRoundWithVouchers: (round: Omit<TwoDDrawRound, 'id'>, vouchers: TwoDVoucher[]) => void;
 }
 
 const TwoDLotteryContext = createContext<TwoDLotteryContextType | undefined>(undefined);
@@ -894,6 +895,31 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, []);
 
+  const importRoundWithVouchers = useCallback((roundData: Omit<TwoDDrawRound, 'id'>, importedVouchers: TwoDVoucher[]) => {
+    const newRoundId = `2d-round-imp-${Date.now()}`;
+    const newRound: TwoDDrawRound = {
+      ...roundData,
+      id: newRoundId
+    };
+
+    setRounds(prev => [newRound, ...prev]);
+    setActiveRoundIdState(newRoundId);
+
+    const stampedVouchers = importedVouchers.map((v, idx) => ({
+      ...v,
+      id: `v-2d-imp-${newRoundId}-${idx}-${Date.now()}`,
+      roundId: newRoundId
+    }));
+
+    setVouchers(prev => [...stampedVouchers, ...prev]);
+
+    if (newRound.winningNumber && newRound.status === 'settled') {
+      setTimeout(() => {
+        settleWinningNumber(newRound.winningNumber!, newRound.multiplier);
+      }, 100);
+    }
+  }, [settleWinningNumber]);
+
   return (
     <TwoDLotteryContext.Provider
       value={{
@@ -937,7 +963,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         resetToSampleData,
         clearAllData,
         exportJSONBackup,
-        importJSONBackup
+        importJSONBackup,
+        importRoundWithVouchers
       }}
     >
       {children}

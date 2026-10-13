@@ -74,6 +74,7 @@ interface LotteryContextType {
   clearAllData: () => void;
   exportJSONBackup: () => string;
   importJSONBackup: (jsonString: string) => boolean;
+  importRoundWithVouchers: (round: Omit<DrawRound, 'id'>, vouchers: Voucher[]) => void;
 }
 
 const LotteryContext = createContext<LotteryContextType | undefined>(undefined);
@@ -747,6 +748,31 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  const importRoundWithVouchers = useCallback((roundData: Omit<DrawRound, 'id'>, importedVouchers: Voucher[]) => {
+    const newRoundId = `round-imp-${Date.now()}`;
+    const newRound: DrawRound = {
+      ...roundData,
+      id: newRoundId
+    };
+
+    setRounds(prev => [newRound, ...prev]);
+    setActiveRoundIdState(newRoundId);
+
+    const stampedVouchers = importedVouchers.map((v, idx) => ({
+      ...v,
+      id: `v-imp-${newRoundId}-${idx}-${Date.now()}`,
+      roundId: newRoundId
+    }));
+
+    setVouchers(prev => [...stampedVouchers, ...prev]);
+
+    if (newRound.winningNumber && newRound.status === 'settled') {
+      setTimeout(() => {
+        settleWinningNumber(newRound.winningNumber!, newRound.multiplier, newRound.toddMultiplier);
+      }, 100);
+    }
+  }, [settleWinningNumber]);
+
   return (
     <LotteryContext.Provider
       value={{
@@ -789,7 +815,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         resetToSampleData,
         clearAllData,
         exportJSONBackup,
-        importJSONBackup
+        importJSONBackup,
+        importRoundWithVouchers
       }}
     >
       {children}
