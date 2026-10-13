@@ -20,7 +20,8 @@ import {
   Receipt,
   Percent,
   Wallet,
-  Search
+  Search,
+  Send
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -1072,6 +1073,48 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                   })()}
                 </div>
               </div>
+
+              {/* Forward slips for this round */}
+              {selectedRecord.forwardList && selectedRecord.forwardList.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Send className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>ဤပွဲစဉ်အတွက် ဒိုင်ကြီးဆီ လွှဲတင်စလစ်များ ({selectedRecord.forwardList.length} စောင်)</span>
+                    </h4>
+                    <span className="text-[10px] text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md font-bold font-mono">
+                      စုစုပေါင်း: {formatAmount(selectedRecord.totalForwarded, currency)}
+                    </span>
+                  </div>
+
+                  <div className="border border-indigo-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto divide-y divide-indigo-50 bg-indigo-50/20">
+                    {selectedRecord.forwardList.map((f: any, fIdx: number) => {
+                      const itemsStr = f.items ? f.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : '-';
+                      return (
+                        <div key={fIdx} className="p-2.5 flex items-center justify-between text-[11px]">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold font-mono text-indigo-950">{f.slipNo || `FWD-${fIdx + 1}`}</span>
+                              <span className="text-slate-600 font-medium">({f.masterAgentName || 'ဒိုင်ချုပ်ကြီး'})</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-md">
+                              {itemsStr}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-bold font-mono text-indigo-900 block">
+                              {formatAmount(f.totalAmount, currency)}
+                            </span>
+                            <span className="text-[9px] text-emerald-700 font-mono">
+                              (ကော် +{formatAmount(f.commissionAmount || 0, currency)})
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* PIN-Protected Deletion Area */}
               <div className="border-t border-slate-200 pt-3 space-y-2">

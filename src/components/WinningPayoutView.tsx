@@ -201,6 +201,9 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     // 2. Officially settle round status to 'settled' in context & localStorage
     settleWinningNumber(targetNum, mult, toddMult);
 
+    // Officially close and reset all forward operations for this round to a clean blank page
+    window.dispatchEvent(new CustomEvent('shwe_3d_round_settled', { detail: { roundId: activeRound?.id } }));
+
     setIsWinningConfirmed(false);
     setConfirmedWinningNumber('');
     setIsTestingMode(false);

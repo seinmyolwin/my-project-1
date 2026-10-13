@@ -166,12 +166,13 @@ export function generateStatementRecords(
         processedRoundIds.add(round.id);
 
         const roundVouchers = data.lottery2D.vouchers.filter(
-          (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
+          (v) => (v.roundId ? v.roundId === round.id : (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
                  v.status !== 'cancelled'
         );
 
+        // Forward slips must strictly belong to this specific round only (no cross-round leakage)
         const roundForwards = data.lottery2D.forwardSlips.filter(
-          (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
+          (f) => f.roundId === round.id
         );
 
         let totalTurnover = 0;
@@ -373,12 +374,13 @@ export function generateStatementRecords(
         processed3DRoundIds.add(round.id);
 
         const roundVouchers = data.lottery3D.vouchers.filter(
-          (v) => (v.roundId === round.id || (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
+          (v) => (v.roundId ? v.roundId === round.id : (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
                  v.status !== 'cancelled'
         );
 
+        // 3D Forward slips must strictly belong to this specific round only (no cross-round leakage)
         const roundForwards = data.lottery3D.forwardSlips.filter(
-          (f) => f.roundId === round.id || (f.createdAt || '').slice(0, 10) === roundDate
+          (f) => f.roundId === round.id
         );
 
         let totalTurnover = 0;

@@ -216,6 +216,9 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     // 1. Officially settle round status in context & localStorage FIRST
     settleWinningNumber(targetNum, mult);
 
+    // Officially close and reset all forward operations for this round to a clean blank page
+    window.dispatchEvent(new CustomEvent('shwe_2d_round_settled', { detail: { roundId: activeRound?.id } }));
+
     const settledRound = {
       ...activeRound!,
       status: 'settled' as const,

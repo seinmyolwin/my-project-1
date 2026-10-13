@@ -111,12 +111,24 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     return list.sort((a, b) => b.excessAmount - a.excessAmount);
   }, [aggregates]);
 
-  // Initialize draft items on open
+  const isRoundSettledOrClosed = activeRound?.status === 'settled' || activeRound?.status === 'closed';
+
+  // Initialize draft items on open, round change, or settlement
   useEffect(() => {
     if (!isOpen) {
       setCreatedSlip(null);
       setCopySuccess(false);
       setSavedDefaultSuccess(false);
+      setDraftItems([]);
+      setManualNum('');
+      return;
+    }
+
+    // If round is settled or closed, forward operations are shut down / blank
+    if (isRoundSettledOrClosed) {
+      setCreatedSlip(null);
+      setDraftItems([]);
+      setManualNum('');
       return;
     }
 
@@ -135,10 +147,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       };
       setDraftItems([initItem]);
     } else {
-      // Auto-load all over-limit numbers
+      // Auto-load all over-limit numbers of CURRENT round only
       setDraftItems(excessList);
     }
-  }, [isOpen]);
+  }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed]);
 
   // Handle setting active master agent as default
   const handleSaveAsDefaultAgent = () => {
@@ -257,6 +269,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   // Submit and create Forward Slip
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRoundSettledOrClosed) {
+      alert(isMyanmar ? 'ဤပွဲစဉ်သည် ပေါက်ဂဏန်း အတည်ပြုပြီး/ပိတ်သိမ်းပြီး ဖြစ်သဖြင့် အထက်ဒိုင်ဆီ လွှဲတင်၍ မရတော့ပါ' : 'Round is closed or settled. Cannot forward.');
+      return;
+    }
     if (activeSelectedItems.length === 0) {
       alert(isMyanmar ? 'လွှဲတင်မည့် ဂဏန်းစာရင်း (အနည်းဆုံး ၁ လုံး) ရွေးချယ်ပါ' : 'Select at least one number to forward');
       return;
@@ -276,6 +292,9 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
     const newSlip = addForwardSlip(forwardPayload);
     setCreatedSlip(newSlip);
+    // Clear draft items so the active forward operational state is reset to a clean blank page
+    setDraftItems([]);
+    setManualNum('');
   };
 
   // Copy Telegram / SMS Text
@@ -485,6 +504,24 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
               </div>
             </div>
 
+            {isRoundSettledOrClosed && (
+              <div className="bg-amber-100 border border-amber-300 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs text-amber-950 shadow-xs">
+                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-black text-amber-900">
+                    {isMyanmar
+                      ? 'ဤပွဲစဉ်သည် ပေါက်ဂဏန်း အတည်ပြုပြီးဖြစ်သောကြောင့် အထက်ဒိုင်သို့ ပြန်တင်သည့် ဘောင်ချာလုပ်ဆောင်ချက်များကို ပိတ်သိမ်းထားပါသည် (Settled)'
+                      : 'This round has been settled/closed. Forwarding operations are closed.'}
+                  </p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    {isMyanmar
+                      ? 'အထက်ဒိုင်ဆီ ထပ်မံလွှဲတင်၍ မရတော့ပါ။ ပွဲစဉ်အသစ် ဖွင့်လှစ်ပြီးမှသာ ဒိုင်ကြီးလွှဲစာရင်း အသစ် ထည့်သွင်းနိုင်ပါမည်။'
+                      : 'New forward slips can only be created after opening a new round.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Quick Add Custom 2D Numbers (Single or Bulk) */}
             <form onSubmit={handleAddManual} className="bg-teal-50/50 p-2.5 rounded-2xl border border-teal-100 space-y-2 text-xs">
               <div className="flex items-center justify-between">
@@ -499,23 +536,38 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
               <div className="flex items-center gap-2">
                 <input
                   type="text"
+                  disabled={isRoundSettledOrClosed}
                   placeholder={isMyanmar ? 'ဂဏန်း (ဥပမာ: 24 သို့ 12, 34, 56)' : 'Numbers (e.g. 24 or 12, 34)'}
                   value={manualNum}
                   onChange={(e) => setManualNum(e.target.value)}
-                  className="flex-1 h-9 px-3 font-mono font-bold rounded-xl border border-slate-300 bg-white outline-none focus:border-teal-500 shadow-2xs"
+                  className={`flex-1 h-9 px-3 font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
+                    isRoundSettledOrClosed
+                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                      : 'border-slate-300 focus:border-teal-500'
+                  }`}
                 />
                 <div className="w-32 relative">
                   <input
                     type="text"
+                    disabled={isRoundSettledOrClosed}
                     placeholder="ငွေပမာဏ"
                     value={manualAmt}
                     onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                    className="w-full h-9 px-2.5 text-right font-mono font-bold rounded-xl border border-slate-300 bg-white outline-none focus:border-teal-500 shadow-2xs"
+                    className={`w-full h-9 px-2.5 text-right font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
+                      isRoundSettledOrClosed
+                        ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'border-slate-300 focus:border-teal-500'
+                    }`}
                   />
                 </div>
                 <button
                   type="submit"
-                  className="h-9 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-xs cursor-pointer shrink-0 active:scale-95 transition-all"
+                  disabled={isRoundSettledOrClosed}
+                  className={`h-9 px-4 text-white font-bold rounded-xl shadow-xs shrink-0 transition-all ${
+                    isRoundSettledOrClosed
+                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
+                      : 'bg-teal-600 hover:bg-teal-700 cursor-pointer active:scale-95'
+                  }`}
                 >
                   + ထည့်မည်
                 </button>

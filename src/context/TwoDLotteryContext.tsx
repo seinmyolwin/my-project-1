@@ -427,11 +427,13 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
     const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
     const netPaid = safeRound(slipData.totalAmount - commAmt);
+    const resolvedRoundId = (slipData.roundId && slipData.roundId !== 'default') ? slipData.roundId : activeRoundId;
 
     const todayCount = forwardSlips.filter(f => (f.createdAt || '').slice(0, 10) === getLocalDateString()).length + 1;
     const seqPad = String(todayCount).padStart(3, '0');
     const newSlip: TwoDForwardSlip = {
       ...slipData,
+      roundId: resolvedRoundId,
       commissionRate: commRate,
       commissionAmount: commAmt,
       netPaid,
@@ -441,7 +443,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [forwardSlips, settings.defaultCommissionRate]);
+  }, [forwardSlips, settings.defaultCommissionRate, activeRoundId]);
 
   const deleteForwardSlip = useCallback((id: string) => {
     setForwardSlips(prev => prev.filter(f => f.id !== id));

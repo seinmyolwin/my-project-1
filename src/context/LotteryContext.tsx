@@ -460,15 +460,17 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addForwardSlip = useCallback((slipData: Omit<ForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
     const count = forwardSlips.length + 1;
     const pad = String(count).padStart(3, '0');
+    const resolvedRoundId = (slipData.roundId && slipData.roundId !== 'default') ? slipData.roundId : activeRoundId;
     const newSlip: ForwardSlip = {
       ...slipData,
+      roundId: resolvedRoundId,
       id: `fwd-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       slipNo: `FWD-${pad}`,
       createdAt: new Date().toISOString()
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [forwardSlips.length]);
+  }, [forwardSlips.length, activeRoundId]);
 
   const deleteForwardSlip = useCallback((id: string) => {
     setForwardSlips(prev => prev.filter(f => f.id !== id));
