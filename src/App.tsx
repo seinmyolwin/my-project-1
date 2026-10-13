@@ -139,6 +139,23 @@ function AppContent() {
   const [isForwardModal2DOpen, setIsForwardModal2DOpen] = useState(false);
   const [forwardInitialData2D, setForwardInitialData2D] = useState<{ num?: string; amt?: number }>({});
 
+  // Close 2D forward modal when round is settled or active round changes
+  useEffect(() => {
+    const handleRoundSettled = () => {
+      setIsForwardModal2DOpen(false);
+      setForwardInitialData2D({});
+    };
+    window.addEventListener('shwe_2d_round_settled', handleRoundSettled as EventListener);
+    return () => {
+      window.removeEventListener('shwe_2d_round_settled', handleRoundSettled as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsForwardModal2DOpen(false);
+    setForwardInitialData2D({});
+  }, [lottery2D.activeRoundId]);
+
   const [isLimitsModal3DOpen, setIsLimitsModal3DOpen] = useState(false);
   const [limitInitialNumber3D, setLimitInitialNumber3D] = useState<string | undefined>(undefined);
 

@@ -129,6 +129,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       setCreatedSlip(null);
       setDraftItems([]);
       setManualNum('');
+      onClose();
       return;
     }
 
