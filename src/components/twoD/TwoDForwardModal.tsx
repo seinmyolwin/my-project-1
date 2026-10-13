@@ -48,7 +48,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   const { settings, activeRound, aggregates, addForwardSlip, updateSettings } = useTwoDLottery();
   const isMyanmar = settings.language === 'my';
 
-  // Saved Master Agents List
+  // Saved Master Agents List (Empty by default as requested)
   const [savedAgents, setSavedAgents] = useState<Array<{ name: string; phone?: string; commissionRate?: number }>>(() => {
     try {
       const stored = localStorage.getItem('shwe_master_agents_list');
@@ -56,12 +56,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     } catch {
       // fallback
     }
-    return [
-      { name: settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)', phone: settings.defaultMasterAgentPhone || '09-970001111', commissionRate: settings.defaultCommissionRate ?? 15 },
-      { name: 'ကိုမင်းအောင် (ဒိုင်ကြီး)', phone: '09-790002222', commissionRate: 12 },
-      { name: 'ဒေါ်ခင်သန်း (ရန်ကုန်ဒိုင်ချုပ်)', phone: '09-450003333', commissionRate: 14 },
-      { name: 'ဦးဘုန်း (မန္တလေးဒိုင်ကြီး)', phone: '09-250004444', commissionRate: 15 }
-    ];
+    return [];
   });
 
   const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
@@ -259,6 +254,26 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
     setDraftItems(newDrafts);
     setManualNum('');
+  };
+
+  // Apply Rumble / Permutation (အာ / ပတ်လည်)
+  const handleApplyRumble = () => {
+    const cleaned = convertMyanmarToEnglishDigits(manualNum).trim();
+    if (!cleaned) return;
+    const tokens = cleaned
+      .split(/[\s,;\n]+/)
+      .map((t) => t.replace(/\D/g, ''))
+      .filter((t) => t.length > 0);
+
+    const expanded: string[] = [];
+    tokens.forEach(tok => {
+      const padded = tok.padStart(2, '0').slice(-2);
+      if (!expanded.includes(padded)) expanded.push(padded);
+      const rev = padded[1] + padded[0];
+      if (!expanded.includes(rev)) expanded.push(rev);
+    });
+
+    setManualNum(expanded.join(', '));
   };
 
   // Selected items to be forwarded
@@ -476,6 +491,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                     type="text"
                     value={masterAgentName}
                     onChange={(e) => setMasterAgentName(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     placeholder="ဒိုင်ကြီး အမည် ရိုက်ထည့်ပါ"
                     className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                   />
@@ -486,6 +502,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                     type="text"
                     value={masterAgentPhone}
                     onChange={(e) => setMasterAgentPhone(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     placeholder="09-xxxxxxxxx"
                     className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-mono text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                   />
@@ -497,6 +514,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                       type="number"
                       value={commissionRate}
                       onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
                       className="w-full h-9 px-3 pr-7 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                     />
                     <Percent className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
@@ -541,6 +559,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                   placeholder={isMyanmar ? 'ဂဏန်း (ဥပမာ: 24 သို့ 12, 34, 56)' : 'Numbers (e.g. 24 or 12, 34)'}
                   value={manualNum}
                   onChange={(e) => setManualNum(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   className={`flex-1 h-9 px-3 font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
                     isRoundSettledOrClosed
                       ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -554,6 +573,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                     placeholder="ငွေပမာဏ"
                     value={manualAmt}
                     onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     className={`w-full h-9 px-2.5 text-right font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
                       isRoundSettledOrClosed
                         ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -572,6 +592,21 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                 >
                   + ထည့်မည်
                 </button>
+              </div>
+              <div className="flex items-center justify-between pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleApplyRumble}
+                  disabled={isRoundSettledOrClosed || !manualNum.trim()}
+                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="ရိုက်ထည့်ထားသော ဂဏန်းများကို ပတ်လည် (R) အဖြစ် ပြောင်းလဲပေးသည် (ဥပမာ: 12 -> 12, 21)"
+                >
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  <span>{isMyanmar ? 'အာ / ပတ်လည် (R)' : 'R (Permute)'}</span>
+                </button>
+                <span className="text-[10px] text-slate-400">
+                  {isMyanmar ? 'ဂဏန်း၏ အပြန်အလှန် (ပတ်လည်) ကို ထည့်သွင်းရန်' : 'Include reverse permutations'}
+                </span>
               </div>
             </form>
 
