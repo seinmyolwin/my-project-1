@@ -36,12 +36,12 @@ const TELEGRAM_CONFIG_KEY = 'shwe_mingalar_telegram_config';
 const TELEGRAM_ORDERS_KEY = 'shwe_mingalar_telegram_orders';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
-  botToken: '',
+  botToken: '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg',
   channelId: '-1004330076487',
-  accountName: 'မယ်စိန် (ssh673_bot / @ssh672_bot)',
+  accountName: 'မယ်စိန် (ssh673_bot)',
   webhookUrl: '',
   status: 'connected',
-  statusMessage: 'Connected to @ssh672_bot (Group: မယ်စိန် [-1004330076487])',
+  statusMessage: 'Connected to @ssh673_bot (Group: မယ်စိန် [-1004330076487])',
   hasServerToken: true
 };
 

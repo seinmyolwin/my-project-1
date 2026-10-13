@@ -57,9 +57,9 @@ function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 5000) {
   set.add(item);
 }
 
-const DEFAULT_TG_TOKEN = '8702580376:AAFnXFApXc8GR281_G6EMO48MFTCL5FKVJg';
+const DEFAULT_TG_TOKEN = '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg';
 const DEFAULT_TG_CHANNEL = '-1004330076487';
-const DEFAULT_TG_NAME = 'မယ်စိန် (ssh673_bot / @ssh672_bot)';
+const DEFAULT_TG_NAME = 'မယ်စိန် (ssh673_bot)';
 
 function loadStore(): ServerStoreData {
   try {
