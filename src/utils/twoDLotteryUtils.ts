@@ -599,7 +599,7 @@ export function parseTwoDBatchInput(
       return;
     }
 
-    // Segment parsing for comma/space delimited bets like "35, 56, 54 R 500" or "35 56 54 R 500"
+    // Segment parsing for comma/space or multi-number R patterns like "47 40 70r500" or "41 43 45 47 49r250"
     const commaSegments = line.split(',').map(s => s.trim()).filter(Boolean);
     const isIndependentSegments = commaSegments.length > 1 && commaSegments.every(seg => {
       const numMatch = seg.match(/\d+/g);
@@ -609,7 +609,60 @@ export function parseTwoDBatchInput(
     const segmentsToProcess = isIndependentSegments ? commaSegments : [line];
 
     for (const segment of segmentsToProcess) {
+      // Check if segment or whole line has r/R/အာ/ပတ်လည်/ပတ်
       const isRumble = /(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(segment);
+      
+      if (isRumble) {
+        // Extract all numbers and the last amount if present
+        // e.g. "47 40 70r500" -> numbers: [47, 40, 70], amt: 500
+        // e.g. "41 43 45 47 49r250" -> numbers: [41, 43, 45, 47, 49], amt: 250
+        // e.g. "15r1500" -> numbers: [15], amt: 1500
+        const allNums = segment.match(/\d+/g);
+        if (allNums && allNums.length >= 1) {
+          let betAmount = defaultAmount;
+          let numTokens: string[] = [];
+
+          // If the last token is an amount (>= 3 digits or explicitly specified after r), separate it
+          // Check if the last token in segment has amount
+          const lastNum = allNums[allNums.length - 1];
+          const parsedLast = parseInt(lastNum, 10);
+
+          // If more than 1 number and last number is amount (or specifically if segment ends with amount after r)
+          if (allNums.length >= 2 && (parsedLast >= 100 || segment.match(/(?:r|R|အာ|ပတ်လည်|ပတ်)\s*\d+/))) {
+            betAmount = parsedLast;
+            numTokens = allNums.slice(0, allNums.length - 1);
+          } else if (allNums.length === 1) {
+            numTokens = allNums;
+          } else {
+            // If all numbers are 2 digits (e.g. 77 00), wait, if no amount specified at end, use defaultAmount
+            numTokens = allNums;
+          }
+
+          // Generate permutations for ALL collected number tokens in this segment
+          const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+          numTokens.forEach(token => {
+            if (!/^\d{1,2}$/.test(token)) return;
+            const numStr = token.padStart(2, '0');
+            const revs = getTwoDReversal(numStr);
+            revs.forEach(r => {
+              items.push({
+                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                number: r,
+                amount: betAmount,
+                isRumble: true,
+                betType: 'rumble',
+                groupId,
+                originalNumber: numStr,
+                originalAmount: betAmount,
+                permutations: revs,
+                originalInput: `${numStr} R`
+              });
+            });
+          });
+          continue;
+        }
+      }
+
       const cleanSeg = segment.replace(/(?:r|R|အာ|ပတ်လည်|ပတ်)/gi, ' ');
       const rawTokens = cleanSeg.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
 
@@ -642,33 +695,14 @@ export function parseTwoDBatchInput(
         }
 
         const numStr = token.padStart(2, '0');
-        if (isRumble) {
-          const revs = getTwoDReversal(numStr);
-          const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-          revs.forEach(r => {
-            items.push({
-              id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-              number: r,
-              amount: betAmount,
-              isRumble: true,
-              betType: 'rumble',
-              groupId,
-              originalNumber: numStr,
-              originalAmount: betAmount,
-              permutations: revs,
-              originalInput: `${numStr} R`
-            });
-          });
-        } else {
-          items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            number: numStr,
-            amount: betAmount,
-            isRumble: false,
-            betType: 'straight',
-            originalInput: numStr
-          });
-        }
+        items.push({
+          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          number: numStr,
+          amount: betAmount,
+          isRumble: false,
+          betType: 'straight',
+          originalInput: numStr
+        });
       }
     }
   }

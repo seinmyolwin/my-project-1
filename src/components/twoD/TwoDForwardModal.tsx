@@ -463,26 +463,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                 </button>
               </div>
 
-              {/* Quick Preset Agents Pill Bar */}
-              {savedAgents.length > 0 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
-                  <span className="text-slate-400 shrink-0 text-[10px] font-bold">ရွေးချယ်ရန်:</span>
-                  {savedAgents.map((ag, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSelectSavedAgent(ag)}
-                      className={`px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap cursor-pointer transition-all ${
-                        masterAgentName === ag.name
-                          ? 'bg-teal-600 text-white border-teal-600 font-bold shadow-2xs'
-                          : 'bg-white hover:bg-teal-50 border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {ag.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
