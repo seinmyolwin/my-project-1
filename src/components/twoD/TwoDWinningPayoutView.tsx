@@ -747,12 +747,12 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                     }
                     importRoundWithVouchers({
                       name: res.roundName,
-                      drawDate: new Date().toISOString().slice(0, 10),
-                      session: 'morning',
-                      closingTime: '12:01',
+                      drawDate: res.drawDate,
+                      session: (res.session as any) || 'morning',
+                      closingTime: res.closingTime,
                       status: res.winningNumber ? 'settled' : 'open',
-                      multiplier: settings.defaultMultiplier || 80,
-                      commissionRate: settings.defaultCommissionRate || 5,
+                      multiplier: res.multiplier,
+                      commissionRate: res.commissionRate,
                       winningNumber: res.winningNumber
                     }, res.vouchers);
                     alert(isMyanmar ? `[${res.roundName}] ပွဲစဉ်စာရင်းနှင့် ဘောင်ချာများကို Excel ဖိုင်မှ အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ!` : `Successfully imported round and vouchers from Excel!`);

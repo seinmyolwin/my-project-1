@@ -800,6 +800,21 @@ export function exportTwoDLotteryToExcel(
   const wb = XLSX.utils.book_new();
   const winningNumber = round.winningNumber;
 
+  // 0. Metadata Sheet (ပွဲစဉ်အချက်အလက်)
+  const metaRows = [
+    { 'Property': 'System', 'Value': 'ရွှေမင်္ဂလာ စာရင်းစီမံခန့်ခွဲမှုစနစ်' },
+    { 'Property': 'RoundName', 'Value': round.name },
+    { 'Property': 'DrawDate', 'Value': round.drawDate },
+    { 'Property': 'Session', 'Value': round.session },
+    { 'Property': 'ClosingTime', 'Value': round.closingTime || '12:01' },
+    { 'Property': 'WinningNumber', 'Value': winningNumber || '' },
+    { 'Property': 'Multiplier', 'Value': round.multiplier || 80 },
+    { 'Property': 'CommissionRate', 'Value': round.commissionRate || 5 },
+    { 'Property': 'ExportTimestamp', 'Value': new Date().toISOString() }
+  ];
+  const wsMeta = XLSX.utils.json_to_sheet(metaRows);
+  XLSX.utils.book_append_sheet(wb, wsMeta, 'ပွဲစဉ်အချက်အလက်');
+
   // Sheet 1: 00-99 Ledger
   const ledgerData = Object.keys(aggregates)
     .sort((a, b) => a.localeCompare(b))
@@ -929,6 +944,11 @@ export function exportTwoDLotteryToExcel(
 export async function parseExcelToRoundData2D(file: File): Promise<{
   roundName: string;
   winningNumber?: string;
+  multiplier: number;
+  commissionRate: number;
+  drawDate: string;
+  session: string;
+  closingTime: string;
   vouchers: any[];
 } | null> {
   try {
@@ -942,19 +962,54 @@ export async function parseExcelToRoundData2D(file: File): Promise<{
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
     if (!rows || rows.length === 0) return null;
 
+    let roundName = file.name.replace(/\.[^/.]+$/, '').replace(/2D_/g, '').replace(/_/g, ' ');
     let winningNumber: string | undefined = undefined;
-    const winSheetName = workbook.SheetNames.find(n => n.includes('ပေါက်') || n.includes('Winner') || n.includes('စာရင်းချုပ်'));
-    if (winSheetName) {
-      const winRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[winSheetName]);
-      for (const r of winRows) {
-        const key = String(r['အကြောင်းအရာ'] || r['ပေါက်ဂဏန်း'] || '');
-        const val = String(r['ပမာဏ'] || r['ပေါက်ဂဏန်း (Won Number)'] || r['ဂဏန်း (Number)'] || '');
-        if (key.includes('ပေါက်ဂဏန်း') && val.length === 2 && /^\d{2}$/.test(val)) {
-          winningNumber = val;
-          break;
-        } else if (val.length === 2 && /^\d{2}$/.test(val)) {
-          winningNumber = val;
-          break;
+    let multiplier = 80;
+    let commissionRate = 5;
+    let drawDate = new Date().toISOString().slice(0, 10);
+    let session = 'morning';
+    let closingTime = '12:01';
+
+    const metaSheetName = workbook.SheetNames.find(n => n.includes('ပွဲစဉ်အချက်အလက်') || n.includes('Metadata'));
+    if (metaSheetName) {
+      const metaRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[metaSheetName]);
+      const metaMap: Record<string, string> = {};
+      metaRows.forEach(r => {
+        const k = String(r['Property'] || r['Key'] || '').trim();
+        const v = String(r['Value'] || '').trim();
+        if (k && v) metaMap[k] = v;
+      });
+      if (metaMap['RoundName']) roundName = metaMap['RoundName'];
+      if (metaMap['DrawDate']) drawDate = metaMap['DrawDate'];
+      if (metaMap['Session']) session = metaMap['Session'];
+      if (metaMap['ClosingTime']) closingTime = metaMap['ClosingTime'];
+      if (metaMap['WinningNumber'] && /^\d{2}$/.test(metaMap['WinningNumber'])) winningNumber = metaMap['WinningNumber'];
+      if (metaMap['Multiplier']) multiplier = parseInt(metaMap['Multiplier'], 10) || 80;
+      if (metaMap['CommissionRate']) commissionRate = parseFloat(metaMap['CommissionRate']) || 5;
+    } else {
+      const summarySheetName = workbook.SheetNames.find(n => n.includes('စာရင်းချုပ်') || n.includes('Summary'));
+      if (summarySheetName) {
+        const sumRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[summarySheetName]);
+        for (const r of sumRows) {
+          const key = String(r['အကြောင်းအရာ'] || '').trim();
+          const val = String(r['ပမာဏ'] || '').trim();
+          if (key.includes('ပေါက်ဂဏန်း') && /^\d{2}$/.test(val)) {
+            winningNumber = val;
+            break;
+          }
+        }
+      }
+      if (!winningNumber) {
+        const winSheetName = workbook.SheetNames.find(n => n.includes('ပေါက်မဲ') || n.includes('Winners'));
+        if (winSheetName) {
+          const winRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[winSheetName]);
+          for (const r of winRows) {
+            const val = String(r['ပေါက်ဂဏန်း'] || '').trim();
+            if (/^\d{2}$/.test(val)) {
+              winningNumber = val;
+              break;
+            }
+          }
         }
       }
     }
@@ -1017,10 +1072,14 @@ export async function parseExcelToRoundData2D(file: File): Promise<{
       });
     }
 
-    const roundName = file.name.replace(/\.[^/.]+$/, '').replace(/2D_/g, '').replace(/_/g, ' ');
     return {
-      roundName: roundName || `${new Date().toISOString().slice(0, 10)} ဇီးကွက် ပွဲစဉ် (Excel တင်သွင်း)`,
+      roundName,
       winningNumber,
+      multiplier,
+      commissionRate,
+      drawDate,
+      session,
+      closingTime,
       vouchers
     };
   } catch (err) {

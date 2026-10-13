@@ -608,12 +608,12 @@ ${settings.shopName} (${settings.shopPhone})`;
                     }
                     importRoundWithVouchers({
                       name: res.roundName,
-                      drawDate: new Date().toISOString().slice(0, 10),
-                      closingTime: '15:30',
+                      drawDate: res.drawDate,
+                      closingTime: res.closingTime,
                       status: res.winningNumber ? 'settled' : 'open',
-                      multiplier: settings.defaultMultiplier || 600,
-                      toddMultiplier: settings.defaultToddMultiplier || 100,
-                      commissionRate: settings.defaultCommissionRate || 10,
+                      multiplier: res.multiplier,
+                      toddMultiplier: res.toddMultiplier,
+                      commissionRate: res.commissionRate,
                       winningNumber: res.winningNumber
                     }, res.vouchers);
                     alert(isMyanmar ? `[${res.roundName}] ပွဲစဉ်စာရင်းနှင့် ဘောင်ချာများကို Excel ဖိုင်မှ အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ!` : `Successfully imported round and vouchers from Excel!`);
@@ -737,118 +737,121 @@ ${settings.shopName} (${settings.shopPhone})`;
             </div>
           )}
 
-          {/* Main Profit / Loss Hero Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* 1. Total Sales Revenue */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-              <span className="text-slate-500 text-xs font-semibold block uppercase tracking-wider">
-                {isMyanmar ? '၁။ စုစုပေါင်း ရောင်းရငွေ' : 'Total Revenue'}
+          {/* Comprehensive 8-Step Formula Cards matching 2D Financial Statement style */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+            {/* 1. မူလထိုးကြေး */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-2xs hover:bg-white transition-all">
+              <span className="text-[10px] font-black text-slate-500 block mb-0.5 uppercase tracking-wide">
+                ၁။ မူလထိုးကြေး
               </span>
-              <span className="text-2xl font-black text-slate-900 font-mono mt-1 block">
-                {formatAmount(roundSummary.netRevenue, settings.currency)}
-              </span>
-              <span className="text-[11px] text-slate-500 mt-1 block">
-                ဘောင်ချာ {roundSummary.totalVouchers} စောင်
+              <div className="text-sm font-black text-slate-900 font-mono">
+                {formatAmount(singleRoundStatement.turnover, settings.currency)}
+              </div>
+              <span className="text-[9px] text-slate-400 block font-medium mt-0.5">
+                ထိုးကြေး အားလုံးပေါင်း
               </span>
             </div>
 
-            {/* 2. Retained Winning Payout */}
-            {(() => {
-              const winningNum = activeEvalNumber;
-              const straightMult = parseInt(multiplierInput, 10) || settings.defaultMultiplier || 600;
-              const toddMult = parseInt(toddMultiplierInput, 10) || settings.defaultToddMultiplier || 100;
-              const toddPerms = new Set(getPermutations(winningNum).filter((p) => p !== winningNum));
+            {/* 2. အထက်တင်ကြေး */}
+            <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-3 shadow-2xs hover:bg-indigo-50 transition-all">
+              <span className="text-[10px] font-black text-indigo-900 block mb-0.5 uppercase tracking-wide">
+                ၂။ အထက်တင်ကြေး
+              </span>
+              <div className="text-sm font-black text-indigo-950 font-mono">
+                {formatAmount(singleRoundStatement.totalForwarded, settings.currency)}
+              </div>
+              <span className="text-[9px] text-indigo-600 block font-medium mt-0.5">
+                ဒိုင်ကြီးဆီ လွှဲငွေ
+              </span>
+            </div>
 
-              let straightSold = 0;
-              let toddSold = 0;
-              activeRoundVouchers.forEach((v) => {
-                if (v.status === 'cancelled') return;
-                v.items.forEach((it) => {
-                  if (it.number === winningNum) straightSold += it.amount;
-                  else if (it.betType === 'rumble' && toddPerms.has(it.number)) toddSold += it.amount;
-                });
-              });
+            {/* 3. အောက်လက်ကော် */}
+            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 shadow-2xs hover:bg-amber-50 transition-all">
+              <span className="text-[10px] font-black text-amber-900 block mb-0.5 uppercase tracking-wide">
+                ၃။ အောက်လက်ကော်
+              </span>
+              <div className="text-sm font-black text-amber-900 font-mono">
+                -{formatAmount(singleRoundStatement.agentCommission, settings.currency)}
+              </div>
+              <span className="text-[9px] text-amber-700 block font-medium mt-0.5">
+                ကိုယ်က ပေးရမည့်ငွေ
+              </span>
+            </div>
 
-              let straightForwarded = 0;
-              let toddForwarded = 0;
-              activeRoundForwardSlips.forEach((f) => {
-                f.items.forEach((it) => {
-                  if (it.number === winningNum) straightForwarded += it.amount;
-                  else if (toddPerms.has(it.number)) toddForwarded += it.amount;
-                });
-              });
+            {/* 4. အမှန်ရောင်းငွေ */}
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-3 shadow-2xs hover:bg-sky-50/80 transition-all">
+              <span className="text-[10px] font-black text-sky-900 block mb-0.5 uppercase tracking-wide">
+                ၄။ အမှန်ရောင်းငွေ
+              </span>
+              <div className="text-sm font-black text-sky-950 font-mono">
+                {formatAmount(singleRoundStatement.netSales, settings.currency)}
+              </div>
+              <span className="text-[9px] text-sky-700 block font-medium mt-0.5">
+                ဒိုင်လက်ကျန်ရောင်းငွေ
+              </span>
+            </div>
 
-              const retainedStraight = Math.max(0, straightSold - straightForwarded);
-              const retainedTodd = Math.max(0, toddSold - toddForwarded);
-              const retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
+            {/* 5. အထက်ပေါက်ကြေး */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 shadow-2xs hover:bg-emerald-50/80 transition-all">
+              <span className="text-[10px] font-black text-emerald-900 block mb-0.5 uppercase tracking-wide">
+                ၅။ အထက်ပေါက်ကြေး
+              </span>
+              <div className="text-sm font-black text-emerald-900 font-mono">
+                +{formatAmount(singleRoundStatement.masterPayout, settings.currency)}
+              </div>
+              <span className="text-[9px] text-emerald-700 block font-medium mt-0.5">
+                ဒိုင်ကြီး ပြန်လျော်ငွေ
+              </span>
+            </div>
 
-              const netPaid = roundSummary.totalForwarded - roundSummary.forwardedCommission;
-              const netProfit = roundSummary.netRevenue - netPaid - retainedPayout;
-              const isProfit = netProfit >= 0;
+            {/* 6. အထက်ကော်မရှင် */}
+            <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3 shadow-2xs hover:bg-violet-50/80 transition-all">
+              <span className="text-[10px] font-black text-violet-900 block mb-0.5 uppercase tracking-wide">
+                ၆။ အထက်ကော်မရှင်
+              </span>
+              <div className="text-sm font-black text-violet-950 font-mono">
+                +{formatAmount(singleRoundStatement.forwardCommission, settings.currency)}
+              </div>
+              <span className="text-[9px] text-violet-700 block font-medium mt-0.5">
+                ကိုယ်ရမည့် ကော်မရှင်ခ
+              </span>
+            </div>
 
-              return (
-                <>
-                  <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 shadow-xs">
-                    <span className="text-rose-700 text-xs font-bold block uppercase tracking-wider">
-                      {isMyanmar ? '၂။ ပေးလျော်ငွေ (ဒိုင်တာဝန်)' : 'Retained Payouts'}
-                    </span>
-                    <span className="text-2xl font-black text-rose-700 font-mono mt-1 block">
-                      {formatAmount(retainedPayout, settings.currency)}
-                    </span>
-                    <span className="text-[11px] text-rose-600 mt-1 block">
-                      ဖောက်သည်စုစုပေါင်း {formatAmount(winningResults.totalPayout, settings.currency)}
-                    </span>
-                  </div>
+            {/* 7. ပေးလျော်ငွေ */}
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 shadow-2xs hover:bg-rose-50/80 transition-all">
+              <span className="text-[10px] font-black text-rose-900 block mb-0.5 uppercase tracking-wide">
+                ၇။ ပေးလျော်ငွေ
+              </span>
+              <div className="text-sm font-black text-rose-950 font-mono">
+                -{formatAmount(singleRoundStatement.totalPayout, settings.currency)}
+              </div>
+              <span className="text-[9px] text-rose-700 block font-medium mt-0.5">
+                ဖောက်သည် ပေးလျော်ငွေ
+              </span>
+            </div>
 
-                  {/* 3. Forwarded / Hedged Commission Earned */}
-                  <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-4 shadow-xs">
-                    <span className="text-indigo-700 text-xs font-bold block uppercase tracking-wider">
-                      {isMyanmar ? '၃။ အပေါ်လွှဲ ကော်မရှင်ရငွေ' : 'Forwarded Comm.'}
-                    </span>
-                    <span className="text-2xl font-black text-indigo-900 font-mono mt-1 block">
-                      +{formatAmount(roundSummary.forwardedCommission, settings.currency)}
-                    </span>
-                    <span className="text-[11px] text-indigo-600 mt-1 block">
-                      လွှဲတင်ငွေ {formatAmount(roundSummary.totalForwarded, settings.currency)} မှ
-                    </span>
-                  </div>
-
-                  {/* 4. NET PROFIT / LOSS */}
-                  <div className={`border-2 rounded-2xl p-4 shadow-xs ${
-                    isProfit
-                      ? 'bg-emerald-50 border-emerald-300'
-                      : 'bg-rose-50 border-rose-300'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-black uppercase tracking-wider ${
-                        isProfit ? 'text-emerald-800' : 'text-rose-800'
-                      }`}>
-                        {isMyanmar ? '၄။ အသားတင် ရလဒ်' : 'Net Outcome'}
-                      </span>
-                      {isProfit ? (
-                        <TrendingUp className="w-5 h-5 text-emerald-700" />
-                      ) : (
-                        <TrendingDown className="w-5 h-5 text-rose-700" />
-                      )}
-                    </div>
-                    <div className="mt-1">
-                      <span className={`text-2xl font-black font-mono ${
-                        isProfit ? 'text-emerald-800' : 'text-rose-800'
-                      }`}>
-                        {isProfit ? '+' : '-'}{formatAmount(Math.abs(netProfit), settings.currency)}
-                      </span>
-                      <span className={`text-xs font-bold block mt-0.5 ${
-                        isProfit ? 'text-emerald-700' : 'text-rose-700'
-                      }`}>
-                        {isProfit ? '🎉 အမြတ်ရရှိပါသည် (PROFIT)' : '⚠️ အရှုံးကျပါသည် (LOSS)'}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-
+            {/* 8. အသားတင် အမြတ် */}
+            <div className={`border-2 rounded-2xl p-3 shadow-2xs transition-all ${
+              singleRoundStatement.isProfit
+                ? 'bg-emerald-50 border-emerald-300'
+                : 'bg-rose-50 border-rose-300'
+            }`}>
+              <span className={`text-[10px] font-black block mb-0.5 uppercase tracking-wide ${
+                singleRoundStatement.isProfit ? 'text-emerald-900' : 'text-rose-900'
+              }`}>
+                ၈။ အသားတင်အမြတ်
+              </span>
+              <div className={`text-sm font-black font-mono ${
+                singleRoundStatement.isProfit ? 'text-emerald-950' : 'text-rose-950'
+              }`}>
+                {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
+              </div>
+              <span className={`text-[9px] block font-medium mt-0.5 ${
+                singleRoundStatement.isProfit ? 'text-emerald-700' : 'text-rose-700'
+              }`}>
+                {singleRoundStatement.isProfit ? `အမြတ် (${singleRoundStatement.profitMargin}%)` : `အရှုံး (${singleRoundStatement.profitMargin}%)`}
+              </span>
+            </div>
           </div>
 
           {/* Winners List Table */}
