@@ -36,24 +36,29 @@ const TELEGRAM_CONFIG_KEY = 'shwe_mingalar_telegram_config';
 const TELEGRAM_ORDERS_KEY = 'shwe_mingalar_telegram_orders';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
-  botToken: '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg',
-  channelId: '-1004330076487',
-  accountName: 'မယ်စိန် (ssh673_bot)',
+  botToken: '',
+  channelId: '',
+  accountName: '',
   webhookUrl: '',
-  status: 'connected',
-  statusMessage: 'Connected to @ssh673_bot (Group: မယ်စိန် [-1004330076487])',
-  hasServerToken: true
+  status: 'disconnected',
+  statusMessage: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
+  hasServerToken: false
 };
+
+const OLD_HARDCODED_TOKEN = '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg';
 
 export function getTelegramConfig(): TelegramAccountConfig {
   try {
     const raw = localStorage.getItem(TELEGRAM_CONFIG_KEY);
     if (raw) {
       const parsed: TelegramAccountConfig = JSON.parse(raw);
-      // Ensure botToken is never stored in plain text in browser
+      // Clean up any residual old hardcoded values
+      if (parsed.botToken === OLD_HARDCODED_TOKEN) {
+        parsed.botToken = '';
+      }
       return {
         ...parsed,
-        botToken: parsed.botToken ? '' : ''
+        botToken: parsed.botToken || ''
       };
     }
   } catch {

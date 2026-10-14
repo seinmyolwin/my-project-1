@@ -84,8 +84,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   // Bot Config State
   const [botToken, setBotToken] = useState(config.botToken || '');
-  const [channelId, setChannelId] = useState(config.channelId || '-1004330076487');
-  const [accountName, setAccountName] = useState(config.accountName || 'မယ်စိန် (ssh673_bot / @ssh672_bot)');
+  const [channelId, setChannelId] = useState(config.channelId || '');
+  const [accountName, setAccountName] = useState(config.accountName || '');
   const [webhookUrl, setWebhookUrl] = useState(() => {
     if (config.webhookUrl && !config.webhookUrl.includes('telegram.shwemingalar.app')) {
       return config.webhookUrl;
@@ -995,7 +995,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-950">
                     <li><b>Telegram Privacy Mode:</b> Telegram Bot များကို မူလအားဖြင့် Group ထဲတွင် အခြားသူများပြောသော စာများကို Bot အား @mention မလုပ်ထားလျှင် မမြင်ရပါ။</li>
                     <li><b>ဖြေရှင်းရန် (၁):</b> BotFather သို့သွား၍ <code className="bg-amber-100 px-1 rounded">/setprivacy</code> ရွေးပြီး <code className="bg-amber-100 px-1 rounded">Disable</code> လုပ်ပါ။</li>
-                    <li><b>ဖြေရှင်းရန် (၂):</b> (သို့မဟုတ်) Group ထဲတွင် ဂဏန်းပို့သည့်အခါ <code className="bg-amber-100 px-1 rounded">@ssh672_bot 23 45 800/200</code> ဟု Bot နာမည်ကို တွဲ၍ (သို့) <code className="bg-amber-100 px-1 rounded">/</code> ဖြင့် စတင်၍ ပို့ပါ။</li>
+                    <li><b>ဖြေရှင်းရန် (၂):</b> (သို့မဟုတ်) Group ထဲတွင် ဂဏန်းပို့သည့်အခါ <code className="bg-amber-100 px-1 rounded">@မိမိBotName 23 45 800/200</code> ဟု Bot နာမည်ကို တွဲ၍ (သို့) <code className="bg-amber-100 px-1 rounded">/</code> ဖြင့် စတင်၍ ပို့ပါ။</li>
                   </ul>
                 </div>
               </div>

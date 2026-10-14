@@ -51,6 +51,7 @@ import { TelegramOrdersHubModal } from './components/TelegramOrdersHubModal';
 import { CommandRulesModal } from './components/CommandRulesModal';
 
 // Security & Setup Modals
+import { LoginForm } from './components/LoginForm';
 import { FirstTimePinSetupModal } from './components/FirstTimePinSetupModal';
 import { PinPromptModal } from './components/PinPromptModal';
 import { getStoredEnabledModes, isFirstTimePinSetup, EnabledModes } from './utils/securityUtils';
@@ -121,6 +122,33 @@ function AppContent() {
   const [enabledModes, setEnabledModes] = useState<EnabledModes>(() => getStoredEnabledModes());
   const [isFirstTimeSetupOpen, setIsFirstTimeSetupOpen] = useState(() => isFirstTimePinSetup());
   const [isPinPromptOpen, setIsPinPromptOpen] = useState(false);
+
+  // Master Login & Session Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('rhmg_session_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    try {
+      sessionStorage.setItem('rhmg_session_authenticated', 'true');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleLockApp = () => {
+    setIsAuthenticated(false);
+    try {
+      sessionStorage.removeItem('rhmg_session_authenticated');
+    } catch {
+      // ignore
+    }
+  };
 
   // Ensure current dealer mode is enabled
   useEffect(() => {
@@ -365,6 +393,10 @@ function AppContent() {
     disabled: hasActiveModal || isFocusMode
   });
 
+  if (!isAuthenticated) {
+    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-500 selection:text-white">
       {/* Universal Multi-Bookie Header (Hidden in Focus Mode) */}
@@ -388,6 +420,7 @@ function AppContent() {
           onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
           onEnterFocusMode={() => setIsFocusMode(true)}
           onOpenCommandRules={() => setIsCommandRulesOpen(true)}
+          onLockApp={handleLockApp}
         />
       )}
 
@@ -583,6 +616,12 @@ function AppContent() {
         onCompleted={(modes, isDemo) => {
           setEnabledModes(modes);
           setIsFirstTimeSetupOpen(false);
+          setIsAuthenticated(true);
+          try {
+            sessionStorage.setItem('rhmg_session_authenticated', 'true');
+          } catch {
+            // ignore
+          }
           if (!isDemo) {
             lottery3D.clearAllData();
             lottery2D.clearAllData();

@@ -57,27 +57,31 @@ function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 5000) {
   set.add(item);
 }
 
-const DEFAULT_TG_TOKEN = '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg';
-const DEFAULT_TG_CHANNEL = '-1004330076487';
-const DEFAULT_TG_NAME = 'မယ်စိန် (ssh673_bot)';
+const OLD_HARDCODED_TOKEN = '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg';
 
 function loadStore(): ServerStoreData {
   try {
     if (fs.existsSync(STORE_FILE)) {
       const content = fs.readFileSync(STORE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      const tgBotToken = parsed.telegram?.botToken || process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+      let tgBotToken = parsed.telegram?.botToken || process.env.TELEGRAM_BOT_TOKEN || '';
+      // Strip any residual old hardcoded token
+      if (tgBotToken === OLD_HARDCODED_TOKEN) {
+        tgBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+      }
+
+      const hasToken = Boolean(tgBotToken && tgBotToken.trim().length > 0);
 
       return {
         telegram: {
           botToken: tgBotToken,
-          isCleared: false,
-          channelId: parsed.telegram?.channelId && parsed.telegram?.channelId !== '@shwemingalar_channel' ? parsed.telegram.channelId : DEFAULT_TG_CHANNEL,
-          accountName: parsed.telegram?.accountName && !parsed.telegram?.accountName.includes('ရွှေမင်္ဂလာ') ? parsed.telegram.accountName : DEFAULT_TG_NAME,
+          isCleared: !hasToken,
+          channelId: parsed.telegram?.channelId || '',
+          accountName: parsed.telegram?.accountName || '',
           webhookUrl: parsed.telegram?.webhookUrl || '',
-          status: 'connected',
-          statusMessage: `Connected to @ssh672_bot (Group: မယ်စိန် [${DEFAULT_TG_CHANNEL}])`,
-          connectedAt: parsed.telegram?.connectedAt || new Date().toISOString()
+          status: hasToken ? 'connected' : 'disconnected',
+          statusMessage: hasToken ? (parsed.telegram?.statusMessage || 'Telegram Token ထည့်သွင်းထားပါသည်') : 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
+          connectedAt: parsed.telegram?.connectedAt
         },
         telegramOrders: Array.isArray(parsed.telegramOrders) ? parsed.telegramOrders : []
       };
@@ -86,16 +90,18 @@ function loadStore(): ServerStoreData {
     console.error('Failed to read messaging store:', err);
   }
 
+  const initialToken = (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_TOKEN !== OLD_HARDCODED_TOKEN) ? process.env.TELEGRAM_BOT_TOKEN : '';
+
   return {
     telegram: {
-      botToken: process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN,
-      isCleared: false,
-      channelId: DEFAULT_TG_CHANNEL,
-      accountName: DEFAULT_TG_NAME,
+      botToken: initialToken,
+      isCleared: !initialToken,
+      channelId: '',
+      accountName: '',
       webhookUrl: '',
-      status: 'connected',
-      statusMessage: `Connected to @ssh672_bot (Group: မယ်စိန် [${DEFAULT_TG_CHANNEL}])`,
-      connectedAt: new Date().toISOString()
+      status: initialToken ? 'connected' : 'disconnected',
+      statusMessage: initialToken ? 'Telegram Token ထည့်သွင်းထားပါသည်' : 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
+      connectedAt: initialToken ? new Date().toISOString() : undefined
     },
     telegramOrders: []
   };
@@ -293,9 +299,12 @@ export function startTelegramPolling() {
 
 function getTelegramToken(): string {
   if (store.telegram?.botToken && store.telegram.botToken.trim() !== '') {
-    return store.telegram.botToken.trim();
+    const t = store.telegram.botToken.trim();
+    if (t !== OLD_HARDCODED_TOKEN) return t;
   }
-  return process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+  const envToken = process.env.TELEGRAM_BOT_TOKEN?.trim() || '';
+  if (envToken === OLD_HARDCODED_TOKEN) return '';
+  return envToken;
 }
 
 function getTelegramWebhookSecret(): string {

@@ -11,13 +11,37 @@ export const SECURITY_STORAGE_KEYS = {
   SETUP_COMPLETED: 'rhmg_pin_setup_completed_v1'
 };
 
-export const DEFAULT_PIN = '123456';
+// Default is no longer hardcoded to 123456; owner must set their own 6-digit PIN
+export const DEFAULT_PIN = '';
 
 export const DEFAULT_ENABLED_MODES: EnabledModes = {
   '3d': true,
   '2d': true,
   'football': true
 };
+
+/**
+ * Validates whether the given string is exactly 6 digits (0-9)
+ */
+export function isValidSixDigitPin(pin: string): boolean {
+  if (!pin) return false;
+  return /^\d{6}$/.test(pin.trim());
+}
+
+/**
+ * Checks whether an owner password has been configured
+ */
+export function hasOwnerPassword(): boolean {
+  try {
+    const pw = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PASSWORD);
+    if (pw && pw.trim().length === 6) return true;
+    const legacyPin = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN);
+    if (legacyPin && legacyPin.trim().length === 6) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Obscures/hashes PIN code for safe backup export so plaintext PIN is never exposed in backup files
@@ -73,25 +97,26 @@ export function verifyObscuredPin(inputPin: string, obscured: string | null): bo
 }
 
 /**
- * Get current stored master password (fallback to legacy PIN or default '123456')
+ * Get current stored master password (strictly custom 6 digits)
  */
 export function getStoredOwnerPassword(): string {
   try {
     const pw = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PASSWORD);
-    if (pw && pw.trim().length >= 4) return pw.trim();
+    if (pw && pw.trim().length === 6) return pw.trim();
     const legacyPin = localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN);
-    return legacyPin ? legacyPin.trim() : DEFAULT_PIN;
+    if (legacyPin && legacyPin.trim().length === 6) return legacyPin.trim();
+    return '';
   } catch {
-    return DEFAULT_PIN;
+    return '';
   }
 }
 
 /**
- * Save new owner settings password (minimum 4 characters, supports letters, numbers, symbols)
+ * Save new owner settings password (strictly 6 numeric digits)
  */
 export function saveOwnerPassword(newPassword: string): boolean {
   const trimmed = newPassword.trim();
-  if (!trimmed || trimmed.length < 4) {
+  if (!isValidSixDigitPin(trimmed)) {
     return false;
   }
   try {
@@ -110,6 +135,7 @@ export function saveOwnerPassword(newPassword: string): boolean {
 export function verifyOwnerPassword(inputPassword: string): boolean {
   if (!inputPassword) return false;
   const current = getStoredOwnerPassword();
+  if (!current) return false;
   if (current.startsWith('OBSCURED_PIN_v1::')) {
     return verifyObscuredPin(inputPassword, current);
   }
@@ -117,10 +143,10 @@ export function verifyOwnerPassword(inputPassword: string): boolean {
 }
 
 /**
- * Check if the current password is still the default fallback
+ * Check if a custom password has NOT yet been configured
  */
 export function isUsingDefaultPassword(): boolean {
-  return getStoredOwnerPassword() === DEFAULT_PIN;
+  return !hasOwnerPassword();
 }
 
 // Backward-compatible aliases for legacy imports
@@ -135,7 +161,10 @@ export function verifyOwnerPin(inputPin: string): boolean {
 export function isFirstTimePinSetup(): boolean {
   try {
     const completed = localStorage.getItem(SECURITY_STORAGE_KEYS.SETUP_COMPLETED);
-    return completed !== 'true';
+    if (completed === 'true' && hasOwnerPassword()) {
+      return false;
+    }
+    return true;
   } catch {
     return true;
   }

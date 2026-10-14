@@ -100,8 +100,9 @@ export const PinPromptModal: React.FC<PinPromptModalProps> = ({
                 type={showPassword ? 'text' : 'password'}
                 inputMode="numeric"
                 pattern="[0-9]*"
+                maxLength={6}
                 value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
+                onChange={(e) => setPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 onFocus={(e) => {
                   const target = e.currentTarget;
                   target.select();
@@ -112,7 +113,7 @@ export const PinPromptModal: React.FC<PinPromptModalProps> = ({
                   target.select();
                   setTimeout(() => target.select(), 20);
                 }}
-                placeholder="Password / PIN ရိုက်ထည့်ပါ"
+                placeholder="ဂဏန်း ၆ လုံး ရိုက်ထည့်ပါ"
                 autoFocus
                 autoComplete="current-password"
                 className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-2xl px-4 py-3 text-xl font-black font-mono tracking-widest text-center text-slate-900 outline-none transition-all shadow-2xs"
@@ -120,13 +121,13 @@ export const PinPromptModal: React.FC<PinPromptModalProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 mt-2 leading-tight">
-              * ပေါက်ဆ၊ အလျော်အစား၊ ကော်မရှင်နှင့် ဘရိတ် Limit များအား အခြားသူများ ဝင်ရောက်မပြင်ဆင်နိုင်စေရန် Password ဖြင့် ကာကွယ်ထားပါသည်။
+              * ပေါက်ဆ၊ အလျော်အစား၊ ကော်မရှင်နှင့် ဘရိတ် Limit များအား အခြားသူများ ဝင်ရောက်မပြင်ဆင်နိုင်စေရန် ပိုင်ရှင်သီးသန့် Password ဖြင့် ကာကွယ်ထားပါသည်။
             </p>
 
             {isDefault && (
-              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 font-semibold flex items-center gap-1.5">
-                <span className="font-bold">သတိပေးချက်:</span>
-                <span>မူလသတ်မှတ်ထားသော Password မှာ <b>123456</b> ဖြစ်ပါသည်။ ဆက်တင်ထဲတွင် မိမိစိတ်ကြိုက် အသစ်ပြောင်းလဲနိုင်ပါသည်။</span>
+              <div className="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-xl text-[11px] text-indigo-900 font-semibold flex items-center gap-1.5">
+                <span className="font-bold">အသိပေးချက်:</span>
+                <span>Password သတ်မှတ်ထားခြင်း မရှိသေးပါက ဆက်တင်ထဲတွင် မိမိစိတ်ကြိုက် ဂဏန်း ၆ လုံး အသစ် သတ်မှတ်နိုင်ပါသည်။</span>
               </div>
             )}
           </div>

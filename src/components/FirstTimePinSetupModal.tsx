@@ -39,12 +39,13 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
   const validateAndProceed = (isDemo: boolean) => {
     setErrorMsg('');
 
-    if (pin.trim().length < 4) {
-      setErrorMsg('Password သည် အနည်းဆုံး ၄ လုံး (စာလုံး သို့မဟုတ် ဂဏန်း) ဖြစ်ရပါမည်');
+    const cleanPin = pin.trim().replace(/\D/g, '');
+    if (cleanPin.length !== 6) {
+      setErrorMsg('Password သည် ဂဏန်း ၆ လုံး (0-9) စိတ်ကြိုက် အတိအကျ ဖြစ်ရပါမည်');
       return;
     }
 
-    if (pin.trim() !== confirmPin.trim()) {
+    if (cleanPin !== confirmPin.trim().replace(/\D/g, '')) {
       setErrorMsg('Password နှစ်ခု တူညီမှု မရှိပါ! ပြန်လည်စစ်ဆေးပါ');
       return;
     }
@@ -190,15 +191,15 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Password အသစ်:
+                  Password အသစ် (၆ လုံး):
                 </label>
                 <input
                   type="password"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  maxLength={20}
+                  maxLength={6}
                   value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   onFocus={(e) => {
                     const target = e.currentTarget;
                     target.select();
@@ -209,7 +210,7 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
                     target.select();
                     setTimeout(() => target.select(), 20);
                   }}
-                  placeholder="Password ထည့်ပါ"
+                  placeholder="ဂဏန်း ၆ လုံး"
                   className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-1.5 text-base font-black font-mono tracking-wider text-center text-slate-900 outline-none transition-all shadow-2xs"
                   required
                 />
@@ -217,15 +218,15 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  အတည်ပြုပါ:
+                  အတည်ပြုပါ (၆ လုံး):
                 </label>
                 <input
                   type="password"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  maxLength={20}
+                  maxLength={6}
                   value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value)}
+                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   onFocus={(e) => {
                     const target = e.currentTarget;
                     target.select();
@@ -243,7 +244,7 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
               </div>
             </div>
             <p className="text-[10px] text-slate-500 leading-tight">
-              * အဆများ၊ ကော်မရှင်နှင့် ဘရိတ် Limit များအား လူတိုင်း ဝင်မပြင်နိုင်စေရန် ဤ Password ဖြင့် ကာကွယ်မည် ဖြစ်ပါသည်။
+              * ပိုင်ရှင်စိတ်ကြိုက် ဂဏန်း ၆ လုံး သတ်မှတ်နိုင်ပါသည်။ ၁၂၃၄၅၆ ကို အသေမထားဘဲ မိမိသီးသန့် Password အဖြစ် ထားရှိပါ။
             </p>
           </div>
 

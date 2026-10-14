@@ -51,7 +51,15 @@ import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
 import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
 import { exportFootballDataToExcel } from '../utils/footballUtils';
-import { EnabledModes, saveEnabledModes, saveOwnerPin, verifyOwnerPin, getStoredOwnerPin } from '../utils/securityUtils';
+import {
+  EnabledModes,
+  saveEnabledModes,
+  saveOwnerPin,
+  verifyOwnerPin,
+  getStoredOwnerPin,
+  hasOwnerPassword,
+  isValidSixDigitPin
+} from '../utils/securityUtils';
 import {
   exportSecureMasterBackup,
   restoreSecureMasterBackup,
@@ -908,29 +916,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }, 1000);
   };
 
-  // Change Owner Password
+  // Change Owner Password (strictly 6 digits, owner customizable)
   const handleChangePin = (e: React.FormEvent) => {
     e.preventDefault();
     setPinStatusMsg(null);
 
-    if (!verifyOwnerPin(oldPin)) {
-      setPinStatusMsg({ type: 'error', text: 'လက်ရှိ အသုံးပြုနေသော Password မှားယွင်းနေပါသည်' });
+    // If an owner password was already configured, require verifying the old password
+    if (hasOwnerPassword()) {
+      if (!oldPin || !verifyOwnerPin(oldPin)) {
+        setPinStatusMsg({ type: 'error', text: 'လက်ရှိ အသုံးပြုနေသော Password (၆ လုံး) မှားယွင်းနေပါသည်' });
+        return;
+      }
+    }
+
+    const trimmedNew = newPin.trim();
+    if (!isValidSixDigitPin(trimmedNew)) {
+      setPinStatusMsg({ type: 'error', text: 'Password အသစ်သည် ဂဏန်း ၆ လုံး (0-9) အတိအကျ ဖြစ်ရပါမည်' });
       return;
     }
 
-    if (newPin.trim().length < 4) {
-      setPinStatusMsg({ type: 'error', text: 'Password အသစ်သည် အနည်းဆုံး ၄ လုံး (စာလုံး သို့မဟုတ် ဂဏန်း) ဖြစ်ရပါမည်' });
-      return;
-    }
-
-    if (newPin.trim() !== confirmNewPin.trim()) {
+    if (trimmedNew !== confirmNewPin.trim()) {
       setPinStatusMsg({ type: 'error', text: 'Password အသစ် နှစ်ကြိမ် ရိုက်ထည့်မှု တူညီခြင်း မရှိပါ' });
       return;
     }
 
-    const saved = saveOwnerPin(newPin.trim());
+    const saved = saveOwnerPin(trimmedNew);
     if (saved) {
-      setPinStatusMsg({ type: 'success', text: 'ဆက်တင်ဝင်ရောက်ခွင့် သီးသန့် Password အသစ်အား အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ' });
+      setPinStatusMsg({ type: 'success', text: 'ပိုင်ရှင် လုံခြုံရေး Password အသစ် (ဂဏန်း ၆ လုံး) အား အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ' });
       setOldPin('');
       setNewPin('');
       setConfirmNewPin('');
@@ -2471,14 +2483,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {/* Change Owner Password Form */}
-              <form onSubmit={handleChangePin} className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 space-y-3">
+              <form onSubmit={handleChangePin} className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl border border-slate-800 space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 flex items-center justify-center shrink-0">
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-black block">ဆက်တင်ဝင်ရောက်ခွင့် သီးသန့် Password ပြောင်းလဲသတ်မှတ်ခြင်း</span>
-                    <span className="text-[10px] text-slate-400 block">ပေါက်ဆ၊ လျော်ကြေးနှင့် ကော်မရှင်များ မလိုလားအပ်ဘဲ အပြင်မခံရစေရန် သီးသန့် Password ထားရှိပါ</span>
+                    <span className="text-xs font-black block">ပိုင်ရှင် လုံခြုံရေး Password ပြောင်းလဲသတ်မှတ်ခြင်း (ဂဏန်း ၆ လုံး)</span>
+                    <span className="text-[10px] text-slate-400 block">ပိုင်ရှင် စိတ်ကြိုက် ဂဏန်း ၆ လုံး သတ်မှတ်နိုင်ပါသည်။ ၁၂၃၄၅၆ ကို အသေမထားဘဲ မိမိစိတ်ကြိုက် သတ်မှတ်ပါ</span>
                   </div>
                 </div>
 
@@ -2490,16 +2502,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1 font-bold">လက်ရှိ Password:</label>
+                    <label className="block text-[10px] text-slate-400 mb-1 font-bold">
+                      {hasOwnerPassword() ? 'လက်ရှိ Password (၆ လုံး):' : 'လက်ရှိ Password: (မရှိသေးပါ)'}
+                    </label>
                     <input
                       type="password"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={20}
+                      maxLength={6}
                       value={oldPin}
                       onChange={(e) => setOldPin(e.target.value)}
+                      disabled={!hasOwnerPassword()}
                       onFocus={(e) => {
                         const target = e.currentTarget;
                         target.select();
@@ -2510,19 +2525,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         target.select();
                         setTimeout(() => target.select(), 20);
                       }}
-                      placeholder="လက်ရှိ Password"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs"
+                      placeholder={hasOwnerPassword() ? "လက်ရှိ ၆ လုံး" : "မရှိသေးပါ (အသစ်တိုက်ရိုက်ထားနိုင်သည်)"}
+                      className="w-full bg-slate-800 disabled:opacity-50 border border-slate-700 rounded-xl p-2.5 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs tracking-widest"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1 font-bold">Password အသစ်:</label>
+                    <label className="block text-[10px] text-slate-400 mb-1 font-bold">Password အသစ် (၆ လုံး):</label>
                     <input
                       type="password"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={20}
+                      maxLength={6}
                       value={newPin}
-                      onChange={(e) => setNewPin(e.target.value)}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       onFocus={(e) => {
                         const target = e.currentTarget;
                         target.select();
@@ -2533,19 +2548,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         target.select();
                         setTimeout(() => target.select(), 20);
                       }}
-                      placeholder="အနည်းဆုံး ၄ လုံး"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs"
+                      placeholder="ဂဏန်း ၆ လုံး"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs tracking-widest"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1 font-bold">အတည်ပြုပါ:</label>
+                    <label className="block text-[10px] text-slate-400 mb-1 font-bold">အတည်ပြုပါ (၆ လုံး):</label>
                     <input
                       type="password"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={20}
+                      maxLength={6}
                       value={confirmNewPin}
-                      onChange={(e) => setConfirmNewPin(e.target.value)}
+                      onChange={(e) => setConfirmNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       onFocus={(e) => {
                         const target = e.currentTarget;
                         target.select();
@@ -2556,8 +2571,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         target.select();
                         setTimeout(() => target.select(), 20);
                       }}
-                      placeholder="အတည်ပြုပါ"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs"
+                      placeholder="အတည်ပြု ၆ လုံး"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-center font-mono font-bold text-white outline-none focus:border-indigo-500 shadow-2xs tracking-widest"
                     />
                   </div>
                 </div>
@@ -2565,10 +2580,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex justify-end pt-1">
                   <button
                     type="submit"
-                    disabled={!oldPin || newPin.trim().length < 4}
+                    disabled={
+                      (hasOwnerPassword() && !oldPin) ||
+                      newPin.trim().length !== 6 ||
+                      confirmNewPin.trim().length !== 6
+                    }
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
                   >
-                    Password အသစ်သိမ်းမည်
+                    Password အသစ် (၆ လုံး) သိမ်းမည်
                   </button>
                 </div>
               </form>

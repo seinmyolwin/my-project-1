@@ -55,6 +55,7 @@ interface HeaderProps {
   onOpenTelegramHub?: () => void;
   onEnterFocusMode?: () => void;
   onOpenCommandRules?: () => void;
+  onLockApp?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -75,7 +76,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTitleModal,
   onOpenTelegramHub,
   onEnterFocusMode,
-  onOpenCommandRules
+  onOpenCommandRules,
+  onLockApp
 }) => {
   // Contexts
   const lottery3D = useLottery();
@@ -558,6 +560,18 @@ export const Header: React.FC<HeaderProps> = ({
                   <HelpCircle className="w-4 h-4" />
                   <span>လမ်းညွှန်</span>
                 </button>
+
+                {/* Lock App / Logout */}
+                {onLockApp && (
+                  <button
+                    onClick={onLockApp}
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-rose-600/90 hover:bg-rose-700 text-white font-black text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                    title="လော့ခ်ချမည် / အကောင့်ထွက်မည် (Lock App)"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-rose-200" />
+                    <span className="hidden sm:inline">လော့ခ်ချမည်</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
