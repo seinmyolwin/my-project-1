@@ -21,7 +21,7 @@ import { useLottery } from '../context/LotteryContext';
 import { ForwardSlip, ForwardSlipItem, NumberAggregate, ThreeDQuickActionButtonsConfig } from '../types';
 import { formatAmount, convertMyanmarToEnglishDigits, LOTTERY_PATTERNS, getPermutations } from '../utils/lotteryUtils';
 import { DEFAULT_3D_ACTION_BUTTONS } from '../utils/storage';
-import { playTapSound, playWarningSound } from '../utils/audioUtils';
+import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../utils/audioUtils';
 import { printVoucherSlip } from '../utils/printUtils';
 
 // Helper to simplify agent name
@@ -125,6 +125,23 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     return list.sort((a, b) => b.excessAmount - a.excessAmount);
   }, [aggregates]);
 
+  // 3D Quick Action Buttons visibility & active status config
+  const enabledButtons = useMemo<ThreeDQuickActionButtonsConfig>(() => {
+    return {
+      ...DEFAULT_3D_ACTION_BUTTONS,
+      ...(settings.quickActionButtons || {})
+    };
+  }, [settings.quickActionButtons]);
+
+  const [quickToast, setQuickToast] = useState<string | null>(null);
+
+  const showQuickToast = (msg: string) => {
+    setQuickToast(msg);
+    setTimeout(() => {
+      setQuickToast(null);
+    }, 3000);
+  };
+
   const isRoundSettledOrClosed = activeRound?.status === 'settled' || activeRound?.status === 'closed';
 
   // Auto-populate when modal opens
@@ -199,16 +216,16 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     if (typeof agent.commissionRate === 'number') setCommissionRate(agent.commissionRate);
   };
 
-  if (!isOpen) return null;
-
   // Toggle selection
   const toggleSelect = (id: string) => {
+    playTapSound();
     setDraftItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, selected: !i.selected } : i))
     );
   };
 
   const handleToggleSelectAll = () => {
+    playTapSound();
     const allSelected = draftItems.length > 0 && draftItems.every((i) => i.selected);
     setDraftItems((prev) => prev.map((i) => ({ ...i, selected: !allSelected })));
   };
@@ -222,13 +239,17 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   };
 
   const handleRemoveDraft = (id: string) => {
+    playDeleteSound();
     setDraftItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const handleAddManual = (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = convertMyanmarToEnglishDigits(manualNum).trim();
-    if (!cleaned) return;
+    if (!cleaned) {
+      playWarningSound();
+      return;
+    }
 
     // Support single or multiple tokens separated by comma, space, semicolon, newline
     const tokens = cleaned
@@ -237,7 +258,10 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
       .filter((t) => t.length > 0);
 
     const amt = parseFloat(convertMyanmarToEnglishDigits(manualAmt).replace(/\D/g, '')) || 0;
-    if (tokens.length === 0 || amt <= 0) return;
+    if (tokens.length === 0 || amt <= 0) {
+      playWarningSound();
+      return;
+    }
 
     const newDrafts = [...draftItems];
     tokens.forEach((token) => {
@@ -265,23 +289,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
 
     setDraftItems(newDrafts);
     setManualNum('');
-  };
-
-  // 3D Quick Action Buttons visibility & active status config
-  const enabledButtons = useMemo<ThreeDQuickActionButtonsConfig>(() => {
-    return {
-      ...DEFAULT_3D_ACTION_BUTTONS,
-      ...(settings.quickActionButtons || {})
-    };
-  }, [settings.quickActionButtons]);
-
-  const [quickToast, setQuickToast] = useState<string | null>(null);
-
-  const showQuickToast = (msg: string) => {
-    setQuickToast(msg);
-    setTimeout(() => {
-      setQuickToast(null);
-    }, 3000);
+    playAddSound();
   };
 
   // Straight / Direct (ဒဲ့)
@@ -370,6 +378,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     };
 
     const newSlip = addForwardSlip(payload);
+    playSuccessSound();
     setCreatedSlip(newSlip);
     // Clear draft items so the active forward operational state is reset to a clean blank page
     setDraftItems([]);
@@ -385,6 +394,8 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2500);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
@@ -590,7 +601,10 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   disabled={isRoundSettledOrClosed}
                   placeholder={isMyanmar ? 'ဂဏန်း (ဥပမာ: 123 သို့ 123, 456)' : 'Numbers (e.g. 123 or 123, 456)'}
                   value={manualNum}
-                  onChange={(e) => setManualNum(e.target.value)}
+                  onChange={(e) => {
+                    playTapSound();
+                    setManualNum(e.target.value);
+                  }}
                   className={`flex-1 h-9 px-3 font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
                     isRoundSettledOrClosed
                       ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -603,7 +617,10 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                     disabled={isRoundSettledOrClosed}
                     placeholder="ငွေပမာဏ"
                     value={manualAmt}
-                    onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      playTapSound();
+                      setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''));
+                    }}
                     className={`w-full h-9 px-2.5 text-right font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
                       isRoundSettledOrClosed
                         ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'

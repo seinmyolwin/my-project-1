@@ -37,7 +37,7 @@ import {
   getTwoDKhwayPuuRumble
 } from '../../utils/twoDLotteryUtils';
 import { DEFAULT_2D_ACTION_BUTTONS } from '../../utils/storage';
-import { playTapSound, playWarningSound } from '../../utils/audioUtils';
+import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../../utils/audioUtils';
 
 interface TwoDForwardModalProps {
   isOpen: boolean;
@@ -123,6 +123,24 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     return list.sort((a, b) => b.excessAmount - a.excessAmount);
   }, [aggregates]);
 
+  // Quick Action Buttons visibility & active status config
+  const enabledButtons = useMemo<TwoDQuickActionButtonsConfig>(() => {
+    return {
+      ...DEFAULT_2D_ACTION_BUTTONS,
+      ...(settings.quickActionButtons || {})
+    };
+  }, [settings.quickActionButtons]);
+
+  const [digitSelectorType, setDigitSelectorType] = useState<'break' | 'includes' | 'head' | 'tail' | null>(null);
+  const [quickToast, setQuickToast] = useState<string | null>(null);
+
+  const showQuickToast = (msg: string) => {
+    setQuickToast(msg);
+    setTimeout(() => {
+      setQuickToast(null);
+    }, 3000);
+  };
+
   const isRoundSettledOrClosed = activeRound?.status === 'settled' || activeRound?.status === 'closed';
 
   // Initialize draft items on open, round change, or settlement
@@ -201,10 +219,9 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     if (typeof agent.commissionRate === 'number') setCommissionRate(agent.commissionRate);
   };
 
-  if (!isOpen) return null;
-
   // Toggle selection for a single number
   const toggleSelect = (id: string) => {
+    playTapSound();
     setDraftItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, selected: !item.selected } : item))
     );
@@ -212,6 +229,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
   // Select all or Deselect all
   const handleToggleSelectAll = () => {
+    playTapSound();
     const allSelected = draftItems.length > 0 && draftItems.every((i) => i.selected);
     setDraftItems((prev) => prev.map((item) => ({ ...item, selected: !allSelected })));
   };
@@ -227,6 +245,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
   // Remove item from draft
   const handleRemoveItem = (id: string) => {
+    playDeleteSound();
     setDraftItems((prev) => prev.filter((i) => i.id !== id));
   };
 
@@ -234,7 +253,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   const handleAddManual = (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = convertMyanmarToEnglishDigits(manualNum).trim();
-    if (!cleaned) return;
+    if (!cleaned) {
+      playWarningSound();
+      return;
+    }
 
     // Support single or multiple tokens separated by comma, space, semicolon, newline
     const tokens = cleaned
@@ -243,7 +265,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       .filter((t) => t.length > 0);
 
     const amt = parseFloat(convertMyanmarToEnglishDigits(manualAmt).replace(/\D/g, '')) || 0;
-    if (tokens.length === 0 || amt <= 0) return;
+    if (tokens.length === 0 || amt <= 0) {
+      playWarningSound();
+      return;
+    }
 
     const newDrafts = [...draftItems];
     tokens.forEach((token) => {
@@ -271,24 +296,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
     setDraftItems(newDrafts);
     setManualNum('');
-  };
-
-  // Quick Action Buttons visibility & active status config
-  const enabledButtons = useMemo<TwoDQuickActionButtonsConfig>(() => {
-    return {
-      ...DEFAULT_2D_ACTION_BUTTONS,
-      ...(settings.quickActionButtons || {})
-    };
-  }, [settings.quickActionButtons]);
-
-  const [digitSelectorType, setDigitSelectorType] = useState<'break' | 'includes' | 'head' | 'tail' | null>(null);
-  const [quickToast, setQuickToast] = useState<string | null>(null);
-
-  const showQuickToast = (msg: string) => {
-    setQuickToast(msg);
-    setTimeout(() => {
-      setQuickToast(null);
-    }, 3000);
+    playAddSound();
   };
 
   // 0. Straight / Direct (ဒဲ့)
@@ -448,6 +456,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     };
 
     const newSlip = addForwardSlip(forwardPayload);
+    playSuccessSound();
     setCreatedSlip(newSlip);
     // Clear draft items so the active forward operational state is reset to a clean blank page
     setDraftItems([]);
@@ -469,6 +478,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   const handlePrintSlip = () => {
     window.print();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
@@ -680,7 +691,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                   disabled={isRoundSettledOrClosed}
                   placeholder={isMyanmar ? 'ဂဏန်း (ဥပမာ: 24 သို့ 12, 34, 56)' : 'Numbers (e.g. 24 or 12, 34)'}
                   value={manualNum}
-                  onChange={(e) => setManualNum(e.target.value)}
+                  onChange={(e) => {
+                    playTapSound();
+                    setManualNum(e.target.value);
+                  }}
                   onFocus={(e) => e.target.select()}
                   className={`flex-1 h-9 px-3 font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
                     isRoundSettledOrClosed
@@ -694,7 +708,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                     disabled={isRoundSettledOrClosed}
                     placeholder="ငွေပမာဏ"
                     value={manualAmt}
-                    onChange={(e) => setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      playTapSound();
+                      setManualAmt(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''));
+                    }}
                     onFocus={(e) => e.target.select()}
                     className={`w-full h-9 px-2.5 text-right font-mono font-bold rounded-xl border bg-white outline-none shadow-2xs ${
                       isRoundSettledOrClosed
