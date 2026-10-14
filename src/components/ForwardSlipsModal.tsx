@@ -14,11 +14,14 @@ import {
   Printer,
   CheckSquare,
   Square,
-  Send
+  Send,
+  Sparkles
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { ForwardSlip, ForwardSlipItem, NumberAggregate } from '../types';
-import { formatAmount, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
+import { ForwardSlip, ForwardSlipItem, NumberAggregate, ThreeDQuickActionButtonsConfig } from '../types';
+import { formatAmount, convertMyanmarToEnglishDigits, LOTTERY_PATTERNS, getPermutations } from '../utils/lotteryUtils';
+import { DEFAULT_3D_ACTION_BUTTONS } from '../utils/storage';
+import { playTapSound, playWarningSound } from '../utils/audioUtils';
 import { printVoucherSlip } from '../utils/printUtils';
 
 // Helper to simplify agent name
@@ -262,6 +265,81 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
 
     setDraftItems(newDrafts);
     setManualNum('');
+  };
+
+  // 3D Quick Action Buttons visibility & active status config
+  const enabledButtons = useMemo<ThreeDQuickActionButtonsConfig>(() => {
+    return {
+      ...DEFAULT_3D_ACTION_BUTTONS,
+      ...(settings.quickActionButtons || {})
+    };
+  }, [settings.quickActionButtons]);
+
+  const [quickToast, setQuickToast] = useState<string | null>(null);
+
+  const showQuickToast = (msg: string) => {
+    setQuickToast(msg);
+    setTimeout(() => {
+      setQuickToast(null);
+    }, 3000);
+  };
+
+  // Straight / Direct (ဒဲ့)
+  const handleAddStraightClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(manualNum).trim();
+    if (!cleanNum) {
+      showQuickToast(isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်) အတွက် ဂဏန်း ရိုက်ထည့်ပါ' : 'Enter 3D numbers for direct');
+      return;
+    }
+    const cleanForNumbers = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const targetNumbers = rawTokens.map(t => t.padStart(3, '0')).filter(n => /^\d{3}$/.test(n));
+    if (targetNumbers.length > 0) {
+      setManualNum(targetNumbers.join(', '));
+      showQuickToast(isMyanmar ? `ဒဲ့ [${targetNumbers.join(', ')}] (${targetNumbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ` : `Direct: ${targetNumbers.length} numbers`);
+    }
+  };
+
+  // Rumble / Permutations (အာ)
+  const handleAddRumbleClick = () => {
+    playTapSound();
+    const cleanNum = convertMyanmarToEnglishDigits(manualNum).trim();
+    if (!cleanNum) {
+      playWarningSound();
+      showQuickToast(isMyanmar ? 'အာ (R) အတွက် ဂဏန်း အရင်ရိုက်ထည့်ပါ (ဥပမာ- ၁၂၃)' : 'Enter number to reverse (e.g. 123)');
+      return;
+    }
+
+    const cleanForNumbers = cleanNum.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const targetNumbers = rawTokens.map(t => t.padStart(3, '0')).filter(n => /^\d{3}$/.test(n));
+
+    if (targetNumbers.length === 0) {
+      playWarningSound();
+      showQuickToast(isMyanmar ? 'အာ (R) အတွက် ၃ လုံးဂဏန်း (၀၀၀ မှ ၉၉၉) မှန်ကန်စွာ ထည့်ပါ' : 'Enter valid 3-digit number (000-999)');
+      return;
+    }
+
+    const reversedList: string[] = [];
+    targetNumbers.forEach(n => {
+      const perms = getPermutations(n);
+      perms.forEach(p => {
+        if (!reversedList.includes(p)) {
+          reversedList.push(p);
+        }
+      });
+    });
+
+    setManualNum(reversedList.join(', '));
+    showQuickToast(isMyanmar ? `အာ [${reversedList.join(', ')}] (${reversedList.length} ကွက်) ထည့်သွင်းပြီးပါပြီ` : `Rumble: ${reversedList.length} numbers`);
+  };
+
+  // Preset Patterns (အပူး, ညီကို, ပါဝါ, နက္ခတ်)
+  const handleAddPatternPreset = (numbers: string[], label: string) => {
+    playTapSound();
+    setManualNum(numbers.join(', '));
+    showQuickToast(isMyanmar ? `[${label}] (${numbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ` : `Selected [${label}] (${numbers.length} numbers)`);
   };
 
   const activeSelected = draftItems.filter((i) => i.selected && i.forwardAmount > 0);
@@ -544,6 +622,108 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                 >
                   + ထည့်မည်
                 </button>
+              </div>
+
+              {/* Toast message if any */}
+              {quickToast && (
+                <div className="px-2.5 py-1 bg-indigo-900 text-white text-[11px] font-bold rounded-lg flex items-center justify-between shadow-xs animate-in fade-in duration-150">
+                  <span>✓ {quickToast}</span>
+                  <button type="button" onClick={() => setQuickToast(null)} className="text-indigo-200 hover:text-white text-[10px] ml-2">✕</button>
+                </div>
+              )}
+
+              {/* Quick Action Buttons according to Settings */}
+              <div className="pt-1 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-indigo-950/80 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-indigo-600" />
+                    <span>{isMyanmar ? 'အမြန်ထိုးခလုတ်များ (ဆက်တင်သတ်မှတ်ချက်အတိုင်း):' : 'Quick Bet Buttons (from Settings):'}</span>
+                  </span>
+                  {manualNum.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setManualNum('')}
+                      className="text-[10px] text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
+                      title="ဂဏန်းကွက် ရှင်းမည်"
+                    >
+                      ဂဏန်းဖျက်မည်
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {enabledButtons.straight && (
+                    <button
+                      type="button"
+                      disabled={isRoundSettledOrClosed}
+                      onClick={handleAddStraightClick}
+                      className="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-[11px] font-black transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isMyanmar ? 'ဒဲ့ (တိုက်ရိုက်)' : 'Direct'}
+                    >
+                      {isMyanmar ? 'ဒဲ့' : 'Direct'}
+                    </button>
+                  )}
+
+                  {enabledButtons.rumble && (
+                    <button
+                      type="button"
+                      disabled={isRoundSettledOrClosed}
+                      onClick={handleAddRumbleClick}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-[11px] font-black transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isMyanmar ? 'အာ (ပတ်လည်)' : 'Rumble'}
+                    >
+                      {isMyanmar ? 'အာ' : 'R'}
+                    </button>
+                  )}
+
+                  {enabledButtons.triples && (
+                    <button
+                      type="button"
+                      disabled={isRoundSettledOrClosed}
+                      onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.triples, isMyanmar ? 'အပူး' : 'Triples')}
+                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isMyanmar ? 'အပူး (၁၀ ကွက်)' : 'Triples'}
+                    >
+                      {isMyanmar ? 'အပူး' : 'Triples'}
+                    </button>
+                  )}
+
+                  {enabledButtons.brothers && (
+                    <button
+                      type="button"
+                      disabled={isRoundSettledOrClosed}
+                      onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.consecutives, isMyanmar ? 'ညီကို' : 'Brothers')}
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-[11px] font-bold transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
+                    >
+                      {isMyanmar ? 'ညီကို' : 'Brothers'}
+                    </button>
+                  )}
+
+                  {enabledButtons.power && (
+                    <button
+                      type="button"
+                      disabled={isRoundSettledOrClosed}
+                      onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getPowerPairs().slice(0, 15), isMyanmar ? 'ပါဝါ' : 'Power')}
+                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-[11px] font-bold transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isMyanmar ? 'ပါဝါအတွဲများ (၁၅ ကွက်)' : 'Power'}
+                    >
+                      {isMyanmar ? 'ပါဝါ' : 'Power'}
+                    </button>
+                  )}
+
+                  {enabledButtons.natkhat && (
+                    <button
+                      type="button"
+                      disabled={isRoundSettledOrClosed}
+                      onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getNatkhatPairs().slice(0, 15), isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
+                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-[11px] font-bold transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isMyanmar ? 'နက္ခတ်အတွဲများ (၁၅ ကွက်)' : 'Natkhat'}
+                    >
+                      {isMyanmar ? 'နက္ခတ်' : 'Natkhat'}
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
 
