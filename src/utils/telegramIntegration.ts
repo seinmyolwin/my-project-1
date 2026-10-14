@@ -230,25 +230,7 @@ export function getTelegramOrders(): TelegramIncomingOrder[] {
   } catch {
     // ignore
   }
-  return [
-    {
-      id: 'tg-sample-1',
-      senderName: 'ကိုအောင်မျိုး',
-      senderPhone: '09-450011223',
-      orderType: 'text',
-      category: '3d',
-      rawText: '123=1000\n456=500\n789R=1000',
-      parsedItems: [
-        { number: '123', amount: 1000, isRumble: false, originalRaw: '123=1000' },
-        { number: '456', amount: 500, isRumble: false, originalRaw: '456=500' },
-        { number: '789', amount: 1000, isRumble: true, originalRaw: '789R=1000' }
-      ],
-      totalAmount: 2500,
-      status: 'pending_review',
-      timestamp: Date.now() - 3600000,
-      notes: 'Telegram Bot မှ အလိုအလျောက် ဝင်ရောက်လာသော အမှာစာ'
-    }
-  ];
+  return [];
 }
 
 export function saveTelegramOrders(orders: TelegramIncomingOrder[]): void {
@@ -267,7 +249,7 @@ export async function fetchTelegramOrdersFromServer(): Promise<TelegramIncomingO
     });
     if (res.ok) {
       const orders = await res.json();
-      if (Array.isArray(orders) && orders.length > 0) {
+      if (Array.isArray(orders)) {
         saveTelegramOrders(orders);
         return orders;
       }

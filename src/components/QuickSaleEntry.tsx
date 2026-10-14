@@ -28,6 +28,7 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher } from '../types';
 import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
+import { saveRawClip } from '../utils/rawClipsUtils';
 import { ImageSlipScannerModal } from './ImageSlipScannerModal';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
 import {
@@ -45,6 +46,7 @@ interface QuickSaleEntryProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: (active: boolean) => void;
   onOpenCommandRules?: () => void;
+  onOpenRawClipsModal?: () => void;
 }
 
 export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
@@ -53,7 +55,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   onOpenRoundManager,
   isFocusMode = false,
   onToggleFocusMode,
-  onOpenCommandRules
+  onOpenCommandRules,
+  onOpenRawClipsModal
 }) => {
   const {
     activeRound,
@@ -737,6 +740,22 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     const { items, errors } = parseQuickBetText(rawBatchText);
     const allowedItems: BetItem[] = [];
     const blockedErrors: string[] = [];
+
+    // Save isolated raw copied text archive (Does not affect calculations)
+    saveRawClip({
+      category: '3d',
+      roundId: activeRound?.id || 'round-3d',
+      roundName: activeRound ? (activeRound.name || `${activeRound.drawDate} (3D)`) : '3D ပွဲစဉ်',
+      date: activeRound?.drawDate || new Date().toLocaleDateString('en-CA'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      voucherNumber: `ဘောင်ချာ (${vouchers.length + 1})`,
+      customerName: customerName || 'အထွေထွေ',
+      customerPhone: customerPhone || undefined,
+      rawText: rawBatchText.trim(),
+      itemCount: items.length,
+      totalAmountPreview: items.reduce((sum, it) => sum + (it.amount || 0), 0),
+      source: 'batch_paste'
+    });
 
     items.forEach(it => {
       if (isNumberBlocked(it.number)) {
@@ -1758,21 +1777,33 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                     ))}
                   </div>
                 )}
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setShowBatchModal(false); setBatchErrors([]); }}
-                    className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded-xl font-semibold cursor-pointer"
-                  >
-                    ပိတ်မည်
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleProcessBatchText}
-                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-xl font-bold shadow-xs cursor-pointer"
-                  >
-                    စာရင်းထဲသို့ ထည့်သွင်းမည်
-                  </button>
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  {onOpenRawClipsModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenRawClipsModal}
+                      className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer hover:underline"
+                    >
+                      <FileText className="w-3 h-3 text-amber-600" />
+                      <span>မူရင်းစာသားမှတ်တမ်း ကြည့်မည်</span>
+                    </button>
+                  )}
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => { setShowBatchModal(false); setBatchErrors([]); }}
+                      className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded-xl font-semibold cursor-pointer"
+                    >
+                      ပိတ်မည်
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProcessBatchText}
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-xl font-bold shadow-xs cursor-pointer"
+                    >
+                      စာရင်းထဲသို့ ထည့်သွင်းမည်
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

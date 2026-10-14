@@ -101,6 +101,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [webhookActionMsg, setWebhookActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [showBotToken, setShowBotToken] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,7 +119,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         if (cfg.accountName) setAccountName(cfg.accountName);
       }
       const ordList = await fetchTelegramOrdersFromServer();
-      if (ordList && ordList.length > 0) {
+      if (ordList !== null) {
         setOrders(ordList);
       }
     };
@@ -127,6 +128,34 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const interval = setInterval(pollData, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // 1. Fetch latest orders directly from backend server
+      const ordList = await fetchTelegramOrdersFromServer();
+      if (ordList !== null) {
+        setOrders(ordList);
+      } else {
+        setOrders(getTelegramOrders());
+      }
+      // 2. Also sync telegram configuration & connection status
+      const cfg = await syncTelegramConfig();
+      if (cfg) {
+        setConfig(cfg);
+        if (cfg.webhookUrl && !cfg.webhookUrl.includes('telegram.shwemingalar.app')) {
+          setWebhookUrl(cfg.webhookUrl);
+        }
+        if (cfg.channelId) setChannelId(cfg.channelId);
+        if (cfg.accountName) setAccountName(cfg.accountName);
+      }
+    } catch (err) {
+      console.error('Failed to refresh orders from server:', err);
+      setOrders(getTelegramOrders());
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 300);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -631,29 +660,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           {/* TAB 1: QUEUE */}
           {activeTab === 'queue' && (
             <div className="space-y-4">
-              {/* Bot & Group Live Connection Banner */}
-              <div className="bg-gradient-to-r from-sky-950 via-sky-900 to-indigo-950 text-white p-3.5 sm:p-4 rounded-2xl border border-sky-600/50 shadow-xs flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-300" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-xs text-white">Bot: @ssh672_bot (ssh673_bot)</span>
-                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black px-2 py-0.5 rounded-md">
-                        ✓ တိုက်ရိုက်ချိတ်ဆက်ထားသည် (Active)
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-sky-200 mt-0.5 font-mono">
-                      Group: မယ်စိန် (Chat ID: -1004330076487)
-                    </p>
-                  </div>
-                </div>
-                <div className="text-[11px] text-sky-300 font-medium">
-                  ဖုန်းနှင့် တက်ဘလက်တို့မှ တိုက်ရိုက် အော်ဒါလက်ခံရန် အသင့်ဖြစ်ပါသည်
-                </div>
-              </div>
-
               {/* Filter bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                 <div className="flex items-center gap-2 text-xs font-bold">
@@ -679,11 +685,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
                 <button
                   type="button"
-                  onClick={() => setOrders(getTelegramOrders())}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+                  title="ဆာဗာမှ နောက်ဆုံးရ Telegram အမှာစာများကို ပြန်လည်ရယူမည်"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Refresh</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-sky-600' : ''}`} />
+                  <span>{isRefreshing ? 'ရယူနေဆဲ...' : 'Refresh'}</span>
                 </button>
               </div>
 

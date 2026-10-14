@@ -49,6 +49,7 @@ import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
 import { TelegramOrdersHubModal } from './components/TelegramOrdersHubModal';
 import { CommandRulesModal } from './components/CommandRulesModal';
+import { RawTextClipsModal } from './components/RawTextClipsModal';
 
 // Security & Setup Modals
 import { LoginForm } from './components/LoginForm';
@@ -211,6 +212,7 @@ function AppContent() {
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [isTelegramHubOpen, setIsTelegramHubOpen] = useState(false);
   const [isCommandRulesOpen, setIsCommandRulesOpen] = useState(false);
+  const [isRawClipsModalOpen, setIsRawClipsModalOpen] = useState(false);
 
   // Check if any modal is active
   const hasActiveModal =
@@ -231,7 +233,8 @@ function AppContent() {
     isPreviousResultsOpen ||
     isTitleModalOpen ||
     isTelegramHubOpen ||
-    isCommandRulesOpen;
+    isCommandRulesOpen ||
+    isRawClipsModalOpen;
 
   const closeActiveModal = useCallback(() => {
     if (printingVoucher3D) setPrintingVoucher3D(null);
@@ -252,6 +255,7 @@ function AppContent() {
     else if (isPreviousResultsOpen) setIsPreviousResultsOpen(false);
     else if (isTitleModalOpen) setIsTitleModalOpen(false);
     else if (isCommandRulesOpen) setIsCommandRulesOpen(false);
+    else if (isRawClipsModalOpen) setIsRawClipsModalOpen(false);
   }, [
     printingVoucher3D,
     printingVoucher2D,
@@ -270,7 +274,8 @@ function AppContent() {
     isPreviousResultsOpen,
     isTitleModalOpen,
     isTelegramHubOpen,
-    isCommandRulesOpen
+    isCommandRulesOpen,
+    isRawClipsModalOpen
   ]);
 
   const isSubTab =
@@ -421,6 +426,7 @@ function AppContent() {
           onEnterFocusMode={() => setIsFocusMode(true)}
           onOpenCommandRules={() => setIsCommandRulesOpen(true)}
           onLockApp={handleLockApp}
+          onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
         />
       )}
 
@@ -448,6 +454,7 @@ function AppContent() {
                 isFocusMode={isFocusMode}
                 onToggleFocusMode={setIsFocusMode}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
+                onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
               />
             )}
 
@@ -483,6 +490,7 @@ function AppContent() {
                 isFocusMode={isFocusMode}
                 onToggleFocusMode={setIsFocusMode}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
+                onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
               />
             )}
 
@@ -719,6 +727,15 @@ function AppContent() {
           }}
         />
       )}
+
+      {/* Copied Raw Texts Isolated Archive Modal */}
+      <RawTextClipsModal
+        isOpen={isRawClipsModalOpen}
+        onClose={() => setIsRawClipsModalOpen(false)}
+        activeRoundName3D={lottery3D.activeRound ? (lottery3D.activeRound.name || `${lottery3D.activeRound.drawDate} (3D)`) : '3D ပွဲစဉ်'}
+        activeRoundName2D={lottery2D.activeRound ? (lottery2D.activeRound.name || `${lottery2D.activeRound.drawDate} 2D`) : '2D ပွဲစဉ်'}
+        currentDealerMode={dealerMode}
+      />
 
       {/* Offline Status Badge */}
       <OfflineIndicator />

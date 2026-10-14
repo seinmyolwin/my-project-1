@@ -23,7 +23,8 @@ import {
   RotateCcw,
   ChevronUp,
   ChevronDown,
-  Terminal
+  Terminal,
+  FileText
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -56,6 +57,7 @@ interface HeaderProps {
   onEnterFocusMode?: () => void;
   onOpenCommandRules?: () => void;
   onLockApp?: () => void;
+  onOpenRawClipsModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -77,7 +79,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTelegramHub,
   onEnterFocusMode,
   onOpenCommandRules,
-  onLockApp
+  onLockApp,
+  onOpenRawClipsModal
 }) => {
   // Contexts
   const lottery3D = useLottery();
@@ -343,6 +346,19 @@ export const Header: React.FC<HeaderProps> = ({
                   <Database className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                   <span className="hidden md:inline">Backup</span>
                 </button>
+
+                {/* Copied Raw Texts Archive Trigger */}
+                {onOpenRawClipsModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenRawClipsModal}
+                    className="px-2 sm:px-2.5 py-1.5 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-600/50 text-amber-200 text-xs font-bold rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    title="ကူးထည့်ထားသော မူရင်းစာသားများ သိမ်းဆည်းရာနေရာ (သီးသန့်စစ်ဆေးရန်)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="inline text-[11px] sm:text-xs">မူရင်းစာသား</span>
+                  </button>
+                )}
 
                 <PWAInstallButton />
               </div>
@@ -821,6 +837,19 @@ export const Header: React.FC<HeaderProps> = ({
                     {telegramPendingCount}
                   </span>
                 )}
+              </button>
+            )}
+
+            {/* Collapsed Mode Raw Clips Shortcut */}
+            {isHeaderCollapsed && onOpenRawClipsModal && (
+              <button
+                type="button"
+                onClick={onOpenRawClipsModal}
+                className="px-2 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/50 text-amber-200 text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs active:scale-95"
+                title="မူရင်းစာသား မှတ်တမ်း"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px]">စာသား</span>
               </button>
             )}
 

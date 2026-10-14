@@ -26,7 +26,8 @@ import {
   Phone,
   Percent,
   BookOpen,
-  Terminal
+  Terminal,
+  FileText
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig } from '../../types';
@@ -51,6 +52,7 @@ import {
   getTwoDKhwayRumble,
   getTwoDKhwayPuuRumble
 } from '../../utils/twoDLotteryUtils';
+import { saveRawClip } from '../../utils/rawClipsUtils';
 import { OverLimitConfirmModal } from '../OverLimitConfirmModal';
 import { ImageSlipScannerModal } from '../ImageSlipScannerModal';
 import {
@@ -69,6 +71,7 @@ interface TwoDQuickSaleEntryProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: (active: boolean) => void;
   onOpenCommandRules?: () => void;
+  onOpenRawClipsModal?: () => void;
 }
 
 export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
@@ -78,7 +81,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   onOpenRoundManager,
   isFocusMode = false,
   onToggleFocusMode,
-  onOpenCommandRules
+  onOpenCommandRules,
+  onOpenRawClipsModal
 }) => {
   const {
     settings,
@@ -88,7 +92,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     aggregates,
     limits,
     isNumberBlocked,
-    getNumberLimit
+    getNumberLimit,
+    vouchers
   } = useTwoDLottery();
 
   const isMyanmar = settings.language === 'my';
@@ -973,6 +978,22 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const result = parseTwoDBatchInput(batchText, defAmt);
     const parsed = Array.isArray(result) ? result : (result as any).items;
     const warnings = (result as any).warnings || [];
+
+    // Save isolated raw copied text archive (Does not affect calculations)
+    saveRawClip({
+      category: '2d',
+      roundId: activeRound?.id || 'round-2d',
+      roundName: activeRound ? (activeRound.name || `${activeRound.drawDate} (${activeRound.session === 'morning' ? '12:01 PM' : '04:30 PM'})`) : '2D ပွဲစဉ်',
+      date: activeRound?.drawDate || new Date().toLocaleDateString('en-CA'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      voucherNumber: `ဘောင်ချာ (${vouchers.length + 1})`,
+      customerName: customerName || 'အထွေထွေ',
+      customerPhone: customerPhone || undefined,
+      rawText: batchText.trim(),
+      itemCount: parsed.length,
+      totalAmountPreview: parsed.reduce((sum: number, it: any) => sum + (it.amount || 0), 0),
+      source: 'batch_paste'
+    });
 
     if (warnings && warnings.length > 0) {
       showToast(warnings.join(', '), 'warning');
@@ -1883,21 +1904,33 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   className="w-full p-3 font-mono text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                 />
               </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsBatchOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
-                >
-                  {isMyanmar ? 'မလုပ်တော့ပါ' : 'Cancel'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleProcessBatch}
-                  className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
-                >
-                  {isMyanmar ? 'စာရင်းသွင်းမည်' : 'Process'}
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                {onOpenRawClipsModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenRawClipsModal}
+                    className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer hover:underline"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-amber-600" />
+                    <span>မူရင်းစာသားမှတ်တမ်း ကြည့်မည်</span>
+                  </button>
+                )}
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsBatchOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                  >
+                    {isMyanmar ? 'မလုပ်တော့ပါ' : 'Cancel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProcessBatch}
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+                  >
+                    {isMyanmar ? 'စာရင်းသွင်းမည်' : 'Process'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2775,21 +2808,33 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsBatchOpen(false)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
-              >
-                {isMyanmar ? 'မလုပ်တော့ပါ' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={handleProcessBatch}
-                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
-              >
-                {isMyanmar ? 'စာရင်းသွင်းမည်' : 'Process'}
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              {onOpenRawClipsModal && (
+                <button
+                  type="button"
+                  onClick={onOpenRawClipsModal}
+                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer hover:underline"
+                >
+                  <FileText className="w-3.5 h-3.5 text-amber-600" />
+                  <span>မူရင်းစာသားမှတ်တမ်း ကြည့်မည်</span>
+                </button>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                >
+                  {isMyanmar ? 'မလုပ်တော့ပါ' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleProcessBatch}
+                  className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+                >
+                  {isMyanmar ? 'စာရင်းသွင်းမည်' : 'Process'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
