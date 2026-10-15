@@ -24,11 +24,16 @@ import {
   Globe,
   ExternalLink,
   Eye,
-  EyeOff
+  EyeOff,
+  AlertTriangle,
+  Info,
+  HelpCircle,
+  Radio
 } from 'lucide-react';
 import {
   TelegramIncomingOrder,
   TelegramAccountConfig,
+  TelegramBotInfo,
   getTelegramConfig,
   saveTelegramConfig,
   syncTelegramConfig,
@@ -42,6 +47,9 @@ import {
   testTelegramConnection,
   registerTelegramWebhook,
   clearTelegramToken,
+  deleteTelegramWebhook,
+  cleanTelegramToken,
+  isValidTokenFormat,
   ConnectionStatus
 } from '../utils/telegramIntegration';
 import { useLottery } from '../context/LotteryContext';
@@ -83,7 +91,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [ocrProgress, setOcrProgress] = useState(0);
 
   // Bot Config State
-  const [botToken, setBotToken] = useState(config.botToken || '');
+  const [botToken, setBotToken] = useState(() => config.botToken || '');
   const [channelId, setChannelId] = useState(config.channelId || '');
   const [accountName, setAccountName] = useState(config.accountName || '');
   const [webhookUrl, setWebhookUrl] = useState(() => {
@@ -98,10 +106,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [configSuccess, setConfigSuccess] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isRegisteringWebhook, setIsRegisteringWebhook] = useState(false);
+  const [isRestoringPolling, setIsRestoringPolling] = useState(false);
   const [webhookActionMsg, setWebhookActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [testDiagnostics, setTestDiagnostics] = useState<{
+    status?: ConnectionStatus;
+    message?: string;
+    bot?: TelegramBotInfo;
+    errorType?: string;
+    details?: string;
+  } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [showBotToken, setShowBotToken] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [receptionMode, setReceptionMode] = useState<'polling' | 'webhook'>('polling');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,6 +134,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         }
         if (cfg.channelId) setChannelId(cfg.channelId);
         if (cfg.accountName) setAccountName(cfg.accountName);
+        if (cfg.botToken && !botToken) {
+          setBotToken(cfg.botToken);
+        }
       }
       const ordList = await fetchTelegramOrdersFromServer();
       if (ordList !== null) {
@@ -430,25 +450,128 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   };
 
   const handleTestConnection = async () => {
+    let rawInput = botToken.trim() || config.botToken || '';
+    const nameCandidate = accountName.trim();
+    const channelCandidate = channelId.trim();
+
+    // Smart Swap: If user accidentally pasted token into Bot Name or Channel ID field on tablet
+    if (!isValidTokenFormat(cleanTelegramToken(rawInput))) {
+      if (isValidTokenFormat(cleanTelegramToken(nameCandidate))) {
+        rawInput = nameCandidate;
+        setBotToken(cleanTelegramToken(nameCandidate));
+        setAccountName(botToken.trim().startsWith('@') ? botToken.trim() : '');
+      } else if (isValidTokenFormat(cleanTelegramToken(channelCandidate))) {
+        rawInput = channelCandidate;
+        setBotToken(cleanTelegramToken(channelCandidate));
+        setChannelId('');
+      }
+    }
+
+    const cleaned = cleanTelegramToken(rawInput);
+
+    if (!cleaned && !config.hasServerToken) {
+      setTestDiagnostics({
+        status: 'disconnected',
+        message: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ'
+      });
+      return;
+    }
+
+    if (cleaned && (cleaned.startsWith('@') || (!cleaned.includes(':') && cleaned.length > 0))) {
+      setTestDiagnostics({
+        status: 'error',
+        errorType: 'format_username',
+        message: '⚠️ ထည့်သွင်းထားသည်မှာ Bot Username (@name) ဖြစ်နေပါသည်။ BotFather မှ ပေးသော နံပါတ်နှင့်စသည့် Token (ဥပမာ 123456789:ABCdef...) ကို ထည့်သွင်းပေးပါ'
+      });
+      return;
+    }
+
+    if (cleaned && !isValidTokenFormat(cleaned)) {
+      setTestDiagnostics({
+        status: 'error',
+        errorType: 'format_invalid',
+        message: '⚠️ Bot Token ပုံစံ မမှန်ကန်ပါ။ ရှေ့တွင် Bot ID ဂဏန်း ၇ လုံးမှ ၁၂ လုံးနှင့် colon (:) ပါဝင်ရပါမည်'
+      });
+      return;
+    }
+
     setIsTestingConnection(true);
-    const result = await testTelegramConnection(botToken.trim(), webhookUrl.trim());
+    setTestDiagnostics(null);
+
+    const result = await testTelegramConnection(cleaned || '', webhookUrl.trim() || undefined);
     setIsTestingConnection(false);
 
-    const updatedConfig: TelegramAccountConfig = {
-      botToken: botToken.trim(),
-      channelId: channelId.trim(),
-      accountName: accountName.trim(),
-      webhookUrl: webhookUrl.trim(),
+    setTestDiagnostics({
       status: result.status,
-      statusMessage: result.message,
-      connectedAt: result.status === 'connected' ? new Date().toISOString() : undefined
-    };
-    setConfig(updatedConfig);
-    saveTelegramConfig(updatedConfig);
+      message: result.message,
+      bot: result.bot,
+      errorType: result.errorType,
+      details: result.details
+    });
+
+    if (result.status === 'connected') {
+      const finalToken = cleaned || config.botToken || '';
+      const updatedConfig: TelegramAccountConfig = {
+        botToken: finalToken,
+        channelId: channelId.trim(),
+        accountName: accountName.trim() || (result.bot ? `@${result.bot.username || result.bot.firstName}` : ''),
+        webhookUrl: webhookUrl.trim(),
+        status: 'connected',
+        statusMessage: result.message,
+        connectedAt: new Date().toISOString(),
+        hasServerToken: true,
+        botInfo: result.bot
+      };
+      if (finalToken) setBotToken(finalToken);
+      if (result.bot && !accountName.trim()) {
+        setAccountName(`@${result.bot.username || result.bot.firstName}`);
+      }
+      setConfig(updatedConfig);
+      saveTelegramConfig(updatedConfig);
+    } else {
+      setConfig(prev => ({
+        ...prev,
+        status: result.status,
+        statusMessage: result.message
+      }));
+    }
+  };
+
+  const handleRestorePolling = async () => {
+    setIsRestoringPolling(true);
+    const res = await deleteTelegramWebhook();
+    setIsRestoringPolling(false);
+
+    if (res.ok) {
+      setWebhookActionMsg({
+        type: 'success',
+        text: '✓ Webhook အား ဖျက်သိမ်းပြီး တိုက်ရိုက် Auto-Polling စနစ်ကို အောင်မြင်စွာ ပြန်လည်အသက်သွင်းလိုက်ပါပြီ! တက်ဘလက်ပေါ်တွင် စာရင်းများ တိုက်ရိုက် တက်လာပါမည်။'
+      });
+      setWebhookUrl('');
+      // Re-test connection
+      handleTestConnection();
+    } else {
+      setWebhookActionMsg({
+        type: 'error',
+        text: `✕ Webhook ဖျက်သိမ်းမှု မအောင်မြင်ပါ: ${res.message}`
+      });
+    }
+    setTimeout(() => setWebhookActionMsg(null), 6000);
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const clipText = await navigator.clipboard.readText();
+      if (clipText) {
+        const cleaned = cleanTelegramToken(clipText);
+        setBotToken(cleaned || clipText.trim());
+      }
+    } catch {
+      // clipboard permission denied
+    }
   };
 
   const handleAutoDetectWebhook = () => {
-    // Current browser origin (tablet / mobile / PC)
     const origin = window.location.origin;
     const detected = `${origin}/api/telegram/webhook`;
     setWebhookUrl(detected);
@@ -467,7 +590,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   };
 
   const handleRegisterWebhookWithTelegram = async () => {
-    if (!botToken.trim() && !config.hasServerToken) {
+    const tokenToUse = cleanTelegramToken(botToken.trim() || config.botToken || '');
+    if (!tokenToUse && !config.hasServerToken) {
       setWebhookActionMsg({
         type: 'error',
         text: 'ကျေးဇူးပြု၍ Telegram Bot Token ကို အရင်ဖြည့်သွင်းပေးပါခင်ဗျာ'
@@ -485,13 +609,12 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return;
     }
 
-    // Save config first to ensure token is synced on server
     setIsRegisteringWebhook(true);
     setWebhookActionMsg(null);
 
     // First save settings to server
     const currentConf: TelegramAccountConfig = {
-      botToken: botToken.trim(),
+      botToken: tokenToUse,
       channelId: channelId.trim(),
       accountName: accountName.trim(),
       webhookUrl: webhookUrl.trim(),
@@ -507,9 +630,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (res.ok) {
       setWebhookActionMsg({
         type: 'success',
-        text: '✓ Telegram Bot Server သို့ Webhook အောင်မြင်စွာ ချိတ်ဆက်မှတ်ပုံတင်ပြီးပါပြီ! ယခု Telegram Bot မှ ပို့သော စာရင်းများ တိုက်ရိုက် ရောက်ရှိပါမည်။'
+        text: '✓ Telegram Bot Server သို့ Webhook အောင်မြင်စွာ ချိတ်ဆက်မှတ်ပုံတင်ပြီးပါပြီ!'
       });
-      // Re-test connection to update status pill
       handleTestConnection();
     } else {
       setWebhookActionMsg({
@@ -524,14 +646,16 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (window.confirm('Telegram Bot Token ကို ဖျက်ပစ်ပြီး Disconnect လုပ်ရန် သေချာပါသလား?')) {
       await clearTelegramToken();
       setBotToken('');
-      setConfig(prev => ({
-        ...prev,
+      setTestDiagnostics(null);
+      setConfig({
         botToken: '',
+        channelId: '',
+        accountName: '',
         webhookUrl: '',
         status: 'disconnected',
         statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)',
         hasServerToken: false
-      }));
+      });
       setWebhookActionMsg({
         type: 'success',
         text: '✓ Telegram Bot Token ကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။'
@@ -542,14 +666,35 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!botToken.trim() || !webhookUrl.trim()) {
+
+    let rawInput = botToken.trim() || config.botToken || '';
+    const nameCandidate = accountName.trim();
+    const channelCandidate = channelId.trim();
+
+    // Smart Swap if token was accidentally pasted in Name or Channel field on tablet
+    if (!isValidTokenFormat(cleanTelegramToken(rawInput))) {
+      if (isValidTokenFormat(cleanTelegramToken(nameCandidate))) {
+        rawInput = nameCandidate;
+        setBotToken(cleanTelegramToken(nameCandidate));
+        setAccountName(botToken.trim().startsWith('@') ? botToken.trim() : '');
+      } else if (isValidTokenFormat(cleanTelegramToken(channelCandidate))) {
+        rawInput = channelCandidate;
+        setBotToken(cleanTelegramToken(channelCandidate));
+        setChannelId('');
+      }
+    }
+
+    const cleaned = cleanTelegramToken(rawInput);
+
+    // If user has not typed anything and server doesn't have token either
+    if (!cleaned && !config.hasServerToken) {
       const newConfig: TelegramAccountConfig = {
-        botToken: botToken.trim(),
+        botToken: '',
         channelId: channelId.trim(),
         accountName: accountName.trim(),
         webhookUrl: webhookUrl.trim(),
         status: 'disconnected',
-        statusMessage: 'API Token သို့မဟုတ် Webhook Endpoint မရှိသေးပါ'
+        statusMessage: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ'
       };
       setConfig(newConfig);
       saveTelegramConfig(newConfig);
@@ -558,21 +703,44 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return;
     }
 
-    setIsTestingConnection(true);
-    const result = await testTelegramConnection(botToken.trim(), webhookUrl.trim());
-    setIsTestingConnection(false);
+    // If candidate token provided, test and verify
+    if (cleaned) {
+      setIsTestingConnection(true);
+      const result = await testTelegramConnection(cleaned, webhookUrl.trim() || undefined);
+      setIsTestingConnection(false);
 
-    const newConfig: TelegramAccountConfig = {
-      botToken: botToken.trim(),
-      channelId: channelId.trim(),
-      accountName: accountName.trim(),
-      webhookUrl: webhookUrl.trim(),
-      status: result.status,
-      statusMessage: result.message,
-      connectedAt: result.status === 'connected' ? new Date().toISOString() : undefined
-    };
-    setConfig(newConfig);
-    saveTelegramConfig(newConfig);
+      const newConfig: TelegramAccountConfig = {
+        botToken: cleaned,
+        channelId: channelId.trim(),
+        accountName: accountName.trim() || (result.bot ? `@${result.bot.username || result.bot.firstName}` : ''),
+        webhookUrl: webhookUrl.trim(),
+        status: result.status,
+        statusMessage: result.message,
+        connectedAt: result.status === 'connected' ? new Date().toISOString() : undefined,
+        hasServerToken: result.status === 'connected',
+        botInfo: result.bot
+      };
+      setConfig(newConfig);
+      saveTelegramConfig(newConfig);
+      setTestDiagnostics({
+        status: result.status,
+        message: result.message,
+        bot: result.bot,
+        errorType: result.errorType,
+        details: result.details
+      });
+    } else {
+      // Keep existing server token
+      const newConfig: TelegramAccountConfig = {
+        ...config,
+        channelId: channelId.trim(),
+        accountName: accountName.trim(),
+        webhookUrl: webhookUrl.trim()
+      };
+      setConfig(newConfig);
+      saveTelegramConfig(newConfig);
+    }
+
     setConfigSuccess(true);
     setTimeout(() => setConfigSuccess(false), 2500);
   };
@@ -980,149 +1148,300 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
           {/* TAB 3: SETTINGS */}
           {activeTab === 'settings' && (
-            <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-6 max-w-2xl mx-auto space-y-4 shadow-xs">
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Bot className="w-4 h-4 text-sky-600" />
-                <span>Telegram Bot API & အမှာစာများ အချိန်နှင့်တစ်ပြေးညီ (Real-time Sync) လက်ခံခြင်း</span>
-              </h4>
-
-              {/* Instruction Box */}
-              <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-4 text-xs text-sky-950 space-y-2 shadow-xs">
-                <div className="font-bold flex items-center gap-1.5 text-sky-900">
-                  <Bot className="w-4 h-4 text-sky-600" />
-                  <span>Telegram Bot API ချိတ်ဆက်ခြင်း & အမှာစာများ လက်ခံပုံ</span>
-                </div>
-                <p className="text-slate-700 leading-relaxed">
-                  Telegram Bot Token ထည့်သွင်းပြီး Webhook ချိတ်ဆက်ထားခြင်းဖြင့် ဖောက်သည်များထံမှ ဝင်လာသော Telegram မက်ဆေ့များနှင့် ထိုးကြေးအမှာစာများကို အလိုအလျောက် ရရှိမည်ဖြစ်ပြီး၊ မည်သည့်စက်ပစ္စည်း (Device/Browser) မှမဆို အချိန်နှင့်တစ်ပြေးညီ စစ်ဆေးခြင်း၊ အတည်ပြုခြင်းနှင့် ငြင်းပယ်ခြင်းများကို အပြည့်အဝ လုပ်ဆောင်နိုင်ပါသည်။
-                </p>
-                
-                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-1.5">
-                  <div className="font-bold flex items-center gap-1">
-                    <span>⚠️ ဂရု (Group) ထဲမှ ဂဏန်းများ အလိုအလျောက် မတက်လာပါက (Troubleshooting):</span>
+            <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 max-w-2xl mx-auto space-y-5 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-sky-600" />
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900">
+                      Telegram Bot API & အမှာစာများ အချိန်နှင့်တစ်ပြေးညီ လက်ခံခြင်း
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      တက်ဘလက် / ဖုန်းတွင် Telegram Group မှ စာရင်းများကို အလိုအလျောက် ရယူရန် စနစ်
+                    </p>
                   </div>
-                  <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-950">
-                    <li><b>Telegram Privacy Mode:</b> Telegram Bot များကို မူလအားဖြင့် Group ထဲတွင် အခြားသူများပြောသော စာများကို Bot အား @mention မလုပ်ထားလျှင် မမြင်ရပါ။</li>
-                    <li><b>ဖြေရှင်းရန် (၁):</b> BotFather သို့သွား၍ <code className="bg-amber-100 px-1 rounded">/setprivacy</code> ရွေးပြီး <code className="bg-amber-100 px-1 rounded">Disable</code> လုပ်ပါ။</li>
-                    <li><b>ဖြေရှင်းရန် (၂):</b> (သို့မဟုတ်) Group ထဲတွင် ဂဏန်းပို့သည့်အခါ <code className="bg-amber-100 px-1 rounded">@မိမိBotName 23 45 800/200</code> ဟု Bot နာမည်ကို တွဲ၍ (သို့) <code className="bg-amber-100 px-1 rounded">/</code> ဖြင့် စတင်၍ ပို့ပါ။</li>
-                  </ul>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1">
+                    <Radio className="w-3 h-3 text-sky-600 animate-pulse" />
+                    <span>Auto-Polling အသင့်ဖြစ်</span>
+                  </span>
                 </div>
               </div>
 
+              {/* SUCCESS NOTICE */}
               {configSuccess && (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs font-bold">
-                  ✓ Telegram ဆက်တင်များကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။
+                <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>✓ Telegram ဆက်တင်များကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။</span>
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Bot Name / Account Name</label>
-                <input
-                  type="text"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900"
-                />
-              </div>
+              {/* CONNECTED STATUS CARD */}
+              {(testDiagnostics?.bot || config.botInfo || (config.status === 'connected' && config.hasServerToken)) && (
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs">
+                        <Bot className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-black text-emerald-950">
+                            {testDiagnostics?.bot?.firstName || config.botInfo?.firstName || accountName || 'Telegram Bot'}
+                          </span>
+                          <span className="text-[11px] font-mono text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md font-bold">
+                            @{testDiagnostics?.bot?.username || config.botInfo?.username || 'bot'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-mono text-emerald-800">
+                          Bot ID: {testDiagnostics?.bot?.id || config.botInfo?.id || 'Connected'} • ချိတ်ဆက်ပြီးပါပြီ
+                        </p>
+                      </div>
+                    </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700">Telegram Bot Token (FatherBot Token)</label>
-                  {(config.hasServerToken || botToken || config.status === 'connected') && (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-600 text-white flex items-center gap-1 shadow-2xs">
+                      <Check className="w-3 h-3" />
+                      <span>တရားဝင်ချိတ်ဆက်ပြီး</span>
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-emerald-200/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-white/80 p-2 rounded-xl border border-emerald-200/50 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-emerald-950 font-medium">Group ထဲ ဝင်ရောက်ခွင့်: <b>ရရှိထားသည်</b></span>
+                    </div>
+
+                    <div className="bg-white/80 p-2 rounded-xl border border-emerald-200/50 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-emerald-950 font-medium">
+                        {(testDiagnostics?.bot?.canReadAllGroupMessages || config.botInfo?.canReadAllGroupMessages)
+                          ? 'Group စာဖတ်ခွင့်: အားလုံးဖတ်နိုင်သည်'
+                          : 'Group စာဖတ်ခွင့်: Bot ကို Admin ခန့်ပါ'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ERROR / 401 UNAUTHORIZED DIAGNOSTIC ALERT */}
+              {(testDiagnostics?.status === 'error' || config.status === 'error' || testDiagnostics?.errorType === 'unauthorized') && (
+                <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 text-rose-950 space-y-3 shadow-xs animate-in shake duration-300">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <h5 className="text-xs font-black text-rose-900">
+                          {testDiagnostics?.message || config.statusMessage || 'Telegram Bot Token မမှန်ကန်ပါ (401 Unauthorized)'}
+                        </h5>
+                        <p className="text-[11px] text-rose-800 mt-1 leading-relaxed">
+                          Telegram Official Server မှ ဤ Bot Token သည် မမှန်ကန်ပါ (သို့မဟုတ်) BotFather တွင် Revoke လုပ်ထားပြီးဖြစ်ကြောင်း အကြောင်းပြန်ပါသည်။
+                        </p>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handleClearToken}
-                      className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer hover:underline"
+                      onClick={async () => {
+                        await handlePasteFromClipboard();
+                        setTimeout(() => handleTestConnection(), 150);
+                      }}
+                      className="shrink-0 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Token ဖျက်မည် (Clear / Disconnect)</span>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Clipboard မှ ကူးယူစမ်းသပ်မည်</span>
                     </button>
+                  </div>
+
+                  <div className="bg-white/95 border border-rose-200 rounded-xl p-3.5 text-[11px] space-y-2 text-rose-950">
+                    <div className="font-bold flex items-center gap-1.5 text-rose-900">
+                      <HelpCircle className="w-4 h-4 text-rose-600" />
+                      <span>တက်ဘလက်တွင် Telegram ချိတ်မရခြင်း အကြောင်းရင်းနှင့် ဖြေရှင်းနည်း (၂ မိနစ်):</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
+                      <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-100 space-y-1">
+                        <p className="font-bold text-rose-900">ဖြစ်နိုင်ခြေရှိသော အကြောင်းရင်းများ:</p>
+                        <ul className="list-disc list-inside space-y-0.5 text-slate-700 font-medium text-[10px]">
+                          <li>BotFather တွင် Token အသစ် ထုတ်ယူထားမိခြင်း</li>
+                          <li>Token စာလုံး အစ/အဆုံး မပြည့်စုံဘဲ ကျန်ခဲ့ခြင်း</li>
+                          <li>Bot အမည် (@name) အား Token နေရာတွင် ထည့်မိခြင်း</li>
+                        </ul>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100 space-y-1">
+                        <p className="font-bold text-emerald-900">အမြန်ဖြေရှင်းပုံ (BotFather တွင်):</p>
+                        <ol className="list-decimal list-inside space-y-0.5 text-slate-700 font-medium text-[10px]">
+                          <li>Telegram App တွင် <b className="font-mono">@BotFather</b> သို့ သွားပါ</li>
+                          <li><b className="font-mono">/mybots</b> ပို့ပြီး မိမိ Bot ကို ရွေးပါ</li>
+                          <li><b>API Token</b> &gt; <b>Revoke current token</b> နှိပ်ပါ</li>
+                          <li>ထွက်လာသော Token အသစ်အား ဤနေရာသို့ Paste လုပ်ပါ</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* INSTRUCTION & QUICK GUIDE ACCORDION */}
+              <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-4 text-xs text-sky-950 space-y-2.5 shadow-2xs">
+                <div className="font-bold flex items-center justify-between text-sky-950">
+                  <div className="flex items-center gap-1.5">
+                    <Info className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span>တက်ဘလက် / ဖုန်းတွင် Telegram Group မှ စာရင်းများ ဖတ်ယူနိုင်စေရန် အရေးကြီးအချက်များ:</span>
+                  </div>
+                </div>
+
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 leading-relaxed font-medium">
+                  <li><b>(အလွယ်ကူဆုံးနည်း) Bot အား Group တွင် Admin ခန့်ပါ:</b> Bot ကို Group ထဲသို့ ထည့်ပြီး Group Settings ထဲတွင် <b>"Promote to Admin"</b> လုပ်ထားပါက Telegram မှ စာများအားလုံးကို အလိုအလျောက် ပေးပို့ပါသည်။</li>
+                  <li><b>သို့မဟုတ် Privacy Disable လုပ်ပါ:</b> BotFather တွင် <code className="bg-sky-100 px-1 rounded font-mono">/setprivacy</code> ရိုက်ပြီး မိမိ Bot ကို ရွေးကာ <code className="bg-sky-100 px-1 rounded font-mono">Disable</code> လုပ်ပေးပါ။</li>
+                  <li><b>စာရင်းပေးပို့ပုံများ:</b> အဖွဲ့ဝင်များက <code className="bg-white border px-1 rounded font-mono">23 45 800/200</code> သို့မဟုတ် <code className="bg-white border px-1 rounded font-mono">123=1000</code> သို့မဟုတ် <code className="bg-white border px-1 rounded font-mono">@မိမိBot 24=500</code> ဟု ရိုက်ပို့နိုင်ပါသည်။</li>
+                </ul>
+              </div>
+
+              {/* FORM INPUTS */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Bot အမည် / Account Name (မှတ်သားရန်)
+                  </label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder="ဥပမာ - ရွှေမင်္ဂလာ Telegram Bot"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+
+                {/* BOT TOKEN INPUT */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span>Telegram Bot Token (BotFather Token)</span>
+                      <span className="text-[10px] text-rose-500 font-bold">*လိုအပ်သည်</span>
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handlePasteFromClipboard}
+                        className="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200"
+                        title="ကလစ်ဘုတ်မှ တိုက်ရိုက် ထည့်မည်"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Clipboard မှ Paste</span>
+                      </button>
+
+                      {(config.hasServerToken || botToken || config.status === 'connected') && (
+                        <button
+                          type="button"
+                          onClick={handleClearToken}
+                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer hover:underline"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Token ဖျက်မည်</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type={showBotToken ? "text" : "password"}
+                      value={botToken}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBotToken(val);
+                      }}
+                      onBlur={() => {
+                        if (botToken) {
+                          const cleaned = cleanTelegramToken(botToken);
+                          if (cleaned && cleaned !== botToken) {
+                            setBotToken(cleaned);
+                          }
+                        }
+                      }}
+                      placeholder={config.hasServerToken ? "•••••••••••••••• (လက်ရှိ Token ချိတ်ဆက်ထားသည်)" : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-10 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowBotToken(!showBotToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title={showBotToken ? "Token ဖုံးမည်" : "Token ကြည့်မည်"}
+                    >
+                      {showBotToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {/* LIVE TOKEN VALIDATION BADGE */}
+                  {botToken.trim().length > 0 && (
+                    <div className="mt-1.5 text-[11px]">
+                      {botToken.trim().startsWith('@') ? (
+                        <p className="text-amber-700 font-semibold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>⚠️ ဒါက Bot Username (@name) ဖြစ်နေပါသည်။ BotFather မှ ပေးသော နံပါတ်နှင့်စသည့် Token (ဥပမာ 123456789:ABC...) ကို ထည့်ပါ</span>
+                        </p>
+                      ) : isValidTokenFormat(cleanTelegramToken(botToken)) ? (
+                        <p className="text-emerald-700 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>✓ Token ပုံစံ မှန်ကန်ပါသည် (Bot ID: {cleanTelegramToken(botToken).split(':')[0]})</span>
+                        </p>
+                      ) : botToken.includes('Use this token to access the HTTP API') ? (
+                        <p className="text-sky-700 font-semibold flex items-center gap-1">
+                          <Info className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          <span>✓ BotFather စာသားထဲမှ Token အား အလိုအလျောက် သန့်စင်ထုတ်ယူပါမည်</span>
+                        </p>
+                      ) : (
+                        <p className="text-slate-500 font-mono">
+                          ရှေ့တွင် ဂဏန်း ၈-၁၁ လုံးနှင့် colon (:) ပါဝင်ရပါမည်
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div className="relative">
+
+                {/* GROUP ID / CHANNEL ID */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Telegram Channel / Group ID (ရွေးချယ်နိုင်သည်)
+                  </label>
                   <input
-                    type={showBotToken ? "text" : "password"}
-                    value={botToken}
-                    onChange={(e) => setBotToken(e.target.value)}
-                    placeholder={config.hasServerToken ? "•••••••••••••••• (လက်ရှိ Token ရှိသည် - ဖျက်လိုပါက 'Token ဖျက်မည်' ကိုနှိပ်ပါ)" : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-10 py-2 text-xs font-mono text-slate-900"
+                    type="text"
+                    value={channelId}
+                    onChange={(e) => setChannelId(e.target.value)}
+                    placeholder="@shwemingalar_group (သို့မဟုတ် ကွက်လပ်ထားနိုင်သည်)"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowBotToken(!showBotToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    title={showBotToken ? "Token ဖုံးမည်" : "Token ကြည့်မည်"}
-                  >
-                    {showBotToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    *Bot ကို Group ထဲသို့ Add ထားပါက ဤနေရာတွင် ID မထည့်ထားသော်လည်း အလိုအလျောက် စာရင်းလက်ခံနိုင်ပါသည်
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Telegram Channel / Group ID (@username or chat_id)</label>
-                <input
-                  type="text"
-                  value={channelId}
-                  onChange={(e) => setChannelId(e.target.value)}
-                  placeholder="@shwemingalar_channel"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
-                />
-              </div>
-
-              <div className="bg-sky-50/70 border border-sky-200/80 rounded-2xl p-4 space-y-3">
+              {/* RECEPTION MODE SWITCH & POLING HELPER */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <label className="block text-xs font-black text-sky-950 flex items-center gap-1.5">
-                      <Link2 className="w-3.5 h-3.5 text-sky-600" />
-                      <span>App Webhook URL Endpoint (တက်ဘလက် / ဖုန်း ချိတ်ဆက်ရန်)</span>
-                    </label>
-                    <p className="text-[11px] text-sky-800/80 font-medium mt-0.5">
-                      Telegram Bot ဆီက စာများကို ဆရာ့ တက်ဘလက် App သို့ အလိုအလျောက် ပို့ပေးမည့် လိပ်စာ
+                    <h5 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <Radio className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>အမှာစာ လက်ခံမည့် စနစ် (Reception Engine)</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      တက်ဘလက် / ဖုန်းတွင် Auto-Polling စနစ်ဖြင့် Webhook မလိုဘဲ အလိုအလျောက် လက်ခံနိုင်ပါသည်
                     </p>
                   </div>
 
-                  {/* 1-Click Auto-Detect Button */}
                   <button
                     type="button"
-                    onClick={handleAutoDetectWebhook}
-                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    onClick={handleRestorePolling}
+                    disabled={isRestoringPolling}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Webhook အား ရှင်းလင်းပြီး တိုက်ရိုက် Auto-Polling ဖြင့် လက်ခံမည်"
                   >
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>လက်ရှိ App URL အလိုအလျောက် ရယူမည် (Auto-Detect)</span>
-                  </button>
-                </div>
-
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="https://.../api/telegram/webhook"
-                    className="w-full bg-white border border-sky-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 shadow-inner"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopyWebhook}
-                    title="URL ကူးယူမည်"
-                    className="px-3 py-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
-                  >
-                    {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedWebhook ? 'ကူးပြီး' : 'Copy'}</span>
-                  </button>
-                </div>
-
-                {/* 1-Click Telegram Registration Button */}
-                <div className="pt-2 border-t border-sky-200/60 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[11px] text-slate-600 font-medium">
-                    Webhook URL ကို Telegram Server နှင့် တိုက်ရိုက်မှတ်ပုံတင်ရန် နှိပ်ပါ:
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRegisterWebhookWithTelegram}
-                    disabled={isRegisteringWebhook}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    <Zap className={`w-3.5 h-3.5 ${isRegisteringWebhook ? 'animate-bounce' : ''}`} />
-                    <span>{isRegisteringWebhook ? 'Telegram သို့ ချိတ်ဆက်နေပါသည်...' : 'Telegram သို့ Webhook တိုက်ရိုက် ချိတ်ဆက်မည် (1-Click)'}</span>
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRestoringPolling ? 'animate-spin' : ''}`} />
+                    <span>{isRestoringPolling ? 'စနစ်ဖွင့်နေဆဲ...' : 'Auto-Polling သို့ ပြန်ပြောင်းမည် (Restore)'}</span>
                   </button>
                 </div>
 
@@ -1144,37 +1463,32 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-200">
+              {/* CONNECTION STATUS & TEST ACTION BUTTONS */}
+              <div className="pt-3 border-t border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {config.status === 'connected' && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>Connected (ချိတ်ဆက်ပြီး)</span>
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300 shadow-2xs">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Connected (ချိတ်ဆက်ပြီး - စာရင်းဝင်နေသည်)</span>
                       </span>
                     )}
                     {config.status === 'disconnected' && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300">
-                        <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
                         <span>Disconnected (မချိတ်ဆက်ရသေးပါ)</span>
                       </span>
                     )}
                     {config.status === 'connecting' && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Connecting (စမ်းသပ်နေသည်...)</span>
+                        <span>Connecting (စမ်းသပ်စစ်ဆေးနေပါသည်...)</span>
                       </span>
                     )}
                     {config.status === 'error' && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 text-xs font-bold border border-rose-300">
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold border border-rose-300">
                         <XCircle className="w-3.5 h-3.5" />
-                        <span>Error (အမှားအယွင်းရှိသည်)</span>
-                      </span>
-                    )}
-                    {config.status === 'timeout' && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-100 text-orange-800 text-xs font-bold border border-orange-300">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Timeout (အချိန်လွန်သွားသည်)</span>
+                        <span>Error (Token စစ်ဆေးရန် လိုအပ်သည်)</span>
                       </span>
                     )}
                   </div>
@@ -1183,27 +1497,28 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                     type="button"
                     onClick={handleTestConnection}
                     disabled={isTestingConnection}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl border border-sky-600 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
-                    <span>{isTestingConnection ? 'စမ်းသပ်နေဆဲ...' : 'ချိတ်ဆက်မှု စမ်းသပ်မည်'}</span>
+                    <span>{isTestingConnection ? 'စမ်းသပ်နေဆဲ...' : 'ချိတ်ဆက်မှု စမ်းသပ်မည် (Test)'}</span>
                   </button>
                 </div>
 
                 {config.statusMessage && (
-                  <p className="text-[11px] font-medium text-slate-600 mt-2 font-mono">
+                  <p className="text-[11px] font-medium text-slate-600 font-mono bg-slate-50 p-2 rounded-lg border border-slate-200">
                     {config.statusMessage}
                   </p>
                 )}
               </div>
 
+              {/* SAVE CONFIG BUTTON */}
               <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
                   disabled={isTestingConnection}
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer transition-transform active:scale-95 disabled:opacity-60"
                 >
-                  {isTestingConnection ? 'စမ်းသပ်စစ်ဆေးနေပါသည်...' : 'ဆက်တင်များ သိမ်းဆည်းမည်'}
+                  {isTestingConnection ? 'စစ်ဆေးနေပါသည်...' : 'ဆက်တင်များ သိမ်းဆည်းမည် (Save)'}
                 </button>
               </div>
             </form>

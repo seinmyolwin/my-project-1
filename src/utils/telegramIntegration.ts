@@ -21,6 +21,15 @@ export interface TelegramIncomingOrder {
   notes?: string;
 }
 
+export interface TelegramBotInfo {
+  id: number;
+  username: string;
+  firstName: string;
+  canJoinGroups?: boolean;
+  canReadAllGroupMessages?: boolean;
+  supportsInlineQueries?: boolean;
+}
+
 export interface TelegramAccountConfig {
   botToken: string;
   channelId: string;
@@ -30,6 +39,7 @@ export interface TelegramAccountConfig {
   statusMessage?: string;
   connectedAt?: string;
   hasServerToken?: boolean;
+  botInfo?: TelegramBotInfo;
 }
 
 const TELEGRAM_CONFIG_KEY = 'shwe_mingalar_telegram_config';
@@ -45,20 +55,58 @@ export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
   hasServerToken: false
 };
 
-const OLD_HARDCODED_TOKEN = '8702580376:AAFnXFAPXc8GR281_G6EMO48MFTCL5FKVJg';
+/**
+ * Intelligent Telegram Bot Token Sanitizer for Tablets & Mobile
+ */
+export function cleanTelegramToken(raw: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+
+  // 1. Convert Myanmar numerals (၀-၉) to English digits (0-9)
+  const mmNumerals: Record<string, string> = {
+    '၀': '0', '၁': '1', '၂': '2', '၃': '3', '၄': '4',
+    '၅': '5', '၆': '6', '၇': '7', '၈': '8', '၉': '9'
+  };
+  let cleaned = raw.replace(/[၀-၉]/g, (ch) => mmNumerals[ch] || ch);
+
+  // 2. Replace fullwidth colon '：' (U+FF1A) with standard ASCII ':' (U+003A)
+  cleaned = cleaned.replace(/\uFF1A/g, ':');
+
+  // 3. Remove zero-width spaces, joiners, non-breaking spaces, control characters
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00A0\u00AD\u200E\u200F\u202A-\u202E\r\n\t]/g, ' ');
+
+  // 4. Strip leading URLs or API prefixes if user pasted full API link
+  cleaned = cleaned.replace(/https?:\/\/api\.telegram\.org\/bot/gi, '');
+  cleaned = cleaned.replace(/api\.telegram\.org\/bot/gi, '');
+  cleaned = cleaned.replace(/\bbot(?=\d+:)/gi, '');
+
+  // 5. Remove spaces around colon (e.g. "123456789 : ABC..." -> "123456789:ABC...")
+  cleaned = cleaned.replace(/(\d+)\s*:\s*([A-Za-z0-9_-]+)/g, '$1:$2');
+
+  // 6. Extract token pattern <digits>:<chars> anywhere in text
+  const match = cleaned.match(/(\d{7,12}:[A-Za-z0-9_-]{25,50})/);
+  if (match) {
+    return match[1];
+  }
+
+  // 7. Strip surrounding quotes or brackets
+  cleaned = cleaned.replace(/^['"`<([{\s]+|['"`>)\]}\s]+$/g, '').trim();
+
+  return cleaned;
+}
+
+export function isValidTokenFormat(token: string): boolean {
+  if (!token) return false;
+  return /^\d{7,12}:[A-Za-z0-9_-]{25,50}$/.test(token);
+}
 
 export function getTelegramConfig(): TelegramAccountConfig {
   try {
     const raw = localStorage.getItem(TELEGRAM_CONFIG_KEY);
     if (raw) {
       const parsed: TelegramAccountConfig = JSON.parse(raw);
-      // Clean up any residual old hardcoded values
-      if (parsed.botToken === OLD_HARDCODED_TOKEN) {
-        parsed.botToken = '';
-      }
       return {
         ...parsed,
-        botToken: parsed.botToken || ''
+        botToken: cleanTelegramToken(parsed.botToken || '')
       };
     }
   } catch {
@@ -69,6 +117,7 @@ export function getTelegramConfig(): TelegramAccountConfig {
 
 /**
  * Fetch server-side status & configuration for Telegram
+ * Also auto-heals server if server restarted and lost in-memory token
  */
 export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null> {
   try {
@@ -79,17 +128,40 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
     if (res.ok) {
       const data = await res.json();
       const current = getTelegramConfig();
+
       const updated: TelegramAccountConfig = {
         ...current,
-        channelId: data.channelId || current.channelId,
-        accountName: data.accountName || current.accountName,
-        webhookUrl: data.webhookUrl || current.webhookUrl,
-        status: data.status || 'disconnected',
-        statusMessage: data.statusMessage,
-        connectedAt: data.connectedAt,
-        hasServerToken: Boolean(data.hasToken)
+        channelId: data.channelId ?? current.channelId,
+        accountName: data.accountName ?? current.accountName,
+        webhookUrl: data.webhookUrl ?? current.webhookUrl,
+        status: data.status || current.status || 'disconnected',
+        statusMessage: data.statusMessage || current.statusMessage,
+        connectedAt: data.connectedAt || current.connectedAt,
+        hasServerToken: Boolean(data.hasToken),
+        botInfo: data.bot || current.botInfo
       };
-      saveTelegramConfig(updated);
+
+      // Auto-heal server: if server has no token but client has a valid stored token in localStorage
+      if (!data.hasToken && current.botToken && isValidTokenFormat(current.botToken)) {
+        fetch('/api/telegram/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            botToken: current.botToken,
+            channelId: current.channelId,
+            accountName: current.accountName,
+            webhookUrl: current.webhookUrl
+          })
+        }).catch(() => {});
+      }
+
+      // Update localStorage with updated status
+      try {
+        localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+
       return updated;
     }
   } catch {
@@ -100,12 +172,32 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
 
 /**
  * Test Telegram connection via backend endpoint
- * Tokens NEVER go to api.telegram.org directly from the browser!
  */
-export async function testTelegramConnection(botToken: string, webhookUrl: string): Promise<{
+export async function testTelegramConnection(candidateToken: string, webhookUrl?: string): Promise<{
   status: ConnectionStatus;
   message: string;
+  bot?: TelegramBotInfo;
+  errorType?: string;
+  details?: string;
 }> {
+  const cleaned = cleanTelegramToken(candidateToken);
+
+  if (cleaned.startsWith('@') || (!cleaned.includes(':') && cleaned.length > 0)) {
+    return {
+      status: 'error',
+      errorType: 'format_username',
+      message: '⚠️ ထည့်သွင်းထားသည်မှာ Bot Username (@name) ဖြစ်နေပါသည်။ BotFather မှ ပေးသော နံပါတ်နှင့်စသည့် Token (ဥပမာ 123456789:ABCdef...) ကို ထည့်ပေးပါ'
+    };
+  }
+
+  if (cleaned && !isValidTokenFormat(cleaned)) {
+    return {
+      status: 'error',
+      errorType: 'format_invalid',
+      message: '⚠️ Bot Token ပုံစံ မမှန်ကန်ပါ။ ရှေ့တွင် Bot ID ဂဏန်း ၈ လုံးမှ ၁၁ လုံးနှင့် colon (:) ပါဝင်ရပါမည်'
+    };
+  }
+
   try {
     const res = await fetch('/api/telegram/test', {
       method: 'POST',
@@ -114,24 +206,29 @@ export async function testTelegramConnection(botToken: string, webhookUrl: strin
         'Accept': 'application/json'
       },
       body: JSON.stringify({
-        botToken: botToken.trim() || undefined,
-        webhookUrl: webhookUrl.trim() || undefined
+        botToken: cleaned || undefined,
+        webhookUrl: webhookUrl?.trim() || undefined
       }),
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(10000)
     });
 
     if (res.ok) {
       const data = await res.json();
       return {
         status: data.status || 'disconnected',
-        message: data.message || 'Telegram connection response received'
+        message: data.message || 'Telegram connection response received',
+        bot: data.bot,
+        errorType: data.error_type,
+        details: data.details
       };
     }
 
     if (res.status === 401 || res.status === 404) {
       return {
         status: 'error',
-        message: 'Telegram Bot Token မမှန်ကန်ပါ (Unauthorized)'
+        errorType: 'unauthorized',
+        message: 'Telegram Bot Token မမှန်ကန်ပါ (401 Unauthorized)',
+        details: 'BotFather (/mybots -> API Token -> Revoke) တွင် Token အသစ် ရယူပေးပါ'
       };
     }
 
@@ -155,46 +252,46 @@ export async function testTelegramConnection(botToken: string, webhookUrl: strin
 
 /**
  * Save configuration to server-side endpoint and client cache
- * Never stores real botToken in browser localStorage
+ * Persists token locally on tablet so connection is never lost
  */
 export function saveTelegramConfig(config: TelegramAccountConfig): void {
+  const cleanedToken = cleanTelegramToken(config.botToken);
+
+  const toSave: TelegramAccountConfig = {
+    ...config,
+    botToken: cleanedToken
+  };
+
   try {
-    // Sanitize: client localStorage stores config WITHOUT raw botToken
-    const sanitized = {
-      ...config,
-      botToken: '' // Never store real bot token in localStorage
-    };
-    localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(sanitized));
+    localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(toSave));
   } catch {
     // ignore
   }
 
-  // Push secret and configuration securely to backend
-  if (config.botToken || config.channelId || config.accountName || config.webhookUrl) {
-    fetch('/api/telegram/config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        botToken: config.botToken ? config.botToken.trim() : undefined,
-        channelId: config.channelId,
-        accountName: config.accountName,
-        webhookUrl: config.webhookUrl
-      })
-    }).catch(() => {
-      // offline fallback
-    });
-  }
+  // Push configuration securely to backend
+  fetch('/api/telegram/config', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      botToken: cleanedToken || undefined,
+      channelId: config.channelId,
+      accountName: config.accountName,
+      webhookUrl: config.webhookUrl
+    })
+  }).catch(() => {
+    // offline fallback
+  });
 }
 
 /**
- * Completely clear Telegram bot token and disconnect webhook
+ * Completely clear Telegram bot token and disconnect
  */
 export async function clearTelegramToken(): Promise<{ success: boolean; message: string }> {
   try {
-    const res = await fetch('/api/telegram/clear-token', {
+    await fetch('/api/telegram/clear-token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -202,7 +299,6 @@ export async function clearTelegramToken(): Promise<{ success: boolean; message:
       }
     });
 
-    // Clear local storage config token
     const current = getTelegramConfig();
     const updated: TelegramAccountConfig = {
       ...current,
@@ -210,17 +306,35 @@ export async function clearTelegramToken(): Promise<{ success: boolean; message:
       webhookUrl: '',
       status: 'disconnected',
       statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)',
-      hasServerToken: false
+      hasServerToken: false,
+      botInfo: undefined
     };
     localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(updated));
 
-    if (res.ok) {
-      return { success: true, message: 'Telegram Bot Token ကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ' };
-    }
+    return { success: true, message: 'Telegram Bot Token ကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ' };
   } catch (err: any) {
     console.error('Failed to clear telegram token:', err);
   }
   return { success: true, message: 'Telegram Bot Token ကို ဖျက်ပြီးပါပြီ' };
+}
+
+/**
+ * Clear Webhook to restore pure Long Polling (recommended for tablet)
+ */
+export async function deleteTelegramWebhook(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/telegram/delete-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok) {
+      return { ok: true, message: 'Webhook ကို ဖျက်သိမ်းပြီး Polling စနစ်ဖြင့် တိုက်ရိုက် ရယူပါမည်' };
+    }
+    return { ok: false, message: data?.description || 'Webhook delete failed' };
+  } catch {
+    return { ok: false, message: 'Server connection failed' };
+  }
 }
 
 export function getTelegramOrders(): TelegramIncomingOrder[] {
