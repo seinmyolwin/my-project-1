@@ -118,60 +118,47 @@ export function isValidTokenFormat(token: string): boolean {
   return /^\d{7,12}:[A-Za-z0-9_-]{25,50}$/.test(token);
 }
 
-function loadStore(): ServerStoreData {
-  try {
-    if (fs.existsSync(STORE_FILE)) {
-      const content = fs.readFileSync(STORE_FILE, 'utf-8');
-      const parsed = JSON.parse(content);
-      const tgBotToken = cleanTelegramToken(parsed.telegram?.botToken || process.env.TELEGRAM_BOT_TOKEN || '');
-      const hasToken = Boolean(tgBotToken && tgBotToken.length > 0);
+import { loadStoreFromFirestore, saveStoreToFirestore } from './firestoreService';
 
-      return {
-        telegram: {
-          botToken: tgBotToken,
-          channelId: parsed.telegram?.channelId || '',
-          accountName: parsed.telegram?.accountName || '',
-          webhookUrl: parsed.telegram?.webhookUrl || '',
-          status: hasToken ? (parsed.telegram?.status || 'connected') : 'disconnected',
-          statusMessage: parsed.telegram?.statusMessage || (hasToken ? 'Telegram Token ထည့်သွင်းထားပါသည်' : 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ'),
-          connectedAt: parsed.telegram?.connectedAt,
-          botInfo: parsed.telegram?.botInfo
-        },
-        telegramOrders: Array.isArray(parsed.telegramOrders) ? parsed.telegramOrders : []
-      };
-    }
-  } catch (err) {
-    console.error('Failed to read messaging store:', err);
-  }
-
-  const initialToken = cleanTelegramToken(process.env.TELEGRAM_BOT_TOKEN || '');
-
-  return {
-    telegram: {
-      botToken: initialToken,
-      channelId: '',
-      accountName: '',
-      webhookUrl: '',
-      status: initialToken ? 'connected' : 'disconnected',
-      statusMessage: initialToken ? 'Telegram Token ထည့်သွင်းထားပါသည်' : 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
-      connectedAt: initialToken ? new Date().toISOString() : undefined
-    },
-    telegramOrders: []
+interface ServerStoreData {
+  telegram: {
+    botToken: string;
+    channelId: string;
+    accountName: string;
+    webhookUrl: string;
+    status: 'connected' | 'disconnected' | 'error' | 'timeout';
+    statusMessage?: string;
+    connectedAt?: string;
+    botInfo?: TelegramBotInfo;
   };
+  telegramOrders: TelegramIncomingOrder[];
 }
 
-let store = loadStore();
+// In-memory store
+let store: ServerStoreData = {
+  telegram: {
+    botToken: '',
+    channelId: '',
+    accountName: '',
+    webhookUrl: '',
+    status: 'disconnected',
+    statusMessage: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
+  },
+  telegramOrders: []
+};
+
+// Initialize store from Firestore
+async function initStore() {
+  store = await loadStoreFromFirestore();
+  // Start polling after store is loaded
+  startTelegramPolling();
+}
+initStore();
 
 function saveStore() {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Failed to persist messaging store:', err);
-  }
+  saveStoreToFirestore(store);
 }
+
 
 function maskToken(token: string): string {
   if (!token || token.length < 8) return '';
