@@ -18,6 +18,7 @@ import {
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDNumberAggregate } from '../../types';
 import { formatAmount } from '../../utils/lotteryUtils';
+import { TwoDSmartCapAdvisory } from './TwoDSmartCapAdvisory';
 
 interface TwoDLiveLedgerViewProps {
   onOpenForwardModal?: (num?: string, amt?: number) => void;
@@ -98,71 +99,8 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
-      {/* Top Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">
-          <span className="text-xs text-slate-500 font-bold block mb-1">
-            {isMyanmar ? 'စုစုပေါင်း အရောင်းရငွေ' : 'Total 2D Sales'}
-          </span>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
-            {formatAmount(roundSummary.totalSales, settings.currency)}
-          </div>
-          <span className="text-[11px] text-slate-400 font-medium">
-            {roundSummary.totalVouchers} {isMyanmar ? 'စောင် ရောင်းပြီး' : 'vouchers'}
-          </span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">
-          <span className="text-xs text-teal-700 font-bold block mb-1">
-            {isMyanmar ? 'ဒိုင်လက်ကျန်ယူငွေ' : 'Retained Bet'}
-          </span>
-          <div className="text-xl sm:text-2xl font-black text-teal-700 font-mono">
-            {formatAmount(roundSummary.totalSales - roundSummary.totalForwarded, settings.currency)}
-          </div>
-          <span className="text-[11px] text-teal-600 font-medium">
-            {isMyanmar ? 'ဒိုင်ကိုယ်တိုင်ကိုင်ငွေ' : 'In-house retained'}
-          </span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">
-          <span className="text-xs text-indigo-700 font-bold block mb-1">
-            {isMyanmar ? 'ဒိုင်ကြီးဆီ လွှဲတင်ငွေ' : 'Forwarded Bet'}
-          </span>
-          <div className="text-xl sm:text-2xl font-black text-indigo-700 font-mono">
-            {formatAmount(roundSummary.totalForwarded, settings.currency)}
-          </div>
-          <span className="text-[11px] text-indigo-600 font-medium">
-            +{formatAmount(roundSummary.forwardedCommission, settings.currency)} {isMyanmar ? 'ကော်မရှင်' : 'comm'}
-          </span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">
-          <span className="text-xs text-rose-700 font-bold block mb-1">
-            {isMyanmar ? 'အမြင့်ဆုံး လျော်ကြေးအန္တရာယ်' : 'Max Potential Payout'}
-          </span>
-          <div className="text-xl sm:text-2xl font-black text-rose-700 font-mono">
-            {formatAmount(
-              Math.max(...(Object.values(aggregates) as TwoDNumberAggregate[]).map(a => a.estimatedPayout), 0),
-              settings.currency
-            )}
-          </div>
-          <span className="text-[11px] text-rose-600 font-medium">
-            @{activeRound?.multiplier || settings.defaultMultiplier || 80}x {isMyanmar ? 'ဆဖြင့် တွက်ချက်' : 'multiplier'}
-          </span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs col-span-2 lg:col-span-1">
-          <span className="text-xs text-slate-500 font-bold block mb-1">
-            {isMyanmar ? 'ဒိုင်ကာဂဏန်း (Blocked)' : 'Blocked Numbers'}
-          </span>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
-            {(Object.values(aggregates) as TwoDNumberAggregate[]).filter(a => a.isBlocked).length}
-          </div>
-          <span className="text-[11px] text-rose-600 font-bold">
-            {isMyanmar ? 'လုံးဝလက်မခံ' : 'Total blocked'}
-          </span>
-        </div>
-      </div>
+      {/* Top Smart Safe Cap & Financial Advisory Section (Replaces previous stat cards) */}
+      <TwoDSmartCapAdvisory onOpenLimitsManager={onOpenLimitsManager} />
 
       {/* Control Bar: Filters, Search, Excel Export */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">

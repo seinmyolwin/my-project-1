@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /store/{docId} {
+      allow read, write: if docId == 'messaging_data';
+    }
+  }
+}

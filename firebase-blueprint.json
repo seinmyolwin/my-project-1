@@ -1,0 +1,25 @@
+{
+  "entities": {
+    "MessagingData": {
+      "title": "MessagingData",
+      "description": "Stores telegram integration configuration and incoming orders",
+      "type": "object",
+      "properties": {
+        "telegram": {
+          "type": "object",
+          "description": "Telegram bot configuration and status"
+        },
+        "telegramOrders": {
+          "type": "array",
+          "description": "Incoming telegram lottery orders"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/store/{docId}": {
+      "schema": "MessagingData",
+      "description": "Persistent messaging hub state"
+    }
+  }
+}
