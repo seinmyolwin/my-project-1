@@ -557,16 +557,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <Lock className="w-2.5 h-2.5 opacity-70" />
                 </button>
 
-                {/* ထိုးကြေး ယူနည်းလမ်းညွှန် (Commands & Rules Engine) */}
-                <button
-                  onClick={onOpenCommandRules}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-black text-xs rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
-                  title="ထိုးကြေး ဂဏန်း ယူနည်းလမ်းညွှန် (Commands, Rules & Playground)"
-                >
-                  <Terminal className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-200" />
-                  <span className="hidden sm:inline">ထိုးကြေးယူနည်း</span>
-                </button>
-
                 {/* Help */}
                 <button
                   onClick={onOpenHelp}
@@ -652,18 +642,6 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isMyanmar ? 'ပြေစာမှတ်တမ်းများ' : 'Invoices & Slips'}</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('analytics')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeTab === 'analytics'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                <span>{isMyanmar ? 'သုံးသပ်ချက် & ခွဲခြမ်းစိတ်ဖြာမှု' : 'Analytics'}</span>
               </button>
             </nav>
           )}

@@ -15,7 +15,9 @@ import {
   FootballSlip,
   FootballForwardSlip,
   FootballLeague,
-  ThreeDQuickActionButtonsConfig
+  ThreeDQuickActionButtonsConfig,
+  ThreeDQuickButtonItem,
+  TwoDQuickButtonItem
 } from '../types';
 import { generateUpToDate2DRounds, generateUpToDate3DRounds } from './thaiLotteryApi';
 
@@ -26,6 +28,97 @@ export const DEFAULT_3D_ACTION_BUTTONS: ThreeDQuickActionButtonsConfig = {
   brothers: true,
   power: true,
   natkhat: true
+};
+
+export const DEFAULT_3D_CUSTOM_BUTTONS: ThreeDQuickButtonItem[] = [
+  {
+    id: 'btn-3d-straight',
+    key: 'straight',
+    label: 'ဒဲ့',
+    nameMyanmar: 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)',
+    nameEnglish: 'Straight / Direct',
+    desc: 'ရိုက်ထည့်ထားသော ၃ လုံးဂဏန်းများကို တိုက်ရိုက်ယူပါသည် (ဥပမာ: 123 -> 123 ဒဲ့)',
+    syntaxExample: '123 ရိုက်ထည့်ပါက -> 123 (ဒဲ့ ၁ ကွက်)',
+    actionType: 'straight',
+    isEnabled: true,
+    previewClass: 'px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-2xs'
+  },
+  {
+    id: 'btn-3d-rumble',
+    key: 'rumble',
+    label: 'အာ',
+    nameMyanmar: 'အာ / R (ပတ်လည် ၆ ခွေ / ၃ ခွေ)',
+    nameEnglish: 'Rumble / Permutations',
+    desc: '၃ လုံး မတူပါက ၆ ခွေ၊ အပူးပါပါက ၃ ခွေ အပြန်အလှန် လှည့်တွဲယူပါသည်',
+    syntaxExample: '123 ရိုက်ထည့်ပါက -> 123, 132, 213, 231, 312, 321 (၆ ခွေ)',
+    actionType: 'rumble',
+    isEnabled: true,
+    previewClass: 'px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-black shadow-2xs'
+  },
+  {
+    id: 'btn-3d-triples',
+    key: 'triples',
+    label: 'အပူး',
+    nameMyanmar: 'အပူး (၃ လုံးပူး ၁၀ ကွက်)',
+    nameEnglish: 'Triples',
+    desc: '000 မှ 999 အထိ ၃ လုံးတူ ၁၀ ကွက်ကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '000, 111, 222, 333, 444, 555, 666, 777, 888, 999 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['000', '111', '222', '333', '444', '555', '666', '777', '888', '999'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-3d-brothers',
+    key: 'brothers',
+    label: 'ညီကို',
+    nameMyanmar: 'ညီကို (စဉ်တိုက်ဂဏန်းများ)',
+    nameEnglish: 'Brothers / Consecutives',
+    desc: 'စဉ်တိုက် ညီကိုဂဏန်းအတွဲများကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '012, 123, 234, 345, 456, 567, 678, 789, 890, 901...',
+    actionType: 'preset_list',
+    customNumbers: [
+      '012', '123', '234', '345', '456', '567', '678', '789', '890', '901',
+      '210', '321', '432', '543', '654', '765', '876', '987', '098', '109'
+    ],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-3d-power',
+    key: 'power',
+    label: 'ပါဝါ',
+    nameMyanmar: 'ပါဝါ (Power Pairs အတွဲများ)',
+    nameEnglish: 'Power Pairs',
+    desc: 'ပါဝါအတွဲ ၃ လုံးဂဏန်းများကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '050, 051, 052, 160, 161, 270... (၁၅ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['050', '051', '052', '160', '161', '162', '270', '271', '272', '380', '381', '382', '490', '491', '492'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-3d-natkhat',
+    key: 'natkhat',
+    label: 'နက္ခတ်',
+    nameMyanmar: 'နက္ခတ် (Natkhat Pairs အတွဲများ)',
+    nameEnglish: 'Natkhat Pairs',
+    desc: 'နက္ခတ်အတွဲ ၃ လုံးဂဏန်းများကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '070, 071, 072, 180, 181, 240... (၁၅ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['070', '071', '072', '180', '181', '182', '240', '241', '242', '350', '351', '352', '690', '691', '692'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold'
+  }
+];
+
+export const cleanMasterAgentName = (name?: string): string => {
+  if (!name) return '';
+  return name
+    .replace(/\s*[\(\[（]\s*ဒိုင်ချုပ်(?:ကြီး)?\s*[\)\]）]\s*/gi, '')
+    .replace(/ဒိုင်ချုပ်ကြီး/g, '')
+    .replace(/ဒိုင်ချုပ်/g, '')
+    .trim();
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -44,9 +137,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   soundEffects: true,
   printPaperSize: '80mm',
   voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၃ ရက်အတွင်း ငွေလာရောက်ထုတ်ယူနိုင်ပါသည်။',
-  defaultMasterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
+  defaultMasterAgentName: 'ကိုစိုးနိုင်',
   defaultMasterAgentPhone: '09-970001111',
-  quickActionButtons: DEFAULT_3D_ACTION_BUTTONS
+  quickActionButtons: DEFAULT_3D_ACTION_BUTTONS,
+  custom3DButtons: DEFAULT_3D_CUSTOM_BUTTONS
 };
 
 export const INITIAL_ROUNDS: DrawRound[] = generateUpToDate3DRounds();
@@ -153,7 +247,7 @@ export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
     id: 'fwd-1',
     slipNo: 'FWD-1001-01',
     roundId: 'round-3d-2026-10-01',
-    masterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
+    masterAgentName: 'ကိုစိုးနိုင်',
     masterAgentPhone: '09-970001111',
     items: [
       { number: '789', amount: 20000 }
@@ -187,6 +281,184 @@ export const DEFAULT_2D_ACTION_BUTTONS: TwoDQuickActionButtonsConfig = {
   khwayPuuRumble: true  // ခွေပူးr (ခွေပူးအာ)
 };
 
+export const DEFAULT_2D_CUSTOM_BUTTONS: TwoDQuickButtonItem[] = [
+  {
+    id: 'btn-2d-straight',
+    key: 'straight',
+    label: 'ဒဲ့',
+    nameMyanmar: 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)',
+    nameEnglish: 'Straight / Direct',
+    desc: 'ရိုက်ထည့်ထားသော ၂ လုံးဂဏန်းများကို တိုက်ရိုက်ယူပါသည် (ဥပမာ: 24 -> 24 ဒဲ့)',
+    syntaxExample: '24 ရိုက်ထည့်ပါက -> 24 (ဒဲ့ ၁ ကွက်)',
+    actionType: 'straight',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-2xs'
+  },
+  {
+    id: 'btn-2d-rumble',
+    key: 'rumble',
+    label: 'အာ',
+    nameMyanmar: 'ပတ်လည် (အာ / R)',
+    nameEnglish: 'Rumble / Reversal',
+    desc: 'ဂဏန်း ၂ လုံးကို အပြန်အလှန် လှည့်ယူပါသည် (ဥပမာ: 24 -> 24, 42)',
+    syntaxExample: '24 ရိုက်ထည့်ပါက -> 24, 42 (၂ ကွက်)',
+    actionType: 'rumble',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-teal-600 text-white rounded-lg text-xs font-bold shadow-2xs'
+  },
+  {
+    id: 'btn-2d-break',
+    key: 'break',
+    label: 'ရိတ်',
+    nameMyanmar: 'ရိတ် (ဘရိတ် ၁၀ ကွက်)',
+    nameEnglish: 'Break Digit',
+    desc: 'ပေါင်းလဒ် ဘရိတ် ၁၀ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ ရိတ် -> ၀၅, ၁၄, ၂၃...)',
+    syntaxExample: '5 ရိတ် -> 05, 14, 23, 32, 41, 50, 69, 78, 87, 96 (၁၀ ကွက်)',
+    actionType: 'break',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-sky-50 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-includes',
+    key: 'includes',
+    label: 'အပါ',
+    nameMyanmar: 'အပါ (ဂဏန်းပါ ၁၉ ကွက်)',
+    nameEnglish: 'Includes Digit',
+    desc: 'ရွေးချယ်ဂဏန်းပါသော ၁၉ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ အပါ -> ၀၅, ၁၅, ၂၅... ၅၀, ၅၁...)',
+    syntaxExample: '5 အပါ -> 05, 15, 25, 35, 45, 55, 65, 75, 85, 95, 50, 51, 52, 53, 54, 56, 57, 58, 59 (၁၉ ကွက်)',
+    actionType: 'includes',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-head',
+    key: 'head',
+    label: 'ထိပ်',
+    nameMyanmar: 'ထိပ် (ထိပ်စီး ၁၀ ကွက်)',
+    nameEnglish: 'Head Digit',
+    desc: 'ရှေ့ဂဏန်း ထိပ်စီး ၁၀ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ ထိပ် -> ၅၀ မှ ၅၉)',
+    syntaxExample: '5 ထိပ် -> 50, 51, 52, 53, 54, 55, 56, 57, 58, 59 (၁၀ ကွက်)',
+    actionType: 'head',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-tail',
+    key: 'tail',
+    label: 'ပိတ်',
+    nameMyanmar: 'ပိတ် (နောက်ပိတ် ၁၀ ကွက်)',
+    nameEnglish: 'Tail Digit',
+    desc: 'နောက်ဂဏန်း နောက်ပိတ် ၁၀ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ ပိတ် -> ၀၅ မှ ၉၅)',
+    syntaxExample: '5 ပိတ် -> 05, 15, 25, 35, 45, 55, 65, 75, 85, 95 (၁၀ ကွက်)',
+    actionType: 'tail',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-doubles',
+    key: 'doubles',
+    label: 'ပူး',
+    nameMyanmar: 'ပူး (အပူး ၁၀ ကွက်)',
+    nameEnglish: 'Doubles',
+    desc: '၀၀ မှ ၉၉ အထိ ၂ လုံးတူ ၁၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '00, 11, 22, 33, 44, 55, 66, 77, 88, 99 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['00', '11', '22', '33', '44', '55', '66', '77', '88', '99'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-power',
+    key: 'power',
+    label: 'ပါဝါ',
+    nameMyanmar: 'ပါဝါ (၁၀ ကွက်)',
+    nameEnglish: 'Power Numbers',
+    desc: '၀၅ မှ ၄၉ အထိ ပါဝါ ၁၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '05, 16, 27, 38, 49, 50, 61, 72, 83, 94 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['05', '16', '27', '38', '49', '50', '61', '72', '83', '94'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-natkhat',
+    key: 'natkhat',
+    label: 'နက္ခတ်',
+    nameMyanmar: 'နက္ခတ် (၁၀ ကွက်)',
+    nameEnglish: 'Natkhat Numbers',
+    desc: '၀၇ မှ ၉၆ အထိ နက္ခတ် ၁၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '07, 18, 24, 35, 69, 70, 81, 42, 53, 96 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['07', '18', '24', '35', '69', '70', '81', '42', '53', '96'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-brothers',
+    key: 'brothers',
+    label: 'ညီကို',
+    nameMyanmar: 'ညီကို (၂၀ ကွက်)',
+    nameEnglish: 'Brothers Numbers',
+    desc: '၀၁ မှ ၀၉ အထိ ညီကို ၂၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '01, 12, 23, 34, 45, 56, 67, 78, 89, 90, 10, 21, 32, 43, 54, 65, 76, 87, 98, 09 (၂၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: [
+      '01', '12', '23', '34', '45', '56', '67', '78', '89', '90',
+      '10', '21', '32', '43', '54', '65', '76', '87', '98', '09'
+    ],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-khway',
+    key: 'khway',
+    label: 'ခွေ',
+    nameMyanmar: 'ခွေ (ရိုးရိုးခွေ)',
+    nameEnglish: 'Khway Straight',
+    desc: 'ရိုက်ထည့်ဂဏန်းများအား ၂ လုံးတွဲ ရိုးရိုးခွေယူပါသည် (ဥပမာ: 1234 -> ၆ ကွက်)',
+    syntaxExample: '1234 -> 12, 13, 14, 23, 24, 34 (၆ ကွက်)',
+    actionType: 'khway',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-black shadow-xs'
+  },
+  {
+    id: 'btn-2d-khwayPuu',
+    key: 'khwayPuu',
+    label: 'ခွေပူး',
+    nameMyanmar: 'ခွေပူး (ခွေ + အပူး)',
+    nameEnglish: 'Khway Puu',
+    desc: 'ရိုးရိုးခွေနှင့် အပူးများ ပေါင်းစပ်ယူပါသည် (ဥပမာ: 1234 -> ၁၀ ကွက်)',
+    syntaxExample: '1234 -> 12, 13, 14, 23, 24, 34, 11, 22, 33, 44 (၁၀ ကွက်)',
+    actionType: 'khwayPuu',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-xs'
+  },
+  {
+    id: 'btn-2d-khwayRumble',
+    key: 'khwayRumble',
+    label: 'ခွေr',
+    nameMyanmar: 'ခွေr (ခွေအာ လှည့်တွဲ)',
+    nameEnglish: 'Khway Rumble',
+    desc: 'ရိုက်ထည့်ဂဏန်းများအား အပြန်အလှန် လှည့်တွဲယူပါသည် (ဥပမာ: 1234 -> ၁၂ ကွက်)',
+    syntaxExample: '1234 -> 12, 21, 13, 31, 14, 41, 23, 32, 24, 42, 34, 43 (၁၂ ကွက်)',
+    actionType: 'khwayRumble',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-black shadow-xs'
+  },
+  {
+    id: 'btn-2d-khwayPuuRumble',
+    key: 'khwayPuuRumble',
+    label: 'ခွေပူးr',
+    nameMyanmar: 'ခွေပူးr (ခွေပူးအာ)',
+    nameEnglish: 'Khway Puu Rumble',
+    desc: 'ခွေအာနှင့် အပူးပါ အကုန်လုံး ပေါင်းစပ်ယူပါသည် (ဥပမာ: 1234 -> ၁၆ ကွက်)',
+    syntaxExample: '1234 -> 12, 21, 13, 31, 14, 41, 23, 32, 24, 42, 34, 43, 11, 22, 33, 44 (၁၆ ကွက်)',
+    actionType: 'khwayPuuRumble',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-purple-600 text-white rounded-lg text-xs font-black shadow-xs'
+  }
+];
+
 export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   appName: 'ရွှေမင်္ဂလာ',
   shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
@@ -202,9 +474,10 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   soundEffects: true,
   printPaperSize: '80mm',
   voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သေချာသိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၂၄ နာရီအတွင်း ငွေထုတ်ယူနိုင်ပါသည်။',
-  defaultMasterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
+  defaultMasterAgentName: 'ကိုစိုးနိုင်',
   defaultMasterAgentPhone: '09-970001111',
-  quickActionButtons: DEFAULT_2D_ACTION_BUTTONS
+  quickActionButtons: DEFAULT_2D_ACTION_BUTTONS,
+  custom2DButtons: DEFAULT_2D_CUSTOM_BUTTONS
 };
 
 export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds(80, 12);
@@ -289,7 +562,7 @@ export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
     id: 'fwd-2d-1',
     slipNo: 'FWD-2D-1008-01',
     roundId: 'round-2d-2026-10-08-eve',
-    masterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
+    masterAgentName: 'ကိုစိုးနိုင်',
     masterAgentPhone: '09-970001111',
     items: [
       { number: '82', amount: 30000 }
@@ -320,7 +593,7 @@ export const DEFAULT_FOOTBALL_SETTINGS: FootballSettings = {
   soundEffects: true,
   printPaperSize: '80mm',
   slipFooterMessage: 'ဘောလုံးပွဲစဉ် ပြီးဆုံးပြီး တရားဝင်ရလဒ်ထွက်ချိန်တွင် ငွေထုတ်ယူနိုင်ပါသည်။ သရေပွဲများ အဆမဖြတ်ပါက ပုံမှန်အတိုင်း ပြန်ပေါင်းတွက်ပါမည်။',
-  defaultMasterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
+  defaultMasterAgentName: 'ကိုစိုးနိုင်',
   defaultMasterAgentPhone: '09-970001111'
 };
 
@@ -729,7 +1002,7 @@ export const INITIAL_FOOTBALL_FORWARD_SLIPS: FootballForwardSlip[] = [
     id: 'fb-fwd-1',
     slipNo: 'FB-FWD-1009-01',
     roundDate: '2026-10-09',
-    masterAgentName: 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
+    masterAgentName: 'ကိုစိုးနိုင်',
     masterAgentPhone: '09-970001111',
     slipType: 'body',
     description: 'Man City ဘော်ဒီ ထိုးကြေးကြီးသဖြင့် ဒိုင်ကြီးဆီ လွှဲတင်',

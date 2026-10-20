@@ -46,7 +46,7 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
 
   const [decisions, setDecisions] = useState<OverLimitItemInfo[]>([]);
   const [masterName, setMasterName] = useState<string>(
-    settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)'
+    settings.defaultMasterAgentName || 'ကိုစိုးနိုင်'
   );
   const [masterPhone, setMasterPhone] = useState<string>(
     settings.defaultMasterAgentPhone || '09-970001111'
@@ -180,7 +180,7 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
             <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3.5 space-y-2.5">
               <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
                 <Building2 className="w-4 h-4 text-indigo-700" />
-                <span>{isMyanmar ? 'ဒိုင်ကြီး (ဒိုင်ချုပ်) သို့ ဆက်တင်မည့် အချက်အလက်များ' : 'Master Dealer Forwarding Details'}</span>
+                <span>{isMyanmar ? 'ဒိုင်ကြီး သို့ ဆက်တင်မည့် အချက်အလက်များ' : 'Master Dealer Forwarding Details'}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                 <div>

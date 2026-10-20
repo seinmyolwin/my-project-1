@@ -26,7 +26,8 @@ import {
   Printer
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { BetItem, VoucherItem, Voucher } from '../types';
+import { BetItem, VoucherItem, Voucher, ThreeDQuickButtonItem } from '../types';
+import { DEFAULT_3D_CUSTOM_BUTTONS } from '../utils/storage';
 import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import { saveRawClip } from '../utils/rawClipsUtils';
 import { ImageSlipScannerModal } from './ImageSlipScannerModal';
@@ -597,6 +598,24 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
         ? `[${label}] (${numbers.length} ကွက်) ရွေးချယ်ပြီးပါပြီ။ ထိုးကြေးထည့်ပြီး 'ထည့်မည်' ကိုနှိပ်ပါ`
         : `Selected [${label}] (${numbers.length} numbers). Enter amount and tap Add.`
     });
+  };
+
+  // Dynamic 3D Quick Action Buttons configured by the owner in Settings
+  const active3DButtons = useMemo(() => {
+    const list = settings.custom3DButtons && settings.custom3DButtons.length > 0
+      ? settings.custom3DButtons
+      : DEFAULT_3D_CUSTOM_BUTTONS;
+    return list.filter(b => b.isEnabled);
+  }, [settings.custom3DButtons]);
+
+  const handleCustomButtonClick = (btn: ThreeDQuickButtonItem) => {
+    if (btn.actionType === 'straight') {
+      handleAddStraightClick();
+    } else if (btn.actionType === 'rumble') {
+      handleAddRumbleClick();
+    } else if (btn.actionType === 'preset_list') {
+      handleAddPatternPreset(btn.customNumbers || [], btn.label);
+    }
   };
 
   // Edit Draft Item (fills input form and recalculates totals and limits upon update)
@@ -1309,64 +1328,49 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
           {/* Quick Shortcuts Bar (3D Patterns) */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-            {(!settings.quickActionButtons || settings.quickActionButtons.straight) && (
-              <button
-                type="button"
-                onClick={handleAddStraightClick}
-                className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
-                  !isRumble ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
-              </button>
-            )}
-            {(!settings.quickActionButtons || settings.quickActionButtons.rumble) && (
-              <button
-                type="button"
-                onClick={handleAddRumbleClick}
-                className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
-                  isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                <span>{isMyanmar ? 'အာ' : 'R'}</span>
-              </button>
-            )}
-            {(!settings.quickActionButtons || settings.quickActionButtons.triples) && (
-              <button
-                type="button"
-                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.triples, isMyanmar ? 'အပူး' : 'Triples')}
-                className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'အပူး' : 'Triples'}</span>
-              </button>
-            )}
-            {(!settings.quickActionButtons || settings.quickActionButtons.brothers) && (
-              <button
-                type="button"
-                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.consecutives, isMyanmar ? 'ညီကို' : 'Brothers')}
-                className="px-2.5 py-1.5 bg-teal-50 text-teal-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
-              </button>
-            )}
-            {(!settings.quickActionButtons || settings.quickActionButtons.power) && (
-              <button
-                type="button"
-                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getPowerPairs().slice(0, 15), isMyanmar ? 'ပါဝါ' : 'Power')}
-                className="px-2.5 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
-              </button>
-            )}
-            {(!settings.quickActionButtons || settings.quickActionButtons.natkhat) && (
-              <button
-                type="button"
-                onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getNatkhatPairs().slice(0, 15), isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-                className="px-2.5 py-1.5 bg-rose-50 text-rose-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
-              </button>
-            )}
+            {active3DButtons.map((btn) => {
+              if (btn.actionType === 'straight') {
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onClick={handleAddStraightClick}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                      !isRumble ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                    }`}
+                    title={btn.desc}
+                  >
+                    <span>{btn.label}</span>
+                  </button>
+                );
+              }
+              if (btn.actionType === 'rumble') {
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onClick={handleAddRumbleClick}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                      isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                    }`}
+                    title={btn.desc}
+                  >
+                    <span>{btn.label}</span>
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={btn.id}
+                  type="button"
+                  onClick={() => handleCustomButtonClick(btn)}
+                  className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-lg text-xs font-bold shrink-0 cursor-pointer transition-all active:scale-95"
+                  title={btn.desc}
+                >
+                  <span>{btn.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Main Input Controls: Number -> Stake -> Add (Requirement 6) */}
@@ -1862,77 +1866,57 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                 </div>
               </div>
 
-              {/* 2. Action Buttons right below Number Input: ဒဲ့, ပတ်လည်, အပူး, ညီကို, ပါဝါ, နက္ခတ် */}
+              {/* 2. Action Buttons right below Number Input: Configured by Owner in Settings */}
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                {/* 0. ဒဲ့ (Straight / Direct) */}
-                <button
-                  type="button"
-                  onClick={handleAddStraightClick}
-                  className={`px-3 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                    !isRumble
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
-                  }`}
-                  title={isMyanmar ? 'ဒဲ့ / တိုက်ရိုက်ထိုးကြေး (Straight / Direct)' : 'Direct'}
-                >
-                  <Check className="w-3 h-3" />
-                  <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
-                </button>
-
-                {/* 1. ပတ်လည် / အာ (Rumble / Permutations) */}
-                <button
-                  type="button"
-                  onClick={handleAddRumbleClick}
-                  className={`px-3 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                    isRumble
-                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white ring-1 ring-indigo-500 shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
-                  }`}
-                  title={isMyanmar ? 'အာ (R)' : 'Rumble'}
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>{isMyanmar ? 'အာ' : 'R'}</span>
-                </button>
-
-                {/* 2. အပူး (Triples) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.triples, isMyanmar ? 'အပူး' : 'Triples')}
-                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'အပူး (၁၀ ကွက်)' : 'Triples'}
-                >
-                  <span>{isMyanmar ? 'အပူး' : 'Triples'}</span>
-                </button>
-
-                {/* 3. ညီကို (Consecutives) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.consecutives, isMyanmar ? 'ညီကို' : 'Brothers')}
-                  className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
-                >
-                  <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
-                </button>
-
-                {/* 4. ပါဝါ (Power Pairs) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getPowerPairs().slice(0, 15), isMyanmar ? 'ပါဝါ' : 'Power')}
-                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'ပါဝါအတွဲများ (၁၅ ကွက်)' : 'Power'}
-                >
-                  <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
-                </button>
-
-                {/* 5. နက္ခတ် (Natkhat) */}
-                <button
-                  type="button"
-                  onClick={() => handleAddPatternPreset(LOTTERY_PATTERNS.getNatkhatPairs().slice(0, 15), isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title={isMyanmar ? 'နက္ခတ်အတွဲများ (၁၅ ကွက်)' : 'Natkhat'}
-                >
-                  <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
-                </button>
+                {active3DButtons.map((btn) => {
+                  if (btn.actionType === 'straight') {
+                    return (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={handleAddStraightClick}
+                        className={`px-3 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                          !isRumble
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                        }`}
+                        title={btn.desc}
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>{btn.label}</span>
+                      </button>
+                    );
+                  }
+                  if (btn.actionType === 'rumble') {
+                    return (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={handleAddRumbleClick}
+                        className={`px-3 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                          isRumble
+                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white ring-1 ring-indigo-500 shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                        }`}
+                        title={btn.desc}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>{btn.label}</span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <button
+                      key={btn.id}
+                      type="button"
+                      onClick={() => handleCustomButtonClick(btn)}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={btn.desc}
+                    >
+                      <span>{btn.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* 3. Live Preview Info Bar & Number Badges Grid (Direct preview matching 2D & user spec!) */}

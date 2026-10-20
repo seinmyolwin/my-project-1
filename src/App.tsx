@@ -16,7 +16,6 @@ import { QuickSaleEntry } from './components/QuickSaleEntry';
 import { LiveLedgerView } from './components/LiveLedgerView';
 import { WinningPayoutView } from './components/WinningPayoutView';
 import { VouchersView } from './components/VouchersView';
-import { AnalyticsView } from './components/AnalyticsView';
 import { VoucherPrintModal } from './components/VoucherPrintModal';
 import { ForwardSlipsModal } from './components/ForwardSlipsModal';
 import { LimitManagerModal } from './components/LimitManagerModal';
@@ -59,12 +58,11 @@ import { getStoredEnabledModes, isFirstTimePinSetup, EnabledModes } from './util
 import { useDoubleBackToExit } from './hooks/useDoubleBackToExit';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
 
-const TABS_3D: ('sales' | 'ledger' | 'winning' | 'vouchers' | 'analytics')[] = [
+const TABS_3D: ('sales' | 'ledger' | 'winning' | 'vouchers')[] = [
   'sales',
   'ledger',
   'winning',
-  'vouchers',
-  'analytics'
+  'vouchers'
 ];
 
 const TABS_2D: ('sales' | 'ledger' | 'winning' | 'vouchers')[] = [
@@ -112,7 +110,7 @@ function AppContent() {
   };
 
   // Mode-Specific Active Tabs
-  const [activeTab3D, setActiveTab3D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers' | 'analytics'>('sales');
+  const [activeTab3D, setActiveTab3D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers'>('sales');
   const [activeTab2D, setActiveTab2D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers'>('sales');
   const [activeTabFB, setActiveTabFB] = useState<'fixtures' | 'slip_entry' | 'slips_list'>('fixtures');
 
@@ -471,10 +469,6 @@ function AppContent() {
 
             {activeTab3D === 'vouchers' && (
               <VouchersView onOpenPrintVoucher={(v) => setPrintingVoucher3D(v)} />
-            )}
-
-            {activeTab3D === 'analytics' && (
-              <AnalyticsView onOpenForwardModal={handleOpenForwardModal} />
             )}
           </>
         )}

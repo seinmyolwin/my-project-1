@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
+import { cleanMasterAgentName } from '../utils/storage';
 import { formatAmount } from '../utils/lotteryUtils';
 
 interface VouchersViewProps {
@@ -113,13 +114,13 @@ ${settings.voucherFooterMessage || 'ကျေးဇူးတင်ပါသည�
     const text = `【3D ဒိုင်လွှဲစလစ်: ${s.slipNo}】
 ပွဲစဉ်: ${activeRound?.name || '-'}
 ရက်စွဲ: ${new Date(s.createdAt).toLocaleString('en-GB')}
-ဒိုင်ချုပ်ကြီး: ${s.masterAgentName} ${s.masterAgentPhone ? `(${s.masterAgentPhone})` : ''}
+ဒိုင်: ${cleanMasterAgentName(s.masterAgentName)} ${s.masterAgentPhone ? `(${s.masterAgentPhone})` : ''}
 ------------------------
 ${lines}
 ------------------------
 စုစုပေါင်း လွှဲငွေ: ${formatAmount(s.totalAmount, settings.currency)}
 ကော်မရှင် (${s.commissionRate}%): +${formatAmount(s.commissionAmount, settings.currency)}
-ဒိုင်သို့ အမှန်ပေးချေငွေ: ${formatAmount(s.netPaid, settings.currency)}
+အမှန်ပေးငွေ: ${formatAmount(s.netPaid, settings.currency)}
 ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
 
     navigator.clipboard.writeText(text);

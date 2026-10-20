@@ -32,7 +32,8 @@ import {
   FileSpreadsheet,
   Printer,
   AlertCircle,
-  Calendar
+  Calendar,
+  Edit3
 } from 'lucide-react';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { useLottery } from '../context/LotteryContext';
@@ -46,8 +47,8 @@ import {
   getStatementDateRange,
   StatementPeriodPreset
 } from '../utils/statementUtils';
-import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig, ThreeDQuickActionButtonsConfig } from '../types';
-import { DEFAULT_2D_ACTION_BUTTONS } from '../utils/storage';
+import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig, ThreeDQuickActionButtonsConfig, ThreeDQuickButtonItem, TwoDQuickButtonItem } from '../types';
+import { DEFAULT_2D_ACTION_BUTTONS, DEFAULT_3D_CUSTOM_BUTTONS, DEFAULT_2D_CUSTOM_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
 import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
 import { exportFootballDataToExcel } from '../utils/footballUtils';
@@ -832,6 +833,315 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     ...(lottery3D.settings.quickActionButtons || {})
   }));
 
+  const [customButtons3D, setCustomButtons3D] = useState<ThreeDQuickButtonItem[]>(() => {
+    if (lottery3D.settings.custom3DButtons && lottery3D.settings.custom3DButtons.length > 0) {
+      return lottery3D.settings.custom3DButtons;
+    }
+    return DEFAULT_3D_CUSTOM_BUTTONS;
+  });
+
+  // Inline editing state for 3D buttons
+  const [editing3DBtnId, setEditing3DBtnId] = useState<string | null>(null);
+  const [editBtnForm, setEditBtnForm] = useState<{
+    label: string;
+    nameMyanmar: string;
+    nameEnglish: string;
+    desc: string;
+    syntaxExample: string;
+    actionType: 'straight' | 'rumble' | 'preset_list';
+    customNumbersStr: string;
+  }>({
+    label: '',
+    nameMyanmar: '',
+    nameEnglish: '',
+    desc: '',
+    syntaxExample: '',
+    actionType: 'straight',
+    customNumbersStr: ''
+  });
+
+  const [isAddingNew3DBtn, setIsAddingNew3DBtn] = useState(false);
+  const [new3DBtnForm, setNew3DBtnForm] = useState<{
+    label: string;
+    nameMyanmar: string;
+    nameEnglish: string;
+    desc: string;
+    syntaxExample: string;
+    actionType: 'straight' | 'rumble' | 'preset_list';
+    customNumbersStr: string;
+  }>({
+    label: '',
+    nameMyanmar: '',
+    nameEnglish: '',
+    desc: '',
+    syntaxExample: '',
+    actionType: 'preset_list',
+    customNumbersStr: ''
+  });
+
+  const [btnToast, setBtnToast] = useState<string | null>(null);
+
+  const handleStartEdit3DBtn = (btn: ThreeDQuickButtonItem) => {
+    setEditing3DBtnId(btn.id);
+    setIsAddingNew3DBtn(false);
+    setEditBtnForm({
+      label: btn.label,
+      nameMyanmar: btn.nameMyanmar,
+      nameEnglish: btn.nameEnglish,
+      desc: btn.desc,
+      syntaxExample: btn.syntaxExample,
+      actionType: btn.actionType,
+      customNumbersStr: (btn.customNumbers || []).join(', ')
+    });
+  };
+
+  const handleSaveEdit3DBtn = (id: string) => {
+    if (!editBtnForm.label.trim()) {
+      alert('ခလုတ်စာသား ထည့်ပါ');
+      return;
+    }
+    const numbers = editBtnForm.customNumbersStr
+      .replace(/[,\s]+/g, ' ')
+      .split(' ')
+      .map(s => s.trim())
+      .filter(s => /^\d{3}$/.test(s));
+
+    const updated = customButtons3D.map(b => {
+      if (b.id !== id) return b;
+      return {
+        ...b,
+        label: editBtnForm.label.trim(),
+        nameMyanmar: editBtnForm.nameMyanmar.trim() || editBtnForm.label.trim(),
+        nameEnglish: editBtnForm.nameEnglish.trim(),
+        desc: editBtnForm.desc.trim(),
+        syntaxExample: editBtnForm.syntaxExample.trim(),
+        actionType: editBtnForm.actionType,
+        customNumbers: editBtnForm.actionType === 'preset_list' ? numbers : b.customNumbers
+      };
+    });
+
+    setCustomButtons3D(updated);
+    lottery3D.updateSettings({ custom3DButtons: updated });
+    setEditing3DBtnId(null);
+    setBtnToast('ခလုတ်နှင့် ဂဏန်းယူပုံ ပြောင်းလဲမှုကို အတည်ပြုပြီးပါပြီ!');
+    setTimeout(() => setBtnToast(null), 3000);
+  };
+
+  const handleAddNew3DBtn = () => {
+    if (!new3DBtnForm.label.trim()) {
+      alert('ခလုတ်စာသား ထည့်ပါ');
+      return;
+    }
+    const numbers = new3DBtnForm.customNumbersStr
+      .replace(/[,\s]+/g, ' ')
+      .split(' ')
+      .map(s => s.trim())
+      .filter(s => /^\d{3}$/.test(s));
+
+    const newBtn: ThreeDQuickButtonItem = {
+      id: `btn-custom-3d-${Date.now()}`,
+      key: `custom_${Date.now()}`,
+      label: new3DBtnForm.label.trim(),
+      nameMyanmar: new3DBtnForm.nameMyanmar.trim() || new3DBtnForm.label.trim(),
+      nameEnglish: new3DBtnForm.nameEnglish.trim() || 'Custom Button',
+      desc: new3DBtnForm.desc.trim() || 'စိတ်ကြိုက်သတ်မှတ်ထားသော ဂဏန်းယူပုံ',
+      syntaxExample: new3DBtnForm.syntaxExample.trim() || `${new3DBtnForm.label.trim()} ခလုတ်နှိပ်ပါက ဂဏန်းများ အလိုအလျောက် ယူမည်`,
+      actionType: new3DBtnForm.actionType,
+      customNumbers: numbers,
+      isEnabled: true,
+      previewClass: 'px-2.5 py-1 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold'
+    };
+
+    const updated = [...customButtons3D, newBtn];
+    setCustomButtons3D(updated);
+    lottery3D.updateSettings({ custom3DButtons: updated });
+    setIsAddingNew3DBtn(false);
+    setNew3DBtnForm({
+      label: '',
+      nameMyanmar: '',
+      nameEnglish: '',
+      desc: '',
+      syntaxExample: '',
+      actionType: 'preset_list',
+      customNumbersStr: ''
+    });
+    setBtnToast('စိတ်ကြိုက် ခလုတ်အသစ် ထည့်သွင်းအတည်ပြုပြီးပါပြီ!');
+    setTimeout(() => setBtnToast(null), 3000);
+  };
+
+  const handleDelete3DBtn = (id: string) => {
+    if (confirm('ဤခလုတ်ကို ဖျက်ပစ်ရန် သေချာပါသလား?')) {
+      const updated = customButtons3D.filter(b => b.id !== id);
+      setCustomButtons3D(updated);
+      lottery3D.updateSettings({ custom3DButtons: updated });
+      setBtnToast('ခလုတ်ကို ဖျက်ပြီးပါပြီ!');
+      setTimeout(() => setBtnToast(null), 3000);
+    }
+  };
+
+  const handleReset3DButtons = () => {
+    if (confirm('မူလသတ်မှတ်ထားသော 3D အမြန်ခလုတ်များအတိုင်း ပြန်လည်ထားရှိမည်လား?')) {
+      setCustomButtons3D(DEFAULT_3D_CUSTOM_BUTTONS);
+      lottery3D.updateSettings({ custom3DButtons: DEFAULT_3D_CUSTOM_BUTTONS });
+      setBtnToast('မူလ စက်ရုံထုတ်အတိုင်း ပြန်လည်ထားရှိပြီးပါပြီ!');
+      setTimeout(() => setBtnToast(null), 3000);
+    }
+  };
+
+  // 2D Custom Buttons State
+  const [customButtons2D, setCustomButtons2D] = useState<TwoDQuickButtonItem[]>(() => {
+    if (lottery2D.settings.custom2DButtons && lottery2D.settings.custom2DButtons.length > 0) {
+      return lottery2D.settings.custom2DButtons;
+    }
+    return DEFAULT_2D_CUSTOM_BUTTONS;
+  });
+
+  // Inline editing state for 2D buttons
+  const [editing2DBtnId, setEditing2DBtnId] = useState<string | null>(null);
+  const [editBtn2DForm, setEditBtn2DForm] = useState<{
+    label: string;
+    nameMyanmar: string;
+    nameEnglish: string;
+    desc: string;
+    syntaxExample: string;
+    actionType: 'straight' | 'rumble' | 'preset_list' | 'break' | 'head' | 'tail' | 'includes' | 'khway' | 'khwayPuu' | 'khwayRumble' | 'khwayPuuRumble';
+    customNumbersStr: string;
+  }>({
+    label: '',
+    nameMyanmar: '',
+    nameEnglish: '',
+    desc: '',
+    syntaxExample: '',
+    actionType: 'straight',
+    customNumbersStr: ''
+  });
+
+  const [isAddingNew2DBtn, setIsAddingNew2DBtn] = useState(false);
+  const [new2DBtnForm, setNew2DBtnForm] = useState<{
+    label: string;
+    nameMyanmar: string;
+    nameEnglish: string;
+    desc: string;
+    syntaxExample: string;
+    actionType: 'straight' | 'rumble' | 'preset_list' | 'break' | 'head' | 'tail' | 'includes' | 'khway' | 'khwayPuu' | 'khwayRumble' | 'khwayPuuRumble';
+    customNumbersStr: string;
+  }>({
+    label: '',
+    nameMyanmar: '',
+    nameEnglish: '',
+    desc: '',
+    syntaxExample: '',
+    actionType: 'preset_list',
+    customNumbersStr: ''
+  });
+
+  const handleStartEdit2DBtn = (btn: TwoDQuickButtonItem) => {
+    setEditing2DBtnId(btn.id);
+    setIsAddingNew2DBtn(false);
+    setEditBtn2DForm({
+      label: btn.label,
+      nameMyanmar: btn.nameMyanmar,
+      nameEnglish: btn.nameEnglish,
+      desc: btn.desc,
+      syntaxExample: btn.syntaxExample,
+      actionType: btn.actionType,
+      customNumbersStr: (btn.customNumbers || []).join(', ')
+    });
+  };
+
+  const handleSaveEdit2DBtn = (id: string) => {
+    if (!editBtn2DForm.label.trim()) {
+      alert('ခလုတ်စာသား ထည့်ပါ');
+      return;
+    }
+    const numbers = editBtn2DForm.customNumbersStr
+      .replace(/[,\s]+/g, ' ')
+      .split(' ')
+      .map(s => s.trim())
+      .filter(s => /^\d{2}$/.test(s));
+
+    const updated = customButtons2D.map(b => {
+      if (b.id !== id) return b;
+      return {
+        ...b,
+        label: editBtn2DForm.label.trim(),
+        nameMyanmar: editBtn2DForm.nameMyanmar.trim() || editBtn2DForm.label.trim(),
+        nameEnglish: editBtn2DForm.nameEnglish.trim(),
+        desc: editBtn2DForm.desc.trim(),
+        syntaxExample: editBtn2DForm.syntaxExample.trim(),
+        actionType: editBtn2DForm.actionType,
+        customNumbers: editBtn2DForm.actionType === 'preset_list' ? numbers : b.customNumbers
+      };
+    });
+
+    setCustomButtons2D(updated);
+    lottery2D.updateSettings({ custom2DButtons: updated });
+    setEditing2DBtnId(null);
+    setBtnToast('၂D ခလုတ်နှင့် ဂဏန်းယူပုံ ပြောင်းလဲမှုကို အတည်ပြုပြီးပါပြီ!');
+    setTimeout(() => setBtnToast(null), 3000);
+  };
+
+  const handleAddNew2DBtn = () => {
+    if (!new2DBtnForm.label.trim()) {
+      alert('ခလုတ်စာသား ထည့်ပါ');
+      return;
+    }
+    const numbers = new2DBtnForm.customNumbersStr
+      .replace(/[,\s]+/g, ' ')
+      .split(' ')
+      .map(s => s.trim())
+      .filter(s => /^\d{2}$/.test(s));
+
+    const newBtn: TwoDQuickButtonItem = {
+      id: `btn-custom-2d-${Date.now()}`,
+      key: `custom_${Date.now()}`,
+      label: new2DBtnForm.label.trim(),
+      nameMyanmar: new2DBtnForm.nameMyanmar.trim() || new2DBtnForm.label.trim(),
+      nameEnglish: new2DBtnForm.nameEnglish.trim() || 'Custom Button',
+      desc: new2DBtnForm.desc.trim() || 'စိတ်ကြိုက်သတ်မှတ်ထားသော ဂဏန်းယူပုံ',
+      syntaxExample: new2DBtnForm.syntaxExample.trim() || `${new2DBtnForm.label.trim()} ခလုတ်နှိပ်ပါက ဂဏန်းများ အလိုအလျောက် ယူမည်`,
+      actionType: new2DBtnForm.actionType,
+      customNumbers: numbers,
+      isEnabled: true,
+      previewClass: 'px-2.5 py-1 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold'
+    };
+
+    const updated = [...customButtons2D, newBtn];
+    setCustomButtons2D(updated);
+    lottery2D.updateSettings({ custom2DButtons: updated });
+    setIsAddingNew2DBtn(false);
+    setNew2DBtnForm({
+      label: '',
+      nameMyanmar: '',
+      nameEnglish: '',
+      desc: '',
+      syntaxExample: '',
+      actionType: 'preset_list',
+      customNumbersStr: ''
+    });
+    setBtnToast('၂D စိတ်ကြိုက် ခလုတ်အသစ် ထည့်သွင်းအတည်ပြုပြီးပါပြီ!');
+    setTimeout(() => setBtnToast(null), 3000);
+  };
+
+  const handleDelete2DBtn = (id: string) => {
+    if (confirm('ဤခလုတ်ကို ဖျက်ပစ်ရန် သေချာပါသလား?')) {
+      const updated = customButtons2D.filter(b => b.id !== id);
+      setCustomButtons2D(updated);
+      lottery2D.updateSettings({ custom2DButtons: updated });
+      setBtnToast('ခလုတ်ကို ဖျက်ပြီးပါပြီ!');
+      setTimeout(() => setBtnToast(null), 3000);
+    }
+  };
+
+  const handleReset2DButtons = () => {
+    if (confirm('မူလသတ်မှတ်ထားသော 2D အမြန်ခလုတ်များအတိုင်း ပြန်လည်ထားရှိမည်လား?')) {
+      setCustomButtons2D(DEFAULT_2D_CUSTOM_BUTTONS);
+      lottery2D.updateSettings({ custom2DButtons: DEFAULT_2D_CUSTOM_BUTTONS });
+      setBtnToast('၂D မူလ စက်ရုံထုတ်အတိုင်း ပြန်လည်ထားရှိပြီးပါပြီ!');
+      setTimeout(() => setBtnToast(null), 3000);
+    }
+  };
+
   // 2D Single Number Limit State
   const [numLimit2DInput, setNumLimit2DInput] = useState('');
   const [amtLimit2DInput, setAmtLimit2DInput] = useState('50000');
@@ -874,7 +1184,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       globalStockLimit: !isNaN(parseInt(globalLimit3D, 10)) ? parseInt(globalLimit3D, 10) : lottery3D.settings.globalStockLimit,
       lowStockAlertPercentage: !isNaN(parseInt(alertPct3D, 10)) ? parseInt(alertPct3D, 10) : lottery3D.settings.lowStockAlertPercentage,
       voucherFooterMessage: footer3D.trim(),
-      quickActionButtons: actionButtons3D
+      quickActionButtons: actionButtons3D,
+      custom3DButtons: customButtons3D
     });
 
     // 2. Save 2D
@@ -890,7 +1201,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       defaultCustomerDiscount: !isNaN(parseFloat(disc2D)) ? parseFloat(disc2D) : lottery2D.settings.defaultCustomerDiscount,
       globalStockLimit: !isNaN(parseFloat(globalLimit2D)) ? parseFloat(globalLimit2D) : 200000,
       voucherFooterMessage: footer2D.trim(),
-      quickActionButtons: actionButtons2D
+      quickActionButtons: actionButtons2D,
+      custom2DButtons: customButtons2D
     });
 
     // 3. Save Football
@@ -1270,7 +1582,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     subTab3D === 'buttons' ? 'bg-white text-indigo-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  ၄။ ခလုတ်များ
+                  ၄။ ထိုးကြေးဂဏန်းယူနည်း & ခလုတ်များ
                 </button>
               </div>
 
@@ -1694,26 +2006,353 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
               )}
-              {/* Subtab 4: Quick Action Buttons Config */}
+              {/* Subtab 4: Quick Action Buttons & Bet Taking Rules Config */}
               {subTab3D === 'buttons' && (
-                <div className="space-y-3">
-                  <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3">
-                    <h4 className="text-xs font-black text-indigo-950 mb-2 flex items-center gap-1.5">
-                      <Sliders className="w-4 h-4 text-indigo-600" />
-                      <span>3D အမြန်စာရင်းသွင်း ခလုတ်များ စီမံခြင်း</span>
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(actionButtons3D).map(([key, enabled]) => (
-                        <label key={key} className="flex items-center justify-between bg-white p-2 rounded-lg border border-indigo-100 cursor-pointer">
-                          <span className="text-xs font-bold text-slate-800 capitalize">{key}</span>
+                <div className="space-y-3.5">
+                  {btnToast && (
+                    <div className="p-2.5 bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{btnToast}</span>
+                    </div>
+                  )}
+
+                  <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-indigo-200/60">
+                      <div>
+                        <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                          <Sliders className="w-4 h-4 text-indigo-600" />
+                          <span>ထိုးကြေးဂဏန်းယူနည်းနှင့် အမြန်ခလုတ်များ စီမံခြင်း</span>
+                        </h4>
+                        <p className="text-[11px] text-indigo-900/80 mt-0.5">
+                          ခလုတ်တစ်ခုချင်းစီအတွက် သူနှင့်သက်ဆိုင်သော ထိုးကြေးနှင့် ဂဏန်းယူပုံများကို ပိုင်ရှင်စိတ်ကြိုက် ပြောင်းလဲသတ်မှတ်နိုင်ပါသည်
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddingNew3DBtn(true);
+                            setEditing3DBtnId(null);
+                          }}
+                          className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-2xs cursor-pointer flex items-center gap-1 transition-all active:scale-95"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>ခလုတ်အသစ် ထည့်မည်</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleReset3DButtons}
+                          className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl text-[11px] font-bold shadow-2xs cursor-pointer flex items-center gap-1 transition-all active:scale-95"
+                          title="စက်ရုံထုတ် မူလခလုတ်များအတိုင်း ပြန်ထားမည်"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>မူလအတိုင်း</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Add New Button Form Drawer */}
+                    {isAddingNew3DBtn && (
+                      <div className="bg-white p-3.5 rounded-xl border-2 border-indigo-500 shadow-md space-y-3 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-black text-xs text-indigo-950 flex items-center gap-1">
+                            <Plus className="w-4 h-4 text-indigo-600" />
+                            <span>စိတ်ကြိုက် အမြန်ခလုတ် အသစ်ထည့်သွင်းခြင်း</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingNew3DBtn(false)}
+                            className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              ခလုတ်ပေါ်က စာသား (Button Label):
+                            </label>
+                            <input
+                              type="text"
+                              value={new3DBtnForm.label}
+                              onChange={(e) => setNew3DBtnForm(prev => ({ ...prev, label: e.target.value }))}
+                              placeholder="ဥပမာ - အပူးခွေ"
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-slate-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              ခလုတ်အမည် (Name Myanmar):
+                            </label>
+                            <input
+                              type="text"
+                              value={new3DBtnForm.nameMyanmar}
+                              onChange={(e) => setNew3DBtnForm(prev => ({ ...prev, nameMyanmar: e.target.value }))}
+                              placeholder="ဥပမာ - အပူးခွေအတွဲများ"
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-slate-900"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              ယူမည့် ပုံစံအမျိုးအစား (Action Type):
+                            </label>
+                            <select
+                              value={new3DBtnForm.actionType}
+                              onChange={(e) => setNew3DBtnForm(prev => ({ ...prev, actionType: e.target.value as any }))}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-slate-900"
+                            >
+                              <option value="preset_list">သတ်မှတ်ဂဏန်းအတွဲများ အော်တိုယူမည် (Preset Numbers List)</option>
+                              <option value="straight">ရိုက်ထည့်ဂဏန်းကို ဒဲ့တိုက်ရိုက်ယူမည် (Straight)</option>
+                              <option value="rumble">ရိုက်ထည့်ဂဏန်းကို အပြန်အလှန် ၆ ခွေ/၃ ခွေ လှည့်ယူမည် (Rumble)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              နမူနာပြသချက် (Syntax Example):
+                            </label>
+                            <input
+                              type="text"
+                              value={new3DBtnForm.syntaxExample}
+                              onChange={(e) => setNew3DBtnForm(prev => ({ ...prev, syntaxExample: e.target.value }))}
+                              placeholder="ဥပမာ - 000, 111, 222..."
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-slate-900"
+                            />
+                          </div>
+                        </div>
+
+                        {new3DBtnForm.actionType === 'preset_list' && (
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              ပါဝင်မည့် ၃ လုံးဂဏန်းများ (ကော်မာ သို့မဟုတ် နေရာခြား၍ ရိုက်ပါ):
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={new3DBtnForm.customNumbersStr}
+                              onChange={(e) => setNew3DBtnForm(prev => ({ ...prev, customNumbersStr: e.target.value }))}
+                              placeholder="ဥပမာ - 000, 111, 222, 333, 444, 555, 666, 777, 888, 999"
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs font-mono text-slate-900"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                            ထိုးကြေးနှင့် ဂဏန်းယူပုံ ရှင်းလင်းချက် (Description):
+                          </label>
                           <input
-                            type="checkbox"
-                            checked={!!enabled}
-                            onChange={(e) => setActionButtons3D(prev => ({ ...prev, [key]: e.target.checked }))}
-                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            type="text"
+                            value={new3DBtnForm.desc}
+                            onChange={(e) => setNew3DBtnForm(prev => ({ ...prev, desc: e.target.value }))}
+                            placeholder="ဤခလုတ်နှိပ်ပါက စနစ်က ဘာတွေယူမည်ဖြစ်ကြောင်း ရေးပါ"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs text-slate-900"
                           />
-                        </label>
-                      ))}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingNew3DBtn(false)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            မလုပ်တော့ပါ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddNew3DBtn}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-xs cursor-pointer flex items-center gap-1"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>အတည်ပြုမည်</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cards List of Buttons */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
+                      {customButtons3D.map((btn) => {
+                        const isEditingThis = editing3DBtnId === btn.id;
+
+                        return (
+                          <div
+                            key={btn.id}
+                            className={`p-3.5 rounded-2xl border transition-all ${
+                              btn.isEnabled
+                                ? 'bg-white border-indigo-200 shadow-2xs hover:border-indigo-300'
+                                : 'bg-slate-50 border-slate-200 opacity-60'
+                            }`}
+                          >
+                            {/* Card Top: Button Badge Preview + Toggle Checkbox */}
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <div className={btn.previewClass || 'px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-lg text-xs font-black'}>
+                                  <span>{btn.label}</span>
+                                </div>
+                                <div>
+                                  <span className="font-black text-xs text-slate-900 block leading-tight">
+                                    {btn.nameMyanmar}
+                                  </span>
+                                  {btn.nameEnglish && (
+                                    <span className="text-[10px] text-slate-400 font-normal block font-mono">
+                                      ({btn.nameEnglish})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={btn.isEnabled}
+                                    onChange={(e) => {
+                                      const updated = customButtons3D.map(b => b.id === btn.id ? { ...b, isEnabled: e.target.checked } : b);
+                                      setCustomButtons3D(updated);
+                                      lottery3D.updateSettings({ custom3DButtons: updated });
+                                    }}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                  <span className="text-[10px] font-bold text-slate-600">
+                                    {btn.isEnabled ? 'ဖွင့်' : 'ပိတ်'}
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+
+                            {/* Card Middle: Description & Rules */}
+                            <div className="py-2.5 space-y-1.5 text-xs">
+                              <div className="text-slate-700 text-[11px] leading-relaxed">
+                                <span className="font-bold text-slate-900">ယူပုံ: </span>
+                                <span>{btn.desc}</span>
+                              </div>
+                              {btn.syntaxExample && (
+                                <div className="text-indigo-900 bg-indigo-50/60 p-1.5 rounded-lg border border-indigo-100 text-[11px]">
+                                  <span className="font-bold text-indigo-950">နမူနာ: </span>
+                                  <span className="font-mono">{btn.syntaxExample}</span>
+                                </div>
+                              )}
+                              {btn.actionType === 'preset_list' && btn.customNumbers && btn.customNumbers.length > 0 && (
+                                <div className="pt-1">
+                                  <div className="text-[10px] font-bold text-slate-500 mb-1">
+                                    ပါဝင်သော ဂဏန်းများ ({btn.customNumbers.length} ကွက်):
+                                  </div>
+                                  <div className="max-h-16 overflow-y-auto flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                                    {btn.customNumbers.slice(0, 30).map((n) => (
+                                      <span key={n} className="bg-white border border-slate-200 font-mono text-[10px] font-bold px-1.5 py-0.2 rounded text-slate-800">
+                                        {n}
+                                      </span>
+                                    ))}
+                                    {btn.customNumbers.length > 30 && (
+                                      <span className="text-[10px] text-slate-400 font-mono">+{btn.customNumbers.length - 30} ကွက်</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Bottom: Inline Edit Mode OR Action Buttons */}
+                            {isEditingThis ? (
+                              <div className="mt-2 pt-2 border-t border-slate-200 space-y-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-300">
+                                <div className="font-bold text-xs text-indigo-900">
+                                  ခလုတ်နှင့် ဂဏန်းယူပုံ ပြင်ဆင်ခြင်း:
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ခလုတ်စာသား:</label>
+                                    <input
+                                      type="text"
+                                      value={editBtnForm.label}
+                                      onChange={(e) => setEditBtnForm(prev => ({ ...prev, label: e.target.value }))}
+                                      className="w-full bg-white border border-slate-300 rounded p-1 font-bold text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ခလုတ်အမည်:</label>
+                                    <input
+                                      type="text"
+                                      value={editBtnForm.nameMyanmar}
+                                      onChange={(e) => setEditBtnForm(prev => ({ ...prev, nameMyanmar: e.target.value }))}
+                                      className="w-full bg-white border border-slate-300 rounded p-1 font-bold text-xs"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="text-xs">
+                                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ဂဏန်းယူပုံ ရှင်းလင်းချက်:</label>
+                                  <input
+                                    type="text"
+                                    value={editBtnForm.desc}
+                                    onChange={(e) => setEditBtnForm(prev => ({ ...prev, desc: e.target.value }))}
+                                    className="w-full bg-white border border-slate-300 rounded p-1 text-xs"
+                                  />
+                                </div>
+
+                                {editBtnForm.actionType === 'preset_list' && (
+                                  <div className="text-xs">
+                                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ဂဏန်းအတွဲများ (ကော်မာခြားပါ):</label>
+                                    <textarea
+                                      rows={2}
+                                      value={editBtnForm.customNumbersStr}
+                                      onChange={(e) => setEditBtnForm(prev => ({ ...prev, customNumbersStr: e.target.value }))}
+                                      className="w-full bg-white border border-slate-300 rounded p-1 text-xs font-mono"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-end gap-1.5 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditing3DBtnId(null)}
+                                    className="px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                                  >
+                                    မလုပ်တော့ပါ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEdit3DBtn(btn.id)}
+                                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black shadow-xs cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    <span>အတည်ပြုမည်</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {btn.actionType === 'straight' ? 'ဒဲ့တိုက်ရိုက်' : btn.actionType === 'rumble' ? 'ပတ်လည် ၆ ခွေ' : 'သတ်မှတ်အတွဲ'}
+                                </span>
+
+                                <div className="flex items-center gap-1.5">
+                                  {btn.id.startsWith('btn-custom-') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete3DBtn(btn.id)}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                      title="ခလုတ်ကို ဖျက်မည်"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEdit3DBtn(btn)}
+                                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>ပြောင်းလဲမည်</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -2122,132 +2761,332 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
 
-              {/* 2D Quick Action Buttons Configuration */}
+              {/* Subtab 4: 2D Quick Action Buttons & Bet Taking Rules Config */}
               {subTab2D === 'buttons' && (
-                <div className="space-y-3">
-                  <div className="bg-teal-50/70 border border-teal-200/80 rounded-xl p-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5 pb-2.5 border-b border-teal-200/60">
+                <div className="space-y-3.5">
+                  {btnToast && (
+                    <div className="p-2.5 bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{btnToast}</span>
+                    </div>
+                  )}
+
+                  <div className="bg-teal-50/70 border border-teal-200/80 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-teal-200/60">
                       <div>
                         <h4 className="text-xs font-black text-teal-950 flex items-center gap-1.5">
                           <Sliders className="w-4 h-4 text-teal-600" />
-                          <span>2D အမြန်စာရင်းသွင်း ခလုတ်များ စီမံခြင်း</span>
+                          <span>ဇီးကွက် (2D) ထိုးကြေးဂဏန်းယူနည်းနှင့် အမြန်ခလုတ်များ စီမံခြင်း</span>
                         </h4>
-                        <p className="text-[11px] text-teal-800/80 mt-0.5">
-                          ဖွင့်ထားသော ခလုတ်များသာ အမြန်စာရင်းသွင်း (Quick Entry) တွင် ပေါ်ပြီး အလုပ်လုပ်ပါမည်။ ပိတ်ထားသော ခလုတ်များသည် မျက်နှာပြင်တွင် မပေါ်ဘဲ နေရာမယူပါ။
+                        <p className="text-[11px] text-teal-900/80 mt-0.5">
+                          ခလုတ်တစ်ခုချင်းစီအတွက် သူနှင့်သက်ဆိုင်သော ထိုးကြေးနှင့် ဂဏန်းယူပုံများကို ပိုင်ရှင်စိတ်ကြိုက် ပြောင်းလဲသတ်မှတ်နိုင်ပါသည်
                         </p>
                       </div>
 
-                      {/* Quick Bulk Action Buttons */}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
-                            const allOn: TwoDQuickActionButtonsConfig = {
-                              straight: true,
-                              rumble: true,
-                              break: true,
-                              includes: true,
-                              head: true,
-                              tail: true,
-                              doubles: true,
-                              power: true,
-                              natkhat: true,
-                              brothers: true,
-                              khway: true,
-                              khwayPuu: true,
-                              khwayRumble: true,
-                              khwayPuuRumble: true
-                            };
-                            setActionButtons2D(allOn);
+                            setIsAddingNew2DBtn(true);
+                            setEditing2DBtnId(null);
                           }}
-                          className="px-2.5 py-1 bg-white hover:bg-teal-50 border border-teal-300 text-teal-900 rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
+                          className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black shadow-xs cursor-pointer flex items-center gap-1 transition-all active:scale-95"
                         >
-                          အားလုံးဖွင့်မည်
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>ခလုတ်အသစ် ထည့်မည်</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            const allOff: TwoDQuickActionButtonsConfig = {
-                              straight: false,
-                              rumble: false,
-                              break: false,
-                              includes: false,
-                              head: false,
-                              tail: false,
-                              doubles: false,
-                              power: false,
-                              natkhat: false,
-                              brothers: false,
-                              khway: false,
-                              khwayPuu: false,
-                              khwayRumble: false,
-                              khwayPuuRumble: false
-                            };
-                            setActionButtons2D(allOff);
-                          }}
-                          className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-rose-300 text-rose-800 rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
+                          onClick={handleReset2DButtons}
+                          className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
+                          title="စက်ရုံထုတ် မူလအခြေအနေအတိုင်း ပြန်လည်ထားရှိမည်"
                         >
-                          အားလုံးပိတ်မည်
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActionButtons2D({ ...DEFAULT_2D_ACTION_BUTTONS });
-                          }}
-                          className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-all active:scale-95"
-                        >
-                          မူလအတိုင်း
+                          <RotateCcw className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Button Grid with Previews and Toggles */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto pr-1">
-                      {BUTTON_DEFINITIONS_2D.map((btn) => {
-                        const isEnabled = actionButtons2D[btn.key];
+                    {/* Add New Custom 2D Button Form */}
+                    {isAddingNew2DBtn && (
+                      <div className="p-3 bg-white border border-teal-300 rounded-2xl shadow-xs space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <span className="font-black text-xs text-teal-900">
+                            စိတ်ကြိုက် 2D ခလုတ်အသစ် သတ်မှတ်ခြင်း:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingNew2DBtn(false)}
+                            className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                              ခလုတ်စာသား (Button Label):
+                            </label>
+                            <input
+                              type="text"
+                              value={new2DBtnForm.label}
+                              onChange={(e) => setNew2DBtnForm(prev => ({ ...prev, label: e.target.value }))}
+                              placeholder="ဥပမာ: အပူးခွေ / စုံစုံ"
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                              ခလုတ်အမည် (Myanmar Name):
+                            </label>
+                            <input
+                              type="text"
+                              value={new2DBtnForm.nameMyanmar}
+                              onChange={(e) => setNew2DBtnForm(prev => ({ ...prev, nameMyanmar: e.target.value }))}
+                              placeholder="ဥပမာ: စုံစုံ (စုံဂဏန်းအတွဲများ)"
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="text-xs">
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            ထိုးကြေးနှင့် ဂဏန်းယူပုံ ရှင်းလင်းချက်:
+                          </label>
+                          <input
+                            type="text"
+                            value={new2DBtnForm.desc}
+                            onChange={(e) => setNew2DBtnForm(prev => ({ ...prev, desc: e.target.value }))}
+                            placeholder="ဥပမာ: စုံဂဏန်း ၂၅ ကွက်အား အလိုအလျောက် ထည့်သွင်းယူပါသည်"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs"
+                          />
+                        </div>
+
+                        <div className="text-xs">
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            ယူနည်းနမူနာ (Syntax Example):
+                          </label>
+                          <input
+                            type="text"
+                            value={new2DBtnForm.syntaxExample}
+                            onChange={(e) => setNew2DBtnForm(prev => ({ ...prev, syntaxExample: e.target.value }))}
+                            placeholder="ဥပမာ: 00, 02, 04, 06, 08, 20, 22... (၂၅ ကွက်)"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs font-mono"
+                          />
+                        </div>
+
+                        <div className="text-xs">
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            ထည့်သွင်းမည့် ၂ လုံးဂဏန်းများ (ကော်မာ သို့မဟုတ် ခြားပြီး ရိုက်ပါ):
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={new2DBtnForm.customNumbersStr}
+                            onChange={(e) => setNew2DBtnForm(prev => ({ ...prev, customNumbersStr: e.target.value }))}
+                            placeholder="ဥပမာ: 00, 02, 04, 06, 08, 20, 22, 24, 26, 28..."
+                            className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs font-mono"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingNew2DBtn(false)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            မလုပ်တော့ပါ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddNew2DBtn}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-xs cursor-pointer flex items-center gap-1"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>အတည်ပြုမည်</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cards List of 2D Buttons */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
+                      {customButtons2D.map((btn) => {
+                        const isEditingThis = editing2DBtnId === btn.id;
+
                         return (
-                          <label
-                            key={btn.key}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none ${
-                              isEnabled
-                                ? 'bg-white border-teal-300/80 shadow-2xs'
-                                : 'bg-slate-50/70 border-slate-200 opacity-60'
+                          <div
+                            key={btn.id}
+                            className={`p-3.5 rounded-2xl border transition-all ${
+                              btn.isEnabled
+                                ? 'bg-white border-teal-200 shadow-2xs hover:border-teal-300'
+                                : 'bg-slate-50 border-slate-200 opacity-60'
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {/* Preview Badge of Button */}
-                              <div className={btn.previewClass}>
-                                {btn.icon && <span className="shrink-0">{btn.icon}</span>}
-                                <span>{btn.label}</span>
+                            {/* Card Top: Button Badge Preview + Toggle Checkbox */}
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <div className={btn.previewClass || 'px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-900 rounded-lg text-xs font-black'}>
+                                  <span>{btn.label}</span>
+                                </div>
+                                <div>
+                                  <span className="font-black text-xs text-slate-900 block leading-tight">
+                                    {btn.nameMyanmar}
+                                  </span>
+                                  {btn.nameEnglish && (
+                                    <span className="text-[10px] text-slate-400 font-normal block font-mono">
+                                      ({btn.nameEnglish})
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
-                              {/* Title and Description */}
-                              <div className="min-w-0">
-                                <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                                  <span>{btn.nameMyanmar}</span>
-                                  <span className="text-[10px] font-mono text-slate-500 font-normal">({btn.nameEnglish})</span>
-                                </div>
-                                <div className="text-[10px] text-slate-500 truncate">
-                                  {btn.desc}
-                                </div>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={btn.isEnabled}
+                                    onChange={(e) => {
+                                      const updated = customButtons2D.map(b => b.id === btn.id ? { ...b, isEnabled: e.target.checked } : b);
+                                      setCustomButtons2D(updated);
+                                      lottery2D.updateSettings({ custom2DButtons: updated });
+                                    }}
+                                    className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+                                  />
+                                  <span className="text-[10px] font-bold text-slate-600">
+                                    {btn.isEnabled ? 'ဖွင့်' : 'ပိတ်'}
+                                  </span>
+                                </label>
                               </div>
                             </div>
 
-                            {/* Toggle Switch */}
-                            <div className="shrink-0 flex items-center">
-                              <input
-                                type="checkbox"
-                                checked={isEnabled}
-                                onChange={(e) => {
-                                  setActionButtons2D(prev => ({
-                                    ...prev,
-                                    [btn.key]: e.target.checked
-                                  }));
-                                }}
-                                className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
-                              />
+                            {/* Card Middle: Description & Rules */}
+                            <div className="py-2.5 space-y-1.5 text-xs">
+                              <div className="text-slate-700 text-[11px] leading-relaxed">
+                                <span className="font-bold text-slate-900">ယူပုံ: </span>
+                                <span>{btn.desc}</span>
+                              </div>
+                              {btn.syntaxExample && (
+                                <div className="text-teal-900 bg-teal-50/60 p-1.5 rounded-lg border border-teal-100 text-[11px]">
+                                  <span className="font-bold text-teal-950">နမူနာ: </span>
+                                  <span className="font-mono">{btn.syntaxExample}</span>
+                                </div>
+                              )}
+                              {btn.actionType === 'preset_list' && btn.customNumbers && btn.customNumbers.length > 0 && (
+                                <div className="pt-1">
+                                  <div className="text-[10px] font-bold text-slate-500 mb-1">
+                                    ပါဝင်သော ဂဏန်းများ ({btn.customNumbers.length} ကွက်):
+                                  </div>
+                                  <div className="max-h-16 overflow-y-auto flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                                    {btn.customNumbers.slice(0, 30).map((n) => (
+                                      <span key={n} className="bg-white border border-slate-200 font-mono text-[10px] font-bold px-1.5 py-0.2 rounded text-slate-800">
+                                        {n}
+                                      </span>
+                                    ))}
+                                    {btn.customNumbers.length > 30 && (
+                                      <span className="text-[10px] text-slate-400 font-mono">+{btn.customNumbers.length - 30} ကွက်</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </label>
+
+                            {/* Card Bottom: Inline Edit Mode OR Action Buttons */}
+                            {isEditingThis ? (
+                              <div className="mt-2 pt-2 border-t border-slate-200 space-y-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-300">
+                                <div className="font-bold text-xs text-teal-900">
+                                  ခလုတ်နှင့် ဂဏန်းယူပုံ ပြင်ဆင်ခြင်း:
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ခလုတ်စာသား:</label>
+                                    <input
+                                      type="text"
+                                      value={editBtn2DForm.label}
+                                      onChange={(e) => setEditBtn2DForm(prev => ({ ...prev, label: e.target.value }))}
+                                      className="w-full bg-white border border-slate-300 rounded p-1 font-bold text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ခလုတ်အမည်:</label>
+                                    <input
+                                      type="text"
+                                      value={editBtn2DForm.nameMyanmar}
+                                      onChange={(e) => setEditBtn2DForm(prev => ({ ...prev, nameMyanmar: e.target.value }))}
+                                      className="w-full bg-white border border-slate-300 rounded p-1 font-bold text-xs"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="text-xs">
+                                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ဂဏန်းယူပုံ ရှင်းလင်းချက်:</label>
+                                  <input
+                                    type="text"
+                                    value={editBtn2DForm.desc}
+                                    onChange={(e) => setEditBtn2DForm(prev => ({ ...prev, desc: e.target.value }))}
+                                    className="w-full bg-white border border-slate-300 rounded p-1 text-xs"
+                                  />
+                                </div>
+
+                                {editBtn2DForm.actionType === 'preset_list' && (
+                                  <div className="text-xs">
+                                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">ဂဏန်းအတွဲများ (ကော်မာခြားပါ):</label>
+                                    <textarea
+                                      rows={2}
+                                      value={editBtn2DForm.customNumbersStr}
+                                      onChange={(e) => setEditBtn2DForm(prev => ({ ...prev, customNumbersStr: e.target.value }))}
+                                      className="w-full bg-white border border-slate-300 rounded p-1 text-xs font-mono"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-end gap-1.5 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditing2DBtnId(null)}
+                                    className="px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                                  >
+                                    မလုပ်တော့ပါ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEdit2DBtn(btn.id)}
+                                    className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-black shadow-xs cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    <span>အတည်ပြုမည်</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {btn.actionType === 'straight' ? 'ဒဲ့တိုက်ရိုက်' : btn.actionType === 'rumble' ? 'ပတ်လည် ၂ ခွေ' : btn.actionType === 'break' ? 'ဘရိတ် ၁၀ ကွက်' : btn.actionType === 'includes' ? 'အပါ ၁၉ ကွက်' : btn.actionType === 'head' ? 'ထိပ် ၁၀ ကွက်' : btn.actionType === 'tail' ? 'ပိတ် ၁၀ ကွက်' : btn.actionType === 'khway' ? 'ရိုးရိုးခွေ' : btn.actionType === 'khwayPuu' ? 'ခွေပူး' : btn.actionType === 'khwayRumble' ? 'ခွေအာ' : btn.actionType === 'khwayPuuRumble' ? 'ခွေပူးအာ' : 'သတ်မှတ်အတွဲ'}
+                                </span>
+
+                                <div className="flex items-center gap-1.5">
+                                  {btn.id.startsWith('btn-custom-') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete2DBtn(btn.id)}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                      title="ခလုတ်ကို ဖျက်မည်"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEdit2DBtn(btn)}
+                                    className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                    title="ဂဏန်းယူပုံ ပြင်ဆင်ရန်"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>ပြောင်းလဲမည်</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

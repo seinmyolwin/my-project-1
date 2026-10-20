@@ -30,8 +30,8 @@ import {
   FileText
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig } from '../../types';
-import { DEFAULT_2D_ACTION_BUTTONS } from '../../utils/storage';
+import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig, TwoDQuickButtonItem } from '../../types';
+import { DEFAULT_2D_ACTION_BUTTONS, DEFAULT_2D_CUSTOM_BUTTONS } from '../../utils/storage';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import {
   getTwoDReversal,
@@ -239,9 +239,17 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     };
   }, [settings.quickActionButtons]);
 
+  // Active 2D Customizable Quick Bet Buttons
+  const active2DButtons = useMemo<TwoDQuickButtonItem[]>(() => {
+    const list = settings.custom2DButtons && settings.custom2DButtons.length > 0
+      ? settings.custom2DButtons
+      : DEFAULT_2D_CUSTOM_BUTTONS;
+    return list.filter(b => b.isEnabled);
+  }, [settings.custom2DButtons]);
+
   const hasAnyButtonVisible = useMemo(() => {
-    return Object.values(enabledButtons).some(Boolean);
-  }, [enabledButtons]);
+    return active2DButtons.length > 0 || Object.values(enabledButtons).some(Boolean);
+  }, [active2DButtons, enabledButtons]);
 
   // Real-time preview of numbers from numberInput
   const parsedPreviewNumbers = useMemo(() => {
@@ -960,6 +968,53 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     );
   };
 
+  const handleCustomButtonClick = (btn: TwoDQuickButtonItem) => {
+    if (btn.actionType === 'straight') {
+      handleAddStraightClick();
+      return;
+    }
+    if (btn.actionType === 'rumble') {
+      handleAddRumbleClick();
+      return;
+    }
+    if (btn.actionType === 'break') {
+      handleAddBreakDigit();
+      return;
+    }
+    if (btn.actionType === 'includes') {
+      handleAddIncludesDigit();
+      return;
+    }
+    if (btn.actionType === 'head') {
+      handleAddHeadDigit();
+      return;
+    }
+    if (btn.actionType === 'tail') {
+      handleAddTailDigit();
+      return;
+    }
+    if (btn.actionType === 'khway') {
+      handleAddKhwayClick();
+      return;
+    }
+    if (btn.actionType === 'khwayPuu') {
+      handleAddKhwayPuuClick();
+      return;
+    }
+    if (btn.actionType === 'khwayRumble') {
+      handleAddKhwayRumbleClick();
+      return;
+    }
+    if (btn.actionType === 'khwayPuuRumble') {
+      handleAddKhwayPuuRumbleClick();
+      return;
+    }
+    if (btn.customNumbers && btn.customNumbers.length > 0) {
+      handleAddPattern(btn.customNumbers, btn.nameMyanmar || btn.label);
+      return;
+    }
+  };
+
   // Process Batch Text
   const handleProcessBatch = () => {
     if (!activeRound || activeRound.status !== 'open' || is2DRoundClosed(activeRound)) {
@@ -1547,138 +1602,51 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             </div>
           )}
 
-          {/* Quick Shortcuts Bar */}
+          {/* Quick Shortcuts Bar: Configured by Owner in Settings */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-            {enabledButtons.straight && (
-              <button
-                type="button"
-                onClick={handleAddStraightClick}
-                className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
-                  !isRumble ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
-              </button>
-            )}
-            {enabledButtons.rumble && (
-              <button
-                type="button"
-                onClick={handleAddRumbleClick}
-                className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
-                  isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                <span>{isMyanmar ? 'အာ' : 'R'}</span>
-              </button>
-            )}
-            {enabledButtons.break && (
-              <button
-                type="button"
-                onClick={handleAddBreakDigit}
-                className="px-2.5 py-1.5 bg-sky-50 text-sky-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ရိတ်' : 'Break'}</span>
-              </button>
-            )}
-            {enabledButtons.includes && (
-              <button
-                type="button"
-                onClick={handleAddIncludesDigit}
-                className="px-2.5 py-1.5 bg-amber-50 text-amber-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'အပါ' : 'Includes'}</span>
-              </button>
-            )}
-            {enabledButtons.head && (
-              <button
-                type="button"
-                onClick={handleAddHeadDigit}
-                className="px-2.5 py-1.5 bg-indigo-50 text-indigo-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ထိပ်' : 'Head'}</span>
-              </button>
-            )}
-            {enabledButtons.tail && (
-              <button
-                type="button"
-                onClick={handleAddTailDigit}
-                className="px-2.5 py-1.5 bg-purple-50 text-purple-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ပိတ်' : 'Tail'}</span>
-              </button>
-            )}
-            {enabledButtons.doubles && (
-              <button
-                type="button"
-                onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'ပူး' : 'Doubles')}
-                className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'အပူး' : 'Doubles'}</span>
-              </button>
-            )}
-            {enabledButtons.power && (
-              <button
-                type="button"
-                onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ' : 'Power')}
-                className="px-2.5 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
-              </button>
-            )}
-            {enabledButtons.natkhat && (
-              <button
-                type="button"
-                onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-                className="px-2.5 py-1.5 bg-rose-50 text-rose-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
-              </button>
-            )}
-            {enabledButtons.brothers && (
-              <button
-                type="button"
-                onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို' : 'Brothers')}
-                className="px-2.5 py-1.5 bg-teal-50 text-teal-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
-              </button>
-            )}
-            {enabledButtons.khway && (
-              <button
-                type="button"
-                onClick={handleAddKhwayClick}
-                className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-black shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ခွေ' : 'Khway'}</span>
-              </button>
-            )}
-            {enabledButtons.khwayPuu && (
-              <button
-                type="button"
-                onClick={handleAddKhwayPuuClick}
-                className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-black shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ခွေပူး' : 'Khway Puu'}</span>
-              </button>
-            )}
-            {enabledButtons.khwayRumble && (
-              <button
-                type="button"
-                onClick={handleAddKhwayRumbleClick}
-                className="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-black shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ခွေr' : 'Khway R'}</span>
-              </button>
-            )}
-            {enabledButtons.khwayPuuRumble && (
-              <button
-                type="button"
-                onClick={handleAddKhwayPuuRumbleClick}
-                className="px-2.5 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-black shrink-0 cursor-pointer"
-              >
-                <span>{isMyanmar ? 'ခွေပူးr' : 'Khway Puu R'}</span>
-              </button>
-            )}
+            {active2DButtons.map((btn) => {
+              if (btn.actionType === 'straight') {
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onClick={handleAddStraightClick}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                      !isRumble ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                    }`}
+                    title={btn.desc}
+                  >
+                    <span>{btn.label}</span>
+                  </button>
+                );
+              }
+              if (btn.actionType === 'rumble') {
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onClick={handleAddRumbleClick}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg shrink-0 cursor-pointer transition-all ${
+                      isRumble ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+                    }`}
+                    title={btn.desc}
+                  >
+                    <span>{btn.label}</span>
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={btn.id}
+                  type="button"
+                  onClick={() => handleCustomButtonClick(btn)}
+                  className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold shrink-0 cursor-pointer transition-all active:scale-95"
+                  title={btn.desc}
+                >
+                  <span>{btn.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Main Input Controls: Number -> Stake -> Add (Requirement 6) */}
@@ -2111,186 +2079,58 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 />
               </div>
 
-              {/* Action Buttons below Number Input: ဒဲ့, ပတ်လည်, ရိတ်, အပါ, ထိပ်, ပိတ်, ပူး, ပါဝါ, နက္ခတ်, ညီကို, ခွေ, ခွေပူး, ခွေr, ခွေပူးr */}
+              {/* Action Buttons below Number Input: Configured by Owner in Settings */}
               {hasAnyButtonVisible && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  {/* 0. ဒဲ့ (Straight / Direct) */}
-                  {enabledButtons.straight && (
-                    <button
-                      type="button"
-                      onClick={handleAddStraightClick}
-                      className={`px-2.5 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                        !isRumble
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
-                      }`}
-                      title={isMyanmar ? 'ဒဲ့ / တိုက်ရိုက်ထိုးကြေး (Straight / Direct)' : 'Straight / Direct'}
-                    >
-                      <Check className="w-3 h-3" />
-                      <span>{isMyanmar ? 'ဒဲ့' : 'Direct'}</span>
-                    </button>
-                  )}
-
-                  {/* 1. အာ (Rumble / Reversal) */}
-                  {enabledButtons.rumble && (
-                    <button
-                      type="button"
-                      onClick={handleAddRumbleClick}
-                      className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                        isRumble
-                          ? 'bg-teal-600 text-white ring-1 ring-teal-500'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
-                      }`}
-                      title={isMyanmar ? 'အာ (R)' : 'Rumble (R)'}
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      <span>{isMyanmar ? 'အာ' : 'R'}</span>
-                    </button>
-                  )}
-
-                  {/* 2. ရိတ် (Break / ဘရိတ်) */}
-                  {enabledButtons.break && (
-                    <button
-                      type="button"
-                      onClick={handleAddBreakDigit}
-                      className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ရိတ် (ဘရိတ် ၁၀ ကွက်)' : 'Break'}
-                    >
-                      <span>{isMyanmar ? 'ရိတ်' : 'Break'}</span>
-                    </button>
-                  )}
-
-                  {/* 3. အပါ (Includes / အပါ) */}
-                  {enabledButtons.includes && (
-                    <button
-                      type="button"
-                      onClick={handleAddIncludesDigit}
-                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'အပါ (၁၉ ကွက်)' : 'Includes'}
-                    >
-                      <span>{isMyanmar ? 'အပါ' : 'Includes'}</span>
-                    </button>
-                  )}
-
-                  {/* 4. ထိပ် (Head / ထိပ်စီး) */}
-                  {enabledButtons.head && (
-                    <button
-                      type="button"
-                      onClick={handleAddHeadDigit}
-                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ထိပ် (ထိပ်စီး ၁၀ ကွက်)' : 'Head'}
-                    >
-                      <span>{isMyanmar ? 'ထိပ်' : 'Head'}</span>
-                    </button>
-                  )}
-
-                  {/* 5. ပိတ် (Tail / နောက်ပိတ်) */}
-                  {enabledButtons.tail && (
-                    <button
-                      type="button"
-                      onClick={handleAddTailDigit}
-                      className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ပိတ် (နောက်ပိတ် ၁၀ ကွက်)' : 'Tail'}
-                    >
-                      <span>{isMyanmar ? 'ပိတ်' : 'Tail'}</span>
-                    </button>
-                  )}
-
-                  {/* 6. ပူး (Doubles / အပူး) */}
-                  {enabledButtons.doubles && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddPattern(TWO_D_DOUBLES, isMyanmar ? 'ပူး' : 'Doubles')}
-                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ပူး (အပူး ၁၀ ကွက်)' : 'Doubles'}
-                    >
-                      <span>{isMyanmar ? 'ပူး' : 'Doubles'}</span>
-                    </button>
-                  )}
-
-                  {/* 7. ပါဝါ (Power) */}
-                  {enabledButtons.power && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddPattern(TWO_D_POWER, isMyanmar ? 'ပါဝါ' : 'Power')}
-                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ပါဝါ (၁၀ ကွက်)' : 'Power'}
-                    >
-                      <span>{isMyanmar ? 'ပါဝါ' : 'Power'}</span>
-                    </button>
-                  )}
-
-                  {/* 8. နက္ခတ် (Natkhat) */}
-                  {enabledButtons.natkhat && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddPattern(TWO_D_NATKHAT, isMyanmar ? 'နက္ခတ်' : 'Natkhat')}
-                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'နက္ခတ် (၁၀ ကွက်)' : 'Natkhat'}
-                    >
-                      <span>{isMyanmar ? 'နက္ခတ်' : 'Natkhat'}</span>
-                    </button>
-                  )}
-
-                  {/* 9. ညီကို (Brothers) */}
-                  {enabledButtons.brothers && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddPattern(TWO_D_BROTHERS, isMyanmar ? 'ညီကို' : 'Brothers')}
-                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ညီကို (၂၀ ကွက်)' : 'Brothers'}
-                    >
-                      <span>{isMyanmar ? 'ညီကို' : 'Brothers'}</span>
-                    </button>
-                  )}
-
-                  {/* 10. ခွေ (Khway - ရိုးရိုးခွေ) */}
-                  {enabledButtons.khway && (
-                    <button
-                      type="button"
-                      onClick={handleAddKhwayClick}
-                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ခွေ (ရိုးရိုးခွေ - ဥပမာ ၁၂၃၄ -> ၆ ကွက်၊ ၂၃၄၅၆ -> ၁၀ ကွက်)' : 'Khway'}
-                    >
-                      <span>{isMyanmar ? 'ခွေ' : 'Khway'}</span>
-                    </button>
-                  )}
-
-                  {/* 11. ခွေပူး (Khway Puu - ရိုးရိုးခွေ + အပူး) */}
-                  {enabledButtons.khwayPuu && (
-                    <button
-                      type="button"
-                      onClick={handleAddKhwayPuuClick}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ခွေပူး (ခွေ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၀ ကွက်၊ ၂၃၄၅၆ -> ၁၅ ကွက်)' : 'Khway Puu'}
-                    >
-                      <span>{isMyanmar ? 'ခွေပူး' : 'Khway Puu'}</span>
-                    </button>
-                  )}
-
-                  {/* 12. ခွေr (Khway Rumble - လှည့်တွဲ / အပြန်အလှန်) */}
-                  {enabledButtons.khwayRumble && (
-                    <button
-                      type="button"
-                      onClick={handleAddKhwayRumbleClick}
-                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ခွေr (ခွေအာ လှည့်တွဲ - ဥပမာ ၁၂၃၄ -> ၁၂ ကွက်၊ ၂၃၄၅၆ -> ၂၀ ကွက်)' : 'Khway R'}
-                    >
-                      <span>{isMyanmar ? 'ခွေr' : 'Khway R'}</span>
-                    </button>
-                  )}
-
-                  {/* 13. ခွေပူးr (Khway Puu Rumble - ခွေအာ + အပူးပါ အကုန်ပါ) */}
-                  {enabledButtons.khwayPuuRumble && (
-                    <button
-                      type="button"
-                      onClick={handleAddKhwayPuuRumbleClick}
-                      className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-black transition-all shadow-xs active:scale-95 cursor-pointer"
-                      title={isMyanmar ? 'ခွေပူးr (ခွေအာ + အပူး - ဥပမာ ၁၂၃၄ -> ၁၆ ကွက်၊ ၂၃၄၅၆ -> ၂၅ ကွက်)' : 'Khway Puu R'}
-                    >
-                      <span>{isMyanmar ? 'ခွေပူးr' : 'Khway Puu R'}</span>
-                    </button>
-                  )}
+                  {active2DButtons.map((btn) => {
+                    if (btn.actionType === 'straight') {
+                      return (
+                        <button
+                          key={btn.id}
+                          type="button"
+                          onClick={handleAddStraightClick}
+                          className={`px-2.5 py-1 text-xs font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                            !isRumble
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-1 ring-emerald-500 shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                          }`}
+                          title={btn.desc}
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>{btn.label}</span>
+                        </button>
+                      );
+                    }
+                    if (btn.actionType === 'rumble') {
+                      return (
+                        <button
+                          key={btn.id}
+                          type="button"
+                          onClick={handleAddRumbleClick}
+                          className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                            isRumble
+                              ? 'bg-teal-600 text-white ring-1 ring-teal-500'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                          }`}
+                          title={btn.desc}
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>{btn.label}</span>
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={() => handleCustomButtonClick(btn)}
+                        className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                        title={btn.desc}
+                      >
+                        <span>{btn.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 

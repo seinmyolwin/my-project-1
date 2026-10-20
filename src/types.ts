@@ -93,6 +93,21 @@ export interface ThreeDQuickActionButtonsConfig {
   natkhat: boolean;
 }
 
+export interface ThreeDQuickButtonItem {
+  id: string;
+  key: string;
+  label: string;
+  nameMyanmar: string;
+  nameEnglish: string;
+  desc: string;
+  syntaxExample: string;
+  actionType: 'straight' | 'rumble' | 'preset_list';
+  customNumbers?: string[];
+  defaultAmount?: number;
+  isEnabled: boolean;
+  previewClass?: string;
+}
+
 export interface AppSettings {
   appName: string; // Customizable App Name e.g. "ရွှေမင်္ဂလာ"
   shopName: string;
@@ -112,6 +127,7 @@ export interface AppSettings {
   defaultMasterAgentName?: string;
   defaultMasterAgentPhone?: string;
   quickActionButtons?: ThreeDQuickActionButtonsConfig;
+  custom3DButtons?: ThreeDQuickButtonItem[];
 }
 
 export type OverLimitAction = 'forward_excess' | 'forward_all' | 'accept_locally' | 'cap_at_limit' | 'reject';
@@ -259,6 +275,21 @@ export interface TwoDQuickActionButtonsConfig {
   khwayPuuRumble: boolean; // ခွေပူးr (ခွေပူးအာ)
 }
 
+export interface TwoDQuickButtonItem {
+  id: string;
+  key: string;
+  label: string;
+  nameMyanmar: string;
+  nameEnglish: string;
+  desc: string;
+  syntaxExample: string;
+  actionType: 'straight' | 'rumble' | 'preset_list' | 'break' | 'head' | 'tail' | 'includes' | 'khway' | 'khwayPuu' | 'khwayRumble' | 'khwayPuuRumble';
+  customNumbers?: string[];
+  defaultAmount?: number;
+  isEnabled: boolean;
+  previewClass?: string;
+}
+
 export interface TwoDAppSettings {
   appName: string;
   shopName: string;
@@ -277,6 +308,7 @@ export interface TwoDAppSettings {
   defaultMasterAgentName?: string;
   defaultMasterAgentPhone?: string;
   quickActionButtons?: TwoDQuickActionButtonsConfig;
+  custom2DButtons?: TwoDQuickButtonItem[];
 }
 
 export interface TwoDNumberAggregate {

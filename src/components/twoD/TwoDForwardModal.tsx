@@ -36,7 +36,7 @@ import {
   getTwoDKhwayRumble,
   getTwoDKhwayPuuRumble
 } from '../../utils/twoDLotteryUtils';
-import { DEFAULT_2D_ACTION_BUTTONS } from '../../utils/storage';
+import { DEFAULT_2D_ACTION_BUTTONS, cleanMasterAgentName } from '../../utils/storage';
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../../utils/audioUtils';
 
 interface TwoDForwardModalProps {
@@ -76,7 +76,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     return [];
   });
 
-  const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
+  const [masterAgentName, setMasterAgentName] = useState(cleanMasterAgentName(settings.defaultMasterAgentName) || 'ကိုစိုးနိုင်');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
   const [notes, setNotes] = useState('');
@@ -445,7 +445,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
     const forwardPayload = {
       roundId: activeRound?.id || 'default',
-      masterAgentName: masterAgentName.trim() || 'ဒိုင်ချုပ်ကြီး',
+      masterAgentName: cleanMasterAgentName(masterAgentName.trim()) || cleanMasterAgentName(settings.defaultMasterAgentName) || 'ကိုစိုးနိုင်',
       masterAgentPhone: masterAgentPhone.trim(),
       items: activeSelectedItems.map((i) => ({ number: i.number, amount: i.forwardAmount })),
       totalAmount,
@@ -466,8 +466,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   // Copy Telegram / SMS Text
   const handleCopySlipText = () => {
     if (!createdSlip) return;
-    const lines = createdSlip.items.map((it) => `${it.number}=${it.amount}`);
-    const text = `【ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nရက်စွဲ: ${new Date(createdSlip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\nဒိုင်ချုပ်: ${createdSlip.masterAgentName}\n----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nဒိုင်သို့ အမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
+    const cleanAgent = cleanMasterAgentName(createdSlip.masterAgentName);
+    const text = `【ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nရက်စွဲ: ${new Date(createdSlip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n${cleanAgent ? `${cleanAgent}\n` : ''}----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nအမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
 
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
@@ -522,7 +522,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                 {isMyanmar ? 'ဒိုင်ကြီးဆီ လွှဲတင်စာရင်း အောင်မြင်စွာ မှတ်တမ်းတင်ပြီးပါပြီ' : 'Forward Slip Created Successfully'}
               </h4>
               <p className="text-xs text-slate-500 font-mono">
-                {createdSlip.slipNo} • {createdSlip.masterAgentName}
+                {createdSlip.slipNo} • {cleanMasterAgentName(createdSlip.masterAgentName)}
               </p>
             </div>
 
@@ -552,7 +552,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                   <span className="font-bold">+{formatAmount(createdSlip.commissionAmount, settings.currency)}</span>
                 </div>
                 <div className="flex justify-between text-slate-900 font-bold text-sm pt-1 border-t border-slate-200">
-                  <span>ဒိုင်ကြီးသို့ ပေးရန်:</span>
+                  <span>အမှန်ပေးငွေ:</span>
                   <span className="text-indigo-700">{formatAmount(createdSlip.netPaid, settings.currency)}</span>
                 </div>
               </div>
@@ -608,7 +608,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                       : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
                   }`}
-                  title="လက်ရှိ ဒိုင်ချုပ်အမည်နှင့် အချက်အလက်များကို ပုံသေဒိုင်အဖြစ် မှတ်သားထားမည်"
+                  title="လက်ရှိ ဒိုင်အမည်နှင့် အချက်အလက်များကို ပုံသေဒိုင်အဖြစ် မှတ်သားထားမည်"
                 >
                   <CheckCircle2 className={`w-3.5 h-3.5 ${savedDefaultSuccess ? 'text-emerald-600' : 'text-slate-400'}`} />
                   <span>{savedDefaultSuccess ? 'မူလဒိုင်အဖြစ် သိမ်းဆည်းပြီး ✓' : 'မူလဒိုင်အဖြစ် မှတ်မည်'}</span>
@@ -619,13 +619,13 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ဒိုင်ချုပ် အမည်</label>
+                  <label className="block font-bold text-slate-700 mb-1">ဒိုင် အမည်</label>
                   <input
                     type="text"
                     value={masterAgentName}
                     onChange={(e) => setMasterAgentName(e.target.value)}
                     onFocus={(e) => e.target.select()}
-                    placeholder="ဒိုင်ကြီး အမည် ရိုက်ထည့်ပါ"
+                    placeholder="ဒိုင် အမည် ရိုက်ထည့်ပါ"
                     className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                   />
                 </div>
@@ -1122,7 +1122,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                 <span className="font-bold">+{formatAmount(commissionAmount, settings.currency)}</span>
               </div>
               <div className="flex justify-between text-amber-400 font-bold border-t border-slate-800 pt-1.5 text-sm">
-                <span className="font-sans">ဒိုင်ကြီးသို့ အမှန်ပေးချေရမည့်ငွေ:</span>
+                <span className="font-sans">အမှန်ပေးငွေ:</span>
                 <span>{formatAmount(netPaid, settings.currency)}</span>
               </div>
             </div>

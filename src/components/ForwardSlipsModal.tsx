@@ -20,7 +20,7 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { ForwardSlip, ForwardSlipItem, NumberAggregate, ThreeDQuickActionButtonsConfig } from '../types';
 import { formatAmount, convertMyanmarToEnglishDigits, LOTTERY_PATTERNS, getPermutations } from '../utils/lotteryUtils';
-import { DEFAULT_3D_ACTION_BUTTONS } from '../utils/storage';
+import { DEFAULT_3D_ACTION_BUTTONS, cleanMasterAgentName } from '../utils/storage';
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../utils/audioUtils';
 import { printVoucherSlip } from '../utils/printUtils';
 
@@ -388,7 +388,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   const handleCopyText = () => {
     if (!createdSlip) return;
     const lines = createdSlip.items.map((it) => `${it.number}=${it.amount}`);
-    const text = `【3D ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nပွဲစဉ်: ${activeRound?.name}\nဒိုင်ချုပ်: ${createdSlip.masterAgentName}\n----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nဒိုင်သို့ အမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
+    const text = `【3D ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nပွဲစဉ်: ${activeRound?.name}\n${cleanMasterAgentName(createdSlip.masterAgentName)}\n----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nအမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
 
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
@@ -434,14 +434,14 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                 {isMyanmar ? '3D ဒိုင်ကြီးဆီ လွှဲတင်စာရင်း အောင်မြင်စွာ မှတ်တမ်းတင်ပြီးပါပြီ' : '3D Forward Slip Created Successfully'}
               </h4>
               <p className="text-xs text-slate-500 font-mono">
-                {createdSlip.slipNo} • {simplifyAgentName(createdSlip.masterAgentName)}
+                {createdSlip.slipNo} • {cleanMasterAgentName(createdSlip.masterAgentName)}
               </p>
             </div>
 
             <div id="printable-forward-slip" className="bg-white border border-slate-200 rounded-2xl p-4 font-mono text-xs space-y-3">
               <div className="text-center border-b border-dashed border-slate-300 pb-2 mb-2">
                  <h2 className="font-black text-sm">{isMyanmar ? 'အထက်တင်ဘောင်ချာ' : 'Forward Slip'}</h2>
-                 <p className="text-[10px] text-slate-500">ဒိုင်: {simplifyAgentName(createdSlip.masterAgentName)}</p>
+                 <p className="text-[10px] text-slate-500">{cleanMasterAgentName(createdSlip.masterAgentName)}</p>
               </div>
               <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-2">
                 <span>ပွဲစဉ်: {activeRound?.name}</span>
@@ -467,7 +467,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   <span className="font-bold">+{formatAmount(createdSlip.commissionAmount, settings.currency)}</span>
                 </div>
                 <div className="flex justify-between text-slate-900 font-bold text-sm pt-1 border-t border-slate-200">
-                  <span>ဒိုင်ကြီးသို့ ပေးရန်:</span>
+                  <span>အမှန်ပေးငွေ:</span>
                   <span className="text-indigo-700">{formatAmount(createdSlip.netPaid, settings.currency)}</span>
                 </div>
               </div>
