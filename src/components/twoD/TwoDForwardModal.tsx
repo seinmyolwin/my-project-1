@@ -467,7 +467,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   const handleCopySlipText = () => {
     if (!createdSlip) return;
     const cleanAgent = cleanMasterAgentName(createdSlip.masterAgentName);
-    const text = `【ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nရက်စွဲ: ${new Date(createdSlip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n${cleanAgent ? `${cleanAgent}\n` : ''}----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nအမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
+    const lines = createdSlip.items.map((it) => `${it.number}=${formatAmount(it.amount, settings.currency)}`);
+    const text = `【${createdSlip.slipNo}】\nရက်စွဲ: ${new Date(createdSlip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n${cleanAgent ? `${cleanAgent}\n` : ''}----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nအမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
 
     navigator.clipboard.writeText(text);
     setCopySuccess(true);

@@ -109,7 +109,7 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
       .map(it => `${it.number} = ${formatAmount(it.amount, settings.currency)}`)
       .join('\n');
 
-    const text = `【ဒိုင်လွှဲစလစ်: ${s.slipNo}】
+    const text = `【${s.slipNo}】
 ပွဲစဉ်: ${activeRound?.name || '-'}
 ရက်စွဲ: ${new Date(s.createdAt).toLocaleString('en-GB')}
 ဒိုင်: ${cleanMasterAgentName(s.masterAgentName)} ${s.masterAgentPhone ? `(${s.masterAgentPhone})` : ''}

@@ -387,7 +387,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
 
   const handleCopyText = () => {
     if (!createdSlip) return;
-    const lines = createdSlip.items.map((it) => `${it.number}=${it.amount}`);
+    const lines = createdSlip.items.map((it) => `${it.number}=${formatAmount(it.amount, settings.currency)}`);
     const text = `【3D ဒိုင်လွှဲစလစ်: ${createdSlip.slipNo}】\nပွဲစဉ်: ${activeRound?.name}\n${cleanMasterAgentName(createdSlip.masterAgentName)}\n----------------\n${lines.join('\n')}\n----------------\nစုစုပေါင်း: ${formatAmount(createdSlip.totalAmount, settings.currency)}\nကော်မရှင် (${createdSlip.commissionRate}%): +${formatAmount(createdSlip.commissionAmount, settings.currency)}\nအမှန်ပေးငွေ: ${formatAmount(createdSlip.netPaid, settings.currency)}`;
 
     navigator.clipboard.writeText(text);
