@@ -95,11 +95,12 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
 
   const handleSelectPreset = (amt: number) => {
     setIsCustomMode(true);
-    setCustomCapInput(String(amt));
+    setCustomCapInput(amt.toString());
   };
 
   const handleResetToAuto = () => {
     setIsCustomMode(false);
+    setCustomCapInput(autoResult.optimalCap.toString());
   };
 
   return (
