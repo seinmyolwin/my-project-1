@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   X,
   BookOpen,
@@ -51,6 +52,21 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
   const [activeTab, setActiveTab] = useState<'2d' | '3d' | 'football' | 'custom'>(
     activeMode === 'football' ? 'football' : activeMode === '3d' ? '3d' : '2d'
   );
+
+  const ruleTabs = ['2d', '3d', 'football', 'custom'] as const;
+  const handleRuleSwipeLeft = () => {
+    const idx = ruleTabs.indexOf(activeTab);
+    if (idx !== -1 && idx < ruleTabs.length - 1) setActiveTab(ruleTabs[idx + 1]);
+  };
+  const handleRuleSwipeRight = () => {
+    const idx = ruleTabs.indexOf(activeTab);
+    if (idx > 0) setActiveTab(ruleTabs[idx - 1]);
+  };
+  const ruleSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleRuleSwipeLeft,
+    onSwipeRight: handleRuleSwipeRight,
+    threshold: 45
+  });
 
   const [rules, setRules] = useState<CommandRule[]>(() => loadCommandRules());
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -321,7 +337,7 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50" {...ruleSwipeHandlers}>
           
           {/* TAB CONTENT: 2D (ဇီးကွက်) */}
           {activeTab === '2d' && (

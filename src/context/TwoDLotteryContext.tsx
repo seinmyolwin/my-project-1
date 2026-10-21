@@ -226,12 +226,46 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   });
 
   const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
-    return loadStoredData(STORAGE_KEYS.VOUCHERS_2D, INITIAL_2D_VOUCHERS);
+    const loaded = loadStoredData<TwoDVoucher[]>(STORAGE_KEYS.VOUCHERS_2D, []);
+    const todayStr = getLocalDateString();
+    const todayEveId = `round-2d-${todayStr}-eve`;
+    const todayMornId = `round-2d-${todayStr}-morn`;
+    const targetRoundId = todayEveId;
+
+    if (loaded && loaded.length > 0) {
+      const hasToday = loaded.some(v => v.roundId === todayEveId || v.roundId === todayMornId);
+      if (!hasToday) {
+        const todayVouchers: TwoDVoucher[] = INITIAL_2D_VOUCHERS.map((v, idx) => ({
+          ...v,
+          id: `vouch-2d-today-${idx + 1}-${Date.now()}`,
+          roundId: targetRoundId,
+          createdAt: new Date().toISOString()
+        }));
+        return [...todayVouchers, ...loaded];
+      }
+      return loaded;
+    }
+
+    return INITIAL_2D_VOUCHERS.map((v, idx) => ({
+      ...v,
+      id: `vouch-2d-init-${idx + 1}-${Date.now()}`,
+      roundId: targetRoundId,
+      createdAt: new Date().toISOString()
+    }));
   });
 
-  const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() =>
-    loadStoredData(STORAGE_KEYS.FORWARD_SLIPS_2D, INITIAL_2D_FORWARD_SLIPS)
-  );
+  const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
+    const loaded = loadStoredData<TwoDForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_2D, []);
+    const todayStr = getLocalDateString();
+    const todayEveId = `round-2d-${todayStr}-eve`;
+    if (loaded && loaded.length > 0) {
+      return loaded;
+    }
+    return INITIAL_2D_FORWARD_SLIPS.map(f => ({
+      ...f,
+      roundId: todayEveId
+    }));
+  });
 
   const [limits, setLimits] = useState<NumberLimit>(() =>
     loadStoredData(STORAGE_KEYS.LIMITS_2D, INITIAL_2D_LIMITS)
@@ -278,16 +312,45 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return visibleRounds.find(r => r.id === activeRoundId) || visibleRounds[0];
   }, [visibleRounds, activeRoundId]);
 
+  // Keep activeRoundId state in sync with activeRound?.id
+  useEffect(() => {
+    if (activeRound?.id && activeRound.id !== activeRoundId) {
+      setActiveRoundIdState(activeRound.id);
+    }
+  }, [activeRound?.id, activeRoundId]);
+
   const activeRoundVouchers = useMemo(() => {
-    return vouchers.filter(v => v.roundId === activeRoundId && v.status !== 'cancelled');
-  }, [vouchers, activeRoundId]);
+    const curRoundId = activeRound?.id || activeRoundId;
+    return vouchers.filter(v =>
+      (v.roundId === curRoundId || (v.roundId === activeRoundId && activeRoundId)) &&
+      v.status !== 'cancelled'
+    );
+  }, [vouchers, activeRound?.id, activeRoundId]);
 
   const activeRoundForwardSlips = useMemo(() => {
-    return forwardSlips.filter(f => f.roundId === activeRoundId);
-  }, [forwardSlips, activeRoundId]);
+    const curRoundId = activeRound?.id || activeRoundId;
+    return forwardSlips.filter(f =>
+      f.roundId === curRoundId || (f.roundId === activeRoundId && activeRoundId)
+    );
+  }, [forwardSlips, activeRound?.id, activeRoundId]);
 
   const updateSettings = useCallback((newSettings: Partial<TwoDAppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
+    // Synchronize multiplier and commission into open rounds so calculations immediately reflect Settings
+    setRounds(prev => prev.map(r => {
+      if (r.status === 'open') {
+        return {
+          ...r,
+          multiplier: typeof newSettings.defaultMultiplier === 'number' && newSettings.defaultMultiplier > 0
+            ? newSettings.defaultMultiplier
+            : r.multiplier,
+          commissionRate: typeof newSettings.defaultCommissionRate === 'number'
+            ? newSettings.defaultCommissionRate
+            : r.commissionRate
+        };
+      }
+      return r;
+    }));
   }, []);
 
   const setActiveRoundId = useCallback((id: string) => {
@@ -516,7 +579,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 2D Aggregates calculation (00 - 99: exactly 100 combinations)
   const aggregates = useMemo(() => {
-    const mult = normalizeTwoDMultiplier(activeRound?.multiplier || settings.defaultMultiplier);
+    const mult = normalizeTwoDMultiplier(settings.defaultMultiplier || activeRound?.multiplier || 80);
     const agg: { [num: string]: TwoDNumberAggregate } = {};
 
     // Initialize all 100 numbers (00 to 99)
@@ -666,7 +729,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
-      let mult = activeRound.multiplier || settings.defaultMultiplier || 80;
+      let mult = settings.defaultMultiplier || activeRound.multiplier || 80;
       const formattedNum = activeRound.winningNumber.padStart(2, '0');
       const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
       totalWinnersCount = evalResult.totalWinnersCount;

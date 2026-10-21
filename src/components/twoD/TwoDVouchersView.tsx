@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useSwipeGesture } from '../../hooks/useSwipeGesture';
 import {
   Receipt,
   Search,
@@ -42,6 +43,21 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
 
   // Tab filter: all customer vouchers vs master agent forward slips
   const [activeTabType, setActiveTabType] = useState<'all' | 'customer' | 'forward'>('all');
+
+  const voucherTabs = ['all', 'customer', 'forward'] as const;
+  const handleVoucherSwipeLeft = () => {
+    const idx = voucherTabs.indexOf(activeTabType);
+    if (idx !== -1 && idx < voucherTabs.length - 1) setActiveTabType(voucherTabs[idx + 1]);
+  };
+  const handleVoucherSwipeRight = () => {
+    const idx = voucherTabs.indexOf(activeTabType);
+    if (idx > 0) setActiveTabType(voucherTabs[idx - 1]);
+  };
+  const voucherSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleVoucherSwipeLeft,
+    onSwipeRight: handleVoucherSwipeRight,
+    threshold: 45
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVoucher, setSelectedVoucher] = useState<TwoDVoucher | null>(null);
   const [selectedForwardSlip, setSelectedForwardSlip] = useState<TwoDForwardSlip | null>(null);
@@ -133,7 +149,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
   const totalForwardAmount = activeRoundForwardSlips.reduce((acc, s) => acc + s.totalAmount, 0);
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6" {...voucherSwipeHandlers}>
       {/* Header and Filter Bar */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">

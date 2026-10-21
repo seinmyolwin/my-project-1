@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   TrendingUp,
@@ -42,10 +42,21 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [customCapInput, setCustomCapInput] = useState<string>('2000');
 
-  // Pull settings directly:
-  const multiplier = activeRound?.multiplier || settings.defaultMultiplier || 80;
-  const downlineCommRate = activeRound?.commissionRate ?? settings.defaultCommissionRate ?? 12;
-  const uplineCommRate = (settings as any).defaultUplineCommissionRate ?? 10;
+  // Pull settings directly as explicitly required:
+  // 1. ပေါက်ဆ/ပေါက်ကြေး: Taken strictly from settings.defaultMultiplier
+  const multiplier = (typeof settings.defaultMultiplier === 'number' && settings.defaultMultiplier > 0)
+    ? Number(settings.defaultMultiplier)
+    : (Number(activeRound?.multiplier) || 80);
+
+  // 2. အောက်လက်ကော်မရှင် (ကိုယ်က ပေးရမှာ / customer discount): Taken strictly from settings.defaultCustomerDiscount
+  const downlineCommRate = typeof settings.defaultCustomerDiscount === 'number'
+    ? Number(settings.defaultCustomerDiscount)
+    : 0;
+
+  // 3. အထက်ကော်မရှင် (ကိုယ်ရမှာ / master bookie commission): Taken strictly from settings.defaultCommissionRate
+  const uplineCommRate = typeof settings.defaultCommissionRate === 'number'
+    ? Number(settings.defaultCommissionRate)
+    : (Number(activeRound?.commissionRate) || 12);
 
   // Convert aggregates to betsList for calculator
   const betsList = useMemo(() => {
@@ -64,9 +75,17 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
       multiplier,
       downlineCommRate,
       uplineCommRate,
-      maxRiskBudget: riskBudget
+      maxRiskBudget: riskBudget,
+      globalLimit: settings.globalStockLimit
     });
-  }, [betsList, multiplier, downlineCommRate, uplineCommRate, riskBudget]);
+  }, [betsList, multiplier, downlineCommRate, uplineCommRate, riskBudget, settings.globalStockLimit]);
+
+  // Keep customCapInput synced with auto optimalCap when in auto mode
+  useEffect(() => {
+    if (!isCustomMode && autoResult.optimalCap > 0) {
+      setCustomCapInput(autoResult.optimalCap.toString());
+    }
+  }, [autoResult.optimalCap, isCustomMode]);
 
   // 2. Custom Tested Cap Result
   const customCapNumber = useMemo(() => {
@@ -211,8 +230,8 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
               <span className="text-xs text-slate-500 font-bold block">
                 {isMyanmar ? 'စုစုပေါင်း အရောင်းရငွေ' : 'Total 2D Sales'}
               </span>
-              <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">
-                @{downlineCommRate}% ကော်
+              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold" title="ဆက်တင်ထဲက အောက်လက်ကော်မရှင် / လျှော့ငွေ (%)">
+                {isMyanmar ? 'အောက်လက်' : 'Downline'} @{downlineCommRate}%
               </span>
             </div>
             <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
@@ -302,8 +321,8 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                   ? (isMyanmar ? 'စမ်းသပ် ကိုယ်တိုင်စား / လွှဲငွေ' : 'Simulated Retain / Fwd')
                   : (isMyanmar ? 'အကြံပြု ကိုယ်တိုင်စား / လွှဲငွေ' : 'Suggested Retain / Fwd')}
               </span>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold">
-                အပေါ် @{uplineCommRate}%
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold" title="ဆက်တင်ထဲက ဒိုင်ကြီးအထက်ကော်မရှင် (%)">
+                {isMyanmar ? 'ဒိုင်ကြီးအထက်' : 'Upline'} @{uplineCommRate}%
               </span>
             </div>
             <div className="flex items-baseline justify-between font-mono">

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   X,
   Sliders,
@@ -49,6 +50,21 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
   const isMyanmar = settings.language === 'my';
 
   const [activeTab, setActiveTab] = useState<'custom' | 'blocked' | 'global'>(initialTab);
+
+  const limitTabs = ['blocked', 'custom', 'global'] as const;
+  const handleLimitSwipeLeft = () => {
+    const idx = limitTabs.indexOf(activeTab);
+    if (idx !== -1 && idx < limitTabs.length - 1) setActiveTab(limitTabs[idx + 1]);
+  };
+  const handleLimitSwipeRight = () => {
+    const idx = limitTabs.indexOf(activeTab);
+    if (idx > 0) setActiveTab(limitTabs[idx - 1]);
+  };
+  const limitSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleLimitSwipeLeft,
+    onSwipeRight: handleLimitSwipeRight,
+    threshold: 45
+  });
 
   // Per-number limit state
   const [numberInput, setNumberInput] = useState(initialNumber || '');
@@ -271,7 +287,7 @@ export const LimitManagerModal: React.FC<LimitManagerModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 max-h-[72vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 max-h-[72vh] overflow-y-auto" {...limitSwipeHandlers}>
           
           {/* TAB 1: DEALER PROTECTED NUMBERS (ဒိုင်ကာဂဏန်းများ) */}
           {activeTab === 'blocked' && (

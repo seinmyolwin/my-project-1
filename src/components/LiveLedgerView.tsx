@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Filter,
@@ -17,7 +17,10 @@ import {
   LayoutGrid,
   List,
   Ban,
-  Send
+  Send,
+  Star,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { formatAmount } from '../utils/lotteryUtils';
@@ -51,6 +54,10 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
   const [selectedHeadDigit, setSelectedHeadDigit] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'sold_desc' | 'num_asc' | 'risk_desc' | 'payout_desc'>('sold_desc');
   const [viewLayout, setViewLayout] = useState<'table' | 'grid'>('table');
+
+  // Pagination for smooth 60fps rendering of 1,000 numbers
+  const PAGE_SIZE = 100;
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Master 000-999 list generation
   const all1000Numbers = useMemo(() => {
@@ -88,16 +95,29 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
     ).length;
   }, [aggregates]);
 
-  // Category counts
+  // Max sold for identifying the highest bet amount cell in 3D
+  const maxSold3D = useMemo(() => {
+    const vals = (Object.values(aggregates) as NumberAggregate[]).map(a => a.totalSold);
+    return Math.max(...vals, 0);
+  }, [aggregates]);
+
+  // Category counts (optimized single-pass O(N) loop)
   const counts = useMemo(() => {
-    return {
-      all: all1000Numbers.length,
-      hot: all1000Numbers.filter(a => a.totalSold > 0).length,
-      danger: all1000Numbers.filter(a => (a.riskLevel === 'danger' || (a.limit > 0 && a.totalSold >= a.limit)) && !a.isBlocked).length,
-      warning: all1000Numbers.filter(a => a.riskLevel === 'warning').length,
-      blocked: all1000Numbers.filter(a => a.isBlocked).length,
-      empty: all1000Numbers.filter(a => a.totalSold === 0).length,
-    };
+    let all = 0, hot = 0, danger = 0, warning = 0, blocked = 0, empty = 0;
+    for (let i = 0; i < all1000Numbers.length; i++) {
+      const a = all1000Numbers[i];
+      all++;
+      if (a.isBlocked) {
+        blocked++;
+      } else if (a.riskLevel === 'danger' || (a.limit > 0 && a.totalSold >= a.limit)) {
+        danger++;
+      } else if (a.riskLevel === 'warning') {
+        warning++;
+      }
+      if (a.totalSold > 0) hot++;
+      if (a.totalSold === 0) empty++;
+    }
+    return { all, hot, danger, warning, blocked, empty };
   }, [all1000Numbers]);
 
   // Filtered & Sorted items
@@ -150,6 +170,17 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
       return 0;
     });
   }, [filterMode, all1000Numbers, selectedHeadDigit, searchQuery, sortBy]);
+
+  // Reset page to 1 whenever filters or sorting changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterMode, selectedHeadDigit, searchQuery, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(displayItems.length / PAGE_SIZE));
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return displayItems.slice(start, start + PAGE_SIZE);
+  }, [displayItems, currentPage]);
 
   // Totals for the current filtered list
   const currentSoldSum = useMemo(() => {
@@ -438,6 +469,10 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
           <span className="font-bold text-indigo-700 font-mono">{displayItems.length}</span> ခု
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px]">
+          <span className="flex items-center gap-1.5 font-bold text-amber-700">
+            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline-block" />
+            <span>{isMyanmar ? 'ထိုးကြေးအများဆုံး' : 'Top Bet'}</span>
+          </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
             <span>{isMyanmar ? 'စိတ်ချရ (Safe)' : 'Safe'}</span>
@@ -470,11 +505,12 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                 {isMyanmar ? 'ရှာဖွေမှုနှင့် ကိုက်ညီသော ဂဏန်းမရှိပါ' : 'No numbers found matching filter'}
               </div>
             ) : (
-              displayItems.map(item => {
+              paginatedItems.map(item => {
                 const usagePercent = item.limit > 0 ? Math.min(Math.round((item.totalSold / item.limit) * 100), 100) : 0;
                 const isFull = item.limit > 0 && item.totalSold >= item.limit;
                 const isEmpty = item.totalSold === 0 && !item.isBlocked;
                 const isWinningNumber = activeRound?.winningNumber === item.number;
+                const isTopBet = maxSold3D > 0 && item.totalSold === maxSold3D;
 
                 return (
                   <div
@@ -482,6 +518,8 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                     className={`relative rounded-2xl p-3 border transition-all flex flex-col justify-between group cursor-pointer ${
                       isWinningNumber
                         ? 'bg-amber-100/90 border-amber-400 ring-2 ring-amber-300'
+                        : isTopBet
+                        ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-400 shadow-sm'
                         : item.isBlocked
                         ? 'bg-rose-50/80 border-rose-300 ring-1 ring-rose-200'
                         : isFull
@@ -496,23 +534,40 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                   >
                     {/* Number & Tag */}
                     <div className="flex items-center justify-between">
-                      <span
-                        className={`font-mono text-xl sm:text-2xl font-black ${
-                          item.isBlocked
-                            ? 'text-rose-700 line-through'
-                            : isFull
-                            ? 'text-rose-900'
-                            : item.riskLevel === 'warning'
-                            ? 'text-amber-900'
-                            : item.totalSold > 0
-                            ? 'text-slate-900'
-                            : 'text-blue-700'
-                        }`}
-                      >
-                        {item.number}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={`font-mono text-xl sm:text-2xl font-black ${
+                            isTopBet
+                              ? 'text-amber-950 font-black'
+                              : item.isBlocked
+                              ? 'text-rose-700 line-through'
+                              : isFull
+                              ? 'text-rose-900'
+                              : item.riskLevel === 'warning'
+                              ? 'text-amber-900'
+                              : item.totalSold > 0
+                              ? 'text-slate-900'
+                              : 'text-blue-700'
+                          }`}
+                        >
+                          {item.number}
+                        </span>
+                        {isTopBet && (
+                          <span
+                            className="inline-flex items-center text-amber-500 animate-bounce"
+                            title={isMyanmar ? 'ထိုးကြေးအများဆုံး ဂဏန်း' : 'Top Bet Number'}
+                          >
+                            <Star className="w-4 h-4 fill-amber-400 text-amber-500 drop-shadow-xs" />
+                          </span>
+                        )}
+                      </div>
 
-                      {item.isBlocked ? (
+                      {isTopBet ? (
+                        <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 text-[10px] font-black rounded-md flex items-center gap-0.5 shadow-2xs border border-amber-500">
+                          <Star className="w-2.5 h-2.5 fill-amber-950 text-amber-950" />
+                          <span>{isMyanmar ? 'အများဆုံး' : 'TOP'}</span>
+                        </span>
+                      ) : item.isBlocked ? (
                         <span className="px-1.5 py-0.5 bg-rose-200 text-rose-900 text-[10px] font-black rounded-md">
                           {isMyanmar ? 'ကာ' : 'BLK'}
                         </span>
@@ -628,9 +683,10 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  displayItems.map((item) => {
+                  paginatedItems.map((item) => {
                     const usagePct = item.limit > 0 ? Math.round((item.totalSold / item.limit) * 100) : 0;
                     const isWinningNumber = activeRound?.winningNumber === item.number;
+                    const isTopBet = maxSold3D > 0 && item.totalSold === maxSold3D;
                     const isEmpty = item.totalSold === 0 && !item.isBlocked;
 
                     return (
@@ -639,6 +695,8 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                         className={`transition-colors ${
                           isWinningNumber
                             ? 'bg-amber-50/80 border-l-4 border-l-amber-500'
+                            : isTopBet
+                            ? 'bg-amber-50/60 border-l-4 border-l-amber-400'
                             : isEmpty
                             ? 'bg-blue-50/25 hover:bg-blue-50/60'
                             : 'hover:bg-slate-50/80'
@@ -652,6 +710,8 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                                 ? 'bg-slate-100 text-slate-400 line-through border border-slate-200'
                                 : isWinningNumber
                                 ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300 animate-pulse'
+                                : isTopBet
+                                ? 'bg-amber-100 text-amber-950 border border-amber-300 ring-2 ring-amber-300'
                                 : isEmpty
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200 ring-1 ring-blue-300'
                                 : 'bg-slate-100 text-indigo-950 border border-slate-200'
@@ -661,6 +721,15 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                             {isWinningNumber && (
                               <span className="text-[10px] font-sans font-bold bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded">
                                 ပေါက်ဂဏန်း
+                              </span>
+                            )}
+                            {isTopBet && (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-sans font-black bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded shadow-2xs border border-amber-500"
+                                title={isMyanmar ? 'ထိုးကြေးအများဆုံး' : 'Top Bet'}
+                              >
+                                <Star className="w-2.5 h-2.5 fill-amber-950 text-amber-950" />
+                                <span>{isMyanmar ? 'အများဆုံး' : 'TOP'}</span>
                               </span>
                             )}
                             {item.betCount > 0 && (
@@ -815,6 +884,64 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination Controls for smooth 3D Navigation */}
+      {totalPages > 1 && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-slate-500 font-mono">
+            {isMyanmar
+              ? `စာမျက်နှာ ${currentPage} / ${totalPages} (ဂဏန်း ${(currentPage - 1) * PAGE_SIZE + 1} - ${Math.min(currentPage * PAGE_SIZE, displayItems.length)} / စုစုပေါင်း ${displayItems.length})`
+              : `Page ${currentPage} of ${totalPages} (${(currentPage - 1) * PAGE_SIZE + 1}-${Math.min(currentPage * PAGE_SIZE, displayItems.length)} of ${displayItems.length})`}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>{isMyanmar ? 'ရှေ့သို့' : 'Prev'}</span>
+            </button>
+
+            {/* Page number buttons */}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .map((p, idx, arr) => {
+                  const prev = arr[idx - 1];
+                  const hasGap = prev && p - prev > 1;
+                  return (
+                    <React.Fragment key={p}>
+                      {hasGap && <span className="text-slate-400 px-1 text-xs">...</span>}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-8 h-8 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                          currentPage === p
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+            </div>
+
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <span>{isMyanmar ? 'နောက်သို့' : 'Next'}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}

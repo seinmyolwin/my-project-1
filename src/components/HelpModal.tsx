@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   X,
   BookOpen,
@@ -38,6 +39,21 @@ interface HelpModalProps {
 
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, onOpenCommandRules }) => {
   const [activeTab, setActiveTab] = useState<'3d' | '2d' | 'football'>('3d');
+
+  const helpTabs = ['3d', '2d', 'football'] as const;
+  const handleHelpSwipeLeft = () => {
+    const idx = helpTabs.indexOf(activeTab);
+    if (idx !== -1 && idx < helpTabs.length - 1) setActiveTab(helpTabs[idx + 1]);
+  };
+  const handleHelpSwipeRight = () => {
+    const idx = helpTabs.indexOf(activeTab);
+    if (idx > 0) setActiveTab(helpTabs[idx - 1]);
+  };
+  const helpSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleHelpSwipeLeft,
+    onSwipeRight: handleHelpSwipeRight,
+    threshold: 45
+  });
 
   if (!isOpen) return null;
 
@@ -131,7 +147,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, onOpenCom
         </div>
 
         {/* Scrollable Manual Content Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-8 bg-white">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-8 bg-white" {...helpSwipeHandlers}>
           {activeTab === '3d' && <ThreeDManualView />}
           {activeTab === '2d' && <TwoDManualView />}
           {activeTab === 'football' && <FootballManualView />}

@@ -13,6 +13,7 @@ export interface CapCalculationInput {
   downlineCommRate: number; // e.g. 12 or 0.12 (အောက်လက် ကော်မရှင်)
   uplineCommRate: number;   // e.g. 10 or 0.10 (အထက်ဒိုင် ကော်မရှင်)
   maxRiskBudget?: number;   // default 0 (အများဆုံး အရှုံးခံနိုင်သည့် ပမာဏ)
+  globalLimit?: number;     // e.g. 200,000 Ks or shop default cap
 }
 
 export interface NumberCapBreakdown {
@@ -44,7 +45,8 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
   const {
     betsList = [],
     multiplier = 80,
-    maxRiskBudget = 0
+    maxRiskBudget = 0,
+    globalLimit
   } = input;
 
   // Normalize commission rates to decimals (0 to 1)
@@ -54,9 +56,10 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
   const totalSales = betsList.reduce((sum, item) => sum + (item.stake || 0), 0);
 
   if (totalSales <= 0 || betsList.length === 0) {
+    const defaultBaseline = (typeof globalLimit === 'number' && globalLimit > 0) ? Math.min(globalLimit, 50000) : 2000;
     return {
       totalSales: 0,
-      optimalCap: 0,
+      optimalCap: defaultBaseline,
       totalRetained: 0,
       totalForwarded: 0,
       netCashOnHand: 0,
@@ -147,7 +150,7 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
   let best: CandidateEvaluation;
 
   if (safeCandidates.length > 0) {
-    const profitableCandidates = safeCandidates.filter(c => c.worstCaseNet >= 0);
+    const profitableCandidates = safeCandidates.filter(c => c.worstCaseNet >= 0 && c.cap > 0);
     if (profitableCandidates.length > 0) {
       best = profitableCandidates[profitableCandidates.length - 1];
     } else {
@@ -155,6 +158,33 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
     }
   } else {
     best = candidates.reduce((max, c) => c.worstCaseNet > max.worstCaseNet ? c : max, candidates[0]);
+  }
+
+  // If best.cap is 0 or very low because bets are concentrated on a few numbers,
+  // provide a mathematically sound break-even retention cap funded by collected revenue:
+  if (best.cap === 0 && totalSales > 0) {
+    const breakEvenCap = Math.floor((inflowCash / multiplier) / 100) * 100;
+    const fallbackCap = Math.min(
+      maxSingleStake,
+      Math.max(breakEvenCap, Math.min(maxSingleStake, 1000))
+    );
+
+    const retainedTotal = betsList.reduce((sum, b) => sum + Math.min(b.stake, fallbackCap), 0);
+    const forwardedTotal = Math.max(0, totalSales - retainedTotal);
+    const outflowCash = forwardedTotal * (1 - uplineComm);
+    const netCash = inflowCash - outflowCash;
+    const maxRetained = Math.min(maxSingleStake, fallbackCap);
+    const worstPayout = maxRetained * multiplier;
+    const worstCaseNet = netCash - worstPayout;
+
+    best = {
+      cap: fallbackCap,
+      retained: retainedTotal,
+      forwarded: forwardedTotal,
+      netCash,
+      worstPayout,
+      worstCaseNet
+    };
   }
 
   const breakdown: NumberCapBreakdown[] = betsList.map(item => {

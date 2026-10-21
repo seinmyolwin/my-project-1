@@ -13,7 +13,8 @@ import {
   Sparkles,
   Ban,
   ShieldCheck,
-  Percent
+  Percent,
+  Star
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDNumberAggregate } from '../../types';
@@ -91,10 +92,10 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
     return list.sort((a, b) => a.number.localeCompare(b.number));
   }, [aggregates, searchTerm, filterType, selectedDigitFilter]);
 
-  // Max sold for proportional heat map
+  // Max sold for proportional heat map and highest bet highlighting
   const maxSold = useMemo(() => {
     const vals = (Object.values(aggregates) as TwoDNumberAggregate[]).map(a => a.totalSold);
-    return Math.max(...vals, 1);
+    return Math.max(...vals, 0);
   }, [aggregates]);
 
   return (
@@ -272,6 +273,10 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
           <span className="font-bold text-teal-700 font-mono">{filteredNumbers.length}</span> ခု
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px]">
+          <span className="flex items-center gap-1.5 font-bold text-amber-700">
+            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline-block" />
+            <span>{isMyanmar ? 'ထိုးကြေးအများဆုံး' : 'Top Bet'}</span>
+          </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block"></span>
             <span>{isMyanmar ? 'ရောင်းပြီး (စိတ်ချရ)' : 'Sold (Safe)'}</span>
@@ -302,12 +307,15 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
             const usagePercent = agg.limit > 0 ? Math.min(Math.round((agg.totalSold / agg.limit) * 100), 100) : 0;
             const isFull = agg.limit > 0 && agg.totalSold >= agg.limit;
             const isEmpty = agg.totalSold === 0 && !agg.isBlocked;
+            const isTopBet = maxSold > 0 && agg.totalSold === maxSold;
 
             return (
               <div
                 key={agg.number}
                 className={`relative rounded-2xl p-3 border transition-all flex flex-col justify-between group cursor-pointer ${
-                  agg.isBlocked
+                  isTopBet
+                    ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-400 shadow-sm'
+                    : agg.isBlocked
                     ? 'bg-rose-50/80 border-rose-300 ring-1 ring-rose-200'
                     : isFull
                     ? 'bg-rose-50 border-rose-400 shadow-2xs'
@@ -325,23 +333,40 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
               >
                 {/* Number & Tag */}
                 <div className="flex items-center justify-between">
-                  <span
-                    className={`font-mono text-2xl font-black ${
-                      agg.isBlocked
-                        ? 'text-rose-700 line-through'
-                        : isFull
-                        ? 'text-rose-900'
-                        : agg.riskLevel === 'warning'
-                        ? 'text-amber-900'
-                        : agg.totalSold > 0
-                        ? 'text-slate-900'
-                        : 'text-blue-700'
-                    }`}
-                  >
-                    {agg.number}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`font-mono text-2xl font-black ${
+                        isTopBet
+                          ? 'text-amber-950 font-black'
+                          : agg.isBlocked
+                          ? 'text-rose-700 line-through'
+                          : isFull
+                          ? 'text-rose-900'
+                          : agg.riskLevel === 'warning'
+                          ? 'text-amber-900'
+                          : agg.totalSold > 0
+                          ? 'text-slate-900'
+                          : 'text-blue-700'
+                      }`}
+                    >
+                      {agg.number}
+                    </span>
+                    {isTopBet && (
+                      <span
+                        className="inline-flex items-center text-amber-500 animate-bounce"
+                        title={isMyanmar ? 'ထိုးကြေးအများဆုံး ဂဏန်း' : 'Top Bet Number'}
+                      >
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-500 drop-shadow-xs" />
+                      </span>
+                    )}
+                  </div>
 
-                  {agg.isBlocked ? (
+                  {isTopBet ? (
+                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 text-[10px] font-black rounded-md flex items-center gap-0.5 shadow-2xs border border-amber-500">
+                      <Star className="w-2.5 h-2.5 fill-amber-950 text-amber-950" />
+                      <span>{isMyanmar ? 'အများဆုံး' : 'TOP'}</span>
+                    </span>
+                  ) : agg.isBlocked ? (
                     <span className="px-1.5 py-0.5 bg-rose-200 text-rose-900 text-[10px] font-black rounded-md">
                       {isMyanmar ? 'ကာ' : 'BLK'}
                     </span>

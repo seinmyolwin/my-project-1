@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   Send,
   CheckCircle2,
@@ -72,6 +73,21 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const football = useFootball();
 
   const [activeTab, setActiveTab] = useState<'queue' | 'new_order' | 'settings'>('queue');
+
+  const telegramTabs = ['queue', 'new_order', 'settings'] as const;
+  const handleTelegramSwipeLeft = () => {
+    const idx = telegramTabs.indexOf(activeTab);
+    if (idx !== -1 && idx < telegramTabs.length - 1) setActiveTab(telegramTabs[idx + 1]);
+  };
+  const handleTelegramSwipeRight = () => {
+    const idx = telegramTabs.indexOf(activeTab);
+    if (idx > 0) setActiveTab(telegramTabs[idx - 1]);
+  };
+  const telegramSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleTelegramSwipeLeft,
+    onSwipeRight: handleTelegramSwipeRight,
+    threshold: 45
+  });
   const [orders, setOrders] = useState<TelegramIncomingOrder[]>(() => getTelegramOrders());
   const [config, setConfig] = useState<TelegramAccountConfig>(() => getTelegramConfig());
 
@@ -823,7 +839,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         </div>
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50/50">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50/50" {...telegramSwipeHandlers}>
           
           {/* TAB 1: QUEUE */}
           {activeTab === 'queue' && (

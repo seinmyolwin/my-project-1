@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   Download,
   Upload,
@@ -46,6 +47,21 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   const currency = lottery3D.settings.currency || 'Ks';
 
   const [activeTab, setActiveTab] = useState<'master' | 'vouchers'>('master');
+
+  const backupTabs = ['master', 'vouchers'] as const;
+  const handleBackupSwipeLeft = () => {
+    const idx = backupTabs.indexOf(activeTab);
+    if (idx !== -1 && idx < backupTabs.length - 1) setActiveTab(backupTabs[idx + 1]);
+  };
+  const handleBackupSwipeRight = () => {
+    const idx = backupTabs.indexOf(activeTab);
+    if (idx > 0) setActiveTab(backupTabs[idx - 1]);
+  };
+  const backupSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleBackupSwipeLeft,
+    onSwipeRight: handleBackupSwipeRight,
+    threshold: 45
+  });
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [includePinProtection, setIncludePinProtection] = useState(true);
@@ -407,7 +423,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
         </div>
 
         {/* Scrollable Body */}
-        <div className="space-y-3 overflow-y-auto pr-0.5 text-xs flex-1">
+        <div className="space-y-3 overflow-y-auto pr-0.5 text-xs flex-1" {...backupSwipeHandlers}>
           {message && (
             <div
               className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in ${
