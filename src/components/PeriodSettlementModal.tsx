@@ -18,7 +18,7 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
-import { getLocalDateStr, getDaysAgoStr } from '../utils/statementUtils';
+import { getLocalDateStr, getDaysAgoStr, generateStatementRecords } from '../utils/statementUtils';
 
 interface PeriodSettlementModalProps {
   isOpen: boolean;
@@ -149,7 +149,12 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
         const amt = v.netPayable ?? v.subtotal ?? 0;
-        const payout = v.winningPayout ?? v.items?.reduce((s: number, it: any) => s + (it.wonAmount || 0), 0) ?? 0;
+        let payout = v.winningPayout ?? 0;
+        if (!payout && v.items) {
+          v.items.forEach((it: any) => {
+            if (it.isWon) payout += (it.wonAmount || 0);
+          });
+        }
         totalSales += amt;
         totalPayout += payout;
         items.push({
@@ -168,7 +173,12 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
         const amt = v.netPayable ?? v.subtotal ?? 0;
-        const payout = v.winningPayout ?? v.items?.reduce((s: number, it: any) => s + (it.wonAmount || 0), 0) ?? 0;
+        let payout = v.winningPayout ?? 0;
+        if (!payout && v.items) {
+          v.items.forEach((it: any) => {
+            if (it.isWon) payout += (it.wonAmount || 0);
+          });
+        }
         totalSales += amt;
         totalPayout += payout;
         items.push({
@@ -202,7 +212,6 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     });
 
     const totalCommission = Math.round((totalSales * customCommissionRate) / 100);
-    // Net Balance for Downline = (Total Sales - Commission) - Winning Payout to Customer
     const netBalance = (totalSales - totalCommission) - totalPayout;
 
     return {
@@ -215,83 +224,72 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   }, [selectedTarget, startDate, endDate, customCommissionRate, lottery3D.vouchers, lottery2D.vouchers, football.slips]);
 
   // ---------------------------------------------------------------------------
-  // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS)
+  // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS via generateStatementRecords)
   // ---------------------------------------------------------------------------
   const uplineSettlementData = useMemo(() => {
     if (!selectedTarget) return { totalForwarded: 0, totalCommission: 0, totalPayout: 0, netBalance: 0, items: [] };
+
+    const dataSources = {
+      lottery2D: {
+        rounds: lottery2D.rounds,
+        vouchers: lottery2D.vouchers,
+        forwardSlips: lottery2D.forwardSlips,
+        settings: lottery2D.settings
+      },
+      lottery3D: {
+        rounds: lottery3D.rounds,
+        vouchers: lottery3D.vouchers,
+        forwardSlips: lottery3D.forwardSlips,
+        settings: lottery3D.settings
+      },
+      football: {
+        slips: football.slips,
+        forwardSlips: football.forwardSlips,
+        settings: football.settings
+      }
+    };
+
+    const records = generateStatementRecords(dataSources, 'all', startDate, endDate);
 
     let totalForwarded = 0;
     let totalCommission = 0;
     let totalPayout = 0;
     const items: Array<{ date: string; mode: string; refNo: string; amount: number; commission: number; payout: number; summary: string }> = [];
 
-    // 3D Forward Slips
-    lottery3D.forwardSlips.forEach((f: any) => {
-      const fDate = (f.createdAt || '').slice(0, 10);
-      if (fDate >= startDate && fDate <= endDate && f.masterAgentName?.trim() === selectedTarget) {
-        const amt = f.totalAmount ?? 0;
-        const comm = f.commissionAmount ?? 0;
-        const payout = f.winningPayout ?? 0;
-        totalForwarded += amt;
-        totalCommission += comm;
-        totalPayout += payout;
+    records.forEach((rec) => {
+      const forwards = rec.forwardList || [];
+      const targetForwards = forwards.filter((f: any) => f.masterAgentName?.trim() === selectedTarget);
+
+      if (targetForwards.length > 0) {
+        let recAgentForwarded = 0;
+        let recAgentCommission = 0;
+        targetForwards.forEach((f: any) => {
+          recAgentForwarded += f.totalAmount || 0;
+          recAgentCommission += f.commissionAmount || 0;
+        });
+
+        // Proportionate master payout (အထက်ပေါက်ကြေး) for this agent in this record
+        let recAgentPayout = 0;
+        if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
+          recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
+        }
+
+        totalForwarded += recAgentForwarded;
+        totalCommission += recAgentCommission;
+        totalPayout += recAgentPayout;
+
         items.push({
-          date: fDate,
-          mode: 'အိုးစည်လေး (3D)',
-          refNo: f.slipNo || f.id,
-          amount: amt,
-          commission: comm,
-          payout,
-          summary: f.items ? `${f.items.length} items` : '-'
+          date: rec.date,
+          mode: rec.modeLabel,
+          refNo: rec.name,
+          amount: recAgentForwarded,
+          commission: recAgentCommission,
+          payout: recAgentPayout,
+          summary: `ရလဒ်: ${rec.winningResult} (တင်ကြေး: ${recAgentForwarded}, ပေါက်ကြေးရရန်: ${recAgentPayout})`
         });
       }
     });
 
-    // 2D Forward Slips
-    lottery2D.forwardSlips.forEach((f: any) => {
-      const fDate = (f.createdAt || '').slice(0, 10);
-      if (fDate >= startDate && fDate <= endDate && f.masterAgentName?.trim() === selectedTarget) {
-        const amt = f.totalAmount ?? 0;
-        const comm = f.commissionAmount ?? 0;
-        const payout = f.winningPayout ?? 0;
-        totalForwarded += amt;
-        totalCommission += comm;
-        totalPayout += payout;
-        items.push({
-          date: fDate,
-          mode: 'ဇီးကွက် (2D)',
-          refNo: f.slipNo || f.id,
-          amount: amt,
-          commission: comm,
-          payout,
-          summary: f.items ? `${f.items.length} items` : '-'
-        });
-      }
-    });
-
-    // Football Forward Slips
-    football.forwardSlips.forEach((f: any) => {
-      const fDate = (f.createdAt || '').slice(0, 10);
-      if (fDate >= startDate && fDate <= endDate && f.masterAgentName?.trim() === selectedTarget) {
-        const amt = f.totalAmount ?? f.netPayable ?? 0;
-        const comm = f.commissionAmount ?? 0;
-        const payout = f.winningPayout ?? 0;
-        totalForwarded += amt;
-        totalCommission += comm;
-        totalPayout += payout;
-        items.push({
-          date: fDate,
-          mode: 'ပစ်တိုင်းထောင်',
-          refNo: f.slipNo || f.id,
-          amount: amt,
-          commission: comm,
-          payout,
-          summary: f.selections ? `${f.selections.length} matches` : '-'
-        });
-      }
-    });
-
-    // Net Balance for Upline = (Total Forwarded - Commission Received) - Payout from Upline
     const netBalance = (totalForwarded - totalCommission) - totalPayout;
 
     return {
@@ -301,7 +299,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       netBalance,
       items: items.sort((a, b) => b.date.localeCompare(a.date))
     };
-  }, [selectedTarget, startDate, endDate, lottery3D.forwardSlips, lottery2D.forwardSlips, football.forwardSlips]);
+  }, [selectedTarget, startDate, endDate, lottery2D.rounds, lottery2D.vouchers, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.vouchers, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
 
   // Export to Excel
   const handleExportExcel = () => {
@@ -591,7 +589,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 </span>
               </div>
               <div className="bg-amber-950 text-white rounded-2xl p-3.5 border border-amber-800/60 shadow-xs">
-                <span className="text-[11px] font-bold text-amber-300 block mb-1">ပေါက်ကြေး ပြန်ရငွေ</span>
+                <span className="text-[11px] font-bold text-amber-300 block mb-1">အထက်ပေါက်ကြေး ပြန်ရငွေ</span>
                 <span className="text-base sm:text-lg font-mono font-black text-amber-300">
                   {formatAmount(uplineSettlementData.totalPayout)} {currency}
                 </span>
@@ -622,7 +620,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                   <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
                     <th className="p-2.5">ရက်စွဲ</th>
                     <th className="p-2.5">လိုင်း</th>
-                    <th className="p-2.5">နံပါတ် / Ref</th>
+                    <th className="p-2.5">ပွဲစဉ် / Ref</th>
                     <th className="p-2.5 text-right">{settlementType === 'downline' ? 'ထိုးငွေ' : 'တင်ကြေး'}</th>
                     {settlementType === 'upline' && <th className="p-2.5 text-right">ကော်မရှင်</th>}
                     <th className="p-2.5 text-right">ပေါက်ငွေ</th>
