@@ -145,11 +145,11 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     const items: Array<{ date: string; mode: string; refNo: string; amount: number; payout: number; summary: string }> = [];
 
     // 3D Vouchers
-    lottery3D.vouchers.forEach((v) => {
+    lottery3D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const amt = v.totalAmount || 0;
-        const payout = v.winningPayout || 0;
+        const amt = v.netPayable ?? v.subtotal ?? 0;
+        const payout = v.winningPayout ?? v.items?.reduce((s: number, it: any) => s + (it.wonAmount || 0), 0) ?? 0;
         totalSales += amt;
         totalPayout += payout;
         items.push({
@@ -164,11 +164,11 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     });
 
     // 2D Vouchers
-    lottery2D.vouchers.forEach((v) => {
+    lottery2D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const amt = v.totalAmount || 0;
-        const payout = v.winningPayout || 0;
+        const amt = v.netPayable ?? v.subtotal ?? 0;
+        const payout = v.winningPayout ?? v.items?.reduce((s: number, it: any) => s + (it.wonAmount || 0), 0) ?? 0;
         totalSales += amt;
         totalPayout += payout;
         items.push({
@@ -183,7 +183,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     });
 
     // Football Slips
-    football.slips.forEach((s) => {
+    football.slips.forEach((s: any) => {
       const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
       if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
         const amt = s.netPayable || s.stakeAmount || 0;
@@ -226,12 +226,12 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     const items: Array<{ date: string; mode: string; refNo: string; amount: number; commission: number; payout: number; summary: string }> = [];
 
     // 3D Forward Slips
-    lottery3D.forwardSlips.forEach((f) => {
+    lottery3D.forwardSlips.forEach((f: any) => {
       const fDate = (f.createdAt || '').slice(0, 10);
       if (fDate >= startDate && fDate <= endDate && f.masterAgentName?.trim() === selectedTarget) {
-        const amt = f.totalAmount || 0;
-        const comm = f.commissionAmount || 0;
-        const payout = (f as any).winningPayout || 0;
+        const amt = f.totalAmount ?? 0;
+        const comm = f.commissionAmount ?? 0;
+        const payout = f.winningPayout ?? 0;
         totalForwarded += amt;
         totalCommission += comm;
         totalPayout += payout;
@@ -248,12 +248,12 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     });
 
     // 2D Forward Slips
-    lottery2D.forwardSlips.forEach((f) => {
+    lottery2D.forwardSlips.forEach((f: any) => {
       const fDate = (f.createdAt || '').slice(0, 10);
       if (fDate >= startDate && fDate <= endDate && f.masterAgentName?.trim() === selectedTarget) {
-        const amt = f.totalAmount || 0;
-        const comm = f.commissionAmount || 0;
-        const payout = (f as any).winningPayout || 0;
+        const amt = f.totalAmount ?? 0;
+        const comm = f.commissionAmount ?? 0;
+        const payout = f.winningPayout ?? 0;
         totalForwarded += amt;
         totalCommission += comm;
         totalPayout += payout;
@@ -270,12 +270,12 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     });
 
     // Football Forward Slips
-    football.forwardSlips.forEach((f) => {
+    football.forwardSlips.forEach((f: any) => {
       const fDate = (f.createdAt || '').slice(0, 10);
       if (fDate >= startDate && fDate <= endDate && f.masterAgentName?.trim() === selectedTarget) {
-        const amt = f.totalAmount || 0;
-        const comm = f.commissionAmount || 0;
-        const payout = (f as any).winningPayout || 0;
+        const amt = f.totalAmount ?? f.netPayable ?? 0;
+        const comm = f.commissionAmount ?? 0;
+        const payout = f.winningPayout ?? 0;
         totalForwarded += amt;
         totalCommission += comm;
         totalPayout += payout;
