@@ -186,9 +186,32 @@ export const Header: React.FC<HeaderProps> = ({
     else football.exportToExcel();
   };
 
-  const latestSettled2D = lottery2D.rounds.find((r) => r.status === 'settled' || !!r.winningNumber);
-  const latestSettled3D = lottery3D.rounds.find((r) => r.status === 'settled' || !!r.winningNumber);
-  const latestFinishedFB = football.matches.find((m) => m.status === 'finished');
+  const latestSettled2D = [...lottery2D.rounds]
+    .filter((r) => (r.status === 'settled' || !!r.winningNumber) && r.winningNumber && r.winningNumber.trim() !== '')
+    .sort((a, b) => {
+      const dateDiff = new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      const aIsEvening = a.session === 'evening' || a.name.includes('ညနေ') || a.name.includes('04:30');
+      const bIsEvening = b.session === 'evening' || b.name.includes('ညနေ') || b.name.includes('04:30');
+      if (aIsEvening !== bIsEvening) return aIsEvening ? 1 : -1;
+      return (b.closingTime || '').localeCompare(a.closingTime || '');
+    })[0];
+
+  const latestSettled3D = [...lottery3D.rounds]
+    .filter((r) => (r.status === 'settled' || !!r.winningNumber) && r.winningNumber && r.winningNumber.trim() !== '')
+    .sort((a, b) => {
+      const dateDiff = new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return (b.closingTime || '').localeCompare(a.closingTime || '');
+    })[0];
+
+  const latestFinishedFB = [...football.matches]
+    .filter((m) => m.status === 'finished' && m.homeScore !== undefined && m.awayScore !== undefined)
+    .sort((a, b) => {
+      const dateDiff = new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return (b.kickoffTime || '').localeCompare(a.kickoffTime || '');
+    })[0];
 
   const excessCount3D = Object.values(lottery3D.aggregates).filter(
     (a: any) => a.limit > 0 && Math.max(0, a.totalSold - (a.forwardedAmount || 0)) > a.limit
