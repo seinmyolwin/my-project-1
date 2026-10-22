@@ -21,7 +21,8 @@ import {
   Percent,
   Wallet,
   Search,
-  Send
+  Send,
+  Users
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -31,6 +32,7 @@ import { formatAmount } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
+import { PeriodSettlementModal } from './PeriodSettlementModal';
 import {
   StatementRecord,
   StatementGrandTotals,
@@ -71,6 +73,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isPeriodSettlementOpen, setIsPeriodSettlementOpen] = useState(false);
 
   // Tab switch between rounds table and consolidated vouchers list
   const [viewMode, setViewMode] = useState<'rounds' | 'vouchers'>('rounds');
@@ -371,6 +374,15 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsPeriodSettlementOpen(true)}
+              className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="၅ ရက်စာ ဒိုင်ငယ်နှင့် အထက်ဒိုင် စာရင်းရှင်းတမ်း"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">၅ရက်စာ ရှင်းတမ်း</span>
+            </button>
             <button
               type="button"
               onClick={handleExportExcel}
@@ -1372,6 +1384,11 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
           </div>
         </div>
       )}
+
+      <PeriodSettlementModal
+        isOpen={isPeriodSettlementOpen}
+        onClose={() => setIsPeriodSettlementOpen(false)}
+      />
     </div>
   );
 };
