@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { parseExcelToRoundData3D } from '../utils/lotteryUtils';
+import { parseExcelToRoundData2D } from '../utils/twoDLotteryUtils';
 import {
   Sparkles,
   Calendar,
@@ -446,6 +448,38 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <PlusCircle className="w-3.5 h-3.5 text-indigo-600" />
                   </button>
+                  <label
+                    title="Excel ဖိုင်မှ ပွဲစဉ်နှင့် ဘောင်ချာများ ပြန်တင်သွင်းရန်"
+                    className="p-1 hover:bg-white rounded-lg text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer flex items-center justify-center"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const res = await parseExcelToRoundData3D(file);
+                        if (!res || res.vouchers.length === 0) {
+                          alert(isMyanmar ? 'Excel ဖိုင်မှ ဒေတာဖတ်ရှု၍ မရပါ။' : 'Failed to import Excel round data.');
+                          return;
+                        }
+                        lottery3D.importRoundWithVouchers({
+                          name: res.roundName,
+                          drawDate: res.drawDate,
+                          closingTime: res.closingTime,
+                          status: res.winningNumber ? 'settled' : 'open',
+                          multiplier: res.multiplier,
+                          toddMultiplier: res.toddMultiplier,
+                          commissionRate: res.commissionRate,
+                          winningNumber: res.winningNumber
+                        }, res.vouchers);
+                        alert(isMyanmar ? `[${res.roundName}] ပွဲစဉ်နှင့် ဘောင်ချာများကို Excel ဖိုင်မှ အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ!` : `Successfully imported round and vouchers from Excel!`);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
                 </div>
               )}
 
@@ -470,6 +504,38 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <PlusCircle className="w-3.5 h-3.5 text-teal-600" />
                   </button>
+                  <label
+                    title="Excel ဖိုင်မှ ပွဲစဉ်နှင့် ဘောင်ချာများ ပြန်တင်သွင်းရန်"
+                    className="p-1 hover:bg-white rounded-lg text-slate-500 hover:text-teal-600 transition-colors cursor-pointer flex items-center justify-center"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-teal-600" />
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const res = await parseExcelToRoundData2D(file);
+                        if (!res || res.vouchers.length === 0) {
+                          alert(isMyanmar ? 'Excel ဖိုင်မှ ဒေတာဖတ်ရှု၍ မရပါ။' : 'Failed to import Excel round data.');
+                          return;
+                        }
+                        lottery2D.importRoundWithVouchers({
+                          name: res.roundName,
+                          drawDate: res.drawDate,
+                          session: (res.session as any) || 'morning',
+                          closingTime: res.closingTime,
+                          status: res.winningNumber ? 'settled' : 'open',
+                          multiplier: res.multiplier,
+                          commissionRate: res.commissionRate,
+                          winningNumber: res.winningNumber
+                        }, res.vouchers);
+                        alert(isMyanmar ? `[${res.roundName}] ပွဲစဉ်နှင့် ဘောင်ချာများကို Excel ဖိုင်မှ အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ!` : `Successfully imported round and vouchers from Excel!`);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
                 </div>
               )}
 

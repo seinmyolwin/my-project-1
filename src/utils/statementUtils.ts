@@ -162,7 +162,8 @@ export function generateStatementRecords(
 
     data.lottery2D.rounds.forEach((round) => {
       const roundDate = (round.drawDate || '').slice(0, 10);
-      if (roundDate >= startDate && roundDate <= endDate) {
+      // ONLY include rounds where winning number has been entered and confirmed/saved!
+      if (roundDate >= startDate && roundDate <= endDate && round.winningNumber && round.winningNumber.trim() !== '') {
         processedRoundIds.add(round.id);
 
         const roundVouchers = data.lottery2D.vouchers.filter(
@@ -370,7 +371,8 @@ export function generateStatementRecords(
 
     data.lottery3D.rounds.forEach((round) => {
       const roundDate = (round.drawDate || '').slice(0, 10);
-      if (roundDate >= startDate && roundDate <= endDate) {
+      // ONLY include rounds where winning number has been entered and confirmed/saved!
+      if (roundDate >= startDate && roundDate <= endDate && round.winningNumber && round.winningNumber.trim() !== '') {
         processed3DRoundIds.add(round.id);
 
         const roundVouchers = data.lottery3D.vouchers.filter(
