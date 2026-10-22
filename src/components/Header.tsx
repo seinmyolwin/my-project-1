@@ -189,28 +189,25 @@ export const Header: React.FC<HeaderProps> = ({
   const latestSettled2D = [...lottery2D.rounds]
     .filter((r) => (r.status === 'settled' || !!r.winningNumber) && r.winningNumber && r.winningNumber.trim() !== '')
     .sort((a, b) => {
-      const dateDiff = new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      const aIsEvening = a.session === 'evening' || a.name.includes('ညနေ') || a.name.includes('04:30');
-      const bIsEvening = b.session === 'evening' || b.name.includes('ညနေ') || b.name.includes('04:30');
-      if (aIsEvening !== bIsEvening) return aIsEvening ? 1 : -1;
-      return (b.closingTime || '').localeCompare(a.closingTime || '');
+      const timeA = a.settledAt ? new Date(a.settledAt).getTime() : new Date(`${a.drawDate}T${a.closingTime || (a.session === 'evening' ? '16:30' : '12:00')}`).getTime();
+      const timeB = b.settledAt ? new Date(b.settledAt).getTime() : new Date(`${b.drawDate}T${b.closingTime || (b.session === 'evening' ? '16:30' : '12:00')}`).getTime();
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
     })[0];
 
   const latestSettled3D = [...lottery3D.rounds]
     .filter((r) => (r.status === 'settled' || !!r.winningNumber) && r.winningNumber && r.winningNumber.trim() !== '')
     .sort((a, b) => {
-      const dateDiff = new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      return (b.closingTime || '').localeCompare(a.closingTime || '');
+      const timeA = a.settledAt ? new Date(a.settledAt).getTime() : new Date(`${a.drawDate}T${a.closingTime || '15:00'}`).getTime();
+      const timeB = b.settledAt ? new Date(b.settledAt).getTime() : new Date(`${b.drawDate}T${b.closingTime || '15:00'}`).getTime();
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
     })[0];
 
   const latestFinishedFB = [...football.matches]
     .filter((m) => m.status === 'finished' && m.homeScore !== undefined && m.awayScore !== undefined)
     .sort((a, b) => {
-      const dateDiff = new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      return (b.kickoffTime || '').localeCompare(a.kickoffTime || '');
+      const timeA = a.matchDate ? new Date(`${a.matchDate}T${a.kickoffTime || '00:00'}`).getTime() : 0;
+      const timeB = b.matchDate ? new Date(`${b.matchDate}T${b.kickoffTime || '00:00'}`).getTime() : 0;
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
     })[0];
 
   const excessCount3D = Object.values(lottery3D.aggregates).filter(
