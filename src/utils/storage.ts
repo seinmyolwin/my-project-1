@@ -496,66 +496,7 @@ export const INITIAL_2D_BLOCKED: BlockedNumbers = {
   '77': false
 };
 
-export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [
-  {
-    id: 'vouch-2d-1',
-    voucherNo: 'V-2D-2001',
-    roundId: 'round-2d-2026-10-08-eve',
-    customerName: 'ကိုညီညီ',
-    customerPhone: '09-781112233',
-    items: [
-      { number: '24', amount: 10000, betType: 'straight' },
-      { number: '42', amount: 10000, betType: 'straight' },
-      { number: '55', amount: 5000, betType: 'straight' }
-    ],
-    subtotal: 25000,
-    discountPercent: 0,
-    discountAmount: 0,
-    netPayable: 25000,
-    createdAt: '2026-10-08T14:30:00.000Z',
-    notes: 'ဆိုင်လာထိုးသူ',
-    isPaid: true,
-    status: 'active'
-  },
-  {
-    id: 'vouch-2d-2',
-    voucherNo: 'V-2D-2002',
-    roundId: 'round-2d-2026-10-08-eve',
-    customerName: 'ဒေါ်အေးသန်း',
-    customerPhone: '09-450009988',
-    items: [
-      { number: '82', amount: 30000, betType: 'straight' },
-      { number: '99', amount: 20000, betType: 'straight' }
-    ],
-    subtotal: 50000,
-    discountPercent: 5,
-    discountAmount: 2500,
-    netPayable: 47500,
-    createdAt: '2026-10-08T15:00:00.000Z',
-    notes: 'KPay ငွေလွှဲ',
-    isPaid: true,
-    status: 'active'
-  },
-  {
-    id: 'vouch-2d-3',
-    voucherNo: 'V-2D-2003',
-    roundId: 'round-2d-2026-10-09-morn',
-    customerName: 'ကိုမျိုးဝင်း',
-    customerPhone: '09-970112244',
-    items: [
-      { number: '55', amount: 15000, betType: 'straight' },
-      { number: '82', amount: 10000, betType: 'straight' }
-    ],
-    subtotal: 25000,
-    discountPercent: 0,
-    discountAmount: 0,
-    netPayable: 25000,
-    createdAt: '2026-10-09T09:30:00.000Z',
-    notes: 'ဒီနေ့ မနက်ပိုင်း အမှာစာ',
-    isPaid: true,
-    status: 'active'
-  }
-];
+export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [];
 
 export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
   {
