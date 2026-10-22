@@ -46,7 +46,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
   // 1. ပေါက်ဆ/ပေါက်ကြေး: Taken strictly from settings.defaultMultiplier
   const multiplier = (typeof settings.defaultMultiplier === 'number' && settings.defaultMultiplier > 0)
     ? Number(settings.defaultMultiplier)
-    : (Number(activeRound?.multiplier) || 80);
+    : (Number(activeRound?.multiplier) || 0);
 
   // 2. အောက်လက်ကော်မရှင် (ကိုယ်က ပေးရမှာ / customer discount): Taken strictly from settings.defaultCustomerDiscount
   const downlineCommRate = typeof settings.defaultCustomerDiscount === 'number'
@@ -56,7 +56,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
   // 3. အထက်ကော်မရှင် (ကိုယ်ရမှာ / master bookie commission): Taken strictly from settings.defaultCommissionRate
   const uplineCommRate = typeof settings.defaultCommissionRate === 'number'
     ? Number(settings.defaultCommissionRate)
-    : (Number(activeRound?.commissionRate) || 12);
+    : (Number(activeRound?.commissionRate) || 0);
 
   // Convert aggregates to betsList for calculator
   const betsList = useMemo(() => {

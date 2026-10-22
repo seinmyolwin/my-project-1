@@ -1176,7 +1176,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const voucher = addVoucher({
       roundId: activeRound.id,
       customerName: customerName.trim() || (isMyanmar ? 'အထွေထွေ' : 'Walk-in'),
-      customerPhone: customerPhone.trim() || undefined,
+      customerPhone: undefined,
       items: finalItems.map(i => ({
         number: i.number,
         amount: i.amount,
@@ -1204,10 +1204,16 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       const commAmt = Math.round((fwdTotal * commRate) / 100);
       const netPaid = fwdTotal - commAmt;
 
+      const resolvedAgent = (masterAgentName || settings.defaultMasterAgentName || '').trim();
+      if (!resolvedAgent) {
+        showToast('ဒိုင်ချုပ်အမည် သတ်မှတ်ပါ', 'error');
+        return;
+      }
+
       addForwardSlip({
         roundId: activeRound.id,
-        masterAgentName: masterAgentName || settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
-        masterAgentPhone: masterAgentPhone || settings.defaultMasterAgentPhone || '09-970001111',
+        masterAgentName: resolvedAgent,
+        masterAgentPhone: (masterAgentPhone || settings.defaultMasterAgentPhone || '').trim(),
         items: forwardItems,
         totalAmount: fwdTotal,
         commissionRate: commRate,

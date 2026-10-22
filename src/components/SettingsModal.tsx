@@ -782,8 +782,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name3D, setName3D] = useState(lottery3D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop3D, setShop3D] = useState(lottery3D.settings.shopName || '');
   const [phone3D, setPhone3D] = useState(lottery3D.settings.shopPhone || '');
-  const [masterAgentName3D, setMasterAgentName3D] = useState(lottery3D.settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
-  const [masterAgentPhone3D, setMasterAgentPhone3D] = useState(lottery3D.settings.defaultMasterAgentPhone || '09-970001111');
+  const [masterAgentName3D, setMasterAgentName3D] = useState(lottery3D.settings.defaultMasterAgentName || '');
+  const [masterAgentPhone3D, setMasterAgentPhone3D] = useState(lottery3D.settings.defaultMasterAgentPhone || '');
   const [mult3D, setMult3D] = useState(String(lottery3D.settings.defaultMultiplier ?? ''));
   const [todd3D, setTodd3D] = useState(String(lottery3D.settings.defaultToddMultiplier ?? ''));
   const [comm3D, setComm3D] = useState(String(lottery3D.settings.defaultCommissionRate ?? ''));
@@ -807,13 +807,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [name2D, setName2D] = useState(lottery2D.settings.appName || 'ရွှေမင်္ဂလာ');
   const [shop2D, setShop2D] = useState(lottery2D.settings.shopName || '');
   const [phone2D, setPhone2D] = useState(lottery2D.settings.shopPhone || '');
-  const [masterAgentName2D, setMasterAgentName2D] = useState(lottery2D.settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
-  const [masterAgentPhone2D, setMasterAgentPhone2D] = useState(lottery2D.settings.defaultMasterAgentPhone || '09-970001111');
+  const [masterAgentName2D, setMasterAgentName2D] = useState(lottery2D.settings.defaultMasterAgentName || '');
+  const [masterAgentPhone2D, setMasterAgentPhone2D] = useState(lottery2D.settings.defaultMasterAgentPhone || '');
   const getCleanMult2D = (val?: number) => {
-    let m = val || lottery2D.settings.defaultMultiplier || 80;
+    let m = val || lottery2D.settings.defaultMultiplier || 0;
     return m;
   };
-  const [mult2D, setMult2D] = useState(String(getCleanMult2D(lottery2D.settings.defaultMultiplier)));
+  const [mult2D, setMult2D] = useState(String(lottery2D.settings.defaultMultiplier ?? ''));
   const [comm2D, setComm2D] = useState(String(lottery2D.settings.defaultCommissionRate ?? ''));
   const [disc2D, setDisc2D] = useState(String(lottery2D.settings.defaultCustomerDiscount || 0));
   const [globalLimit2D, setGlobalLimit2D] = useState(String(lottery2D.settings.globalStockLimit || 200000));
@@ -1196,7 +1196,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       defaultMasterAgentName: masterAgentName2D.trim() || undefined,
       defaultMasterAgentPhone: masterAgentPhone2D.trim() || undefined,
       currency,
-      defaultMultiplier: !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : (lottery2D.settings.defaultMultiplier || 80),
+      defaultMultiplier: !isNaN(parseFloat(mult2D)) ? parseFloat(mult2D) : lottery2D.settings.defaultMultiplier,
       defaultCommissionRate: !isNaN(parseFloat(comm2D)) ? parseFloat(comm2D) : lottery2D.settings.defaultCommissionRate,
       defaultCustomerDiscount: !isNaN(parseFloat(disc2D)) ? parseFloat(disc2D) : lottery2D.settings.defaultCustomerDiscount,
       globalStockLimit: !isNaN(parseFloat(globalLimit2D)) ? parseFloat(globalLimit2D) : 200000,

@@ -827,7 +827,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     const newVoucher = addVoucher({
       roundId: activeRound?.id || 'default',
       customerName: customerName.trim() || 'အထွေထွေ (General)',
-      customerPhone: customerPhone.trim(),
+      customerPhone: undefined,
       items: voucherItems,
       subtotal: finalSubtotal,
       discountPercent,
@@ -996,10 +996,16 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       const commAmt = Math.round((fwdTotal * commRate) / 100);
       const netPaid = fwdTotal - commAmt;
 
+      const resolvedAgent = (masterAgentName || settings.defaultMasterAgentName || '').trim();
+      if (!resolvedAgent) {
+        alert('ဒိုင်ချုပ်အမည် သတ်မှတ်ပါ');
+        return;
+      }
+
       addForwardSlip({
         roundId: activeRound?.id || 'default',
-        masterAgentName: masterAgentName || settings.defaultMasterAgentName || 'ဒိုင်ချုပ်ကြီး',
-        masterAgentPhone: masterAgentPhone || settings.defaultMasterAgentPhone || '',
+        masterAgentName: resolvedAgent,
+        masterAgentPhone: (masterAgentPhone || settings.defaultMasterAgentPhone || '').trim(),
         items: forwardItems,
         totalAmount: fwdTotal,
         commissionRate: commRate,

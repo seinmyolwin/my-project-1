@@ -76,8 +76,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     return [];
   });
 
-  const [masterAgentName, setMasterAgentName] = useState(cleanMasterAgentName(settings.defaultMasterAgentName) || 'ကိုစိုးနိုင်');
-  const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
+  const [masterAgentName, setMasterAgentName] = useState(cleanMasterAgentName(settings.defaultMasterAgentName) || '');
+  const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '');
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
   const [notes, setNotes] = useState('');
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
@@ -443,10 +443,16 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       return;
     }
 
+    const resolvedAgentName = cleanMasterAgentName(masterAgentName.trim()) || cleanMasterAgentName(settings.defaultMasterAgentName);
+    if (!resolvedAgentName) {
+      alert('ဒိုင်ချုပ်အမည် သတ်မှတ်ပါ');
+      return;
+    }
+
     const forwardPayload = {
       roundId: activeRound?.id || 'default',
-      masterAgentName: cleanMasterAgentName(masterAgentName.trim()) || cleanMasterAgentName(settings.defaultMasterAgentName) || 'ကိုစိုးနိုင်',
-      masterAgentPhone: masterAgentPhone.trim(),
+      masterAgentName: resolvedAgentName,
+      masterAgentPhone: masterAgentPhone.trim() || undefined,
       items: activeSelectedItems.map((i) => ({ number: i.number, amount: i.forwardAmount })),
       totalAmount,
       commissionRate,

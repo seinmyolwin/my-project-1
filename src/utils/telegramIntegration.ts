@@ -3,7 +3,7 @@ export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'er
 export interface TelegramIncomingOrder {
   id: string;
   senderName: string;
-  senderPhone: string;
+  senderPhone?: string;
   chatId?: string | number;
   orderType: 'text' | 'photo';
   category: '3d' | '2d' | 'football';
@@ -55,42 +55,54 @@ export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
   hasServerToken: false
 };
 
-/**
- * Intelligent Telegram Bot Token Sanitizer for Tablets & Mobile
- */
+import { getStoredOwnerPassword } from './securityUtils';
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  let token = sessionStorage.getItem('rhmg_server_session_token');
+  if (!token) {
+    const storedPin = getStoredOwnerPassword();
+    if (storedPin) {
+      try {
+        const res = await fetch('/api/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: storedPin })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            token = data.token;
+            sessionStorage.setItem('rhmg_server_session_token', token);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+}
+
 export function cleanTelegramToken(raw: string): string {
   if (!raw || typeof raw !== 'string') return '';
-
-  // 1. Convert Myanmar numerals (၀-၉) to English digits (0-9)
   const mmNumerals: Record<string, string> = {
     '၀': '0', '၁': '1', '၂': '2', '၃': '3', '၄': '4',
     '၅': '5', '၆': '6', '၇': '7', '၈': '8', '၉': '9'
   };
   let cleaned = raw.replace(/[၀-၉]/g, (ch) => mmNumerals[ch] || ch);
-
-  // 2. Replace fullwidth colon '：' (U+FF1A) with standard ASCII ':' (U+003A)
   cleaned = cleaned.replace(/\uFF1A/g, ':');
-
-  // 3. Remove zero-width spaces, joiners, non-breaking spaces, control characters
   cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00A0\u00AD\u200E\u200F\u202A-\u202E\r\n\t]/g, ' ');
-
-  // 4. Strip leading URLs or API prefixes if user pasted full API link
   cleaned = cleaned.replace(/https?:\/\/api\.telegram\.org\/bot/gi, '');
   cleaned = cleaned.replace(/api\.telegram\.org\/bot/gi, '');
   cleaned = cleaned.replace(/\bbot(?=\d+:)/gi, '');
-
-  // 5. Remove spaces around colon (e.g. "123456789 : ABC..." -> "123456789:ABC...")
   cleaned = cleaned.replace(/(\d+)\s*:\s*([A-Za-z0-9_-]+)/g, '$1:$2');
-
-  // 6. Extract token pattern <digits>:<chars> anywhere in text
   const match = cleaned.match(/(\d{7,12}:[A-Za-z0-9_-]{25,50})/);
-  if (match) {
-    return match[1];
-  }
-
-  // 7. Strip surrounding quotes or brackets
+  if (match) return match[1];
   cleaned = cleaned.replace(/^['"`<([{\s]+|['"`>)\]}\s]+$/g, '').trim();
-
   return cleaned;
 }
 
@@ -115,14 +127,11 @@ export function getTelegramConfig(): TelegramAccountConfig {
   return DEFAULT_TELEGRAM_CONFIG;
 }
 
-/**
- * Fetch server-side status & configuration for Telegram
- * Also auto-heals server if server restarted and lost in-memory token
- */
 export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch('/api/telegram/config', {
-      headers: { 'Accept': 'application/json' },
+      headers,
       signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
@@ -141,11 +150,11 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
         botInfo: data.bot || current.botInfo
       };
 
-      // Auto-heal server: if server has no token but client has a valid stored token in localStorage
       if (!data.hasToken && current.botToken && isValidTokenFormat(current.botToken)) {
+        const postHeaders = await getAuthHeaders();
         fetch('/api/telegram/config', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: postHeaders,
           body: JSON.stringify({
             botToken: current.botToken,
             channelId: current.channelId,
@@ -155,7 +164,6 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
         }).catch(() => {});
       }
 
-      // Update localStorage with updated status
       try {
         localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(updated));
       } catch {
@@ -170,9 +178,6 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
   return null;
 }
 
-/**
- * Test Telegram connection via backend endpoint
- */
 export async function testTelegramConnection(candidateToken: string, webhookUrl?: string): Promise<{
   status: ConnectionStatus;
   message: string;
@@ -199,12 +204,10 @@ export async function testTelegramConnection(candidateToken: string, webhookUrl?
   }
 
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch('/api/telegram/test', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         botToken: cleaned || undefined,
         webhookUrl: webhookUrl?.trim() || undefined
@@ -250,11 +253,7 @@ export async function testTelegramConnection(candidateToken: string, webhookUrl?
   }
 }
 
-/**
- * Save configuration to server-side endpoint and client cache
- * Persists token locally on tablet so connection is never lost
- */
-export function saveTelegramConfig(config: TelegramAccountConfig): void {
+export async function saveTelegramConfig(config: TelegramAccountConfig): Promise<void> {
   const cleanedToken = cleanTelegramToken(config.botToken);
 
   const toSave: TelegramAccountConfig = {
@@ -268,35 +267,25 @@ export function saveTelegramConfig(config: TelegramAccountConfig): void {
     // ignore
   }
 
-  // Push configuration securely to backend
+  const headers = await getAuthHeaders();
   fetch('/api/telegram/config', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
+    headers,
     body: JSON.stringify({
       botToken: cleanedToken || undefined,
       channelId: config.channelId,
       accountName: config.accountName,
       webhookUrl: config.webhookUrl
     })
-  }).catch(() => {
-    // offline fallback
-  });
+  }).catch(() => {});
 }
 
-/**
- * Completely clear Telegram bot token and disconnect
- */
 export async function clearTelegramToken(): Promise<{ success: boolean; message: string }> {
   try {
+    const headers = await getAuthHeaders();
     await fetch('/api/telegram/clear-token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
+      headers
     });
 
     const current = getTelegramConfig();
@@ -318,14 +307,12 @@ export async function clearTelegramToken(): Promise<{ success: boolean; message:
   return { success: true, message: 'Telegram Bot Token ကို ဖျက်ပြီးပါပြီ' };
 }
 
-/**
- * Clear Webhook to restore pure Long Polling (recommended for tablet)
- */
 export async function deleteTelegramWebhook(): Promise<{ ok: boolean; message: string }> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch('/api/telegram/delete-webhook', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers
     });
     const data = await res.json().catch(() => null);
     if (res.ok && data?.ok) {
@@ -357,8 +344,9 @@ export function saveTelegramOrders(orders: TelegramIncomingOrder[]): void {
 
 export async function fetchTelegramOrdersFromServer(): Promise<TelegramIncomingOrder[] | null> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch('/api/telegram/orders', {
-      headers: { 'Accept': 'application/json' },
+      headers,
       signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
@@ -376,9 +364,10 @@ export async function fetchTelegramOrdersFromServer(): Promise<TelegramIncomingO
 
 export async function sendTelegramMessage(chatId: string | number, text: string): Promise<boolean> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch('/api/telegram/send-message', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ chatId, text })
     });
     return res.ok;
@@ -392,9 +381,10 @@ export async function updateTelegramOrderOnServer(
   updates: { status?: 'pending_review' | 'approved' | 'rejected'; notes?: string }
 ): Promise<boolean> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch(`/api/telegram/orders/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(updates)
     });
     return res.ok;
@@ -405,8 +395,10 @@ export async function updateTelegramOrderOnServer(
 
 export async function deleteTelegramOrderOnServer(id: string): Promise<boolean> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch(`/api/telegram/orders/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers
     });
     return res.ok;
   } catch {
@@ -416,12 +408,10 @@ export async function deleteTelegramOrderOnServer(id: string): Promise<boolean> 
 
 export async function registerTelegramWebhook(webhookUrl?: string): Promise<{ ok: boolean; message: string }> {
   try {
+    const headers = await getAuthHeaders();
     const res = await fetch('/api/telegram/set-webhook', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
+      headers,
       body: JSON.stringify({ webhookUrl: webhookUrl?.trim() || undefined }),
       signal: AbortSignal.timeout(10000)
     });

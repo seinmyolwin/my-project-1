@@ -71,17 +71,12 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     } catch {
       // fallback
     }
-    return [
-      { name: settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)', phone: settings.defaultMasterAgentPhone || '09-970001111', commissionRate: settings.defaultCommissionRate || 15 },
-      { name: 'ကိုမင်းအောင် (ဒိုင်ကြီး)', phone: '09-790002222', commissionRate: 12 },
-      { name: 'ဒေါ်ခင်သန်း (ရန်ကုန်ဒိုင်ချုပ်)', phone: '09-450003333', commissionRate: 14 },
-      { name: 'ဦးဘုန်း (မန္တလေးဒိုင်ကြီး)', phone: '09-250004444', commissionRate: 15 }
-    ];
+    return [];
   });
 
   // Form State
-  const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || 'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)');
-  const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '09-970001111');
+  const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || '');
+  const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '');
   const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate || 0);
   const [notes, setNotes] = useState('');
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
@@ -365,10 +360,15 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
       return;
     }
 
+    if (!masterAgentName.trim()) {
+      alert('ဒိုင်ချုပ်အမည် သတ်မှတ်ပါ');
+      return;
+    }
+
     const payload = {
       roundId: activeRound?.id || 'default',
-      masterAgentName: masterAgentName.trim() || 'ဒိုင်ချုပ်ကြီး',
-      masterAgentPhone: masterAgentPhone.trim(),
+      masterAgentName: masterAgentName.trim(),
+      masterAgentPhone: masterAgentPhone.trim() || undefined,
       items: activeSelected.map((i) => ({ number: i.number, amount: i.forwardAmount })),
       totalAmount,
       commissionRate,

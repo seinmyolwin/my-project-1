@@ -29,6 +29,8 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
     createRound,
     updateRound,
     deleteRound,
+    vouchers,
+    forwardSlips,
     settings
   } = useLottery();
 
@@ -144,19 +146,19 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                     {activeRound.status === 'open' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-600 text-white shadow-2xs">
                         <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        {isMyanmar ? 'ဖွင့်လှစ်ဆဲ (စာရင်းလက်ခံဆဲ)' : 'Open'}
+                        {isMyanmar ? 'ဖွင့်လှစ်ဆဲ' : 'Open'}
                       </span>
                     )}
                     {activeRound.status === 'closed' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white shadow-2xs">
                         <Lock className="w-3 h-3" />
-                        {isMyanmar ? 'ပွဲစဉ်ပိတ်ထားသည် (အရောင်းမယူပါ)' : 'Closed'}
+                        {isMyanmar ? 'ပိတ်ပြီး' : 'Closed'}
                       </span>
                     )}
                     {activeRound.status === 'settled' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-600 text-white shadow-2xs">
                         <CheckCircle2 className="w-3 h-3" />
-                        {isMyanmar ? `ပေါက်မဲ [${activeRound.winningNumber}] အတည်ပြုပြီး (ပိတ်ပြီး)` : `Settled [${activeRound.winningNumber}]`}
+                        {isMyanmar ? `ပိတ်ပြီး — ပေါက်ဂဏန်း [${activeRound.winningNumber}]` : `Settled [${activeRound.winningNumber}]`}
                       </span>
                     )}
                   </div>
@@ -374,17 +376,17 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                         )}
                         {round.status === 'settled' && (
                           <span className="bg-amber-50 text-amber-800 border border-amber-300 text-[10px] px-2 py-0.5 rounded-md font-bold">
-                            ပေါက်မဲ: {round.winningNumber} (ပိတ်ပြီး)
+                            {isMyanmar ? `ပိတ်ပြီး — ပေါက်ဂဏန်း [${round.winningNumber}]` : `Settled [${round.winningNumber}]`}
                           </span>
                         )}
                         {round.status === 'closed' && (
                           <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] px-2 py-0.5 rounded-md font-bold">
-                            ပိတ်ထားသည်
+                            {isMyanmar ? 'ပိတ်ပြီး' : 'Closed'}
                           </span>
                         )}
                         {round.status === 'open' && (
                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-md font-bold">
-                            ဖွင့်လှစ်ဆဲ
+                            {isMyanmar ? 'ဖွင့်လှစ်ဆဲ' : 'Open'}
                           </span>
                         )}
                       </div>
@@ -438,15 +440,32 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                       {rounds.length > 1 && (
                         <button
                           onClick={() => {
-                            if (window.confirm('ပွဲစဉ်ကို ဖျက်ရန် သေချာပါသလား?')) {
+                            const vCount = vouchers.filter(v => v.roundId === round.id).length;
+                            const fCount = forwardSlips.filter(f => f.roundId === round.id).length;
+                            let rCount = 0;
+                            try {
+                              const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+                              if (rawStored) {
+                                const parsed = JSON.parse(rawStored);
+                                if (Array.isArray(parsed)) {
+                                  rCount = parsed.filter((c: any) => c.roundId === round.id).length;
+                                }
+                              }
+                            } catch {
+                              // ignore
+                            }
+                            const confirmMsg = isMyanmar
+                              ? `[${round.name}] ပွဲစဉ်ကို ဖျက်ရန် သေချာပါသလား?\n(ဘောင်ချာ ${vCount} ခု၊ ဒိုင်လွှဲ ${fCount} ခု၊ မူရင်းစာသား ${rCount} ခု ပါ ဖျက်မည်)`
+                              : `Are you sure you want to delete [${round.name}]?\n(Will delete ${vCount} vouchers, ${fCount} forward slips, ${rCount} raw texts)`;
+                            if (window.confirm(confirmMsg)) {
                               deleteRound(round.id);
                             }
                           }}
                           className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                           title="ပွဲစဉ်ဖျက်မည်"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
                       )}
                     </div>
                   </div>

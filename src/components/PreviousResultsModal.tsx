@@ -188,7 +188,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
         'ထိပ်စီး (Head)': head,
         'နောက်ပိတ် (Tail)': tail,
         'ဘရိတ် (Brake)': brake,
-        'ပေါက်ဆ (Multiplier)': `${r.multiplier || lottery2D.settings.defaultMultiplier || 80}x`,
+        'ပေါက်ဆ (Multiplier)': `${r.multiplier || lottery2D.settings.defaultMultiplier || 0}x`,
         'အခြေအနေ (Status)': r.status === 'settled' ? 'ပြီးဆုံး' : 'ဖွင့်လှစ်ဆဲ'
       };
     });

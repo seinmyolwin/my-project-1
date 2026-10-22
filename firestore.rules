@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     match /store/{docId} {
-      allow read, write: if docId == 'messaging_data';
+      allow read, write: if false;
     }
   }
 }

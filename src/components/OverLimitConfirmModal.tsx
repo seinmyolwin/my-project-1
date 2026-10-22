@@ -46,10 +46,10 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
 
   const [decisions, setDecisions] = useState<OverLimitItemInfo[]>([]);
   const [masterName, setMasterName] = useState<string>(
-    settings.defaultMasterAgentName || 'ကိုစိုးနိုင်'
+    settings.defaultMasterAgentName || ''
   );
   const [masterPhone, setMasterPhone] = useState<string>(
-    settings.defaultMasterAgentPhone || '09-970001111'
+    settings.defaultMasterAgentPhone || ''
   );
   const [commissionRate, setCommissionRate] = useState<number>(
     settings.defaultCommissionRate ?? 0
@@ -104,6 +104,10 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (totalForwardedToMaster > 0 && !masterName.trim()) {
+      alert('ဒိုင်ချုပ်အမည် သတ်မှတ်ပါ');
+      return;
+    }
     onConfirm(decisions, masterName.trim(), masterPhone.trim(), commissionRate);
   };
 

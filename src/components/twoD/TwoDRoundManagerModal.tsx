@@ -27,6 +27,8 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
     createRound,
     updateRound,
     deleteRound,
+    vouchers,
+    forwardSlips,
     settings
   } = useTwoDLottery();
 
@@ -34,11 +36,7 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
 
   const [dateStr, setDateStr] = useState(getLocalDateString());
   const [session, setSession] = useState<'morning' | 'evening'>('morning');
-  const getCleanMultiplier = (val?: number) => {
-    let m = val || settings.defaultMultiplier || 80;
-    return m;
-  };
-  const [multiplier, setMultiplier] = useState(String(getCleanMultiplier(settings.defaultMultiplier)));
+  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier ?? ''));
 
   if (!isOpen) return null;
 
@@ -147,19 +145,19 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
                   {activeRound.status === 'open' && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-600 text-white shadow-2xs">
                       <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                      {isMyanmar ? 'ဖွင့်လှစ်ဆဲ (စာရင်းလက်ခံဆဲ)' : 'Open'}
+                      {isMyanmar ? 'ဖွင့်လှစ်ဆဲ' : 'Open'}
                     </span>
                   )}
                   {activeRound.status === 'closed' && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white shadow-2xs">
                       <Lock className="w-3 h-3" />
-                      {isMyanmar ? 'ပွဲစဉ်ပိတ်ထားသည် (အရောင်းမယူပါ)' : 'Closed'}
+                      {isMyanmar ? 'ပိတ်ပြီး' : 'Closed'}
                     </span>
                   )}
                   {activeRound.status === 'settled' && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-600 text-white shadow-2xs">
                       <CheckCircle2 className="w-3 h-3" />
-                      {isMyanmar ? `ပေါက်မဲ [${activeRound.winningNumber}] အတည်ပြုပြီး (ပိတ်ပြီး)` : `Settled [${activeRound.winningNumber}]`}
+                      {isMyanmar ? `ပိတ်ပြီး — ပေါက်ဂဏန်း [${activeRound.winningNumber}]` : `Settled [${activeRound.winningNumber}]`}
                     </span>
                   )}
                 </div>
@@ -326,15 +324,15 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
                       <span className="text-[11px] text-slate-500">
                         {r.status === 'settled' ? (
                           <span className="font-bold text-amber-700">
-                            ပေါက်မဲ [{r.winningNumber}] ထွက်ပြီး (ပိတ်ပြီး)
+                            {isMyanmar ? `ပိတ်ပြီး — ပေါက်ဂဏန်း [${r.winningNumber}]` : `Settled [${r.winningNumber}]`}
                           </span>
                         ) : r.status === 'closed' ? (
                           <span className="font-bold text-rose-600">
-                            ပိတ်ထားသည်
+                            {isMyanmar ? 'ပိတ်ပြီး' : 'Closed'}
                           </span>
                         ) : (
                           <span className="font-bold text-emerald-600">
-                            ဖွင့်လှစ်ဆဲ
+                            {isMyanmar ? 'ဖွင့်လှစ်ဆဲ' : 'Open'}
                           </span>
                         )}
                       </span>
@@ -389,7 +387,24 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm('ပွဲစဉ်ကို ဖျက်ရန် သေချာပါသလား?')) {
+                          const vCount = vouchers.filter(v => v.roundId === r.id).length;
+                          const fCount = forwardSlips.filter(f => f.roundId === r.id).length;
+                          let rCount = 0;
+                          try {
+                            const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+                            if (rawStored) {
+                              const parsed = JSON.parse(rawStored);
+                              if (Array.isArray(parsed)) {
+                                rCount = parsed.filter((c: any) => c.roundId === r.id).length;
+                              }
+                            }
+                          } catch {
+                            // ignore
+                          }
+                          const confirmMsg = isMyanmar
+                            ? `[${r.name}] ပွဲစဉ်ကို ဖျက်ရန် သေချာပါသလား?\n(ဘောင်ချာ ${vCount} ခု၊ ဒိုင်လွှဲ ${fCount} ခု၊ မူရင်းစာသား ${rCount} ခု ပါ ဖျက်မည်)`
+                            : `Are you sure you want to delete [${r.name}]?\n(Will delete ${vCount} vouchers, ${fCount} forward slips, ${rCount} raw texts)`;
+                          if (window.confirm(confirmMsg)) {
                             deleteRound(r.id);
                           }
                         }}

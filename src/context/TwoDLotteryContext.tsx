@@ -21,12 +21,14 @@ import {
   INITIAL_2D_FORWARD_SLIPS,
   STORAGE_KEYS,
   loadStoredData,
-  saveStoredData
+  saveStoredData,
+  saveMultipleAtomic
 } from '../utils/storage';
 import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed, normalizeTwoDMultiplier } from '../utils/twoDLotteryUtils';
 import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
+import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -131,6 +133,11 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const checkAndSyncRounds = () => {
       const todayStr = getLocalDateString();
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+
       setRounds(prev => {
         const upToDate = generateUpToDate2DRounds(settings.defaultMultiplier, settings.defaultCommissionRate);
         const map = new Map<string, TwoDDrawRound>();
@@ -141,7 +148,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         prev.forEach(r => {
           if (!deletedSet.has(r.id)) {
-            if (r.drawDate < todayStr && r.status === 'open' && r.drawDate >= '2026-10-05') {
+            if (r.status === 'settled') {
+              map.set(r.id, r);
+            } else if (r.drawDate < todayStr && r.status === 'open') {
+              map.set(r.id, { ...r, status: 'closed' });
+              changed = true;
+            } else if (r.drawDate === todayStr && r.status === 'open' && r.closingTime && currentTimeStr >= r.closingTime) {
               map.set(r.id, { ...r, status: 'closed' });
               changed = true;
             } else {
@@ -154,7 +166,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         upToDate.forEach(r => {
           if (!map.has(r.id) && !deletedSet.has(r.id)) {
-            if (r.drawDate < todayStr && r.status === 'open' && r.drawDate >= '2026-10-05') {
+            if (r.drawDate < todayStr && r.status === 'open') {
+              map.set(r.id, { ...r, status: 'closed' });
+            } else if (r.drawDate === todayStr && r.status === 'open' && r.closingTime && currentTimeStr >= r.closingTime) {
               map.set(r.id, { ...r, status: 'closed' });
             } else {
               map.set(r.id, r);
@@ -172,20 +186,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     checkAndSyncRounds();
 
     // Run every minute (60,000 ms)
-    const intervalId = setInterval(() => {
-      const currentToday = getLocalDateString();
-      if (currentToday !== lastDateStr) {
-        checkAndSyncRounds();
-      }
-    }, 60000);
+    const intervalId = setInterval(checkAndSyncRounds, 60000);
 
     // Run on visibility change
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const currentToday = getLocalDateString();
-        if (currentToday !== lastDateStr) {
-          checkAndSyncRounds();
-        }
+        checkAndSyncRounds();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -376,23 +382,67 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const deleteRound = useCallback((roundId: string) => {
-    setRounds(prev => prev.filter(r => r.id !== roundId));
-    setDeletedRoundIds(prev => {
-      const next = [...prev.filter(id => id !== roundId), roundId];
-      saveStoredData('2d_ledger_deleted_rounds_v1', next);
-      return next;
-    });
+    const todayStr = getLocalDateString();
+    const remainingRounds = rounds.filter(r => r.id !== roundId);
+    const updatedDeletedRoundIds = [...deletedRoundIds.filter(id => id !== roundId), roundId];
 
+    let nextActiveId = activeRoundId;
     if (activeRoundId === roundId) {
-      const remaining = visibleRounds.filter(r => r.id !== roundId);
-      if (remaining.length > 0) {
-        setActiveRoundIdState(remaining[0].id);
-      }
+      const todayOpen = remainingRounds.find(r => r.drawDate === todayStr && r.status === 'open' && !is2DRoundClosed(r));
+      nextActiveId = todayOpen ? todayOpen.id : (remainingRounds[0]?.id || '');
     }
 
-    setVouchers(prev => prev.filter(v => v.roundId !== roundId));
-    setForwardSlips(prev => prev.filter(f => f.roundId !== roundId));
-  }, [activeRoundId, visibleRounds]);
+    const remainingVouchers = vouchers.filter(v => v.roundId !== roundId);
+    const deletedVoucherIds = new Set(vouchers.filter(v => v.roundId === roundId).map(v => v.id));
+    const remainingForwardSlips = forwardSlips.filter(f => f.roundId !== roundId);
+
+    let remainingRawClips: any[] = [];
+    try {
+      const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+      if (rawStored) {
+        const parsed = JSON.parse(rawStored);
+        if (Array.isArray(parsed)) {
+          remainingRawClips = parsed.filter((c: any) => c.roundId !== roundId);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    let updatedTelegramOrders: any[] = [];
+    try {
+      const tgStored = localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS);
+      if (tgStored) {
+        const parsed = JSON.parse(tgStored);
+        if (Array.isArray(parsed)) {
+          updatedTelegramOrders = parsed.map((o: any) => {
+            if (o.voucherId && deletedVoucherIds.has(o.voucherId)) {
+              return { ...o, status: 'pending_review', voucherId: undefined };
+            }
+            return o;
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    saveMultipleAtomic({
+      [STORAGE_KEYS.ROUNDS_2D]: remainingRounds,
+      '2d_ledger_deleted_rounds_v1': updatedDeletedRoundIds,
+      [STORAGE_KEYS.ACTIVE_ROUND_ID_2D]: nextActiveId,
+      [STORAGE_KEYS.VOUCHERS_2D]: remainingVouchers,
+      [STORAGE_KEYS.FORWARD_SLIPS_2D]: remainingForwardSlips,
+      'shwe_mingalar_copied_raw_texts': remainingRawClips,
+      [TELEGRAM_STORAGE_KEYS.ORDERS]: updatedTelegramOrders
+    });
+
+    setRounds(remainingRounds);
+    setDeletedRoundIds(updatedDeletedRoundIds);
+    setActiveRoundIdState(nextActiveId);
+    setVouchers(remainingVouchers);
+    setForwardSlips(remainingForwardSlips);
+  }, [activeRoundId, rounds, vouchers, forwardSlips, deletedRoundIds]);
 
   const syncLiveRounds = useCallback(async () => {
     // 2D rounds and winning numbers are managed manually by the operator
@@ -438,8 +488,13 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const maxSeq = existingSeq.length > 0 ? Math.max(...existingSeq) : 0;
     const nextSeq = Math.max(maxSeq + 1, vouchers.length + 1);
     const pad = String(nextSeq).padStart(4, '0');
+
+    // Never save customerPhone
+    const { customerPhone: _discardPhone, ...cleanVoucherData } = voucherData as any;
+
     const newVoucher: TwoDVoucher = {
-      ...voucherData,
+      ...cleanVoucherData,
+      customerPhone: undefined,
       id: `vouch-2d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       voucherNo: `V-2D-${pad}`,
       createdAt: new Date().toISOString()
@@ -464,7 +519,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return addVoucher({
       roundId: activeRound.id,
       customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
-      customerPhone,
+      customerPhone: undefined,
       items,
       subtotal,
       discountPercent,
@@ -483,15 +538,67 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const deleteVoucher = useCallback((id: string) => {
-    setVouchers(prev => prev.filter(v => v.id !== id));
-  }, []);
+    const target = vouchers.find(v => v.id === id);
+    if (!target) return;
+
+    let updatedVouchers: TwoDVoucher[];
+    if (target.isPaid || target.status === 'settled') {
+      updatedVouchers = vouchers.map(v => v.id === id ? { ...v, status: 'cancelled' as const } : v);
+    } else {
+      updatedVouchers = vouchers.filter(v => v.id !== id);
+    }
+
+    let remainingRawClips: any[] = [];
+    try {
+      const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+      if (rawStored) {
+        const parsed = JSON.parse(rawStored);
+        if (Array.isArray(parsed)) {
+          remainingRawClips = parsed.filter((c: any) => c.voucherNumber !== target.voucherNo);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    let updatedTelegramOrders: any[] = [];
+    try {
+      const tgStored = localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS);
+      if (tgStored) {
+        const parsed = JSON.parse(tgStored);
+        if (Array.isArray(parsed)) {
+          updatedTelegramOrders = parsed.map((o: any) => {
+            if (o.voucherId === id || (o.notes && o.notes.includes(target.voucherNo))) {
+              return { ...o, status: 'pending_review', voucherId: undefined };
+            }
+            return o;
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    saveMultipleAtomic({
+      [STORAGE_KEYS.VOUCHERS_2D]: updatedVouchers,
+      'shwe_mingalar_copied_raw_texts': remainingRawClips,
+      [TELEGRAM_STORAGE_KEYS.ORDERS]: updatedTelegramOrders
+    });
+
+    setVouchers(updatedVouchers);
+  }, [vouchers]);
 
   const addForwardSlip = useCallback((slipData: Omit<TwoDForwardSlip, 'id' | 'slipNo' | 'createdAt'>): TwoDForwardSlip => {
+    const resolvedRoundId = (slipData.roundId && slipData.roundId !== 'default') ? slipData.roundId : activeRoundId;
+    const targetRound = rounds.find(r => r.id === resolvedRoundId);
+    if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound)) {
+      throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် အထက်ဒိုင်ဆီ လွှဲတင်၍ မရတော့ပါ');
+    }
+
     const todayStr = getLocalDateString().replace(/-/g, '').slice(2);
     const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
     const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
     const netPaid = safeRound(slipData.totalAmount - commAmt);
-    const resolvedRoundId = (slipData.roundId && slipData.roundId !== 'default') ? slipData.roundId : activeRoundId;
 
     const todayCount = forwardSlips.filter(f => (f.createdAt || '').slice(0, 10) === getLocalDateString()).length + 1;
     const seqPad = String(todayCount).padStart(3, '0');
@@ -507,11 +614,15 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [forwardSlips, settings.defaultCommissionRate, activeRoundId]);
+  }, [forwardSlips, settings.defaultCommissionRate, activeRoundId, rounds]);
 
   const deleteForwardSlip = useCallback((id: string) => {
-    setForwardSlips(prev => prev.filter(f => f.id !== id));
-  }, []);
+    const updated = forwardSlips.filter(f => f.id !== id);
+    saveMultipleAtomic({
+      [STORAGE_KEYS.FORWARD_SLIPS_2D]: updated
+    });
+    setForwardSlips(updated);
+  }, [forwardSlips]);
 
   // Limit & Block methods
   const setNumberLimit = useCallback((num: string, limit: number) => {

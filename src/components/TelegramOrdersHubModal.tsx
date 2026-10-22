@@ -287,7 +287,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const newOrder: TelegramIncomingOrder = {
       id: `tg-${Date.now()}`,
       senderName: newSenderName.trim() || 'Telegram ဝယ်သူ',
-      senderPhone: newSenderPhone.trim(),
+      senderPhone: undefined,
       orderType: newOrderType,
       category: newCategory,
       rawText: newRawText,
@@ -338,7 +338,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       lottery3D.addVoucher({
         roundId: lottery3D.activeRoundId,
         customerName: order.senderName,
-        customerPhone: order.senderPhone,
+        customerPhone: undefined,
         items: voucherItems,
         subtotal,
         discountPercent: 0,
@@ -358,7 +358,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       lottery2D.addVoucher({
         roundId: lottery2D.activeRoundId,
         customerName: order.senderName,
-        customerPhone: order.senderPhone,
+        customerPhone: undefined,
         items: voucherItems,
         subtotal,
         discountPercent: 0,
@@ -418,7 +418,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       football.addSlip({
         roundDate: football.activeDate,
         customerName: order.senderName || 'Telegram User',
-        customerPhone: order.senderPhone,
+        customerPhone: undefined,
         slipType: isMaung ? 'maung' : 'body_single',
         teamCount: selections.length,
         selections,

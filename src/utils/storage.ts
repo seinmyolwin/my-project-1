@@ -129,7 +129,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   currency: 'Ks',
   defaultMultiplier: 600,
   defaultToddMultiplier: 100,
-  defaultCommissionRate: 10,
+  defaultCommissionRate: 0,
   defaultCustomerDiscount: 0,
   globalStockLimit: 100000, // 100,000 Ks per number default limit
   lowStockAlertPercentage: 80, // alert when 80% reached
@@ -137,8 +137,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   soundEffects: true,
   printPaperSize: '80mm',
   voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၃ ရက်အတွင်း ငွေလာရောက်ထုတ်ယူနိုင်ပါသည်။',
-  defaultMasterAgentName: 'ကိုစိုးနိုင်',
-  defaultMasterAgentPhone: '09-970001111',
+  defaultMasterAgentName: undefined,
+  defaultMasterAgentPhone: undefined,
   quickActionButtons: DEFAULT_3D_ACTION_BUTTONS,
   custom3DButtons: DEFAULT_3D_CUSTOM_BUTTONS
 };
@@ -164,7 +164,6 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     voucherNo: 'V-3D-1001',
     roundId: 'round-3d-2026-10-01',
     customerName: 'ဦးကျော်စွာ',
-    customerPhone: '09-450011223',
     items: [
       { number: '789', amount: 5000, betType: 'straight' },
       { number: '123', amount: 3000, betType: 'straight' },
@@ -184,7 +183,6 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     voucherNo: 'V-3D-1002',
     roundId: 'round-3d-2026-10-01',
     customerName: 'ဒေါ်လှလှဝင်း',
-    customerPhone: '09-790112233',
     items: [
       { number: '853', amount: 10000, betType: 'straight' },
       { number: '538', amount: 2000, betType: 'rumble' },
@@ -205,7 +203,6 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     voucherNo: 'V-3D-1003',
     roundId: 'round-3d-2026-10-01',
     customerName: 'ကိုအောင်သူ (စက်ရုံ)',
-    customerPhone: '09-250334455',
     items: [
       { number: '789', amount: 25000, betType: 'straight' },
       { number: '999', amount: 15000, betType: 'straight' },
@@ -225,7 +222,6 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     voucherNo: 'V-3D-1004',
     roundId: 'round-3d-2026-10-01',
     customerName: 'မနွယ်နွယ်',
-    customerPhone: '09-970556677',
     items: [
       { number: '789', amount: 20000, betType: 'straight' },
       { number: '853', amount: 15000, betType: 'straight' },
@@ -247,8 +243,8 @@ export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
     id: 'fwd-1',
     slipNo: 'FWD-1001-01',
     roundId: 'round-3d-2026-10-01',
-    masterAgentName: 'ကိုစိုးနိုင်',
-    masterAgentPhone: '09-970001111',
+    masterAgentName: 'ဒိုင်ချုပ်',
+    masterAgentPhone: '',
     items: [
       { number: '789', amount: 20000 }
     ],
@@ -466,7 +462,7 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   shopAddress: 'ရန်ကုန်မြို့ / မန္တလေးမြို့',
   currency: 'Ks',
   defaultMultiplier: 80, // 80x for 2D (Standard Myanmar 2D payout)
-  defaultCommissionRate: 12,
+  defaultCommissionRate: 0,
   defaultCustomerDiscount: 0,
   globalStockLimit: 200000, // 200,000 Ks per 2D number
   lowStockAlertPercentage: 80,
@@ -474,13 +470,13 @@ export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
   soundEffects: true,
   printPaperSize: '80mm',
   voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သေချာသိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၂၄ နာရီအတွင်း ငွေထုတ်ယူနိုင်ပါသည်။',
-  defaultMasterAgentName: 'ကိုစိုးနိုင်',
-  defaultMasterAgentPhone: '09-970001111',
+  defaultMasterAgentName: undefined,
+  defaultMasterAgentPhone: undefined,
   quickActionButtons: DEFAULT_2D_ACTION_BUTTONS,
   custom2DButtons: DEFAULT_2D_CUSTOM_BUTTONS
 };
 
-export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds(80, 12);
+export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds(80, 0);
 
 export const INITIAL_2D_LIMITS: NumberLimit = {
   '82': 100000,
@@ -503,8 +499,8 @@ export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
     id: 'fwd-2d-1',
     slipNo: 'FWD-2D-1008-01',
     roundId: 'round-2d-2026-10-08-eve',
-    masterAgentName: 'ကိုစိုးနိုင်',
-    masterAgentPhone: '09-970001111',
+    masterAgentName: 'ဒိုင်ချုပ်',
+    masterAgentPhone: '',
     items: [
       { number: '82', amount: 30000 }
     ],
@@ -527,15 +523,15 @@ export const DEFAULT_FOOTBALL_SETTINGS: FootballSettings = {
   currency: 'Ks',
   minMaungCount: 2,
   maxMaungCount: 11,
-  defaultCommissionRate: 8,
+  defaultCommissionRate: 0,
   defaultCustomerDiscount: 0,
   maxPayoutPerTicket: 15000000, // 15 million Ks
   language: 'my',
   soundEffects: true,
   printPaperSize: '80mm',
   slipFooterMessage: 'ဘောလုံးပွဲစဉ် ပြီးဆုံးပြီး တရားဝင်ရလဒ်ထွက်ချိန်တွင် ငွေထုတ်ယူနိုင်ပါသည်။ သရေပွဲများ အဆမဖြတ်ပါက ပုံမှန်အတိုင်း ပြန်ပေါင်းတွက်ပါမည်။',
-  defaultMasterAgentName: 'ကိုစိုးနိုင်',
-  defaultMasterAgentPhone: '09-970001111'
+  defaultMasterAgentName: undefined,
+  defaultMasterAgentPhone: undefined
 };
 
 export const DEFAULT_FOOTBALL_LEAGUES: FootballLeague[] = [
@@ -829,7 +825,6 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
     slipNo: 'FB-1009-1001',
     roundDate: '2026-10-09',
     customerName: 'ကိုအောင်မိုး',
-    customerPhone: '09-450099887',
     slipType: 'maung',
     teamCount: 3,
     stakeAmount: 10000,
@@ -877,7 +872,6 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
     slipNo: 'FB-1009-1002',
     roundDate: '2026-10-09',
     customerName: 'ကိုသူရိန်',
-    customerPhone: '09-970112233',
     slipType: 'body_single',
     teamCount: 1,
     stakeAmount: 50000,
@@ -907,7 +901,6 @@ export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
     slipNo: 'FB-1008-1001',
     roundDate: '2026-10-08',
     customerName: 'ကိုဝင်းနိုင်',
-    customerPhone: '09-250114455',
     slipType: 'body_single',
     teamCount: 1,
     stakeAmount: 20000,
@@ -943,8 +936,8 @@ export const INITIAL_FOOTBALL_FORWARD_SLIPS: FootballForwardSlip[] = [
     id: 'fb-fwd-1',
     slipNo: 'FB-FWD-1009-01',
     roundDate: '2026-10-09',
-    masterAgentName: 'ကိုစိုးနိုင်',
-    masterAgentPhone: '09-970001111',
+    masterAgentName: 'ဒိုင်ချုပ်',
+    masterAgentPhone: '',
     slipType: 'body',
     description: 'Man City ဘော်ဒီ ထိုးကြေးကြီးသဖြင့် ဒိုင်ကြီးဆီ လွှဲတင်',
     matchesSummary: 'Man City (-1-80)',
@@ -1095,6 +1088,8 @@ export function saveBatchTransactional(updates: Record<string, any>): boolean {
     return false;
   }
 }
+
+export const saveMultipleAtomic = saveBatchTransactional;
 
 export { STORAGE_KEYS };
 

@@ -277,7 +277,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
               <textarea
                 value={manualText}
                 onChange={(e) => setManualText(e.target.value)}
-                placeholder={`123=1000\n456=500\n789R=1000\nသို့မဟုတ် Viber / Telegram မက်ဆေ့စာသား`}
+                placeholder={`123=1000\n456=500\n789R=1000\nသို့မဟုတ် telegram / Telegram မက်ဆေ့စာသား`}
                 rows={3}
                 required
                 className="w-full bg-white border border-amber-300 rounded-xl p-2.5 text-xs font-mono text-slate-900"

@@ -228,6 +228,26 @@ export function downloadJSONFile(content: string, filename: string) {
   downloadFile(content, filename, 'application/json;charset=utf-8');
 }
 
+function cleanJsonStripPhone(rawStr: string | null): string | null {
+  if (!rawStr) return rawStr;
+  try {
+    const parsed = JSON.parse(rawStr);
+    if (Array.isArray(parsed)) {
+      const cleaned = parsed.map((item: any) => {
+        if (item && typeof item === 'object') {
+          const { customerPhone, ...rest } = item;
+          return rest;
+        }
+        return item;
+      });
+      return JSON.stringify(cleaned);
+    }
+  } catch {
+    // ignore
+  }
+  return rawStr;
+}
+
 /**
  * Exports 100% of ALL system data in a secure, unreadable, encrypted format (.rhmg)
  */
@@ -241,7 +261,7 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       // 3D Lottery Data
       '3d': {
         rounds: localStorage.getItem(STORAGE_KEYS.ROUNDS),
-        vouchers: localStorage.getItem(STORAGE_KEYS.VOUCHERS),
+        vouchers: cleanJsonStripPhone(localStorage.getItem(STORAGE_KEYS.VOUCHERS)),
         limits: localStorage.getItem(STORAGE_KEYS.LIMITS),
         blocked: localStorage.getItem(STORAGE_KEYS.BLOCKED),
         forwardSlips: localStorage.getItem(STORAGE_KEYS.FORWARD_SLIPS),
@@ -251,7 +271,7 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       // 2D Lottery Data
       '2d': {
         rounds: localStorage.getItem(STORAGE_KEYS.ROUNDS_2D),
-        vouchers: localStorage.getItem(STORAGE_KEYS.VOUCHERS_2D),
+        vouchers: cleanJsonStripPhone(localStorage.getItem(STORAGE_KEYS.VOUCHERS_2D)),
         limits: localStorage.getItem(STORAGE_KEYS.LIMITS_2D),
         blocked: localStorage.getItem(STORAGE_KEYS.BLOCKED_2D),
         forwardSlips: localStorage.getItem(STORAGE_KEYS.FORWARD_SLIPS_2D),
@@ -261,7 +281,7 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       // Football Data
       'football': {
         matches: localStorage.getItem(STORAGE_KEYS.MATCHES_FOOTBALL),
-        slips: localStorage.getItem(STORAGE_KEYS.SLIPS_FOOTBALL),
+        slips: cleanJsonStripPhone(localStorage.getItem(STORAGE_KEYS.SLIPS_FOOTBALL)),
         forwardSlips: localStorage.getItem(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL),
         settings: localStorage.getItem(STORAGE_KEYS.SETTINGS_FOOTBALL),
         activeDate: localStorage.getItem(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL),
@@ -278,7 +298,7 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       // Telegram Integration Orders & Config
       'telegram': {
         config: localStorage.getItem(TELEGRAM_STORAGE_KEYS.CONFIG),
-        orders: localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS)
+        orders: cleanJsonStripPhone(localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS))
       }
     }
   };
@@ -385,6 +405,31 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
         return { success: false, message: 'ဒေတာ ဖော်မတ်/စကီးမား မှားယွင်းနေပါသည် (Schema Validation Failed)' };
       }
 
+      // Confirm with owner before overwriting
+      if (typeof window !== 'undefined') {
+        const confirmed = window.confirm('ရှိပြီးသား ဒေတာများကို Backup ဖိုင်ဖြင့် အစားထိုး သိမ်းဆည်းရန် သေချာပါသလား? လက်ရှိ ဒေတာများကို Snapshot အနေဖြင့် လုံခြုံစွာ သိမ်းဆည်းပြီးမှသာ ဆက်လက်ဆောင်ရွက်ပါမည်။');
+        if (!confirmed) {
+          return { success: false, message: 'ဒေတာ ပြန်လည်သွင်းယူမှုကို ပယ်ဖျက်လိုက်ပါသည်' };
+        }
+      }
+
+      // 2. Take Snapshot before overwrite
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const snapshotData: Record<string, string | null> = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k) snapshotData[k] = localStorage.getItem(k);
+          }
+          if (!localStorage.getItem('pre_migration_snapshot_v1')) {
+            localStorage.setItem('pre_migration_snapshot_v1', JSON.stringify(snapshotData));
+          }
+          localStorage.setItem(`pre_restore_snapshot_${Date.now()}`, JSON.stringify(snapshotData));
+        }
+      } catch (snapErr) {
+        console.warn('Pre-restore snapshot warning:', snapErr);
+      }
+
       // Validate security PIN if stored in backup
       const psec = parsed.payload['security'];
       if (psec && psec.ownerPin && ownerPin) {
@@ -393,14 +438,67 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
         }
       }
 
+      const warningMessages: string[] = [];
+
       // Restore 3D
       const p3 = parsed.payload['3d'];
       if (p3) {
+        const raw3DRounds = p3.rounds;
+        const validRoundIds = new Set<string>();
+        if (raw3DRounds) {
+          try {
+            const parsedRounds = JSON.parse(raw3DRounds);
+            if (Array.isArray(parsedRounds)) {
+              parsedRounds.forEach((r: any) => r?.id && validRoundIds.add(r.id));
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Validate 3D Vouchers
+        let v3Str = cleanJsonStripPhone(p3.vouchers);
+        if (v3Str && validRoundIds.size > 0) {
+          try {
+            const parsedV = JSON.parse(v3Str);
+            if (Array.isArray(parsedV)) {
+              const validV = parsedV.filter((v: any) => validRoundIds.has(v?.roundId));
+              const orphanedV = parsedV.filter((v: any) => !validRoundIds.has(v?.roundId));
+              if (orphanedV.length > 0) {
+                localStorage.setItem('shwe_orphaned_3d_vouchers', JSON.stringify(orphanedV));
+                warningMessages.push(`3D ဘောင်ချာ (${orphanedV.length}) စောင် ပွဲစဉ် ID မကိုက်ညီသဖြင့် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
+              }
+              v3Str = JSON.stringify(validV);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Validate 3D Forward Slips
+        let f3Str = p3.forwardSlips;
+        if (f3Str && validRoundIds.size > 0) {
+          try {
+            const parsedF = JSON.parse(f3Str);
+            if (Array.isArray(parsedF)) {
+              const validF = parsedF.filter((f: any) => validRoundIds.has(f?.roundId));
+              const orphanedF = parsedF.filter((f: any) => !validRoundIds.has(f?.roundId));
+              if (orphanedF.length > 0) {
+                localStorage.setItem('shwe_orphaned_3d_forward_slips', JSON.stringify(orphanedF));
+                warningMessages.push(`3D ဒိုင်လွှဲစာရင်း (${orphanedF.length}) စောင် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
+              }
+              f3Str = JSON.stringify(validF);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         setItemWithBackup(STORAGE_KEYS.ROUNDS, p3.rounds);
-        setItemWithBackup(STORAGE_KEYS.VOUCHERS, p3.vouchers);
+        setItemWithBackup(STORAGE_KEYS.VOUCHERS, v3Str);
         setItemWithBackup(STORAGE_KEYS.LIMITS, p3.limits);
         setItemWithBackup(STORAGE_KEYS.BLOCKED, p3.blocked);
-        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS, p3.forwardSlips);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS, f3Str);
         setItemWithBackup(STORAGE_KEYS.SETTINGS, p3.settings);
         setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID, p3.activeRoundId);
       }
@@ -408,11 +506,62 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       // Restore 2D
       const p2 = parsed.payload['2d'];
       if (p2) {
+        const raw2DRounds = p2.rounds;
+        const validRoundIds = new Set<string>();
+        if (raw2DRounds) {
+          try {
+            const parsedRounds = JSON.parse(raw2DRounds);
+            if (Array.isArray(parsedRounds)) {
+              parsedRounds.forEach((r: any) => r?.id && validRoundIds.add(r.id));
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Validate 2D Vouchers
+        let v2Str = cleanJsonStripPhone(p2.vouchers);
+        if (v2Str && validRoundIds.size > 0) {
+          try {
+            const parsedV = JSON.parse(v2Str);
+            if (Array.isArray(parsedV)) {
+              const validV = parsedV.filter((v: any) => validRoundIds.has(v?.roundId));
+              const orphanedV = parsedV.filter((v: any) => !validRoundIds.has(v?.roundId));
+              if (orphanedV.length > 0) {
+                localStorage.setItem('shwe_orphaned_2d_vouchers', JSON.stringify(orphanedV));
+                warningMessages.push(`2D ဘောင်ချာ (${orphanedV.length}) စောင် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
+              }
+              v2Str = JSON.stringify(validV);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Validate 2D Forward Slips
+        let f2Str = p2.forwardSlips;
+        if (f2Str && validRoundIds.size > 0) {
+          try {
+            const parsedF = JSON.parse(f2Str);
+            if (Array.isArray(parsedF)) {
+              const validF = parsedF.filter((f: any) => validRoundIds.has(f?.roundId));
+              const orphanedF = parsedF.filter((f: any) => !validRoundIds.has(f?.roundId));
+              if (orphanedF.length > 0) {
+                localStorage.setItem('shwe_orphaned_2d_forward_slips', JSON.stringify(orphanedF));
+                warningMessages.push(`2D ဒိုင်လွှဲစာရင်း (${orphanedF.length}) စောင် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
+              }
+              f2Str = JSON.stringify(validF);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         setItemWithBackup(STORAGE_KEYS.ROUNDS_2D, p2.rounds);
-        setItemWithBackup(STORAGE_KEYS.VOUCHERS_2D, p2.vouchers);
+        setItemWithBackup(STORAGE_KEYS.VOUCHERS_2D, v2Str);
         setItemWithBackup(STORAGE_KEYS.LIMITS_2D, p2.limits);
         setItemWithBackup(STORAGE_KEYS.BLOCKED_2D, p2.blocked);
-        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_2D, p2.forwardSlips);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_2D, f2Str);
         setItemWithBackup(STORAGE_KEYS.SETTINGS_2D, p2.settings);
         setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, p2.activeRoundId);
       }
@@ -420,8 +569,46 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       // Restore Football
       const pf = parsed.payload['football'];
       if (pf) {
+        const rawMatches = pf.matches;
+        const validMatchIds = new Set<string>();
+        if (rawMatches) {
+          try {
+            const parsedMatches = JSON.parse(rawMatches);
+            if (Array.isArray(parsedMatches)) {
+              parsedMatches.forEach((m: any) => m?.id && validMatchIds.add(m.id));
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        let sfStr = cleanJsonStripPhone(pf.slips);
+        if (sfStr && validMatchIds.size > 0) {
+          try {
+            const parsedS = JSON.parse(sfStr);
+            if (Array.isArray(parsedS)) {
+              const orphanedS: any[] = [];
+              const validS = parsedS.filter((s: any) => {
+                const hasMissingMatch = s?.selections?.some((sel: any) => sel?.matchId && !validMatchIds.has(sel.matchId));
+                if (hasMissingMatch) {
+                  orphanedS.push(s);
+                  return false;
+                }
+                return true;
+              });
+              if (orphanedS.length > 0) {
+                localStorage.setItem('shwe_orphaned_football_slips', JSON.stringify(orphanedS));
+                warningMessages.push(`ဘောလုံးဘောင်ချာ (${orphanedS.length}) စောင်၏ ပွဲစဉ်များ မပြည့်စုံသဖြင့် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
+              }
+              sfStr = JSON.stringify(validS);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         setItemWithBackup(STORAGE_KEYS.MATCHES_FOOTBALL, pf.matches);
-        setItemWithBackup(STORAGE_KEYS.SLIPS_FOOTBALL, pf.slips);
+        setItemWithBackup(STORAGE_KEYS.SLIPS_FOOTBALL, sfStr);
         setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, pf.forwardSlips);
         setItemWithBackup(STORAGE_KEYS.SETTINGS_FOOTBALL, pf.settings);
         setItemWithBackup(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, pf.activeDate);
@@ -440,12 +627,17 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       const ptg = parsed.payload['telegram'];
       if (ptg) {
         setItemWithBackup(TELEGRAM_STORAGE_KEYS.CONFIG, ptg.config);
-        setItemWithBackup(TELEGRAM_STORAGE_KEYS.ORDERS, ptg.orders);
+        setItemWithBackup(TELEGRAM_STORAGE_KEYS.ORDERS, cleanJsonStripPhone(ptg.orders));
+      }
+
+      let finalMsg = 'လုံခြုံစိတ်ချရသော Encrypted Master Backup ဒေတာအားလုံး အောင်မြင်စွာ ပြန်လည်သွင်းယူပြီးပါပြီ';
+      if (warningMessages.length > 0) {
+        finalMsg += `\n(${warningMessages.join('၊ ')})`;
       }
 
       return {
         success: true,
-        message: 'လုံခြုံစိတ်ချရသော Encrypted Master Backup ဒေတာအားလုံး အောင်မြင်စွာ ပြန်လည်သွင်းယူပြီးပါပြီ'
+        message: finalMsg
       };
     }
 

@@ -349,7 +349,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
           
           const res = await fetch('/api/ocr', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(sessionStorage.getItem('rhmg_server_session_token') ? { 'Authorization': `Bearer ${sessionStorage.getItem('rhmg_server_session_token')}` } : {}) },
             body: JSON.stringify({ image: dataUrl, mimeType: 'image/jpeg', mode })
           });
 

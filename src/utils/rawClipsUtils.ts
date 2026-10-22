@@ -31,7 +31,13 @@ export function getRawClips(): RawBetClip[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        return parsed.map((item: any) => {
+          if (item && 'customerPhone' in item) {
+            const { customerPhone, ...clean } = item;
+            return clean as RawBetClip;
+          }
+          return item as RawBetClip;
+        });
       }
     }
   } catch (err) {
@@ -42,8 +48,9 @@ export function getRawClips(): RawBetClip[] {
 
 export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): RawBetClip {
   const clips = getRawClips();
+  const { customerPhone, ...rest } = clipData;
   const newClip: RawBetClip = {
-    ...clipData,
+    ...rest,
     id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     timestamp: Date.now()
   };
@@ -56,6 +63,17 @@ export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): Raw
     console.error('Failed to save raw clip:', err);
   }
   return newClip;
+}
+
+export function deleteRawClipsByVoucherNumber(voucherNumber: string): void {
+  const clips = getRawClips();
+  const updated = clips.filter(c => c.voucherNumber !== voucherNumber);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+  } catch (err) {
+    console.error('Failed to delete raw clips by voucher number:', err);
+  }
 }
 
 export function deleteRawClip(id: string): void {
