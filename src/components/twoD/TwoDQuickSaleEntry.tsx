@@ -286,6 +286,19 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       }
     }
 
+    // Check if user typed special pattern keywords (Break '3b300', '3b400', '3b', '3ဘရိတ်', Head/Tail '4 ထိပ် 500 ပိတ် 200', Multi-command, etc.)
+    const isSpecialPattern = /[bB]|ဘရိတ်|ထိပ်|ပိတ်|h|t|အပါ|\bပါ\b|စုံစုံ|မမ|စုံမ|မစုံ|ပါဝါ|နက္ခတ်|ညီကို/i.test(rawInput) ||
+                            (/\s{2,}/.test(rawInput)) ||
+                            (/(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(rawInput) && /\d{2}\s+\d{2}/.test(rawInput));
+    if (isSpecialPattern) {
+      const defAmt = parseFloat(amountInput) || 1000;
+      const parsedRes = parseTwoDBatchInput(rawInput, defAmt);
+      const list = Array.isArray(parsedRes) ? parsedRes : (parsedRes as any).items;
+      if (list && list.length > 0) {
+        return Array.from(new Set(list.map((it: any) => it.number)));
+      }
+    }
+
     const hasStraightKeyword = enabledButtons.straight && /ဒဲ့|တဲ့|တည့်/i.test(rawInput);
     const hasRInInput = enabledButtons.rumble && /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
     const hasR = !hasStraightKeyword && ((enabledButtons.rumble && isRumble) || hasRInInput);
@@ -313,7 +326,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       return list;
     }
     return valid2D;
-  }, [numberInput, isRumble, enabledButtons]);
+  }, [numberInput, isRumble, enabledButtons, amountInput]);
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
@@ -428,6 +441,73 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       const nums = rawInput.match(/\d+/g);
       if (nums && nums.length >= 1) {
         if (insertKhwayItems(getTwoDKhway(nums[0]), `${nums[0]} ခွေ`, khwayInlineAmt)) return;
+      }
+    }
+
+    // Direct pattern syntax support (Break '3b300', '3b400', '3b', '3ဘရိတ် 300', Head/Tail '4 ထိပ် 500 ပိတ် 200', multi-rumble '45 67 78 65r500', multi-clauses)
+    const isSpecialPattern = /[bB]|ဘရိတ်|ထိပ်|ပိတ်|အပါ|\bပါ\b|စုံစုံ|မမ|စုံမ|မစုံ|ပါဝါ|နက္ခတ်|ညီကို/.test(rawInput) ||
+                            (/\s{2,}/.test(rawInput)) ||
+                            (/(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(rawInput) && /\d{2}\s+\d{2}/.test(rawInput)) ||
+                            (/\d{1,2}\s*\/\s*\d{1,2}/.test(rawInput));
+
+    if (isSpecialPattern) {
+      const defAmt = parseFloat(convertMyanmarToEnglishDigits(amountInput).trim()) || 1000;
+      const parsedRes = parseTwoDBatchInput(rawInput, defAmt);
+      const parsedList = Array.isArray(parsedRes) ? parsedRes : (parsedRes as any).items;
+
+      if (parsedList && parsedList.length > 0) {
+        const newItems: TwoDBetItem[] = [];
+        const blockedFound: string[] = [];
+
+        parsedList.forEach((it: any) => {
+          if (isNumberBlocked(it.number)) {
+            blockedFound.push(it.number);
+          } else {
+            newItems.push({
+              id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              number: it.number,
+              amount: it.amount || defAmt,
+              isRumble: it.isRumble,
+              betType: it.betType || 'straight',
+              groupId: it.groupId,
+              originalNumber: it.originalNumber,
+              originalAmount: it.originalAmount,
+              permutations: it.permutations,
+              originalInput: it.originalInput || it.number
+            });
+          }
+        });
+
+        if (blockedFound.length > 0) {
+          playWarningSound();
+          showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${Array.from(new Set(blockedFound)).join(', ')}] ကို ပယ်ဖျက်ခဲ့သည်` : `Removed blocked numbers`, 'warning');
+        }
+
+        if (newItems.length > 0) {
+          playAddSound();
+          setItems((prev) => [...prev, ...newItems]);
+          setLatestDraftIds(newItems.map(i => i.id));
+          setNumberInput('');
+          if (!isFocusMode) {
+            setAmountInput('');
+          }
+          setIsRumble(false);
+          numberInputRef.current?.focus();
+
+          const totalAmt = newItems.reduce((sum, it) => sum + it.amount, 0);
+          setLastAddedFeedback({
+            text: `ဂဏန်း [${newItems.length} ကွက်] ${formatAmount(totalAmt, settings.currency)}`,
+            number: `${newItems.length} ကွက်`,
+            type: 'အထူးဂဏန်းတွဲ',
+            amount: totalAmt,
+            count: newItems.length
+          });
+          showToast(
+            isMyanmar ? `ဂဏန်း [${newItems.length} ကွက်] ${formatAmount(totalAmt, settings.currency)} စာရင်းသွင်းပြီးပါပြီ` : `Added ${newItems.length} bets (${formatAmount(totalAmt, settings.currency)})`,
+            'success'
+          );
+        }
+        return;
       }
     }
 

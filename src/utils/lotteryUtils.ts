@@ -87,8 +87,8 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
   const errors: string[] = [];
   if (!rawText.trim()) return { items, errors };
 
-  // Split by newlines, commas, semicolons
-  const lines = rawText.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  // Split by newlines, commas, semicolons, and 2+ consecutive spaces
+  const lines = rawText.split(/[\n,;]+/).flatMap(seg => seg.split(/\s{2,}/)).map(s => s.trim()).filter(Boolean);
 
   let idCounter = 1;
 
@@ -96,13 +96,13 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
     try {
       const myanmarConverted = convertMyanmarToEnglishDigits(line);
 
-      // Check for Head/Tail pattern (e.g., "4 ထိပ် 500 ပိတ် 200")
-      const headTailMatch = myanmarConverted.match(/(\d)\s*ထိပ်\s*(\d+)\s*ပိတ်\s*(\d+)/);
+      // Check for Head/Tail pattern (e.g., "4 ထိပ် 500 ပိတ် 200" or "4 ထိပ် 500 4 ပိတ် 200")
+      const headTailMatch = myanmarConverted.match(/(\d)\s*ထိပ်\s*(\d+)\s*(?:(\d)\s*)?ပိတ်\s*(\d+)/i);
       if (headTailMatch) {
         const headDigit = headTailMatch[1];
         const headAmt = parseInt(headTailMatch[2], 10);
-        const tailDigit = headTailMatch[1]; // Using the same digit for tail
-        const tailAmt = parseInt(headTailMatch[3], 10);
+        const tailDigit = headTailMatch[3] !== undefined ? headTailMatch[3] : headTailMatch[1]; // Using specified or inherited digit
+        const tailAmt = parseInt(headTailMatch[4], 10);
 
         if (!isNaN(headAmt) && headAmt > 0 && !isNaN(tailAmt) && tailAmt > 0) {
           // Generate Head numbers (4xx)
@@ -137,8 +137,8 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
         }
       }
 
-      // Check for Break pattern (e.g., "3 ဘရိတ် 300" or "3b300")
-      const breakMatch = myanmarConverted.match(/(\d)\s*ဘရိတ်\s*(\d+)/i) || myanmarConverted.match(/(\d)b(\d+)/i);
+      // Check for Break pattern (e.g., "3 ဘရိတ် 300" or "3b300" or "3b400")
+      const breakMatch = myanmarConverted.match(/(\d)\s*(?:ဘရိတ်|b|B)\s*(\d+)/i) || myanmarConverted.match(/(?:ဘရိတ်)\s*(\d)\s*(\d+)/i);
       if (breakMatch) {
         const breakSum = parseInt(breakMatch[1], 10);
         const breakAmt = parseInt(breakMatch[2], 10);
@@ -147,7 +147,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
           for (let i = 0; i <= 9; i++) {
             for (let j = 0; j <= 9; j++) {
               for (let k = 0; k <= 9; k++) {
-                if ((i + j + k) % 10 === breakSum) {
+                if ((i + j + k) % 10 === (breakSum % 10)) {
                   const num = `${i}${j}${k}`;
                   items.push({
                     id: `item-${Date.now()}-${idCounter++}`,

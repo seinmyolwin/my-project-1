@@ -256,10 +256,14 @@ export function parseTwoDBatchInput(
   // 2. Strip thousands separators (e.g. 1,000 -> 1000, 10,000 -> 10000)
   cleanText = cleanText.replace(/(\b\d{1,3})(,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
 
-  // 3. Split lines by newlines
-  const lines = cleanText.split(/[\r\n]+/);
+  // 3. Split lines by newlines, semicolons, or 2+ consecutive spaces (e.g. "3b300   45 67 78 65r500")
+  const lines = cleanText.split(/[\r\n;]+/).flatMap(seg => {
+    return seg.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+  });
 
   function processSingleLine(line: string) {
+    if (!line || !line.trim()) return;
+
     // Pattern 0: Direct / Reverse slash ratio pattern (e.g. "23 45 26 800/200" or "34 46 37 1000/500")
     // Extracts direct numbers for the 1st amount, and reversal (အာ) numbers for the 2nd amount
     const slashRatioMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
@@ -321,6 +325,67 @@ export function parseTwoDBatchInput(
           return;
         }
       }
+    }
+
+    // Pattern 0.5: Combined Head + Tail (e.g. "4 ထိပ် 500 ပိတ် 200" or "4ထိပ် 500 2ပိတ် 200")
+    const headTailCombined = line.match(/^(\d)\s*(?:ထိပ်|ရှေ့စီး|ရှေ့ပိတ်|h|H)\s*(\d+)\s*(?:(\d)\s*)?(?:နောက်ပိတ်|နောက်စီး|ပိတ်|t|T)\s*(\d+)(?:\s+(.*))?$/i);
+    if (headTailCombined) {
+      const headDigit = parseInt(headTailCombined[1], 10);
+      const headAmt = parseInt(headTailCombined[2], 10);
+      const tailDigit = headTailCombined[3] !== undefined ? parseInt(headTailCombined[3], 10) : headDigit;
+      const tailAmt = parseInt(headTailCombined[4], 10);
+      const remainder = (headTailCombined[5] || '').trim();
+
+      if (headDigit >= 0 && headDigit <= 9 && headAmt > 0) {
+        getTwoDHeadNumbers(headDigit).forEach(num => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: headAmt,
+            originalInput: `${headDigit} ထိပ် (${headAmt})`
+          });
+        });
+      }
+
+      if (tailDigit >= 0 && tailDigit <= 9 && tailAmt > 0) {
+        getTwoDTailNumbers(tailDigit).forEach(num => {
+          items.push({
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            number: num,
+            amount: tailAmt,
+            originalInput: `${tailDigit} ပိတ် (${tailAmt})`
+          });
+        });
+      }
+
+      if (remainder) {
+        processSingleLine(remainder);
+      }
+      return;
+    }
+
+    // Pattern 0.6: Break pattern with 'b' or 'ဘ' or 'ဘရိတ်' (e.g. "3b300", "3B400", "3b 300", "3ဘရိတ် 300", "3b")
+    const breakPatternMatch = line.match(/^(\d)\s*(?:b|B|ဘ|ဘရိတ်)\s*(\d*)(?:\s+(.*))?$/i) ||
+                              line.match(/^(?:ဘရိတ်)\s*(\d)\s*(\d*)(?:\s+(.*))?$/i);
+    if (breakPatternMatch) {
+      const brkDigit = parseInt(breakPatternMatch[1], 10) % 10;
+      const amtStr = breakPatternMatch[2];
+      const amt = amtStr && parseInt(amtStr, 10) > 0 ? parseInt(amtStr, 10) : defaultAmount;
+      const remainder = (breakPatternMatch[3] || '').trim();
+
+      getTwoDBreakNumbers(brkDigit).forEach(num => {
+        items.push({
+          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          number: num,
+          amount: amt,
+          originalInput: `${brkDigit} ဘရိတ် (${amt})`
+        });
+      });
+
+      if (remainder) {
+        processSingleLine(remainder);
+      }
+      return;
     }
 
     // Pattern 1: ခွေပူးအာ / ခွေပူးr (Khway + Puu + Rumble)
@@ -473,24 +538,6 @@ export function parseTwoDBatchInput(
       return;
     }
 
-    // Pattern: "5 ဘရိတ် 1000" or "0 ဘရိတ် 1000" or "ဘရိတ် 5 1000"
-    if (/ဘရိတ်/i.test(line)) {
-      const nums = line.match(/\d+/g);
-      if (nums && nums.length >= 1) {
-        const brk = parseInt(nums[0], 10) % 10;
-        const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
-        getTwoDBreakNumbers(brk).forEach(num => {
-          items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            number: num,
-            amount: amt,
-            originalInput: `${brk} ဘရိတ်`
-          });
-        });
-        return;
-      }
-    }
-
     // Pattern: "5 ပါ 1000", "5ပါ 500", "အပါ 5 1000"
     if (/(?:အပါ|ပါ)/i.test(line) && !/ပါဝါ/i.test(line)) {
       const nums = line.match(/\d+/g);
@@ -509,8 +556,8 @@ export function parseTwoDBatchInput(
       }
     }
 
-    // Pattern: "5 ထိပ် 1000", "ထိပ် 5 1000", "1 ရှေ့ပိတ် 1000"
-    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်)/i.test(line)) {
+    // Pattern: "5 ထိပ် 1000", "ထိပ် 5 1000", "1 ရှေ့ပိတ် 1000", "5h1000"
+    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်|h|H)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const headDigit = parseInt(nums[0].slice(-1), 10);
@@ -520,15 +567,15 @@ export function parseTwoDBatchInput(
             id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
             number: num,
             amount: amt,
-            originalInput: `${headDigit} ရှေ့ပိတ်`
+            originalInput: `${headDigit} ထိပ်`
           });
         });
         return;
       }
     }
 
-    // Pattern: "2 နောက်ပိတ် 1000", "5 နောက် 1000", "5 ပိတ် 1000"
-    if (/(?:နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်)/i.test(line) && !/(?:ရှေ့ပိတ်|ရှေ့စီး)/i.test(line)) {
+    // Pattern: "2 နောက်ပိတ် 1000", "5 နောက် 1000", "5 ပိတ် 1000", "5t1000"
+    if (/(?:နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်|t|T)/i.test(line) && !/(?:ရှေ့ပိတ်|ရှေ့စီး)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const tailDigit = parseInt(nums[0].slice(-1), 10);
