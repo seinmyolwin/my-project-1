@@ -96,6 +96,75 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
     try {
       const myanmarConverted = convertMyanmarToEnglishDigits(line);
 
+      // Check for Head/Tail pattern (e.g., "4 ထိပ် 500 ပိတ် 200")
+      const headTailMatch = myanmarConverted.match(/(\d)\s*ထိပ်\s*(\d+)\s*ပိတ်\s*(\d+)/);
+      if (headTailMatch) {
+        const headDigit = headTailMatch[1];
+        const headAmt = parseInt(headTailMatch[2], 10);
+        const tailDigit = headTailMatch[1]; // Using the same digit for tail
+        const tailAmt = parseInt(headTailMatch[3], 10);
+
+        if (!isNaN(headAmt) && headAmt > 0 && !isNaN(tailAmt) && tailAmt > 0) {
+          // Generate Head numbers (4xx)
+          for (let i = 0; i <= 9; i++) {
+            for (let j = 0; j <= 9; j++) {
+              const num = `${headDigit}${i}${j}`;
+              items.push({
+                id: `item-${Date.now()}-${idCounter++}`,
+                number: num,
+                amount: headAmt,
+                isRumble: false,
+                betType: 'straight',
+                originalInput: `${num} ထိပ် (${headAmt})`
+              });
+            }
+          }
+          // Generate Tail numbers (xx4)
+          for (let i = 0; i <= 9; i++) {
+            for (let j = 0; j <= 9; j++) {
+              const num = `${i}${j}${tailDigit}`;
+              items.push({
+                id: `item-${Date.now()}-${idCounter++}`,
+                number: num,
+                amount: tailAmt,
+                isRumble: false,
+                betType: 'straight',
+                originalInput: `${num} ပိတ် (${tailAmt})`
+              });
+            }
+          }
+          continue;
+        }
+      }
+
+      // Check for Break pattern (e.g., "3 ဘရိတ် 300" or "3b300")
+      const breakMatch = myanmarConverted.match(/(\d)\s*ဘရိတ်\s*(\d+)/i) || myanmarConverted.match(/(\d)b(\d+)/i);
+      if (breakMatch) {
+        const breakSum = parseInt(breakMatch[1], 10);
+        const breakAmt = parseInt(breakMatch[2], 10);
+
+        if (breakSum >= 0 && breakSum <= 27 && !isNaN(breakAmt) && breakAmt > 0) {
+          for (let i = 0; i <= 9; i++) {
+            for (let j = 0; j <= 9; j++) {
+              for (let k = 0; k <= 9; k++) {
+                if ((i + j + k) % 10 === breakSum) {
+                  const num = `${i}${j}${k}`;
+                  items.push({
+                    id: `item-${Date.now()}-${idCounter++}`,
+                    number: num,
+                    amount: breakAmt,
+                    isRumble: false,
+                    betType: 'straight',
+                    originalInput: `${num} ဘရိတ် (${breakSum}) (${breakAmt})`
+                  });
+                }
+              }
+            }
+          }
+          continue;
+        }
+      }
+
       // Check for 3D direct / rumble slash ratio pattern (e.g. "123 456 1000/200" or "123=1000/200")
       const slash3DMatch = myanmarConverted.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
                            myanmarConverted.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
