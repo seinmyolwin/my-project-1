@@ -19,6 +19,7 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
 import { getLocalDateStr, getDaysAgoStr, generateStatementRecords } from '../utils/statementUtils';
+import { getCustomerCommission } from '../utils/commissionUtils';
 
 interface PeriodSettlementModalProps {
   isOpen: boolean;
@@ -211,7 +212,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       }
     });
 
-    const totalCommission = Math.round((totalSales * customCommissionRate) / 100);
+    const commissionRate = getCustomerCommission(selectedTarget, customCommissionRate);
+    const totalCommission = Math.round((totalSales * commissionRate) / 100);
     const netBalance = (totalSales - totalCommission) - totalPayout;
 
     return {

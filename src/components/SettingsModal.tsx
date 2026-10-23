@@ -36,6 +36,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { verifyOwnerPassword } from '../utils/securityUtils';
+import { CustomerCommissionManager } from './CustomerCommissionManager';
 import { useLottery } from '../context/LotteryContext';
 import { printStatementReport } from '../utils/printUtils';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -3320,6 +3321,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ))}
                 </div>
               </div>
+
+              <CustomerCommissionManager />
+
 
               {/* Change Owner Password Form */}
               <form onSubmit={handleChangePin} className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl border border-slate-800 space-y-3">

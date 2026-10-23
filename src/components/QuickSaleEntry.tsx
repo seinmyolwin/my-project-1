@@ -88,7 +88,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
   // Single Item Input
   const [numberInput, setNumberInput] = useState('');
-  const [amountInput, setAmountInput] = useState('1000');
+  const [amountInput, setAmountInput] = useState('0');
   const [isRumble, setIsRumble] = useState(false);
 
   // Staged Bet Items in current voucher (with localStorage draft checkpoint recovery)
