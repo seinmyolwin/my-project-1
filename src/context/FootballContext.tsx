@@ -21,7 +21,7 @@ import {
 } from '../utils/storage';
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
-import { getLocalDateString } from '../utils/moneyUtils';
+import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 import { cleanDuplicateFootballSlips } from '../utils/deduplicationUtils';
 
 interface FootballContextType {
@@ -381,10 +381,21 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (settledSlipIds.size > 0) {
       setForwardSlips(prevFwds =>
         prevFwds.map(fwd => {
-          const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
-                          (fwd.slipNo && slips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
+          const parentSlip = slips.find(s => (fwd.slipId && s.id === fwd.slipId) || (fwd.slipNo && s.slipNo === fwd.slipNo));
+          const isMatch = parentSlip && settledSlipIds.has(parentSlip.id);
+          
           if (isMatch) {
-            return { ...fwd, status: 'settled' as const };
+            // Calculate forward payout based on parent slip's payout multiplier
+            let fwdPayout = 0;
+            if (parentSlip.stakeAmount > 0) {
+              const multiplier = (parentSlip.actualPayout || 0) / parentSlip.stakeAmount;
+              fwdPayout = safeRound(fwd.stakeAmount * multiplier);
+            }
+            return { 
+              ...fwd, 
+              status: 'settled' as const,
+              actualPayout: fwdPayout
+            };
           }
           return fwd;
         })

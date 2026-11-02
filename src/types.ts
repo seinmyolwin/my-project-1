@@ -60,6 +60,7 @@ export interface ForwardSlip {
   netPaid: number;
   createdAt: string;
   notes?: string;
+  actualPayout?: number; // ဒိုင်ကြီးဆီမှ ပြန်ရငွေ (Master Agent Payout)
 }
 
 export interface DrawRound {
@@ -256,6 +257,7 @@ export interface TwoDForwardSlip {
   netPaid: number;
   createdAt: string;
   notes?: string;
+  actualPayout?: number; // ဒိုင်ကြီးဆီမှ ပြန်ရငွေ (Master Agent Payout)
 }
 
 export interface TwoDQuickActionButtonsConfig {

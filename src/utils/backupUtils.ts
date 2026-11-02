@@ -296,6 +296,14 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
       'telegram': {
         config: getStorageItemSafe(TELEGRAM_STORAGE_KEYS.CONFIG),
         orders: getStorageItemSafe(TELEGRAM_STORAGE_KEYS.ORDERS)
+      },
+
+      // Auxiliary Shared Data
+      'auxiliary': {
+        masterAgents: getStorageItemSafe('shwe_master_agents_list'),
+        customerCommissions: getStorageItemSafe('shwe_customer_commissions_v1'),
+        deletedRounds2D: getStorageItemSafe('2d_ledger_deleted_rounds_v1'),
+        rawTextClips: getStorageItemSafe('shwe_mingalar_copied_raw_texts')
       }
     }
   };
@@ -555,6 +563,15 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       if (ptg) {
         setItemWithBackup(TELEGRAM_STORAGE_KEYS.CONFIG, ptg.config);
         setItemWithBackup(TELEGRAM_STORAGE_KEYS.ORDERS, ptg.orders);
+      }
+
+      // Restore Auxiliary Data
+      const paux = parsed.payload['auxiliary'];
+      if (paux) {
+        setItemWithBackup('shwe_master_agents_list', paux.masterAgents);
+        setItemWithBackup('shwe_customer_commissions_v1', paux.customerCommissions);
+        setItemWithBackup('2d_ledger_deleted_rounds_v1', paux.deletedRounds2D);
+        setItemWithBackup('shwe_mingalar_copied_raw_texts', paux.rawTextClips);
       }
 
       const totalVouchersRestored = count2D + count3D + countFB;

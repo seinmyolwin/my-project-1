@@ -868,6 +868,20 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       })
     );
 
+    // Update forward slips with actualPayout (Master Agent Payout)
+    setForwardSlips(prev =>
+      prev.map(f => {
+        if (f.roundId === activeRound.id) {
+          let payout = 0;
+          f.items.forEach(it => {
+            if (it.number === formattedNum) payout += it.amount * mult;
+          });
+          return { ...f, actualPayout: payout };
+        }
+        return f;
+      })
+    );
+
     // Update round status
     setRounds(prev =>
       prev.map(r =>
@@ -904,6 +918,16 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
           };
         }
         return v;
+      })
+    );
+
+    // Clear forward slips actualPayout
+    setForwardSlips(prev =>
+      prev.map(f => {
+        if (f.roundId === activeRound.id) {
+          return { ...f, actualPayout: undefined };
+        }
+        return f;
       })
     );
 

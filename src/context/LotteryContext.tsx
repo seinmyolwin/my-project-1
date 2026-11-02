@@ -800,7 +800,22 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             items: updatedItems
           };
         }
-        return v;
+      })
+    );
+
+    // Update forward slips with actualPayout (Master Agent Payout)
+    setForwardSlips(prev =>
+      prev.map(f => {
+        if (f.roundId === activeRoundId) {
+          let payout = 0;
+          const toddSet = new Set(getPermutations(winningNumber).filter(p => p !== winningNumber));
+          f.items.forEach(it => {
+            if (it.number === winningNumber) payout += it.amount * sMult;
+            else if (toddSet.has(it.number)) payout += it.amount * tMult;
+          });
+          return { ...f, actualPayout: payout };
+        }
+        return f;
       })
     );
 
@@ -839,6 +854,16 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           };
         }
         return v;
+      })
+    );
+
+    // Clear forward slips actualPayout
+    setForwardSlips(prev =>
+      prev.map(f => {
+        if (f.roundId === activeRoundId) {
+          return { ...f, actualPayout: undefined };
+        }
+        return f;
       })
     );
 

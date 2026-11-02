@@ -149,7 +149,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     lottery3D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const amt = v.netPayable ?? v.subtotal ?? 0;
+        // Use subtotal (original turnover) instead of netPayable to avoid double commission subtraction
+        const amt = v.subtotal ?? v.netPayable ?? 0;
         let payout = v.winningPayout ?? 0;
         if (!payout && v.items) {
           v.items.forEach((it: any) => {
@@ -173,7 +174,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     lottery2D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const amt = v.netPayable ?? v.subtotal ?? 0;
+        // Use subtotal (original turnover) instead of netPayable
+        const amt = v.subtotal ?? v.netPayable ?? 0;
         let payout = v.winningPayout ?? 0;
         if (!payout && v.items) {
           v.items.forEach((it: any) => {
@@ -197,7 +199,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     football.slips.forEach((s: any) => {
       const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
       if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
-        const amt = s.netPayable || s.stakeAmount || 0;
+        // Use stakeAmount (original turnover) instead of netPayable
+        const amt = s.stakeAmount || s.netPayable || 0;
         const payout = s.winningPayout || 0;
         totalSales += amt;
         totalPayout += payout;
