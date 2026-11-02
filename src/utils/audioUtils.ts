@@ -2,6 +2,7 @@
  * Audio feedback utility using HTML5 Web Audio API
  * Works 100% offline, zero latency, zero file download requirements.
  */
+import confetti from 'canvas-confetti';
 
 let audioCtx: AudioContext | null = null;
 
@@ -150,4 +151,62 @@ export function playDeleteSound(volume = 0.2) {
     osc.start(now);
     osc.stop(now + 0.08);
   } catch {}
+}
+
+/**
+ * Celebratory ribbon and confetti shower for winning number confirmation.
+ * Shoots colorful ribbon streamers and confetti floating upward into the air.
+ */
+export function triggerRibbonsCelebration() {
+  try {
+    playSuccessSound(0.28);
+
+    // Wave 1: Center blast upward (ribbons & particles flying high)
+    confetti({
+      particleCount: 110,
+      spread: 100,
+      startVelocity: 55,
+      origin: { y: 0.8 },
+      colors: ['#4f46e5', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#ef4444', '#14b8a6']
+    });
+
+    // Wave 2: Left side upward angled cannon
+    setTimeout(() => {
+      confetti({
+        particleCount: 65,
+        angle: 60,
+        spread: 60,
+        startVelocity: 50,
+        origin: { x: 0, y: 0.75 },
+        colors: ['#f59e0b', '#10b981', '#6366f1', '#ec4899']
+      });
+    }, 180);
+
+    // Wave 3: Right side upward angled cannon
+    setTimeout(() => {
+      confetti({
+        particleCount: 65,
+        angle: 120,
+        spread: 60,
+        startVelocity: 50,
+        origin: { x: 1, y: 0.75 },
+        colors: ['#ec4899', '#8b5cf6', '#3b82f6', '#10b981']
+      });
+    }, 360);
+
+    // Wave 4: Floating star/streamer rain shower
+    setTimeout(() => {
+      confetti({
+        particleCount: 75,
+        spread: 120,
+        origin: { y: 0.35 },
+        gravity: 0.7,
+        scalar: 1.25,
+        ticks: 250,
+        colors: ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#fbbf24']
+      });
+    }, 550);
+  } catch (err) {
+    console.warn('Celebration confetti error:', err);
+  }
 }

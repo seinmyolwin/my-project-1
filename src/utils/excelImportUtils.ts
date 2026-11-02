@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { Voucher, TwoDVoucher, FootballSlip, VoucherItem, TwoDVoucherItem } from '../types';
 import { STORAGE_KEYS, loadStoredData, saveStoredData } from './storage';
 import { getLocalDateStr } from './statementUtils';
+import { merge2DVouchersNoDuplicates, merge3DVouchersNoDuplicates, mergeFootballSlipsNoDuplicates } from './deduplicationUtils';
 
 export interface ExcelImportResult {
   success: boolean;
@@ -258,23 +259,38 @@ export async function importVouchersFromExcel(file: File): Promise<ExcelImportRe
           return;
         }
 
-        // Save merged data safely to localStorage
+        // Save merged data safely with deduplication
+        let totalAdded = 0;
+        let totalDuplicatesSkipped = 0;
+
         if (new2DVouchers.length > 0) {
-          const merged2D = [...new2DVouchers, ...existing2DVouchers];
-          saveStoredData(STORAGE_KEYS.VOUCHERS_2D, merged2D);
+          const res2D = merge2DVouchersNoDuplicates(existing2DVouchers, new2DVouchers);
+          saveStoredData(STORAGE_KEYS.VOUCHERS_2D, res2D.merged);
+          totalAdded += res2D.addedCount;
+          totalDuplicatesSkipped += res2D.duplicateCount;
         }
         if (new3DVouchers.length > 0) {
-          const merged3D = [...new3DVouchers, ...existing3DVouchers];
-          saveStoredData(STORAGE_KEYS.VOUCHERS, merged3D);
+          const res3D = merge3DVouchersNoDuplicates(existing3DVouchers, new3DVouchers);
+          saveStoredData(STORAGE_KEYS.VOUCHERS, res3D.merged);
+          totalAdded += res3D.addedCount;
+          totalDuplicatesSkipped += res3D.duplicateCount;
         }
         if (newFBSlips.length > 0) {
-          const mergedFB = [...newFBSlips, ...existingFBSlips];
-          saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, mergedFB);
+          const resFB = mergeFootballSlipsNoDuplicates(existingFBSlips, newFBSlips);
+          saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, resFB.merged);
+          totalAdded += resFB.addedCount;
+          totalDuplicatesSkipped += resFB.duplicateCount;
         }
+
+        const skipMsg = totalDuplicatesSkipped > 0
+          ? ` (ဘောင်ချာနံပါတ်/ဂဏန်း/ထိုးကြေးတူ ထပ်နေသော ဘောင်ချာ ${totalDuplicatesSkipped} စောင်အား ချန်လှပ်ထားခဲ့ပါသည်)`
+          : '';
 
         resolve({
           success: true,
-          message: `Excel ဖိုင်မှ ဘောင်ချာ စုစုပေါင်း (${totalImported}) စောင် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ`,
+          message: totalAdded > 0
+            ? `Excel ဖိုင်မှ ဘောင်ချာအသစ် (${totalAdded}) စောင် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ${skipMsg}`
+            : `Excel ဖိုင်ပါ ဘောင်ချာများအားလုံး စနစ်ထဲတွင် ရှိပြီးဖြစ်သဖြင့် ထပ်မံထည့်သွင်းခြင်း မပြုပါ (ထပ်နေသော ဘောင်ချာ ${totalDuplicatesSkipped} စောင်)`,
           counts: {
             '2d': new2DVouchers.length,
             '3d': new3DVouchers.length,

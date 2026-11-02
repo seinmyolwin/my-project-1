@@ -29,6 +29,8 @@ import { calculatePayout, getLocalDateString } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
+import { cleanDuplicate3DVouchers, merge3DVouchersNoDuplicates } from '../utils/deduplicationUtils';
+import { triggerRibbonsCelebration } from '../utils/audioUtils';
 
 interface LotteryContextType {
   settings: AppSettings;
@@ -167,9 +169,10 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return rounds[0]?.id || 'round-default';
   });
 
-  const [vouchers, setVouchers] = useState<Voucher[]>(() =>
-    loadStoredData(STORAGE_KEYS.VOUCHERS, INITIAL_VOUCHERS)
-  );
+  const [vouchers, setVouchers] = useState<Voucher[]>(() => {
+    const raw = loadStoredData(STORAGE_KEYS.VOUCHERS, INITIAL_VOUCHERS);
+    return cleanDuplicate3DVouchers(raw).cleaned;
+  });
 
   const [forwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() =>
     loadStoredData(STORAGE_KEYS.FORWARD_SLIPS, INITIAL_FORWARD_SLIPS)
@@ -792,13 +795,9 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
     );
 
-    // Trigger celebration confetti
+    // Trigger celebration ribbons and confetti shower
     try {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      triggerRibbonsCelebration();
     } catch {
       // ignore
     }
@@ -918,7 +917,10 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (data.settings) setSettingsState(data.settings);
       if (Array.isArray(data.rounds)) setRounds(data.rounds);
       if (data.activeRoundId) setActiveRoundIdState(data.activeRoundId);
-      if (Array.isArray(data.vouchers)) setVouchers(data.vouchers);
+      if (Array.isArray(data.vouchers)) {
+        const { cleaned } = cleanDuplicate3DVouchers(data.vouchers);
+        setVouchers(cleaned);
+      }
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
       if (data.limits) setLimits(data.limits);
       if (data.blockedNumbers) setBlockedNumbers(data.blockedNumbers);
@@ -930,29 +932,32 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const importRoundWithVouchers = useCallback((roundData: Omit<DrawRound, 'id'>, importedVouchers: Voucher[]) => {
-    const newRoundId = `round-imp-${Date.now()}`;
-    const newRound: DrawRound = {
-      ...roundData,
-      id: newRoundId
-    };
+    const existingRound = rounds.find(r => r.drawDate === roundData.drawDate);
+    const targetRoundId = existingRound ? existingRound.id : `round-imp-${Date.now()}`;
 
-    setRounds(prev => [newRound, ...prev]);
-    setActiveRoundIdState(newRoundId);
+    if (!existingRound) {
+      const newRound: DrawRound = {
+        ...roundData,
+        id: targetRoundId
+      };
+      setRounds(prev => [newRound, ...prev]);
+    }
+    setActiveRoundIdState(targetRoundId);
 
     const stampedVouchers = importedVouchers.map((v, idx) => ({
       ...v,
-      id: `v-imp-${newRoundId}-${idx}-${Date.now()}`,
-      roundId: newRoundId
+      id: v.id || `v-imp-${targetRoundId}-${idx}-${Date.now()}`,
+      roundId: targetRoundId
     }));
 
-    setVouchers(prev => [...stampedVouchers, ...prev]);
+    setVouchers(prev => merge3DVouchersNoDuplicates(prev, stampedVouchers).merged);
 
-    if (newRound.winningNumber && newRound.status === 'settled') {
+    if (roundData.winningNumber && roundData.status === 'settled') {
       setTimeout(() => {
-        settleWinningNumber(newRound.winningNumber!, newRound.multiplier, newRound.toddMultiplier);
+        settleWinningNumber(roundData.winningNumber!, roundData.multiplier, roundData.toddMultiplier);
       }, 100);
     }
-  }, [settleWinningNumber]);
+  }, [rounds, settleWinningNumber]);
 
   return (
     <LotteryContext.Provider

@@ -22,6 +22,7 @@ import {
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString } from '../utils/moneyUtils';
+import { cleanDuplicateFootballSlips } from '../utils/deduplicationUtils';
 
 interface FootballContextType {
   settings: FootballSettings;
@@ -83,9 +84,10 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return getLocalDateString();
   });
 
-  const [slips, setSlips] = useState<FootballSlip[]>(() =>
-    loadStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, INITIAL_FOOTBALL_SLIPS)
-  );
+  const [slips, setSlips] = useState<FootballSlip[]>(() => {
+    const raw = loadStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, INITIAL_FOOTBALL_SLIPS);
+    return cleanDuplicateFootballSlips(raw).cleaned;
+  });
 
   const [forwardSlips, setForwardSlips] = useState<FootballForwardSlip[]>(() =>
     loadStoredData(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, INITIAL_FOOTBALL_FORWARD_SLIPS)
@@ -777,7 +779,10 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (data.settings) setSettingsState(data.settings);
       if (Array.isArray(data.matches)) setMatches(data.matches);
-      if (Array.isArray(data.slips)) setSlips(data.slips);
+      if (Array.isArray(data.slips)) {
+        const { cleaned } = cleanDuplicateFootballSlips(data.slips);
+        setSlips(cleaned);
+      }
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
       if (Array.isArray(data.leagues)) setLeagues(data.leagues);
       if (data.activeDate) setActiveDateState(data.activeDate);

@@ -29,6 +29,8 @@ import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
+import { cleanDuplicate2DVouchers, merge2DVouchersNoDuplicates } from '../utils/deduplicationUtils';
+import { triggerRibbonsCelebration } from '../utils/audioUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -238,6 +240,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const todayMornId = `round-2d-${todayStr}-morn`;
     const targetRoundId = todayEveId;
 
+    let initialList: TwoDVoucher[] = [];
     if (loaded && loaded.length > 0) {
       const hasToday = loaded.some(v => v.roundId === todayEveId || v.roundId === todayMornId);
       if (!hasToday) {
@@ -247,17 +250,20 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
           roundId: targetRoundId,
           createdAt: new Date().toISOString()
         }));
-        return [...todayVouchers, ...loaded];
+        initialList = [...todayVouchers, ...loaded];
+      } else {
+        initialList = loaded;
       }
-      return loaded;
+    } else {
+      initialList = INITIAL_2D_VOUCHERS.map((v, idx) => ({
+        ...v,
+        id: `vouch-2d-init-${idx + 1}-${Date.now()}`,
+        roundId: targetRoundId,
+        createdAt: new Date().toISOString()
+      }));
     }
 
-    return INITIAL_2D_VOUCHERS.map((v, idx) => ({
-      ...v,
-      id: `vouch-2d-init-${idx + 1}-${Date.now()}`,
-      roundId: targetRoundId,
-      createdAt: new Date().toISOString()
-    }));
+    return cleanDuplicate2DVouchers(initialList).cleaned;
   });
 
   const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
@@ -910,16 +916,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       )
     );
 
-    if (evalResult.totalWinnersCount > 0) {
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      } catch (e) {
-        // Safe fail
-      }
+    try {
+      triggerRibbonsCelebration();
+    } catch {
+      // Safe fail
     }
   }, [activeRound, activeRoundVouchers, settings.defaultMultiplier, settings.language]);
 
@@ -1052,7 +1052,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       if (data.activeRoundId) setActiveRoundIdState(data.activeRoundId);
-      if (Array.isArray(data.vouchers)) setVouchers(data.vouchers);
+      if (Array.isArray(data.vouchers)) {
+        const { cleaned } = cleanDuplicate2DVouchers(data.vouchers);
+        setVouchers(cleaned);
+      }
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
       if (data.limits && typeof data.limits === 'object') setLimits(data.limits);
       if (data.blockedNumbers && typeof data.blockedNumbers === 'object') setBlockedNumbers(data.blockedNumbers);
@@ -1065,29 +1068,32 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const importRoundWithVouchers = useCallback((roundData: Omit<TwoDDrawRound, 'id'>, importedVouchers: TwoDVoucher[]) => {
-    const newRoundId = `2d-round-imp-${Date.now()}`;
-    const newRound: TwoDDrawRound = {
-      ...roundData,
-      id: newRoundId
-    };
+    const existingRound = rounds.find(r => r.drawDate === roundData.drawDate && (!roundData.session || r.session === roundData.session));
+    const targetRoundId = existingRound ? existingRound.id : `2d-round-imp-${Date.now()}`;
 
-    setRounds(prev => [newRound, ...prev]);
-    setActiveRoundIdState(newRoundId);
+    if (!existingRound) {
+      const newRound: TwoDDrawRound = {
+        ...roundData,
+        id: targetRoundId
+      };
+      setRounds(prev => [newRound, ...prev]);
+    }
+    setActiveRoundIdState(targetRoundId);
 
     const stampedVouchers = importedVouchers.map((v, idx) => ({
       ...v,
-      id: `v-2d-imp-${newRoundId}-${idx}-${Date.now()}`,
-      roundId: newRoundId
+      id: v.id || `v-2d-imp-${targetRoundId}-${idx}-${Date.now()}`,
+      roundId: targetRoundId
     }));
 
-    setVouchers(prev => [...stampedVouchers, ...prev]);
+    setVouchers(prev => merge2DVouchersNoDuplicates(prev, stampedVouchers).merged);
 
-    if (newRound.winningNumber && newRound.status === 'settled') {
+    if (roundData.winningNumber && roundData.status === 'settled') {
       setTimeout(() => {
-        settleWinningNumber(newRound.winningNumber!, newRound.multiplier);
+        settleWinningNumber(roundData.winningNumber!, roundData.multiplier);
       }, 100);
     }
-  }, [settleWinningNumber]);
+  }, [rounds, settleWinningNumber]);
 
   return (
     <TwoDLotteryContext.Provider

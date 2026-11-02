@@ -24,6 +24,7 @@ import {
   SingleRoundFinancialBreakdown,
   calculateThreeDSingleRoundStatement
 } from '../utils/statementUtils';
+import { triggerRibbonsCelebration } from '../utils/audioUtils';
 
 interface WinningPayoutViewProps {
   onOpenStatement?: () => void;
@@ -169,6 +170,16 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
       return;
     }
 
+    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier || 600;
+    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100;
+
+    // Settle directly in state and dispatch settled event
+    settleWinningNumber(cleanNum, mult, toddMult);
+    window.dispatchEvent(new CustomEvent('shwe_3d_round_settled', { detail: { roundId: activeRound?.id } }));
+
+    // Celebratory ribbons floating into the air
+    triggerRibbonsCelebration();
+
     // Set local confirmed state so results are displayed on screen for inspection
     setWinningInput(cleanNum);
     setConfirmedWinningNumber(cleanNum);
@@ -178,7 +189,7 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     setIsEnteringPassword(false);
     setConfirmPassword('');
     setConfirmError(null);
-    setSettledSuccessMsg(`ပေါက်မဲဂဏန်း [${cleanNum}] အား စစ်ဆေးအတည်ပြုပြီးပါပြီ။ အပြီးသတ်ပိတ်သိမ်းပြီး Excel စာရင်းချုပ်သိမ်းရန် အောက်ပါခလုတ်ကို နှိပ်ပါ`);
+    setSettledSuccessMsg(`ပေါက်မဲဂဏန်း [${cleanNum}] အား အောင်မြင်စွာ အတည်ပြုသိမ်းဆည်းပြီးပါပြီ!`);
 
     setTimeout(() => {
       setSettledSuccessMsg(null);
@@ -192,23 +203,18 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     const mult = parseInt(multiplierInput, 10) || 600;
     const toddMult = parseInt(toddMultiplierInput, 10) || 100;
 
-    // 1. Auto-save comprehensive Excel report to device first!
-    try {
-      exportToExcel();
-    } catch (err) {
-      console.warn('Auto Excel export error:', err);
-    }
-
-    // 2. Officially settle round status to 'settled' in context & localStorage
+    // 1. Officially settle round status to 'settled' in context & localStorage (No auto Excel download)
     settleWinningNumber(targetNum, mult, toddMult);
 
     // Officially close and reset all forward operations for this round to a clean blank page
     window.dispatchEvent(new CustomEvent('shwe_3d_round_settled', { detail: { roundId: activeRound?.id } }));
 
+    triggerRibbonsCelebration();
+
     setIsWinningConfirmed(false);
     setConfirmedWinningNumber('');
     setIsTestingMode(false);
-    setSettledSuccessMsg(`ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းချုပ် Excel ဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
+    setSettledSuccessMsg(`ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး ပေါက်မဲစာရင်းကို အောင်မြင်စွာ အတည်ပြုပြီးပါပြီ!`);
 
     setTimeout(() => {
       setSettledSuccessMsg(null);

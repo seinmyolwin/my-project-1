@@ -13,7 +13,8 @@ import {
   Layers,
   Calendar,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -30,7 +31,8 @@ import {
 } from '../utils/backupUtils';
 import { getStoredOwnerPin, verifyOwnerPin } from '../utils/securityUtils';
 import { getLocalDateStr, getDaysAgoStr } from '../utils/statementUtils';
-
+import { STORAGE_KEYS, saveStoredData } from '../utils/storage';
+import { cleanDuplicate2DVouchers, cleanDuplicate3DVouchers, cleanDuplicateFootballSlips } from '../utils/deduplicationUtils';
 import { importVouchersFromExcel } from '../utils/excelImportUtils';
 
 interface UnifiedBackupModalProps {
@@ -286,6 +288,26 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     } finally {
       setIsImportingExcel(false);
       if (excelFileInputRef.current) excelFileInputRef.current.value = '';
+    }
+  };
+
+  // Manual Cleanup of existing duplicate vouchers
+  const handleCleanDuplicates = () => {
+    const res2D = cleanDuplicate2DVouchers(lottery2D.vouchers);
+    const res3D = cleanDuplicate3DVouchers(lottery3D.vouchers);
+    const resFB = cleanDuplicateFootballSlips(football.slips);
+
+    const totalDuplicates = res2D.duplicateCount + res3D.duplicateCount + resFB.duplicateCount;
+
+    if (totalDuplicates > 0) {
+      saveStoredData(STORAGE_KEYS.VOUCHERS_2D, res2D.cleaned);
+      saveStoredData(STORAGE_KEYS.VOUCHERS, res3D.cleaned);
+      saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, resFB.cleaned);
+
+      showMsg(`ထပ်နေသော ဘောင်ချာ စုစုပေါင်း (${totalDuplicates}) စောင်ကို အောင်မြင်စွာ ဖယ်ရှားရှင်းလင်းပြီးပါပြီ။`);
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      showMsg('ထပ်နေသော ဘောင်ချာမရှိပါ (စာရင်းအားလုံး သန့်ရှင်းမှန်ကန်ပါသည်)', 'success');
     }
   };
 
@@ -613,6 +635,28 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
                     ၂D၊ ၃D နှင့် ဘောလုံး ဘောင်ချာစာရင်းများကို လက်ရှိစာရင်းများ မပျက်စေဘဲ ပေါင်းစပ်ထည့်သွင်းပေးပါမည်
                   </p>
                 </div>
+              </div>
+
+              {/* Action 4: Clean Duplicated Vouchers */}
+              <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
+                <span className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>၄။ ဘောင်ချာအထပ်များ စစ်ဆေးဖယ်ရှားရန်:</span>
+                  </span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleCleanDuplicates}
+                  className="w-full p-2.5 rounded-xl border border-amber-300 bg-amber-50/70 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 shadow-xs"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>ထပ်နေသော ဘောင်ချာများ ရှာဖွေဖယ်ရှားမည် (Auto Clean Duplicates)</span>
+                </button>
+                <p className="text-[10px] text-slate-500">
+                  * ဖိုင်သွင်းမိ၍ ဘောင်ချာနှစ်ခါဖြစ်ပြီး ရှင်းတမ်းတွင် ထပ်နေပါက ဤခလုတ်ဖြင့် ချက်ချင်း ဖယ်ရှားရှင်းလင်းနိုင်ပါသည်
+                </p>
               </div>
             </div>
           )}

@@ -1,6 +1,7 @@
 import { evaluateTwoDWinnings, normalizeTwoDMultiplier } from './twoDLotteryUtils';
 import { evaluateWinnings, getPermutations } from './lotteryUtils';
 import { TwoDVoucher, TwoDDrawRound, Voucher, DrawRound, FootballSlip, ForwardSlip } from '../types';
+import { cleanDuplicate2DVouchers, cleanDuplicate3DVouchers, cleanDuplicateFootballSlips } from './deduplicationUtils';
 
 export interface StatementRecord {
   id: string;
@@ -166,10 +167,11 @@ export function generateStatementRecords(
       if (roundDate >= startDate && roundDate <= endDate && round.winningNumber && round.winningNumber.trim() !== '') {
         processedRoundIds.add(round.id);
 
-        const roundVouchers = data.lottery2D.vouchers.filter(
+        const rawRoundVouchers = data.lottery2D.vouchers.filter(
           (v) => (v.roundId ? v.roundId === round.id : (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
                  v.status !== 'cancelled'
         );
+        const roundVouchers = cleanDuplicate2DVouchers(rawRoundVouchers).cleaned;
 
         // Forward slips must strictly belong to this specific round only (no cross-round leakage)
         const roundForwards = data.lottery2D.forwardSlips.filter(
@@ -287,10 +289,11 @@ export function generateStatementRecords(
     });
 
     // Catch any orphaned vouchers without round assigned
-    const orphanedVouchers = data.lottery2D.vouchers.filter(v => {
+    const rawOrphanedVouchers = data.lottery2D.vouchers.filter(v => {
       const vDate = (v.createdAt || '').slice(0, 10);
       return vDate >= startDate && vDate <= endDate && v.status !== 'cancelled' && (!v.roundId || !allRoundIds2D.has(v.roundId));
     });
+    const orphanedVouchers = cleanDuplicate2DVouchers(rawOrphanedVouchers).cleaned;
 
     if (orphanedVouchers.length > 0) {
       const groupedByDate: { [d: string]: typeof orphanedVouchers } = {};
@@ -375,10 +378,11 @@ export function generateStatementRecords(
       if (roundDate >= startDate && roundDate <= endDate && round.winningNumber && round.winningNumber.trim() !== '') {
         processed3DRoundIds.add(round.id);
 
-        const roundVouchers = data.lottery3D.vouchers.filter(
+        const raw3DRoundVouchers = data.lottery3D.vouchers.filter(
           (v) => (v.roundId ? v.roundId === round.id : (!v.roundId && (v.createdAt || '').slice(0, 10) === roundDate)) &&
                  v.status !== 'cancelled'
         );
+        const roundVouchers = cleanDuplicate3DVouchers(raw3DRoundVouchers).cleaned;
 
         // 3D Forward slips must strictly belong to this specific round only (no cross-round leakage)
         const roundForwards = data.lottery3D.forwardSlips.filter(
@@ -502,10 +506,11 @@ export function generateStatementRecords(
     });
 
     // Catch any orphaned 3D vouchers without round
-    const orphaned3DVouchers = data.lottery3D.vouchers.filter(v => {
+    const raw3DOrphaned = data.lottery3D.vouchers.filter(v => {
       const vDate = (v.createdAt || '').slice(0, 10);
       return vDate >= startDate && vDate <= endDate && v.status !== 'cancelled' && (!v.roundId || !allRoundIds3D.has(v.roundId));
     });
+    const orphaned3DVouchers = cleanDuplicate3DVouchers(raw3DOrphaned).cleaned;
 
     if (orphaned3DVouchers.length > 0) {
       const grouped3DByDate: { [d: string]: typeof orphaned3DVouchers } = {};
@@ -580,10 +585,11 @@ export function generateStatementRecords(
   // 3. Process Football (ပစ်တိုင်းထောင်)
   // ====================================================
   if (mode === 'all' || mode === 'football') {
-    const slips = data.football.slips.filter((s) => {
+    const rawSlips = data.football.slips.filter((s) => {
       const slipDate = s.roundDate || (s.createdAt || '').slice(0, 10);
       return slipDate >= startDate && slipDate <= endDate && s.status !== 'cancelled';
     });
+    const slips = cleanDuplicateFootballSlips(rawSlips).cleaned;
 
     if (slips.length > 0) {
       const slipsByDate: { [date: string]: FootballSlip[] } = {};

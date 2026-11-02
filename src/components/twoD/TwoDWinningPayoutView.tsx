@@ -23,6 +23,7 @@ import {
   SingleRoundFinancialBreakdown,
   calculateTwoDSingleRoundStatement
 } from '../../utils/statementUtils';
+import { triggerRibbonsCelebration } from '../../utils/audioUtils';
 
 interface TwoDWinningPayoutViewProps {
   onOpenStatement?: () => void;
@@ -172,6 +173,16 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
       return;
     }
 
+    let rawMult = parseFloat(multiplierInput);
+    const mult = !isNaN(rawMult) && rawMult > 0 ? normalizeTwoDMultiplier(rawMult) : normalizeTwoDMultiplier(settings.defaultMultiplier || 80);
+
+    // Settle directly in state and trigger celebratory ribbons
+    settleWinningNumber(cleanNum, mult);
+    window.dispatchEvent(new CustomEvent('shwe_2d_round_settled', { detail: { roundId: activeRound?.id } }));
+
+    // Celebratory ribbons soaring into the air
+    triggerRibbonsCelebration();
+
     // Set local confirmed state so results are displayed on screen for inspection
     setWinningInput(cleanNum);
     setConfirmedWinningNumber(cleanNum);
@@ -181,7 +192,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     setIsEnteringPassword(false);
     setConfirmPassword('');
     setConfirmError(null);
-    setSettledSuccessMsg(`ပေါက်မဲဂဏန်း [${cleanNum}] အား စစ်ဆေးအတည်ပြုပြီးပါပြီ။ အပြီးသတ်ပိတ်သိမ်းပြီး Excel စာရင်းချုပ်သိမ်းရန် အောက်ပါခလုတ်ကို နှိပ်ပါ`);
+    setSettledSuccessMsg(`ပေါက်မဲဂဏန်း [${cleanNum}] အား အောင်မြင်စွာ အတည်ပြုသိမ်းဆည်းပြီးပါပြီ!`);
 
     setTimeout(() => {
       setSettledSuccessMsg(null);
@@ -277,17 +288,13 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
       isProfit: netProfit >= 0
     };
 
-    // 2. Auto-save the comprehensive 2D Excel report to device with updated settled status and winners
-    try {
-      exportToExcel(settledRound, evalRes.settledVouchers, settledSummary);
-    } catch (err) {
-      console.warn('Auto Excel export error:', err);
-    }
+    // No auto Excel export per user instruction. User can manually download via "Excel ဒေါင်းမည်" button if needed.
+    triggerRibbonsCelebration();
 
     setIsWinningConfirmed(false);
     setConfirmedWinningNumber('');
     setIsTestingMode(false);
-    setSettledSuccessMsg(`ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းချုပ် Excel ဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
+    setSettledSuccessMsg(`ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး ပေါက်မဲစာရင်းကို အောင်မြင်စွာ အတည်ပြုပြီးပါပြီ!`);
 
     setTimeout(() => {
       setSettledSuccessMsg(null);
@@ -690,7 +697,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                   ပေါက်မဲဂဏန်း [{confirmedWinningNumber}] အား စစ်ဆေးအတည်ပြုပြီးပါပြီ
                 </h4>
                 <p className="text-xs text-emerald-800">
-                  ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းဇယားဖိုင်ကို စက်ထဲသို့ အော်တိုဒေါင်းလုဒ်ဆွဲရန် အောက်ပါခလုတ်ကို နှိပ်ပါ။
+                  ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းအတည်ပြုရန် အောက်ပါခလုတ်ကို နှိပ်ပါ။
                 </p>
               </div>
             </div>
@@ -699,8 +706,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
               onClick={handleCloseRound}
               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0 animate-bounce"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>ပွဲစဉ်ပိတ်သိမ်းမည် & စာရင်းသိမ်းမည် (အော်တိုဒေါင်းလုဒ်)</span>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>ပွဲစဉ်ပိတ်သိမ်းပြီး အပြီးသတ်အတည်ပြုမည်</span>
             </button>
           </div>
         )}
