@@ -72,6 +72,7 @@ import {
   getBackupFileName
 } from '../utils/backupUtils';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
+import { importVouchersFromExcel } from '../utils/excelImportUtils';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -226,6 +227,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+
+  // Restore Password Prompt State in SettingsModal
+  const [pendingBackupContent, setPendingBackupContent] = useState<string | null>(null);
+  const [isRestorePinModalOpen, setIsRestorePinModalOpen] = useState(false);
+  const [restorePinInput, setRestorePinInput] = useState('');
+  const [restorePinError, setRestorePinError] = useState<string | null>(null);
 
   // Excel Export Handlers
   const handleExport3DExcel = () => {
@@ -1385,6 +1394,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (result.success) {
           setBackupMsg({ type: 'success', text: `${result.message}။ အက်ပ်အား Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
           setTimeout(() => window.location.reload(), 1500);
+        } else if (result.requiresPin) {
+          setPendingBackupContent(content);
+          setRestorePinInput('');
+          setRestorePinError(null);
+          setIsRestorePinModalOpen(true);
         } else {
           setBackupMsg({ type: 'error', text: result.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ' });
         }
@@ -1394,6 +1408,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
     reader.readAsText(file);
     if (backupFileInputRef.current) backupFileInputRef.current.value = '';
+  };
+
+  const handleConfirmRestorePin = () => {
+    if (!pendingBackupContent) return;
+    const trimmedPin = restorePinInput.trim();
+    if (trimmedPin.length !== 6) {
+      setRestorePinError('Password သည် ဂဏန်း ၆ လုံး အတိအကျ ဖြစ်ရပါမည်');
+      return;
+    }
+
+    const result = restoreSecureMasterBackup(pendingBackupContent, trimmedPin);
+    if (result.success) {
+      setIsRestorePinModalOpen(false);
+      setPendingBackupContent(null);
+      setBackupMsg({ type: 'success', text: `${result.message}။ အက်ပ်အား Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      setRestorePinError(result.message || 'Password မှားယွင်းနေပါသည်');
+    }
+  };
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingExcel(true);
+    try {
+      const res = await importVouchersFromExcel(file);
+      if (res.success) {
+        setBackupMsg({ type: 'success', text: `${res.message}။ စာရင်းများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setBackupMsg({ type: 'error', text: res.message });
+      }
+    } catch (err: any) {
+      setBackupMsg({ type: 'error', text: `Excel ဖတ်ရှုမှု မအောင်မြင်ပါ: ${err?.message || ''}` });
+    } finally {
+      setIsImportingExcel(false);
+      if (excelFileInputRef.current) excelFileInputRef.current.value = '';
+    }
   };
 
   // Filtered Lists for UI
@@ -1535,7 +1589,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-sky-400" />
-            <span>Excel ထုတ်ရန်</span>
+            <span>Excel စာရင်း (သွင်း/ထုတ်)</span>
           </button>
         </div>
 
@@ -3475,14 +3529,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={handleFileRestore}
                   className="hidden"
                 />
-                <button
-                  type="button"
-                  onClick={() => backupFileInputRef.current?.click()}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>ဖိုင်ရွေးချယ်ပြီး ပြန်သွင်းမည်</span>
-                </button>
+                <input
+                  ref={excelFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleExcelImport}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => backupFileInputRef.current?.click()}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Backup ဖိုင် (.rhmg) ပြန်သွင်းမည်</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => excelFileInputRef.current?.click()}
+                    disabled={isImportingExcel}
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-98 disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{isImportingExcel ? 'သွင်းနေပါသည်...' : 'Excel ဖိုင် (.xlsx/.csv) မှ ပြန်သွင်းမည်'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* 3. Period-based Voucher Retention & Export */}
@@ -3918,18 +3990,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
 
           {/* ==================================================== */}
-          {/* TAB 7: EXCEL EXPORT (EXCEL ထုတ်ရန်) */}
+          {/* TAB 7: EXCEL (EXCEL သွင်း/ထုတ်) */}
           {/* ==================================================== */}
           {activeTab === 'excel' && (
             <div className="space-y-4">
-              <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 space-y-2">
-                <h4 className="text-xs font-black text-sky-950 uppercase flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-sky-600" />
-                  <span>ရုံးသုံးအတွက် Excel ဖိုင် (.xlsx) ထုတ်ယူရန် နေရာ</span>
-                </h4>
+              <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="text-xs font-black text-sky-950 uppercase flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-sky-600" />
+                    <span>Excel ဖိုင် (.xlsx / .csv) ထုတ်ယူခြင်း နှင့် ပြန်လည်သွင်းယူခြင်း</span>
+                  </h4>
+                </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  အရောင်းဘောင်ချာများ၊ ဂဏန်းအချုပ်စာရင်းဇယား (Master Ledger) များနှင့် ရှင်းတမ်းများကို Excel ဖိုင်အဖြစ် တိုက်ရိုက် ထုတ်ယူသိမ်းဆည်းနိုင်ပါသည်။
+                  အရောင်းဘောင်ချာများ၊ ဂဏန်းအချုပ်စာရင်းဇယား (Master Ledger) များနှင့် ရှင်းတမ်းများကို Excel ဖိုင်အဖြစ် ထုတ်ယူနိုင်သည့်အပြင်၊ အခြားစက် သို့မဟုတ် ဖုန်းများမှ ထုတ်ထားသော Excel ဘောင်ချာဖိုင်များကိုလည်း ပြန်လည်သွင်းယူနိုင်ပါသည်။
                 </p>
+
+                {/* Direct Excel Import Section */}
+                <div className="bg-white p-3 rounded-xl border border-sky-200 shadow-2xs flex items-center justify-between flex-wrap gap-2">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-black text-slate-900 block flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Excel (.xlsx / .xls / .csv) မှ ဘောင်ချာများ စာရင်းထဲ ပြန်သွင်းရန်</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      အိုးစည်လေး (3D)၊ ဇီးကွက် (2D) နှင့် ပစ်တိုင်းထောင် (Football) Excel ဘောင်ချာစာရင်းများကို စနစ်ထဲသို့ ပေါင်းစည်းထည့်သွင်းပေးပါမည် (မူလဒေတာမပျက်ပါ)။
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => excelFileInputRef.current?.click()}
+                    disabled={isImportingExcel}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{isImportingExcel ? 'သွင်းနေပါသည်...' : 'Excel ဖိုင် ရွေးချယ်သွင်းမည်'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4254,6 +4350,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl cursor-pointer"
               >
                 ပိတ်မည်
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Prompt Modal for Protected Backup Restore */}
+      {isRestorePinModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 text-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center mx-auto">
+              <KeyRound className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-sm font-black text-slate-900">
+                Backup လျှို့ဝှက်နံပါတ် လိုအပ်ပါသည်
+              </h3>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                ဤ Backup ဖိုင်သည် မူလစက်တွင် Password ဖြင့် အကာအကွယ်ပြုလုပ်ထားပါသည်။ ဖိုင်ထုတ်ယူခဲ့သည့် စက်၏ လျှို့ဝှက်နံပါတ် (၆ လုံး) ကို ရိုက်ထည့်ပေးပါ။
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={restorePinInput}
+                onChange={(e) => {
+                  setRestorePinInput(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  setRestorePinError(null);
+                }}
+                placeholder="ဂဏန်း ၆ လုံး"
+                autoFocus
+                className="w-full bg-slate-50 border-2 border-indigo-500 rounded-xl p-2.5 text-center text-sm font-mono font-black text-slate-900 tracking-widest outline-none shadow-2xs"
+              />
+
+              {restorePinError && (
+                <p className="text-xs text-rose-600 font-bold animate-pulse">
+                  ⚠️ {restorePinError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRestorePinModalOpen(false);
+                  setPendingBackupContent(null);
+                  setRestorePinInput('');
+                  setRestorePinError(null);
+                }}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all cursor-pointer text-xs"
+              >
+                မလုပ်တော့ပါ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRestorePin}
+                disabled={restorePinInput.length !== 6}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black rounded-xl transition-all cursor-pointer shadow-xs text-xs"
+              >
+                အတည်ပြုသွင်းမည်
               </button>
             </div>
           </div>

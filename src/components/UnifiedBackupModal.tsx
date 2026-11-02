@@ -31,6 +31,8 @@ import {
 import { getStoredOwnerPin, verifyOwnerPin } from '../utils/securityUtils';
 import { getLocalDateStr, getDaysAgoStr } from '../utils/statementUtils';
 
+import { importVouchersFromExcel } from '../utils/excelImportUtils';
+
 interface UnifiedBackupModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -64,8 +66,16 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   });
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [includePinProtection, setIncludePinProtection] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+
+  // Restore Password Prompt State
+  const [pendingFileContent, setPendingFileContent] = useState<string | null>(null);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [restorePinInput, setRestorePinInput] = useState('');
+  const [restorePinError, setRestorePinError] = useState<string | null>(null);
 
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMessage({ text, type });
@@ -219,6 +229,12 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
         if (result.success) {
           showMsg(`${result.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
           setTimeout(() => window.location.reload(), 1500);
+        } else if (result.requiresPin) {
+          // File is password-protected or password differed from this device: prompt user!
+          setPendingFileContent(content);
+          setRestorePinInput('');
+          setRestorePinError(null);
+          setIsPasswordModalOpen(true);
         } else {
           showMsg(result.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ', 'error');
         }
@@ -229,6 +245,48 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Confirm password entered by user for restore
+  const handleConfirmRestorePin = () => {
+    if (!pendingFileContent) return;
+    const trimmedPin = restorePinInput.trim();
+    if (trimmedPin.length !== 6) {
+      setRestorePinError('Password သည် ဂဏန်း ၆ လုံး အတိအကျ ဖြစ်ရပါမည်');
+      return;
+    }
+
+    const result = restoreSecureMasterBackup(pendingFileContent, trimmedPin);
+    if (result.success) {
+      setIsPasswordModalOpen(false);
+      setPendingFileContent(null);
+      showMsg(`${result.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      setRestorePinError(result.message || 'Password မှားယွင်းနေပါသည်');
+    }
+  };
+
+  // Handle Excel File Import
+  const handleExcelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingExcel(true);
+    try {
+      const res = await importVouchersFromExcel(file);
+      if (res.success) {
+        showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        showMsg(res.message, 'error');
+      }
+    } catch (err: any) {
+      showMsg(`Excel ဖတ်ရှုမှု မအောင်မြင်ပါ: ${err?.message || ''}`, 'error');
+    } finally {
+      setIsImportingExcel(false);
+      if (excelFileInputRef.current) excelFileInputRef.current.value = '';
+    }
   };
 
   // ====================================================
@@ -523,7 +581,36 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
                     .rhmg ဖိုင်အား ဤနေရာတွင် နှိပ်၍ ရွေးချယ်ပါ
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    လျှို့ဝှက်ကုဒ်အား အလိုအလျောက် ဖြည်ချပြီး ဒေတာအားလုံး ပြန်သွင်းပေးမည်
+                    ဖိုင် Password ရှိပါက ရိုက်ထည့်နိုင်ပြီး စာရင်းဒေတာအားလုံး ၁၀၀% အပြည့်အစုံ ပြန်သွင်းပေးမည်
+                  </p>
+                </div>
+              </div>
+
+              {/* Action 3: Import from Excel */}
+              <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>၃။ Excel (.xlsx / .csv) မှ ဘောင်ချာများ ပြန်သွင်းရန်:</span>
+                </span>
+
+                <input
+                  ref={excelFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleExcelFileChange}
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => !isImportingExcel && excelFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl p-3 text-center cursor-pointer transition-colors bg-emerald-50/30 hover:bg-emerald-50/60 group"
+                >
+                  <FileSpreadsheet className="w-5 h-5 mx-auto text-emerald-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <div className="text-xs font-bold text-emerald-950">
+                    {isImportingExcel ? 'Excel ဖိုင် ဖတ်ရှုနေပါသည်...' : 'Excel ဖိုင် (.xlsx, .xls) အား ဤနေရာတွင် ရွေးချယ်ပါ'}
+                  </div>
+                  <p className="text-[10px] text-emerald-700">
+                    ၂D၊ ၃D နှင့် ဘောလုံး ဘောင်ချာစာရင်းများကို လက်ရှိစာရင်းများ မပျက်စေဘဲ ပေါင်းစပ်ထည့်သွင်းပေးပါမည်
                   </p>
                 </div>
               </div>
@@ -720,6 +807,76 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
         </div>
 
       </div>
+
+      {/* Password Prompt Modal for Encrypted Backup Restore */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-5 text-white shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-white">Backup Password ရိုက်ထည့်ပါ</h4>
+                <p className="text-[11px] text-slate-400">ဖိုင်ထုတ်ယူစဉ်က သတ်မှတ်ခဲ့သော ဂဏန်း ၆ လုံး</p>
+              </div>
+            </div>
+
+            {restorePinError && (
+              <div className="p-2.5 bg-rose-950/90 border border-rose-700 text-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{restorePinError}</span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-300">
+                လျှို့ဝှက်နံပါတ် (Password ၆ လုံး):
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={restorePinInput}
+                onChange={(e) => {
+                  setRestorePinInput(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  setRestorePinError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmRestorePin();
+                }}
+                placeholder="ဂဏန်း ၆ လုံး"
+                className="w-full bg-slate-800 border-2 border-slate-700 focus:border-indigo-500 rounded-2xl p-2.5 text-center font-mono font-black text-lg tracking-widest text-white outline-none shadow-inner"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setPendingFileContent(null);
+                  setRestorePinInput('');
+                  setRestorePinError(null);
+                }}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                မသွင်းတော့ပါ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRestorePin}
+                disabled={restorePinInput.trim().length !== 6}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95"
+              >
+                အတည်ပြု သွင်းမည်
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from './storage';
-import { SECURITY_STORAGE_KEYS, obscurePin, verifyObscuredPin } from './securityUtils';
+import { SECURITY_STORAGE_KEYS, obscurePin, verifyObscuredPin, revealObscuredPin } from './securityUtils';
 
 export const TELEGRAM_STORAGE_KEYS = {
   CONFIG: 'shwe_mingalar_telegram_config',
@@ -9,6 +9,22 @@ export const TELEGRAM_STORAGE_KEYS = {
 const CIPHER_HEADER = '-----BEGIN SHWE MINGALAR SECURE ENCRYPTED LEDGER ARCHIVE v3-----';
 const CIPHER_FOOTER = '-----END SHWE MINGALAR SECURE ENCRYPTED LEDGER ARCHIVE-----';
 const SECRET_SEED = 'SHWE_MINGALAR_PRO_BOOKIE_SECURE_KEY_2026_!@#$%^&*()';
+
+function getStorageItemSafe(key: string): string | null {
+  try {
+    const primary = localStorage.getItem(key);
+    if (primary !== null && primary !== undefined && primary !== '') {
+      return primary;
+    }
+    const backup = localStorage.getItem(`${key}_backup`);
+    if (backup !== null && backup !== undefined && backup !== '') {
+      return backup;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
 
 /**
  * Custom fast & resilient string encryption/obfuscation cipher
@@ -228,26 +244,6 @@ export function downloadJSONFile(content: string, filename: string) {
   downloadFile(content, filename, 'application/json;charset=utf-8');
 }
 
-function cleanJsonStripPhone(rawStr: string | null): string | null {
-  if (!rawStr) return rawStr;
-  try {
-    const parsed = JSON.parse(rawStr);
-    if (Array.isArray(parsed)) {
-      const cleaned = parsed.map((item: any) => {
-        if (item && typeof item === 'object') {
-          const { customerPhone, ...rest } = item;
-          return rest;
-        }
-        return item;
-      });
-      return JSON.stringify(cleaned);
-    }
-  } catch {
-    // ignore
-  }
-  return rawStr;
-}
-
 /**
  * Exports 100% of ALL system data in a secure, unreadable, encrypted format (.rhmg)
  */
@@ -260,45 +256,45 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
     payload: {
       // 3D Lottery Data
       '3d': {
-        rounds: localStorage.getItem(STORAGE_KEYS.ROUNDS),
-        vouchers: cleanJsonStripPhone(localStorage.getItem(STORAGE_KEYS.VOUCHERS)),
-        limits: localStorage.getItem(STORAGE_KEYS.LIMITS),
-        blocked: localStorage.getItem(STORAGE_KEYS.BLOCKED),
-        forwardSlips: localStorage.getItem(STORAGE_KEYS.FORWARD_SLIPS),
-        settings: localStorage.getItem(STORAGE_KEYS.SETTINGS),
-        activeRoundId: localStorage.getItem(STORAGE_KEYS.ACTIVE_ROUND_ID)
+        rounds: getStorageItemSafe(STORAGE_KEYS.ROUNDS),
+        vouchers: getStorageItemSafe(STORAGE_KEYS.VOUCHERS),
+        limits: getStorageItemSafe(STORAGE_KEYS.LIMITS),
+        blocked: getStorageItemSafe(STORAGE_KEYS.BLOCKED),
+        forwardSlips: getStorageItemSafe(STORAGE_KEYS.FORWARD_SLIPS),
+        settings: getStorageItemSafe(STORAGE_KEYS.SETTINGS),
+        activeRoundId: getStorageItemSafe(STORAGE_KEYS.ACTIVE_ROUND_ID)
       },
       // 2D Lottery Data
       '2d': {
-        rounds: localStorage.getItem(STORAGE_KEYS.ROUNDS_2D),
-        vouchers: cleanJsonStripPhone(localStorage.getItem(STORAGE_KEYS.VOUCHERS_2D)),
-        limits: localStorage.getItem(STORAGE_KEYS.LIMITS_2D),
-        blocked: localStorage.getItem(STORAGE_KEYS.BLOCKED_2D),
-        forwardSlips: localStorage.getItem(STORAGE_KEYS.FORWARD_SLIPS_2D),
-        settings: localStorage.getItem(STORAGE_KEYS.SETTINGS_2D),
-        activeRoundId: localStorage.getItem(STORAGE_KEYS.ACTIVE_ROUND_ID_2D)
+        rounds: getStorageItemSafe(STORAGE_KEYS.ROUNDS_2D),
+        vouchers: getStorageItemSafe(STORAGE_KEYS.VOUCHERS_2D),
+        limits: getStorageItemSafe(STORAGE_KEYS.LIMITS_2D),
+        blocked: getStorageItemSafe(STORAGE_KEYS.BLOCKED_2D),
+        forwardSlips: getStorageItemSafe(STORAGE_KEYS.FORWARD_SLIPS_2D),
+        settings: getStorageItemSafe(STORAGE_KEYS.SETTINGS_2D),
+        activeRoundId: getStorageItemSafe(STORAGE_KEYS.ACTIVE_ROUND_ID_2D)
       },
       // Football Data
       'football': {
-        matches: localStorage.getItem(STORAGE_KEYS.MATCHES_FOOTBALL),
-        slips: cleanJsonStripPhone(localStorage.getItem(STORAGE_KEYS.SLIPS_FOOTBALL)),
-        forwardSlips: localStorage.getItem(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL),
-        settings: localStorage.getItem(STORAGE_KEYS.SETTINGS_FOOTBALL),
-        activeDate: localStorage.getItem(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL),
-        leagues: localStorage.getItem(STORAGE_KEYS.LEAGUES_FOOTBALL)
+        matches: getStorageItemSafe(STORAGE_KEYS.MATCHES_FOOTBALL),
+        slips: getStorageItemSafe(STORAGE_KEYS.SLIPS_FOOTBALL),
+        forwardSlips: getStorageItemSafe(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL),
+        settings: getStorageItemSafe(STORAGE_KEYS.SETTINGS_FOOTBALL),
+        activeDate: getStorageItemSafe(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL),
+        leagues: getStorageItemSafe(STORAGE_KEYS.LEAGUES_FOOTBALL)
       },
       // Security & System Modes
       'security': {
-        ownerPin: obscurePin(localStorage.getItem(SECURITY_STORAGE_KEYS.OWNER_PIN)),
-        enabledModes: localStorage.getItem(SECURITY_STORAGE_KEYS.ENABLED_MODES),
-        setupCompleted: localStorage.getItem(SECURITY_STORAGE_KEYS.SETUP_COMPLETED),
-        activeDealerMode: localStorage.getItem(STORAGE_KEYS.DEALER_MODE)
+        ownerPin: obscurePin(getStorageItemSafe(SECURITY_STORAGE_KEYS.OWNER_PASSWORD) || getStorageItemSafe(SECURITY_STORAGE_KEYS.OWNER_PIN)),
+        enabledModes: getStorageItemSafe(SECURITY_STORAGE_KEYS.ENABLED_MODES),
+        setupCompleted: getStorageItemSafe(SECURITY_STORAGE_KEYS.SETUP_COMPLETED),
+        activeDealerMode: getStorageItemSafe(STORAGE_KEYS.DEALER_MODE)
       },
 
       // Telegram Integration Orders & Config
       'telegram': {
-        config: localStorage.getItem(TELEGRAM_STORAGE_KEYS.CONFIG),
-        orders: cleanJsonStripPhone(localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS))
+        config: getStorageItemSafe(TELEGRAM_STORAGE_KEYS.CONFIG),
+        orders: getStorageItemSafe(TELEGRAM_STORAGE_KEYS.ORDERS)
       }
     }
   };
@@ -343,14 +339,23 @@ function validateBackupSchema(parsed: any): boolean {
   return true;
 }
 
-/**
- * Restores 100% of ALL system data from encrypted .rhmg file (or legacy JSON backup)
- */
-export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: string = ''): {
+export interface RestoreResult {
   success: boolean;
   message: string;
   isLegacy?: boolean;
-} {
+  requiresPin?: boolean;
+  counts?: {
+    '2d': number;
+    '3d': number;
+    'football': number;
+  };
+}
+
+/**
+ * Restores 100% of ALL system data from encrypted .rhmg file (or legacy JSON backup)
+ * Prompts cleanly for PIN if password-protected, never drops vouchers, and ensures safe restore.
+ */
+export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: string = ''): RestoreResult {
   try {
     const trimmed = rawFileContent.trim();
 
@@ -369,7 +374,6 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
       }
 
       if (!payloadLine) {
-        // Fallback search between headers
         const startIdx = trimmed.indexOf(CIPHER_HEADER) + CIPHER_HEADER.length;
         const endIdx = trimmed.indexOf(CIPHER_FOOTER);
         const body = trimmed.substring(startIdx, endIdx);
@@ -381,36 +385,51 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
         return { success: false, message: 'ဖိုင်အတွင်းမှ Encrypted Data ရှာမတွေ့ပါ' };
       }
 
-      // Decrypt
       let decryptedJson = '';
-      try {
-        decryptedJson = decryptPayload(payloadLine, ownerPin);
-      } catch (err) {
-        // Try without PIN if PIN failed
+      let decryptionSuccess = false;
+
+      // 1. Try with user-provided ownerPin first
+      if (ownerPin) {
         try {
-          decryptedJson = decryptPayload(payloadLine, '');
+          const test = decryptPayload(payloadLine, ownerPin);
+          const computedChecksum = generateChecksum(test);
+          if (computedChecksum === headerChecksum) {
+            decryptedJson = test;
+            decryptionSuccess = true;
+          }
         } catch {
-          return { success: false, message: 'ဖိုင်ဖွင့်၍ မရပါ (PIN နံပါတ် မှားယွင်းနိုင်ပါသည်)' };
+          // ignore
         }
       }
 
-      // 1. Verify Checksum
-      const computedChecksum = generateChecksum(decryptedJson);
-      if (computedChecksum !== headerChecksum) {
-        return { success: false, message: 'ဖိုင်၏ Checksum မကိုက်ညီပါ (Data Integrity Error)' };
+      // 2. Try without PIN (in case backup was unencrypted)
+      if (!decryptionSuccess) {
+        try {
+          const test = decryptPayload(payloadLine, '');
+          const computedChecksum = generateChecksum(test);
+          if (computedChecksum === headerChecksum) {
+            decryptedJson = test;
+            decryptionSuccess = true;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 3. If still not decrypted, prompt user for PIN
+      if (!decryptionSuccess) {
+        return {
+          success: false,
+          requiresPin: true,
+          message: ownerPin
+            ? 'ရိုက်ထည့်ထားသော Password မှားယွင်းနေပါသည်! Backup ဖိုင် ထုတ်ယူစဉ်က သတ်မှတ်ခဲ့သော Password (ဂဏန်း ၆ လုံး) အား ပြန်လည်စစ်ဆေးပါ'
+            : 'ဤ Backup ဖိုင်သည် Password ဖြင့် လုံခြုံစွာ ကာကွယ်ထားပါသည်! ကျေးဇူးပြု၍ ဖိုင်၏ Password (ဂဏန်း ၆ လုံး) ရိုက်ထည့်ပေးပါ'
+        };
       }
 
       const parsed = JSON.parse(decryptedJson);
       if (!validateBackupSchema(parsed)) {
         return { success: false, message: 'ဒေတာ ဖော်မတ်/စကီးမား မှားယွင်းနေပါသည် (Schema Validation Failed)' };
-      }
-
-      // Confirm with owner before overwriting
-      if (typeof window !== 'undefined') {
-        const confirmed = window.confirm('ရှိပြီးသား ဒေတာများကို Backup ဖိုင်ဖြင့် အစားထိုး သိမ်းဆည်းရန် သေချာပါသလား? လက်ရှိ ဒေတာများကို Snapshot အနေဖြင့် လုံခြုံစွာ သိမ်းဆည်းပြီးမှသာ ဆက်လက်ဆောင်ရွက်ပါမည်။');
-        if (!confirmed) {
-          return { success: false, message: 'ဒေတာ ပြန်လည်သွင်းယူမှုကို ပယ်ဖျက်လိုက်ပါသည်' };
-        }
       }
 
       // 2. Take Snapshot before overwrite
@@ -421,223 +440,116 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
             const k = localStorage.key(i);
             if (k) snapshotData[k] = localStorage.getItem(k);
           }
-          if (!localStorage.getItem('pre_migration_snapshot_v1')) {
-            localStorage.setItem('pre_migration_snapshot_v1', JSON.stringify(snapshotData));
-          }
           localStorage.setItem(`pre_restore_snapshot_${Date.now()}`, JSON.stringify(snapshotData));
         }
       } catch (snapErr) {
         console.warn('Pre-restore snapshot warning:', snapErr);
       }
 
-      // Validate security PIN if stored in backup
-      const psec = parsed.payload['security'];
-      if (psec && psec.ownerPin && ownerPin) {
-        if (!verifyObscuredPin(ownerPin, psec.ownerPin)) {
-          return { success: false, message: 'PIN နံပါတ် မှားယွင်းနေပါသည် (Invalid Security PIN)' };
-        }
-      }
+      let count3D = 0;
+      let count2D = 0;
+      let countFB = 0;
 
-      const warningMessages: string[] = [];
-
-      // Restore 3D
+      // Restore 3D (Never drop any vouchers!)
       const p3 = parsed.payload['3d'];
       if (p3) {
-        const raw3DRounds = p3.rounds;
-        const validRoundIds = new Set<string>();
-        if (raw3DRounds) {
+        if (p3.vouchers) {
           try {
-            const parsedRounds = JSON.parse(raw3DRounds);
-            if (Array.isArray(parsedRounds)) {
-              parsedRounds.forEach((r: any) => r?.id && validRoundIds.add(r.id));
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        // Validate 3D Vouchers
-        let v3Str = cleanJsonStripPhone(p3.vouchers);
-        if (v3Str && validRoundIds.size > 0) {
-          try {
-            const parsedV = JSON.parse(v3Str);
-            if (Array.isArray(parsedV)) {
-              const validV = parsedV.filter((v: any) => validRoundIds.has(v?.roundId));
-              const orphanedV = parsedV.filter((v: any) => !validRoundIds.has(v?.roundId));
-              if (orphanedV.length > 0) {
-                localStorage.setItem('shwe_orphaned_3d_vouchers', JSON.stringify(orphanedV));
-                warningMessages.push(`3D ဘောင်ချာ (${orphanedV.length}) စောင် ပွဲစဉ် ID မကိုက်ညီသဖြင့် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
-              }
-              v3Str = JSON.stringify(validV);
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        // Validate 3D Forward Slips
-        let f3Str = p3.forwardSlips;
-        if (f3Str && validRoundIds.size > 0) {
-          try {
-            const parsedF = JSON.parse(f3Str);
-            if (Array.isArray(parsedF)) {
-              const validF = parsedF.filter((f: any) => validRoundIds.has(f?.roundId));
-              const orphanedF = parsedF.filter((f: any) => !validRoundIds.has(f?.roundId));
-              if (orphanedF.length > 0) {
-                localStorage.setItem('shwe_orphaned_3d_forward_slips', JSON.stringify(orphanedF));
-                warningMessages.push(`3D ဒိုင်လွှဲစာရင်း (${orphanedF.length}) စောင် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
-              }
-              f3Str = JSON.stringify(validF);
-            }
+            const vArr = JSON.parse(p3.vouchers);
+            if (Array.isArray(vArr)) count3D = vArr.length;
           } catch {
             // ignore
           }
         }
 
         setItemWithBackup(STORAGE_KEYS.ROUNDS, p3.rounds);
-        setItemWithBackup(STORAGE_KEYS.VOUCHERS, v3Str);
+        setItemWithBackup(STORAGE_KEYS.VOUCHERS, p3.vouchers);
         setItemWithBackup(STORAGE_KEYS.LIMITS, p3.limits);
         setItemWithBackup(STORAGE_KEYS.BLOCKED, p3.blocked);
-        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS, f3Str);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS, p3.forwardSlips);
         setItemWithBackup(STORAGE_KEYS.SETTINGS, p3.settings);
         setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID, p3.activeRoundId);
       }
 
-      // Restore 2D
+      // Restore 2D (Never drop any vouchers!)
       const p2 = parsed.payload['2d'];
       if (p2) {
-        const raw2DRounds = p2.rounds;
-        const validRoundIds = new Set<string>();
-        if (raw2DRounds) {
+        if (p2.vouchers) {
           try {
-            const parsedRounds = JSON.parse(raw2DRounds);
-            if (Array.isArray(parsedRounds)) {
-              parsedRounds.forEach((r: any) => r?.id && validRoundIds.add(r.id));
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        // Validate 2D Vouchers
-        let v2Str = cleanJsonStripPhone(p2.vouchers);
-        if (v2Str && validRoundIds.size > 0) {
-          try {
-            const parsedV = JSON.parse(v2Str);
-            if (Array.isArray(parsedV)) {
-              const validV = parsedV.filter((v: any) => validRoundIds.has(v?.roundId));
-              const orphanedV = parsedV.filter((v: any) => !validRoundIds.has(v?.roundId));
-              if (orphanedV.length > 0) {
-                localStorage.setItem('shwe_orphaned_2d_vouchers', JSON.stringify(orphanedV));
-                warningMessages.push(`2D ဘောင်ချာ (${orphanedV.length}) စောင် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
-              }
-              v2Str = JSON.stringify(validV);
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        // Validate 2D Forward Slips
-        let f2Str = p2.forwardSlips;
-        if (f2Str && validRoundIds.size > 0) {
-          try {
-            const parsedF = JSON.parse(f2Str);
-            if (Array.isArray(parsedF)) {
-              const validF = parsedF.filter((f: any) => validRoundIds.has(f?.roundId));
-              const orphanedF = parsedF.filter((f: any) => !validRoundIds.has(f?.roundId));
-              if (orphanedF.length > 0) {
-                localStorage.setItem('shwe_orphaned_2d_forward_slips', JSON.stringify(orphanedF));
-                warningMessages.push(`2D ဒိုင်လွှဲစာရင်း (${orphanedF.length}) စောင် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
-              }
-              f2Str = JSON.stringify(validF);
-            }
+            const vArr = JSON.parse(p2.vouchers);
+            if (Array.isArray(vArr)) count2D = vArr.length;
           } catch {
             // ignore
           }
         }
 
         setItemWithBackup(STORAGE_KEYS.ROUNDS_2D, p2.rounds);
-        setItemWithBackup(STORAGE_KEYS.VOUCHERS_2D, v2Str);
+        setItemWithBackup(STORAGE_KEYS.VOUCHERS_2D, p2.vouchers);
         setItemWithBackup(STORAGE_KEYS.LIMITS_2D, p2.limits);
         setItemWithBackup(STORAGE_KEYS.BLOCKED_2D, p2.blocked);
-        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_2D, f2Str);
+        setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_2D, p2.forwardSlips);
         setItemWithBackup(STORAGE_KEYS.SETTINGS_2D, p2.settings);
         setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, p2.activeRoundId);
       }
 
-      // Restore Football
+      // Restore Football (Never drop any slips!)
       const pf = parsed.payload['football'];
       if (pf) {
-        const rawMatches = pf.matches;
-        const validMatchIds = new Set<string>();
-        if (rawMatches) {
+        if (pf.slips) {
           try {
-            const parsedMatches = JSON.parse(rawMatches);
-            if (Array.isArray(parsedMatches)) {
-              parsedMatches.forEach((m: any) => m?.id && validMatchIds.add(m.id));
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        let sfStr = cleanJsonStripPhone(pf.slips);
-        if (sfStr && validMatchIds.size > 0) {
-          try {
-            const parsedS = JSON.parse(sfStr);
-            if (Array.isArray(parsedS)) {
-              const orphanedS: any[] = [];
-              const validS = parsedS.filter((s: any) => {
-                const hasMissingMatch = s?.selections?.some((sel: any) => sel?.matchId && !validMatchIds.has(sel.matchId));
-                if (hasMissingMatch) {
-                  orphanedS.push(s);
-                  return false;
-                }
-                return true;
-              });
-              if (orphanedS.length > 0) {
-                localStorage.setItem('shwe_orphaned_football_slips', JSON.stringify(orphanedS));
-                warningMessages.push(`ဘောလုံးဘောင်ချာ (${orphanedS.length}) စောင်၏ ပွဲစဉ်များ မပြည့်စုံသဖြင့် သီးခြားမှတ်တမ်းတွင် သိမ်းဆည်းထားပါသည်`);
-              }
-              sfStr = JSON.stringify(validS);
-            }
+            const sArr = JSON.parse(pf.slips);
+            if (Array.isArray(sArr)) countFB = sArr.length;
           } catch {
             // ignore
           }
         }
 
         setItemWithBackup(STORAGE_KEYS.MATCHES_FOOTBALL, pf.matches);
-        setItemWithBackup(STORAGE_KEYS.SLIPS_FOOTBALL, sfStr);
+        setItemWithBackup(STORAGE_KEYS.SLIPS_FOOTBALL, pf.slips);
         setItemWithBackup(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, pf.forwardSlips);
         setItemWithBackup(STORAGE_KEYS.SETTINGS_FOOTBALL, pf.settings);
         setItemWithBackup(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, pf.activeDate);
         setItemWithBackup(STORAGE_KEYS.LEAGUES_FOOTBALL, pf.leagues);
       }
 
-      // Restore Security & Modes
+      // Restore Security & Modes cleanly without corrupting password
+      const psec = parsed.payload['security'];
       if (psec) {
-        setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PIN, psec.ownerPin);
-        setItemWithBackup(SECURITY_STORAGE_KEYS.ENABLED_MODES, psec.enabledModes);
-        setItemWithBackup(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, psec.setupCompleted);
-        setItemWithBackup(STORAGE_KEYS.DEALER_MODE, psec.activeDealerMode);
+        const revealed = revealObscuredPin(psec.ownerPin);
+        if (revealed && /^\d{6}$/.test(revealed)) {
+          setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PASSWORD, revealed);
+          setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PIN, revealed);
+          setItemWithBackup(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, 'true');
+        } else if (ownerPin && /^\d{6}$/.test(ownerPin.trim())) {
+          setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PASSWORD, ownerPin.trim());
+          setItemWithBackup(SECURITY_STORAGE_KEYS.OWNER_PIN, ownerPin.trim());
+          setItemWithBackup(SECURITY_STORAGE_KEYS.SETUP_COMPLETED, 'true');
+        }
+        if (psec.enabledModes) {
+          setItemWithBackup(SECURITY_STORAGE_KEYS.ENABLED_MODES, psec.enabledModes);
+        }
+        if (psec.activeDealerMode) {
+          setItemWithBackup(STORAGE_KEYS.DEALER_MODE, psec.activeDealerMode);
+        }
       }
 
       // Restore Telegram
       const ptg = parsed.payload['telegram'];
       if (ptg) {
         setItemWithBackup(TELEGRAM_STORAGE_KEYS.CONFIG, ptg.config);
-        setItemWithBackup(TELEGRAM_STORAGE_KEYS.ORDERS, cleanJsonStripPhone(ptg.orders));
+        setItemWithBackup(TELEGRAM_STORAGE_KEYS.ORDERS, ptg.orders);
       }
 
-      let finalMsg = 'လုံခြုံစိတ်ချရသော Encrypted Master Backup ဒေတာအားလုံး အောင်မြင်စွာ ပြန်လည်သွင်းယူပြီးပါပြီ';
-      if (warningMessages.length > 0) {
-        finalMsg += `\n(${warningMessages.join('၊ ')})`;
-      }
+      const totalVouchersRestored = count2D + count3D + countFB;
 
       return {
         success: true,
-        message: finalMsg
+        message: `လုံခြုံစိတ်ချရသော Encrypted Master Backup ဒေတာအားလုံး အောင်မြင်စွာ ပြန်လည်သွင်းယူပြီးပါပြီ (စုစုပေါင်း ဘောင်ချာ ${totalVouchersRestored} စောင် ပါဝင်ပါသည်)`,
+        counts: {
+          '2d': count2D,
+          '3d': count3D,
+          'football': countFB
+        }
       };
     }
 

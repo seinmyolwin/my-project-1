@@ -97,6 +97,31 @@ export function verifyObscuredPin(inputPin: string, obscured: string | null): bo
 }
 
 /**
+ * Recovers 6-digit plaintext PIN from obscured representation during restore
+ */
+export function revealObscuredPin(obscured: string | null): string | null {
+  if (!obscured) return null;
+  const trimmed = obscured.trim();
+  if (/^\d{6}$/.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('OBSCURED_PIN_v1::')) {
+    const parts = trimmed.split('::');
+    if (parts.length >= 3) {
+      try {
+        const decoded = atob(parts[2]);
+        const salt = 'SHWE_MINGALAR_PIN_SALT_2026_';
+        if (decoded.startsWith(salt)) {
+          const pin = decoded.slice(salt.length).trim();
+          if (/^\d{6}$/.test(pin)) return pin;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Get current stored master password (strictly custom 6 digits)
  */
 export function getStoredOwnerPassword(): string {
