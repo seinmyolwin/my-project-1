@@ -251,6 +251,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
         if (it.number === targetNum) totalForwardedForWinNum += it.amount;
       });
     });
+    const totalPayout = mult > 0 ? totalSoldForWinNum * mult : 0;
+    const masterPayout = mult > 0 ? totalForwardedForWinNum * mult : 0;
     const retainedAmount = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
     const dealerPayout = mult > 0 ? retainedAmount * mult : 0;
 
@@ -271,7 +273,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     });
 
     const netPaid = totalForwarded - forwardedCommission;
-    const netProfit = netRevenue - netPaid - dealerPayout;
+    const netProfit = netRevenue - netPaid - totalPayout + masterPayout;
 
     const settledSummary = {
       totalSales,

@@ -170,12 +170,12 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   const [vouchers, setVouchers] = useState<Voucher[]>(() => {
-    const raw = loadStoredData(STORAGE_KEYS.VOUCHERS, INITIAL_VOUCHERS);
-    return cleanDuplicate3DVouchers(raw).cleaned;
+    const raw = loadStoredData<Voucher[]>(STORAGE_KEYS.VOUCHERS, []);
+    return cleanDuplicate3DVouchers(raw || []).cleaned;
   });
 
   const [forwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() =>
-    loadStoredData(STORAGE_KEYS.FORWARD_SLIPS, INITIAL_FORWARD_SLIPS)
+    loadStoredData<ForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS, [])
   );
 
   const [limits, setLimits] = useState<NumberLimit>(() =>
@@ -410,13 +410,22 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
       });
 
+      const masterPayout = (straightForwarded * straightMult) + (toddForwarded * toddMult);
       const retainedStraight = Math.max(0, straightSold - straightForwarded);
       const retainedTodd = Math.max(0, toddSold - toddForwarded);
       retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
     }
 
     const netPaid = totalForwarded - forwardedCommission;
-    const netProfit = netRevenue - netPaid - retainedPayout;
+    const netProfit = netRevenue - netPaid - totalPayout + (activeRound?.winningNumber ? ((activeRoundForwardSlips.reduce((sum, f) => {
+      let fSum = 0;
+      const toddSet = new Set(getPermutations(activeRound.winningNumber!));
+      f.items.forEach(it => {
+        if (it.number === activeRound.winningNumber) fSum += it.amount * (activeRound.multiplier || settings.defaultMultiplier || 0);
+        else if (toddSet.has(it.number)) fSum += it.amount * (activeRound.toddMultiplier || settings.defaultToddMultiplier || 0);
+      });
+      return sum + fSum;
+    }, 0))) : 0);
 
     return {
       totalSales,

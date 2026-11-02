@@ -235,48 +235,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
     const loaded = loadStoredData<TwoDVoucher[]>(STORAGE_KEYS.VOUCHERS_2D, []);
-    const todayStr = getLocalDateString();
-    const todayEveId = `round-2d-${todayStr}-eve`;
-    const todayMornId = `round-2d-${todayStr}-morn`;
-    const targetRoundId = todayEveId;
-
-    let initialList: TwoDVoucher[] = [];
-    if (loaded && loaded.length > 0) {
-      const hasToday = loaded.some(v => v.roundId === todayEveId || v.roundId === todayMornId);
-      if (!hasToday) {
-        const todayVouchers: TwoDVoucher[] = INITIAL_2D_VOUCHERS.map((v, idx) => ({
-          ...v,
-          id: `vouch-2d-today-${idx + 1}-${Date.now()}`,
-          roundId: targetRoundId,
-          createdAt: new Date().toISOString()
-        }));
-        initialList = [...todayVouchers, ...loaded];
-      } else {
-        initialList = loaded;
-      }
-    } else {
-      initialList = INITIAL_2D_VOUCHERS.map((v, idx) => ({
-        ...v,
-        id: `vouch-2d-init-${idx + 1}-${Date.now()}`,
-        roundId: targetRoundId,
-        createdAt: new Date().toISOString()
-      }));
-    }
-
-    return cleanDuplicate2DVouchers(initialList).cleaned;
+    return cleanDuplicate2DVouchers(loaded || []).cleaned;
   });
 
   const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
     const loaded = loadStoredData<TwoDForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_2D, []);
-    const todayStr = getLocalDateString();
-    const todayEveId = `round-2d-${todayStr}-eve`;
-    if (loaded && loaded.length > 0) {
-      return loaded;
-    }
-    return INITIAL_2D_FORWARD_SLIPS.map(f => ({
-      ...f,
-      roundId: todayEveId
-    }));
+    return loaded || [];
   });
 
   const [limits, setLimits] = useState<NumberLimit>(() =>
@@ -837,6 +801,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
 
     let totalPayout = 0;
+    let masterPayout = 0;
     let retainedPayout = 0;
     let totalWinnersCount = 0;
 
@@ -847,15 +812,17 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       totalWinnersCount = evalResult.totalWinnersCount;
       totalPayout = evalResult.totalPayout;
 
-      // ဒိုင်လွှဲ စနစ်: ဒိုင်ကြီးက ဒိုင်လွှဲထားသော ဂဏန်းရဲ့ ပေါက်ငွေ ဆုံးရှုံးမှုကို ယူသည်။
-      // ဒိုင်ကိုယ်တိုင် ထိန်းထားသော ဂဏန်းပေါ် ပေါက်ငွေသာ ပေးရသည်။
+      // ဒိုင်လွှဲ စနစ်: ဒိုင်ကြီးဆီ လွှဲထားသော ဂဏန်းပေါက်ပါက ဒိုင်ကြီးဆီမှ ပေါက်ကြေး ပြန်ရသည်။
       const winningAgg = aggregates[formattedNum];
+      const forwardedWonAmount = winningAgg ? winningAgg.forwardedAmount : 0;
+      masterPayout = mult > 0 ? forwardedWonAmount * mult : 0;
       const retainedAmount = winningAgg ? Math.max(0, winningAgg.retainedAmount) : 0;
       retainedPayout = mult > 0 ? retainedAmount * mult : 0;
     }
 
     const netPaid = safeRound(totalForwarded - forwardedCommission);
-    const netProfit = safeRound(netRevenue - netPaid - retainedPayout);
+    // ဒိုင်အသားတင် အမြတ်/အရှုံး = Customer Net Revenue - Net Paid to Master Bookie - Total Payout + Master Payout
+    const netProfit = safeRound(netRevenue - netPaid - totalPayout + masterPayout);
 
     return {
       totalSales,

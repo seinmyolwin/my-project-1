@@ -85,12 +85,12 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [slips, setSlips] = useState<FootballSlip[]>(() => {
-    const raw = loadStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, INITIAL_FOOTBALL_SLIPS);
-    return cleanDuplicateFootballSlips(raw).cleaned;
+    const raw = loadStoredData<FootballSlip[]>(STORAGE_KEYS.SLIPS_FOOTBALL, []);
+    return cleanDuplicateFootballSlips(raw || []).cleaned;
   });
 
   const [forwardSlips, setForwardSlips] = useState<FootballForwardSlip[]>(() =>
-    loadStoredData(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, INITIAL_FOOTBALL_FORWARD_SLIPS)
+    loadStoredData<FootballForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, [])
   );
 
   const [leagues, setLeagues] = useState<FootballLeague[]>(() =>
