@@ -550,23 +550,17 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                       </div>
 
                       <div className="flex items-center gap-1">
-                        {v.status !== 'cancelled' ? (
-                          <button
-                            onClick={() => updateVoucher(v.id, { status: 'cancelled' })}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 transition-colors cursor-pointer"
-                            title="ဘောင်ချာ ပယ်ဖျက်မည်"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => deleteVoucher(v.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                            title="စာရင်းမှ လုံးဝဖျက်မည်"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            if (window.confirm(isMyanmar ? 'ဤဘောင်ချာကို စာရင်းမှ လုံးဝဖျက်ပစ်ရန် သေချာပါသလား?' : 'Permanently delete this voucher from records?')) {
+                              deleteVoucher(v.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          title="စာရင်းမှ လုံးဝဖျက်မည်"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>

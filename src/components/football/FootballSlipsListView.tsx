@@ -325,7 +325,7 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
                         <button
                           type="button"
                           onClick={() => {
-                            if (window.confirm(isMyanmar ? 'ဤဘောင်ချာကို ဖျက်ရန် သေချာပါသလား?' : 'Delete this ticket?')) {
+                            if (window.confirm(isMyanmar ? 'ဤဘောင်ချာကို စာရင်းမှ လုံးဝဖျက်ပစ်ရန် သေချာပါသလား?' : 'Permanently delete this ticket from records?')) {
                               deleteSlip(s.id);
                             }
                           }}

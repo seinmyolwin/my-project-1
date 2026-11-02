@@ -541,12 +541,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const target = vouchers.find(v => v.id === id);
     if (!target) return;
 
-    let updatedVouchers: TwoDVoucher[];
-    if (target.isPaid || target.status === 'settled') {
-      updatedVouchers = vouchers.map(v => v.id === id ? { ...v, status: 'cancelled' as const } : v);
-    } else {
-      updatedVouchers = vouchers.filter(v => v.id !== id);
-    }
+    const updatedVouchers = vouchers.filter(v => v.id !== id);
 
     let remainingRawClips: any[] = [];
     try {

@@ -588,13 +588,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = vouchers.find(v => v.id === id);
     if (!target) return;
 
-    let updatedVouchers: Voucher[];
-    if (target.isPaid || target.status === 'settled') {
-      // Retain winning history and set cancelled
-      updatedVouchers = vouchers.map(v => v.id === id ? { ...v, status: 'cancelled' as const } : v);
-    } else {
-      updatedVouchers = vouchers.filter(v => v.id !== id);
-    }
+    const updatedVouchers = vouchers.filter(v => v.id !== id);
 
     let remainingRawClips: any[] = [];
     try {

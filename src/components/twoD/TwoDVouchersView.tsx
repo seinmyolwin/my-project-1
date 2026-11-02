@@ -463,7 +463,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                           <button
                             type="button"
                             onClick={() => {
-                              if (window.confirm(isMyanmar ? 'ဤဘောင်ချာကို ဖျက်ပစ်ရန် သေချာပါသလား?' : 'Delete this voucher?')) {
+                              if (window.confirm(isMyanmar ? 'ဤဘောင်ချာကို စာရင်းမှ လုံးဝဖျက်ပစ်ရန် သေချာပါသလား?' : 'Permanently delete this voucher from records?')) {
                                 deleteVoucher(v.id);
                               }
                             }}

@@ -84,7 +84,10 @@ async function startServer() {
       }
 
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-      const ai = new GoogleGenAI(apiKey ? { apiKey } : {});
+      const ai = new GoogleGenAI({
+        apiKey: apiKey || '',
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
 
       const base64Data = image.replace(/^data:image\/[a-z]+;base64,/, '');
       const imageBuffer = Buffer.from(base64Data, 'base64');
@@ -118,7 +121,7 @@ Analyze this image.
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: [
           {
             inlineData: {
@@ -160,7 +163,10 @@ Analyze this image.
       }
 
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-      const ai = new GoogleGenAI(apiKey ? { apiKey } : {});
+      const ai = new GoogleGenAI({
+        apiKey: apiKey || '',
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
 
       const modeInstruction = mode === '2d'
         ? `Target Mode: 2D ONLY. Extract 2-digit numbers and amounts.`
@@ -189,7 +195,7 @@ Instructions:
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt
       });
 
@@ -230,9 +236,8 @@ Instructions:
   }
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
-  // Bind strictly to 127.0.0.1 per D2 requirement
-  app.listen(PORT, '127.0.0.1', () => {
-    console.log(`Server running securely on http://127.0.0.1:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

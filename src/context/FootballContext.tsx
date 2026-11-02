@@ -574,12 +574,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const target = slips.find(s => s.id === id);
     if (!target) return;
 
-    let updatedSlips: FootballSlip[];
-    if (target.status === 'settled') {
-      updatedSlips = slips.map(s => s.id === id ? { ...s, status: 'cancelled' as const } : s);
-    } else {
-      updatedSlips = slips.filter(s => s.id !== id);
-    }
+    const updatedSlips = slips.filter(s => s.id !== id);
 
     let remainingRawClips: any[] = [];
     try {

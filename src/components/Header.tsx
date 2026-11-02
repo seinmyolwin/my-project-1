@@ -369,6 +369,21 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="hidden md:inline">Backup</span>
                 </button>
 
+                {/* Refresh / Update Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(isMyanmar ? 'App အား Update လုပ်ရန်/အသစ်ပြန်ဖွင့်ရန် သေချာပါသလား?' : 'Are you sure you want to update/reload the app?')) {
+                      window.location.reload();
+                    }
+                  }}
+                  className="px-2 sm:px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                  title="App အား Update လုပ်ရန်/အသစ်ပြန်ဖွင့်ရန်"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <span className="hidden md:inline">{isMyanmar ? 'Update' : 'Update'}</span>
+                </button>
+
                 {/* Copied Raw Texts Archive Trigger */}
                 {onOpenRawClipsModal && (
                   <button
