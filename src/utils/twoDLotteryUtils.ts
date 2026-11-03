@@ -855,8 +855,8 @@ export function exportTwoDLotteryToExcel(
     { 'Property': 'Session', 'Value': round.session },
     { 'Property': 'ClosingTime', 'Value': round.closingTime || '12:01' },
     { 'Property': 'WinningNumber', 'Value': winningNumber || '' },
-    { 'Property': 'Multiplier', 'Value': round.multiplier || 80 },
-    { 'Property': 'CommissionRate', 'Value': round.commissionRate || 5 },
+    { 'Property': 'Multiplier', 'Value': round.multiplier },
+    { 'Property': 'CommissionRate', 'Value': round.commissionRate },
     { 'Property': 'ExportTimestamp', 'Value': new Date().toISOString() }
   ];
   const wsMeta = XLSX.utils.json_to_sheet(metaRows);
@@ -1011,9 +1011,9 @@ export async function parseExcelToRoundData2D(file: File): Promise<{
 
     let roundName = file.name.replace(/\.[^/.]+$/, '').replace(/2D_/g, '').replace(/_/g, ' ');
     let winningNumber: string | undefined = undefined;
-    let multiplier = 80;
-    let commissionRate = 5;
-    let drawDate = new Date().toISOString().slice(0, 10);
+    let multiplier = 0;
+    let commissionRate = 0;
+    let drawDate = getLocalDateString();
     let session = 'morning';
     let closingTime = '12:01';
 
@@ -1031,8 +1031,8 @@ export async function parseExcelToRoundData2D(file: File): Promise<{
       if (metaMap['Session']) session = metaMap['Session'];
       if (metaMap['ClosingTime']) closingTime = metaMap['ClosingTime'];
       if (metaMap['WinningNumber'] && /^\d{2}$/.test(metaMap['WinningNumber'])) winningNumber = metaMap['WinningNumber'];
-      if (metaMap['Multiplier']) multiplier = parseInt(metaMap['Multiplier'], 10) || 80;
-      if (metaMap['CommissionRate']) commissionRate = parseFloat(metaMap['CommissionRate']) || 5;
+      if (metaMap['Multiplier']) multiplier = parseInt(metaMap['Multiplier'], 10);
+      if (metaMap['CommissionRate']) commissionRate = parseFloat(metaMap['CommissionRate']);
     } else {
       const summarySheetName = workbook.SheetNames.find(n => n.includes('စာရင်းချုပ်') || n.includes('Summary'));
       if (summarySheetName) {

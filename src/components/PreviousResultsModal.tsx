@@ -31,6 +31,7 @@ import { useFootball } from '../context/FootballContext';
 import { formatAmount, getPermutations } from '../utils/lotteryUtils';
 import { parseHandicapGoals } from '../utils/footballUtils';
 import { BookieMode } from '../types';
+import { getLocalDateString } from '../utils/moneyUtils';
 
 interface PreviousResultsModalProps {
   isOpen: boolean;
@@ -132,7 +133,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '3D_Previous_Results');
-    XLSX.writeFile(wb, `3D_Winning_Results_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `3D_Winning_Results_${getLocalDateString()}.xlsx`);
   };
 
   // ==========================================
@@ -196,7 +197,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '2D_Previous_Results');
-    XLSX.writeFile(wb, `2D_Winning_Results_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `2D_Winning_Results_${getLocalDateString()}.xlsx`);
   };
 
   // ==========================================
@@ -264,7 +265,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Football_Match_Results');
-    XLSX.writeFile(wb, `Football_Match_Results_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Football_Match_Results_${getLocalDateString()}.xlsx`);
   };
 
   if (!isOpen) return null;

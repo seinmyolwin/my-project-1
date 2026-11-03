@@ -118,7 +118,7 @@ async function runFullTestSuite() {
     { name: 'Custom Agent', phone: '' }
   ]));
 
-  purgeSampleAgentsAndPhones();
+  await purgeSampleAgentsAndPhones();
   const purgedAgents = JSON.parse(mockStorage.getItem('shwe_master_agents_list') || '[]');
   assert(purgedAgents.length === 1 && purgedAgents[0].name === 'Custom Agent', 'Sample agents (Ko Min Aung, Daw Khin Than) purged');
 

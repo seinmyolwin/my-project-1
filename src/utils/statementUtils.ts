@@ -216,7 +216,7 @@ export function generateStatementRecords(
         let retainedPayout = 0;
         let winnersCount = 0;
         const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-        let mult = round.multiplier || data.lottery2D.settings.defaultMultiplier || 80;
+        let mult = round.multiplier || data.lottery2D.settings.defaultMultiplier;
 
         if (winningNum) {
           const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
@@ -806,7 +806,7 @@ export function calculateTwoDSingleRoundStatement(
   const netPaid = totalForwarded - forwardCommission;
 
   // 3. Multiplier & Winning number evaluation
-  const mult = normalizeTwoDMultiplier(multiplier || round?.multiplier || settings?.defaultMultiplier || 80);
+  const mult = normalizeTwoDMultiplier(multiplier || round?.multiplier || settings?.defaultMultiplier);
   const winNum = winningNumber ? winningNumber.trim().padStart(2, '0') : (round?.winningNumber ? round.winningNumber.trim().padStart(2, '0') : undefined);
 
   let totalPayout = 0;
@@ -923,8 +923,8 @@ export function calculateThreeDSingleRoundStatement(
   });
   const netPaid = totalForwarded - forwardCommission;
 
-  const straightMult = multiplier || round?.multiplier || settings?.defaultMultiplier || 600;
-  const toddMult = toddMultiplier || round?.toddMultiplier || settings?.defaultToddMultiplier || 100;
+  const straightMult = multiplier || round?.multiplier || settings?.defaultMultiplier;
+  const toddMult = toddMultiplier || round?.toddMultiplier || settings?.defaultToddMultiplier;
   const winNum = winningNumber ? winningNumber.trim().padStart(3, '0') : (round?.winningNumber ? round.winningNumber.trim().padStart(3, '0') : undefined);
 
   let totalPayout = 0;

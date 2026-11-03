@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
 import { Voucher, DrawRound, ForwardSlip, BetItem, BetType } from '../types';
-import { formatAmount, calculatePayout, safeRound } from './moneyUtils';
+import { formatAmount, calculatePayout, safeRound, getLocalDateString } from './moneyUtils';
 
-export { formatAmount, safeRound };
+export { formatAmount, safeRound, getLocalDateString };
 
 /**
  * Generate all unique 3-digit permutations for a given 3-digit number.
@@ -610,7 +610,7 @@ export function exportLotteryDataToExcel(
   }
 
   // Export the workbook
-  const fileName = `3D_Ledger_${round.name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const fileName = `3D_Ledger_${round.name.replace(/[^a-zA-Z0-9]/g, '_')}_${getLocalDateString()}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
 
@@ -643,7 +643,7 @@ export async function parseExcelToRoundData3D(file: File): Promise<{
     let multiplier = 600;
     let toddMultiplier = 100;
     let commissionRate = 10;
-    let drawDate = new Date().toISOString().slice(0, 10);
+    let drawDate = getLocalDateString();
     let closingTime = '15:30';
 
     const metaSheetName = workbook.SheetNames.find(n => n.includes('ပွဲစဉ်အချက်အလက်') || n.includes('Metadata'));

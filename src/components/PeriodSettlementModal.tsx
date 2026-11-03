@@ -32,7 +32,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const football = useFootball();
 
   const currency = lottery2D.settings.currency || lottery3D.settings.currency || 'Ks';
-  const defaultCommission = lottery3D.settings.defaultCommissionRate || 10;
+  const defaultCommission = lottery3D.settings.defaultCommissionRate;
 
   // Mode: downline (အောက်လက်ဒိုင်ငယ်/ဖောက်သည်) or upline (အထက်ဒိုင်/မာစတာဒိုင်)
   const [settlementType, setSettlementType] = useState<'downline' | 'upline'>('downline');

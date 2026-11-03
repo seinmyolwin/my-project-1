@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { DrawRound } from '../types';
+import { getLocalDateString } from '../utils/moneyUtils';
 
 interface RoundManagerModalProps {
   isOpen: boolean;
@@ -38,7 +39,7 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
 
   // New Round Form
   const [name, setName] = useState('');
-  const [drawDate, setDrawDate] = useState(new Date().toISOString().slice(0, 10));
+  const [drawDate, setDrawDate] = useState(getLocalDateString());
   const [closingTime, setClosingTime] = useState('15:00');
   const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || ''));
   const [toddMultiplier, setToddMultiplier] = useState(String(settings.defaultToddMultiplier || ''));

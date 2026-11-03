@@ -49,7 +49,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
   const isMyanmar = settings.language === 'my';
 
   const getDisplayMultiplier = (val?: number) => {
-    const clean = normalizeTwoDMultiplier(val || activeRound?.multiplier || settings.defaultMultiplier || 80);
+    const clean = normalizeTwoDMultiplier(val || activeRound?.multiplier || settings.defaultMultiplier);
     return String(clean);
   };
 
@@ -174,7 +174,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     }
 
     let rawMult = parseFloat(multiplierInput);
-    const mult = !isNaN(rawMult) && rawMult > 0 ? normalizeTwoDMultiplier(rawMult) : normalizeTwoDMultiplier(settings.defaultMultiplier || 80);
+    const mult = !isNaN(rawMult) && rawMult > 0 ? normalizeTwoDMultiplier(rawMult) : normalizeTwoDMultiplier(settings.defaultMultiplier);
 
     // Settle directly in state and trigger celebratory ribbons
     settleWinningNumber(cleanNum, mult);
@@ -321,7 +321,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     if (!cleanNum || cleanNum.length !== 2 || isNaN(Number(cleanNum))) {
       return { settledVouchers: [], totalPayout: 0, totalWinnersCount: 0 };
     }
-    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier || 80);
+    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || activeRound?.multiplier || settings.defaultMultiplier);
     const evalRes = evaluateTwoDWinnings(activeRoundVouchers, cleanNum, mult);
 
     let totalSoldForNum = 0;
@@ -375,7 +375,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     const winningAgg = activeEvalNumber ? aggregates[activeEvalNumber] : undefined;
     const totalSoldForWinNum = winningAgg ? winningAgg.totalSold : 0;
     const retainedAmt = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
-    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || settings.defaultMultiplier || 80);
+    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || settings.defaultMultiplier);
     const retainedPayout = mult > 0 ? retainedAmt * mult : 0;
 
     const netPaid = totalForwarded - forwardedCommission;
@@ -403,8 +403,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
 
   const currentMultiplier = normalizeTwoDMultiplier(
     isSettled && !isTestingMode
-      ? (activeRound?.multiplier || settings.defaultMultiplier || 80)
-      : (parseFloat(multiplierInput) || settings.defaultMultiplier || 80)
+      ? (activeRound?.multiplier || settings.defaultMultiplier)
+      : (parseFloat(multiplierInput) || settings.defaultMultiplier)
   );
 
   const isShowingOnTheFly = isTestingMode || (isWinningConfirmed && !isSettled);

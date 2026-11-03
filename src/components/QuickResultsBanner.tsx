@@ -101,7 +101,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
     };
 
     let multiplierVal =
-      lottery2D.activeRound?.multiplier || lottery2D.settings.defaultMultiplier || 80;
+      lottery2D.activeRound?.multiplier || lottery2D.settings.defaultMultiplier;
 
     return (
       <div className="bg-gradient-to-r from-teal-950 via-slate-900 to-teal-950 text-white rounded-2xl p-2.5 sm:px-4 shadow-sm border border-teal-800/60 flex flex-wrap items-center justify-between gap-3">

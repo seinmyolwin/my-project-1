@@ -81,7 +81,7 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
     const sessionName = session === 'morning' ? 'မနက် (12:01 PM)' : 'ညနေ (04:30 PM)';
     const name = `${dateStr} ${sessionName}`;
 
-    let parsedMult = parseFloat(multiplier) || settings.defaultMultiplier || 80;
+    let parsedMult = parseFloat(multiplier) || settings.defaultMultiplier;
 
     createRound({
       name,

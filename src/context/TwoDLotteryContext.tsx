@@ -697,7 +697,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 2D Aggregates calculation (00 - 99: exactly 100 combinations)
   const aggregates = useMemo(() => {
-    const mult = normalizeTwoDMultiplier(settings.defaultMultiplier || activeRound?.multiplier || 80);
+    const mult = normalizeTwoDMultiplier(activeRound?.multiplier || settings.defaultMultiplier);
     const agg: { [num: string]: TwoDNumberAggregate } = {};
 
     // Initialize all 100 numbers (00 to 99)
@@ -848,7 +848,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
-      let mult = settings.defaultMultiplier || activeRound.multiplier || 80;
+      let mult = activeRound.multiplier || settings.defaultMultiplier;
       const formattedNum = activeRound.winningNumber.padStart(2, '0');
       const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
       totalWinnersCount = evalResult.totalWinnersCount;
@@ -893,7 +893,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return;
     }
 
-    let mult = multiplier || activeRound.multiplier || settings.defaultMultiplier || 80;
+    let mult = multiplier || activeRound.multiplier || settings.defaultMultiplier;
     if (mult <= 0) {
       alert(settings.language === 'my' ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
       return;

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { getLocalDateString } from '../utils/moneyUtils';
 import {
   X,
   Settings,
@@ -251,7 +252,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '3D Sales');
-    XLSX.writeFile(wb, `3D_Sales_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `3D_Sales_Ledger_${getLocalDateString()}.xlsx`);
   };
 
   const handleExport2DExcel = () => {
@@ -268,7 +269,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '2D Sales');
-    XLSX.writeFile(wb, `2D_Sales_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `2D_Sales_Ledger_${getLocalDateString()}.xlsx`);
   };
 
   const handleExportFootballExcel = () => {
@@ -297,7 +298,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '2D Master Ledger');
-    XLSX.writeFile(wb, `2D_Master_Ledger_Matrix_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `2D_Master_Ledger_Matrix_${getLocalDateString()}.xlsx`);
   };
 
   // 3D Master Ledger Matrix Export
@@ -315,7 +316,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '3D Master Ledger');
-    XLSX.writeFile(wb, `3D_Master_Ledger_Matrix_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `3D_Master_Ledger_Matrix_${getLocalDateString()}.xlsx`);
   };
 
   // Financial Statements State & Calculations

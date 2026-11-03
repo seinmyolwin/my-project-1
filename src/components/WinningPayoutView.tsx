@@ -20,6 +20,7 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits, parseExcelToRoundData3D } from '../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
+import { getLocalDateString } from '../utils/moneyUtils';
 import {
   SingleRoundFinancialBreakdown,
   calculateThreeDSingleRoundStatement
@@ -51,17 +52,17 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
 
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
   const [multiplierInput, setMultiplierInput] = useState(
-    String(activeRound?.multiplier || settings.defaultMultiplier || 600)
+    String(activeRound?.multiplier || settings.defaultMultiplier)
   );
   const [toddMultiplierInput, setToddMultiplierInput] = useState(
-    String(activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100)
+    String(activeRound?.toddMultiplier || settings.defaultToddMultiplier)
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
-    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier || 600));
-    setToddMultiplierInput(String(activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100));
+    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier));
+    setToddMultiplierInput(String(activeRound?.toddMultiplier || settings.defaultToddMultiplier));
   }, [
     activeRound?.id,
     activeRound?.winningNumber,
@@ -74,11 +75,7 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
   const [sessionSwitchMsg, setSessionSwitchMsg] = useState<string | null>(null);
 
   const handleStartNext3DRound = () => {
-    const today = new Date();
-    // Default next draw date ~ 15 days later (1st or 16th)
-    const nextDate = new Date(today);
-    nextDate.setDate(nextDate.getDate() + 15);
-    const dateStr = nextDate.toISOString().slice(0, 10);
+    const dateStr = getLocalDateString();
     const roundName = `${dateStr} အိုးစည်လေး ပွဲစဉ်`;
 
     const newRound = createRound({
@@ -170,8 +167,8 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
       return;
     }
 
-    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier || 100;
+    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
+    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
 
     // Settle directly in state and dispatch settled event
     settleWinningNumber(cleanNum, mult, toddMult);
@@ -200,8 +197,8 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
   const handleCloseRound = () => {
     const targetNum = confirmedWinningNumber || convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
     if (!targetNum || targetNum.length !== 3) return;
-    const mult = parseInt(multiplierInput, 10) || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
+    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
+    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
 
     // 1. Officially settle round status to 'settled' in context & localStorage (No auto Excel download)
     settleWinningNumber(targetNum, mult, toddMult);
@@ -230,8 +227,8 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
 
   // Evaluate winners based on winning number & multipliers
   const winningResults = useMemo(() => {
-    const mult = parseInt(multiplierInput, 10) || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || 100;
+    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
+    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
     const num = activeEvalNumber.trim();
 
     if (!num || num.length !== 3) {
@@ -239,7 +236,7 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     }
 
     return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
-  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, toddMultiplierInput]);
+  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, toddMultiplierInput, activeRound, settings]);
 
   // Copy Winning Message for Customer
   const handleCopyWinningMessage = (winner: any) => {
@@ -272,8 +269,8 @@ ${settings.shopName} (${settings.shopPhone})`;
 
   // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round)
   const singleRoundStatement: SingleRoundFinancialBreakdown = useMemo(() => {
-    const mult = parseInt(multiplierInput, 10) || settings.defaultMultiplier || 600;
-    const toddMult = parseInt(toddMultiplierInput, 10) || settings.defaultToddMultiplier || 100;
+    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
+    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
     return calculateThreeDSingleRoundStatement({
       round: activeRound,
       vouchers: activeRoundVouchers,

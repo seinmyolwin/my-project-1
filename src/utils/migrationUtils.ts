@@ -13,23 +13,7 @@ import { createRestorePoint } from './restorePoints';
 export const SNAPSHOT_KEY = 'pre_migration_snapshot_v1';
 export const MIGRATION_FLAG_KEY = 'part1_migration_completed_v1';
 
-export const SAMPLE_MASTER_AGENT_NAMES = [
-  'ကိုမင်းအောင် (ဒိုင်ကြီး)',
-  'ဒေါ်ခင်သန်း (ရန်ကုန်ဒိုင်ချုပ်)',
-  'ဦးဘုန်း (မန္တလေးဒိုင်ကြီး)',
-  'ကိုစိုးနိုင် (ဒိုင်ချုပ်ကြီး)',
-  'ကိုစိုးနိုင်',
-  'ကိုမင်းအောင်',
-  'ဒေါ်ခင်သန်း',
-  'ဦးဘုန်း'
-];
-
-export const SAMPLE_MASTER_AGENT_PHONES = [
-  '09-790002222',
-  '09-450003333',
-  '09-250004444',
-  '09-970001111'
-];
+import { isSampleAgentDigest } from './tombstoneUtils';
 
 /**
  * Takes snapshot of current localStorage prior to any mutations.
@@ -85,12 +69,10 @@ export function stripCustomerPhoneFromList<T extends Record<string, any>>(list: 
 }
 
 /**
- * Checks if a name or phone matches the sample master agent credentials
+ * Checks if a name or phone matches the sample master agent credentials using SHA-256 digest
  */
-export function isSampleMasterAgent(name?: string, phone?: string): boolean {
-  if (name && SAMPLE_MASTER_AGENT_NAMES.some(s => s === name.trim())) return true;
-  if (phone && SAMPLE_MASTER_AGENT_PHONES.some(p => p === phone.trim())) return true;
-  return false;
+export async function isSampleMasterAgent(name?: string, phone?: string): Promise<boolean> {
+  return isSampleAgentDigest(name, phone);
 }
 
 /**
@@ -121,9 +103,11 @@ export async function runPart1Migration(): Promise<boolean> {
       try {
         const parsedAgents = JSON.parse(rawAgents);
         if (Array.isArray(parsedAgents)) {
-          const filtered = parsedAgents.filter(
-            (a: any) => !isSampleMasterAgent(a?.name, a?.phone)
-          );
+          const filtered: any[] = [];
+          for (const a of parsedAgents) {
+            const isSample = await isSampleMasterAgent(a?.name, a?.phone);
+            if (!isSample) filtered.push(a);
+          }
           updates['shwe_master_agents_list'] = filtered;
         }
       } catch {
@@ -132,13 +116,13 @@ export async function runPart1Migration(): Promise<boolean> {
     }
 
     // 3. Clean defaultMasterAgent from 3D, 2D, Football settings
-    const cleanSettingsAgent = (key: string) => {
+    const cleanSettingsAgent = async (key: string) => {
       const raw = localStorage.getItem(key);
       if (raw) {
         try {
           const s = JSON.parse(raw);
           let changed = false;
-          if (isSampleMasterAgent(s.defaultMasterAgentName, s.defaultMasterAgentPhone)) {
+          if (await isSampleMasterAgent(s.defaultMasterAgentName, s.defaultMasterAgentPhone)) {
             delete s.defaultMasterAgentName;
             delete s.defaultMasterAgentPhone;
             changed = true;
@@ -152,9 +136,9 @@ export async function runPart1Migration(): Promise<boolean> {
       }
     };
 
-    cleanSettingsAgent(STORAGE_KEYS.SETTINGS);
-    cleanSettingsAgent(STORAGE_KEYS.SETTINGS_2D);
-    cleanSettingsAgent(STORAGE_KEYS.SETTINGS_FOOTBALL);
+    await cleanSettingsAgent(STORAGE_KEYS.SETTINGS);
+    await cleanSettingsAgent(STORAGE_KEYS.SETTINGS_2D);
+    await cleanSettingsAgent(STORAGE_KEYS.SETTINGS_FOOTBALL);
 
     // 4. Strip customerPhone from vouchers & slips
     const stripKey = (key: string) => {
