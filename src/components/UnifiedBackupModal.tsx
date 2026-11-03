@@ -337,17 +337,34 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     const totalDuplicates = res2D.duplicateCount + res3D.duplicateCount + resFB.duplicateCount;
 
     if (totalDuplicates > 0) {
-      try {
-        await createRestorePoint('manual', { action: 'clean-duplicates', count: totalDuplicates });
-      } catch (rpErr) {
-        console.warn('Restore point creation failed before clean duplicates:', rpErr);
-      }
-      saveStoredData(STORAGE_KEYS.VOUCHERS_2D, res2D.cleaned);
-      saveStoredData(STORAGE_KEYS.VOUCHERS, res3D.cleaned);
-      saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, resFB.cleaned);
+      const dupeDetails: string[] = [];
+      res2D.duplicates.forEach(v => {
+        dupeDetails.push(`[2D] ${v.voucherNo || v.id} - ${v.customerName || 'အမည်မရှိ'} (${v.subtotal} Ks)`);
+      });
+      res3D.duplicates.forEach(v => {
+        dupeDetails.push(`[3D] ${v.voucherNo || v.id} - ${v.customerName || 'အမည်မရှိ'} (${v.subtotal} Ks)`);
+      });
+      resFB.duplicates.forEach(s => {
+        dupeDetails.push(`[Football] ${s.slipNo || s.id} - ${s.customerName || 'အမည်မရှိ'} (${s.stakeAmount} Ks)`);
+      });
 
-      showMsg(`ထပ်နေသော ဘောင်ချာ စုစုပေါင်း (${totalDuplicates}) စောင်ကို အောင်မြင်စွာ ဖယ်ရှားရှင်းလင်းပြီးပါပြီ။`);
-      setTimeout(() => window.location.reload(), 1500);
+      const confirmText = `ထပ်နေသော ဘောင်ချာ စုစုပေါင်း (${totalDuplicates}) စောင်ကို ဖုံးထားရန် သေချာပါသလား?\n\n` + dupeDetails.slice(0, 10).join('\n') + (dupeDetails.length > 10 ? `\n... နှင့် အခြား ${dupeDetails.length - 10} ခု` : '');
+
+      if (window.confirm(confirmText)) {
+        try {
+          await createRestorePoint('manual', { action: 'clean-duplicates', count: totalDuplicates });
+        } catch (rpErr) {
+          console.warn('Restore point creation failed before clean duplicates:', rpErr);
+        }
+
+        // Save tombstones (res.updated contains tombstones with deletedAt, deletedReason)
+        saveStoredData(STORAGE_KEYS.VOUCHERS_2D, res2D.updated);
+        saveStoredData(STORAGE_KEYS.VOUCHERS, res3D.updated);
+        saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, resFB.updated);
+
+        showMsg(`ထပ်နေသော ဘောင်ချာ စုစုပေါင်း (${totalDuplicates}) စောင်ကို အောင်မြင်စွာ ဖုံးထားပြီးပါပြီ။`);
+        setTimeout(() => window.location.reload(), 1500);
+      }
     } else {
       showMsg('ထပ်နေသော ဘောင်ချာမရှိပါ (စာရင်းအားလုံး သန့်ရှင်းမှန်ကန်ပါသည်)', 'success');
     }

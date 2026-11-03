@@ -13,15 +13,29 @@ export async function runIdMigration(): Promise<void> {
 
   await createRestorePoint('before-migration');
 
-  const oldMap: Record<string, string> = {};
   const newMap: Record<string, string> = {};
+
+  // List of keys to scan
+  const keysToScan = [
+    STORAGE_KEYS.ROUNDS,
+    STORAGE_KEYS.ROUNDS_2D,
+    STORAGE_KEYS.VOUCHERS,
+    STORAGE_KEYS.VOUCHERS_2D,
+    STORAGE_KEYS.FORWARD_SLIPS,
+    STORAGE_KEYS.FORWARD_SLIPS_2D,
+    STORAGE_KEYS.MATCHES_FOOTBALL,
+    STORAGE_KEYS.SLIPS_FOOTBALL,
+    STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL,
+    STORAGE_KEYS.LEAGUES_FOOTBALL,
+    'shwe_mingalar_copied_raw_texts'
+  ];
 
   // 1. Collect all existing IDs
   const collect = (data: any) => {
     if (!data) return;
     if (Array.isArray(data)) {
       data.forEach(item => {
-        if (item.id && !item.id.includes('-')) { // Old ID heuristic
+        if (item && typeof item === 'object' && item.id && typeof item.id === 'string' && !item.id.includes('-')) {
           if (!newMap[item.id]) newMap[item.id] = generateUUID();
         }
         collect(item);
@@ -30,15 +44,6 @@ export async function runIdMigration(): Promise<void> {
       Object.values(data).forEach(collect);
     }
   };
-
-  // List of keys to scan
-  const keysToScan = [
-    STORAGE_KEYS.VOUCHERS,
-    STORAGE_KEYS.VOUCHERS_2D,
-    STORAGE_KEYS.SLIPS_FOOTBALL,
-    STORAGE_KEYS.MATCHES_FOOTBALL,
-    'shwe_mingalar_copied_raw_texts'
-  ];
 
   keysToScan.forEach(key => {
     const data = loadStoredData(key, []);
@@ -74,29 +79,25 @@ export async function runIdMigration(): Promise<void> {
   });
 
   // 3. Final Verification (Orphans)
-  const verify = (data: any, root: any): boolean => {
-    const check = (node: any) => {
-      if (!node) return true;
-      if (typeof node === 'object') {
-        for (const [key, val] of Object.entries(node)) {
-          if (key.endsWith('Id') && typeof val === 'string') {
-             // If it looks like an old ID (heuristic) and not in our map, it's an orphan
-             if (!val.includes('-') && !newMap[val]) {
-               console.error('Orphaned reference found:', key, val);
-               return false;
-             }
+  const verify = (node: any): boolean => {
+    if (!node) return true;
+    if (Array.isArray(node)) {
+      return node.every(verify);
+    } else if (typeof node === 'object') {
+      for (const [key, val] of Object.entries(node)) {
+        if (key.endsWith('Id') && typeof val === 'string') {
+          if (!val.includes('-') && !newMap[val]) {
+            console.error('Orphaned reference found:', key, val);
+            return false;
           }
-          if (!check(val)) return false;
         }
-      } else if (Array.isArray(node)) {
-        return node.every(check);
+        if (!verify(val)) return false;
       }
-      return true;
-    };
-    return check(data);
+    }
+    return true;
   };
 
-  if (!keysToScan.every(key => verify(loadStoredData(key, []), null))) {
+  if (!keysToScan.every(key => verify(loadStoredData(key, [])))) {
     throw new Error('Migration failed: Orphaned references found.');
   }
 

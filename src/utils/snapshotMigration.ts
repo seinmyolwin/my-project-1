@@ -8,6 +8,9 @@ export async function runSnapshotMigration(): Promise<void> {
 
   await createRestorePoint('before-migration');
 
+  const settings3D = loadStoredData(STORAGE_KEYS.SETTINGS, { defaultMultiplier: 600, defaultCommissionRate: 10 });
+  const settings2D = loadStoredData(STORAGE_KEYS.SETTINGS_2D, { defaultMultiplier: 80, defaultCommissionRate: 12 });
+
   const keysToScan = [
     STORAGE_KEYS.VOUCHERS,
     STORAGE_KEYS.VOUCHERS_2D,
@@ -23,18 +26,20 @@ export async function runSnapshotMigration(): Promise<void> {
     let data = loadStoredData(key, []);
     if (!data) return;
 
-    // Purge Phone and Add Snapshots
     const processItem = (item: any) => {
       // Purge Phone
       if (item.customerPhone) delete item.customerPhone;
-      
-      // Snapshot Logic (if missing)
+
+      // Snapshot Logic
       if (!item.snapshotSource) {
-        if (key.includes('FOOTBALL') || key.includes('SLIPS_FOOTBALL')) {
-          item.payoutOdds = 1.9; // Default fallback
-        } else {
-          item.lowerCommissionRate = 0;
-          item.payoutMultiplier = 80; // Should be fetched from settings ideally
+        if (key.includes('3d') || key === STORAGE_KEYS.VOUCHERS) {
+          item.lowerCommissionRate = settings3D.defaultCommissionRate ?? 10;
+          item.payoutMultiplier = settings3D.defaultMultiplier ?? 600;
+        } else if (key.includes('2d') || key === STORAGE_KEYS.VOUCHERS_2D) {
+          item.lowerCommissionRate = settings2D.defaultCommissionRate ?? 12;
+          item.payoutMultiplier = settings2D.defaultMultiplier ?? 80;
+        } else if (key.includes('football') || key === STORAGE_KEYS.SLIPS_FOOTBALL) {
+          item.payoutOdds = item.combinedOdds || 1.9;
         }
         item.snapshotSource = 'migrated';
       }
@@ -42,9 +47,9 @@ export async function runSnapshotMigration(): Promise<void> {
     };
 
     if (Array.isArray(data)) {
-        data = data.map(processItem);
+      data = data.map(processItem);
     } else if (typeof data === 'object') {
-        processItem(data);
+      processItem(data);
     }
 
     saveStoredData(key, data);

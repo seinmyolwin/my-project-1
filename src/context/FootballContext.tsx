@@ -20,6 +20,8 @@ import {
   saveMultipleAtomic
 } from '../utils/storage';
 import { createTombstone } from '../utils/tombstoneUtils';
+import { generateUUID } from '../utils/restorePoints';
+import { getDeviceShortCode } from '../utils/deviceId';
 
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
@@ -140,7 +142,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const trimmed = name.trim();
     if (!trimmed) return leagues[0];
     const newLeague: FootballLeague = {
-      id: `league-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: generateUUID(),
       name: trimmed,
       teams: initialTeams.filter(t => t && t.trim())
     };
@@ -421,7 +423,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const createMatch = useCallback((matchData: Omit<FootballMatch, 'id'>) => {
     const newMatch: FootballMatch = {
       ...matchData,
-      id: `match-${Date.now()}`
+      id: generateUUID()
     };
     setMatches(prev => [newMatch, ...prev]);
     return newMatch;
@@ -438,7 +440,6 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const deleteMatch = useCallback((id: string, reason: string) => {
     setMatches(prev => prev.map(m => m.id === id ? { ...m, ...createTombstone(reason) } : m));
   }, []);
-
 
   const setMatchScore = useCallback((id: string, homeScore: number, awayScore: number) => {
     setMatches(prev => {
@@ -477,21 +478,21 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (existing) return existing;
     }
 
-    const localDate = getLocalDateString();
-    const todayStr = localDate.slice(2).replace(/-/g, '');
-    const todaySlips = slips.filter(s => s.slipNo && s.slipNo.startsWith(`FB-${todayStr}-`));
-    let nextSeq = 1001;
-    if (todaySlips.length > 0) {
-      const seqNums = todaySlips.map(s => {
-        const parts = s.slipNo.split('-');
-        const last = parts[parts.length - 1];
-        const n = parseInt(last, 10);
-        return isNaN(n) ? 0 : n;
-      });
-      nextSeq = Math.max(...seqNums) + 1;
-    } else {
-      nextSeq = 1001 + slips.length;
+    const shortCode = getDeviceShortCode();
+    let counter = 1;
+    try {
+      const storedCount = localStorage.getItem('voucher_counter_fb_v1') || localStorage.getItem('voucher_counter_v1');
+      if (storedCount) counter = parseInt(storedCount, 10) + 1;
+    } catch {
+      // ignore
     }
+    const maxSeq = slips.reduce((max, s) => {
+      const match = s.slipNo?.match(/\d+$/);
+      return match ? Math.max(max, parseInt(match[0], 10)) : max;
+    }, 0);
+    counter = Math.max(counter, maxSeq + 1);
+    localStorage.setItem('voucher_counter_fb_v1', String(counter));
+    const pad = String(counter).padStart(6, '0');
 
     // Never save customerPhone
     const { customerPhone: _discardPhone, ...cleanSlipData } = slipData as any;
@@ -499,13 +500,16 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const newSlip: FootballSlip = {
       ...cleanSlipData,
       customerPhone: undefined,
-      id: `fb-slip-${Date.now()}`,
-      slipNo: `FB-${todayStr}-${nextSeq}`,
-      createdAt: new Date().toISOString()
+      id: generateUUID(),
+      slipNo: `${shortCode}-V-${pad}`,
+      createdAt: new Date().toISOString(),
+      lowerCommissionRate: settings.defaultCommissionRate,
+      payoutOdds: slipData.combinedOdds,
+      snapshotSource: 'created'
     };
     setSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [slips]);
+  }, [slips, settings.defaultCommissionRate]);
 
   const updateSlip = useCallback((id: string, data: Partial<FootballSlip>) => {
     setSlips(prev =>
@@ -513,11 +517,18 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   }, []);
 
-  const deleteSlip = useCallback((id: string) => {
+  const deleteSlip = useCallback((id: string, reason: string = 'user-deleted') => {
     const target = slips.find(s => s.id === id);
     if (!target) return;
 
-    const updatedSlips = slips.filter(s => s.id !== id);
+    const nowIso = new Date().toISOString();
+
+    let updatedSlips: FootballSlip[];
+    if (target.status === 'settled' || target.status === 'active') {
+      updatedSlips = slips.map(s => s.id === id ? { ...s, status: 'cancelled', deletedReason: reason } : s);
+    } else {
+      updatedSlips = slips.map(s => s.id === id ? { ...s, deletedAt: nowIso, deletedReason: reason } as any : s);
+    }
 
     let remainingRawClips: any[] = [];
     try {
@@ -562,34 +573,34 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
     }
-    const localDate = getLocalDateString();
-    const todayStr = localDate.slice(2).replace(/-/g, '');
-    const todayFwd = forwardSlips.filter(f => f.slipNo && f.slipNo.startsWith(`FBFWD-${todayStr}-`));
-    let nextSeq = 101;
-    if (todayFwd.length > 0) {
-      const seqNums = todayFwd.map(f => {
-        const parts = f.slipNo.split('-');
-        const last = parts[parts.length - 1];
-        const n = parseInt(last, 10);
-        return isNaN(n) ? 0 : n;
-      });
-      nextSeq = Math.max(...seqNums) + 1;
-    } else {
-      nextSeq = 101 + forwardSlips.length;
+
+    const shortCode = getDeviceShortCode();
+    let counter = 1;
+    try {
+      const storedCount = localStorage.getItem('forward_counter_fb_v1') || localStorage.getItem('forward_counter_v1');
+      if (storedCount) counter = parseInt(storedCount, 10) + 1;
+    } catch {
+      // ignore
     }
+    localStorage.setItem('forward_counter_fb_v1', String(counter));
+    const pad = String(counter).padStart(6, '0');
+
     const newSlip: FootballForwardSlip = {
       ...slipData,
       slipId: finalSlipId,
-      id: `fb-fwd-${Date.now()}`,
-      slipNo: `FBFWD-${todayStr}-${nextSeq}`,
-      createdAt: new Date().toISOString()
+      id: generateUUID(),
+      slipNo: `${shortCode}-FWDFB-${pad}`,
+      createdAt: new Date().toISOString(),
+      upperCommissionRate: slipData.commissionRate ?? settings.defaultCommissionRate,
+      snapshotSource: 'created'
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [forwardSlips, slips]);
+  }, [forwardSlips, slips, settings.defaultCommissionRate]);
 
-  const deleteForwardSlip = useCallback((id: string) => {
-    const updated = forwardSlips.filter(f => f.id !== id);
+  const deleteForwardSlip = useCallback((id: string, reason: string = 'user-deleted') => {
+    const nowIso = new Date().toISOString();
+    const updated = forwardSlips.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f);
     saveMultipleAtomic({
       [STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL]: updated
     });

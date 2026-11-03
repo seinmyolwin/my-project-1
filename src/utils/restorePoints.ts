@@ -10,7 +10,7 @@
 export interface RestorePoint {
   id: string; // uuid
   createdAt: string; // ISO date string
-  reason: 'manual' | 'before-import' | 'before-migration' | 'before-rollback' | 'auto';
+  reason: 'manual' | 'before-import' | 'before-migration' | 'before-rollback' | 'before-period-close' | 'auto';
   appVersion: string;
   keyCount: number;
   bytes: number;
@@ -356,7 +356,7 @@ export async function deleteRestorePoint(id: string): Promise<void> {
  * If any byte/hash mismatch occurs, the point is deleted immediately and an error is thrown.
  */
 export async function createRestorePoint(
-  reason: 'manual' | 'before-import' | 'before-migration' | 'before-rollback' | 'auto',
+  reason: 'manual' | 'before-import' | 'before-migration' | 'before-rollback' | 'before-period-close' | 'auto',
   meta?: any
 ): Promise<RestorePoint> {
   const storage = getStorage();

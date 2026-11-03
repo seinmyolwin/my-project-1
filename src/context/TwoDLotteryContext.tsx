@@ -29,8 +29,11 @@ import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
-import { cleanDuplicate2DVouchers, merge2DVouchersNoDuplicates } from '../utils/deduplicationUtils';
+import { merge2DVouchersNoDuplicates } from '../utils/deduplicationUtils';
 import { triggerRibbonsCelebration } from '../utils/audioUtils';
+import { generateUUID } from '../utils/restorePoints';
+import { getDeviceShortCode } from '../utils/deviceId';
+import { createTombstone } from '../utils/tombstoneUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -339,7 +342,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       ...roundData,
       multiplier: roundData.multiplier ?? settings.defaultMultiplier,
       commissionRate: roundData.commissionRate ?? settings.defaultCommissionRate,
-      id: `round-2d-${Date.now()}`
+      id: generateUUID()
     };
     setRounds(prev => [newRound, ...prev]);
     setActiveRoundIdState(newRound.id);
@@ -352,7 +355,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
   }, []);
 
-  const deleteRound = useCallback((roundId: string) => {
+  const deleteRound = useCallback((roundId: string, reason: string = 'round-deleted') => {
+    const nowIso = new Date().toISOString();
     const todayStr = getLocalDateString();
     const remainingRounds = rounds.filter(r => r.id !== roundId);
     const updatedDeletedRoundIds = [...deletedRoundIds.filter(id => id !== roundId), roundId];
@@ -363,9 +367,17 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       nextActiveId = todayOpen ? todayOpen.id : (remainingRounds[0]?.id || '');
     }
 
-    const remainingVouchers = vouchers.filter(v => v.roundId !== roundId);
     const deletedVoucherIds = new Set(vouchers.filter(v => v.roundId === roundId).map(v => v.id));
-    const remainingForwardSlips = forwardSlips.filter(f => f.roundId !== roundId);
+
+    // Tombstone vouchers for this round
+    const updatedVouchers = vouchers.map(v =>
+      v.roundId === roundId ? ({ ...v, deletedAt: nowIso, deletedReason: reason } as any) : v
+    );
+
+    // Tombstone forward slips for this round
+    const updatedForwardSlips = forwardSlips.map(f =>
+      f.roundId === roundId ? ({ ...f, deletedAt: nowIso, deletedReason: reason } as any) : f
+    );
 
     let remainingRawClips: any[] = [];
     try {
@@ -402,8 +414,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       [STORAGE_KEYS.ROUNDS_2D]: remainingRounds,
       '2d_ledger_deleted_rounds_v1': updatedDeletedRoundIds,
       [STORAGE_KEYS.ACTIVE_ROUND_ID_2D]: nextActiveId,
-      [STORAGE_KEYS.VOUCHERS_2D]: remainingVouchers,
-      [STORAGE_KEYS.FORWARD_SLIPS_2D]: remainingForwardSlips,
+      [STORAGE_KEYS.VOUCHERS_2D]: updatedVouchers,
+      [STORAGE_KEYS.FORWARD_SLIPS_2D]: updatedForwardSlips,
       'shwe_mingalar_copied_raw_texts': remainingRawClips,
       [TELEGRAM_STORAGE_KEYS.ORDERS]: updatedTelegramOrders
     });
@@ -411,8 +423,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setRounds(remainingRounds);
     setDeletedRoundIds(updatedDeletedRoundIds);
     setActiveRoundIdState(nextActiveId);
-    setVouchers(remainingVouchers);
-    setForwardSlips(remainingForwardSlips);
+    setVouchers(updatedVouchers);
+    setForwardSlips(updatedForwardSlips);
   }, [activeRoundId, rounds, vouchers, forwardSlips, deletedRoundIds]);
 
   const syncLiveRounds = useCallback(async () => {
@@ -452,13 +464,21 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     }
 
-    const existingSeq = vouchers.map(v => {
+    const shortCode = getDeviceShortCode();
+    let counter = 1;
+    try {
+      const storedCount = localStorage.getItem('voucher_counter_2d_v1') || localStorage.getItem('voucher_counter_v1');
+      if (storedCount) counter = parseInt(storedCount, 10) + 1;
+    } catch {
+      // ignore
+    }
+    const maxExisting = vouchers.reduce((max, v) => {
       const match = v.voucherNo?.match(/\d+$/);
-      return match ? parseInt(match[0], 10) : 0;
-    });
-    const maxSeq = existingSeq.length > 0 ? Math.max(...existingSeq) : 0;
-    const nextSeq = Math.max(maxSeq + 1, vouchers.length + 1);
-    const pad = String(nextSeq).padStart(4, '0');
+      return match ? Math.max(max, parseInt(match[0], 10)) : max;
+    }, 0);
+    counter = Math.max(counter, maxExisting + 1);
+    localStorage.setItem('voucher_counter_2d_v1', String(counter));
+    const pad = String(counter).padStart(6, '0');
 
     // Never save customerPhone
     const { customerPhone: _discardPhone, ...cleanVoucherData } = voucherData as any;
@@ -466,13 +486,16 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const newVoucher: TwoDVoucher = {
       ...cleanVoucherData,
       customerPhone: undefined,
-      id: `vouch-2d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      voucherNo: `V-2D-${pad}`,
-      createdAt: new Date().toISOString()
+      id: generateUUID(),
+      voucherNo: `${shortCode}-V-${pad}`,
+      createdAt: new Date().toISOString(),
+      lowerCommissionRate: settings.defaultCommissionRate,
+      payoutMultiplier: settings.defaultMultiplier,
+      snapshotSource: 'created'
     };
     setVouchers(prev => [newVoucher, ...prev]);
     return newVoucher;
-  }, [vouchers, rounds]);
+  }, [vouchers, rounds, settings]);
 
   const createVoucher = useCallback((
     items: TwoDVoucherItem[],
@@ -508,11 +531,18 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
   }, []);
 
-  const deleteVoucher = useCallback((id: string) => {
+  const deleteVoucher = useCallback((id: string, reason: string = 'user-deleted') => {
     const target = vouchers.find(v => v.id === id);
     if (!target) return;
 
-    const updatedVouchers = vouchers.filter(v => v.id !== id);
+    const nowIso = new Date().toISOString();
+
+    let updatedVouchers: TwoDVoucher[];
+    if (target.isPaid || target.status === 'settled') {
+      updatedVouchers = vouchers.map(v => v.id === id ? { ...v, status: 'cancelled', deletedReason: reason } : v);
+    } else {
+      updatedVouchers = vouchers.map(v => v.id === id ? { ...v, deletedAt: nowIso, deletedReason: reason } as any : v);
+    }
 
     let remainingRawClips: any[] = [];
     try {
@@ -561,29 +591,40 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် အထက်ဒိုင်ဆီ လွှဲတင်၍ မရတော့ပါ');
     }
 
-    const todayStr = getLocalDateString().replace(/-/g, '').slice(2);
+    const shortCode = getDeviceShortCode();
+    let counter = 1;
+    try {
+      const storedCount = localStorage.getItem('forward_counter_2d_v1') || localStorage.getItem('forward_counter_v1');
+      if (storedCount) counter = parseInt(storedCount, 10) + 1;
+    } catch {
+      // ignore
+    }
+    localStorage.setItem('forward_counter_2d_v1', String(counter));
+    const pad = String(counter).padStart(6, '0');
+
     const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
     const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
     const netPaid = safeRound(slipData.totalAmount - commAmt);
 
-    const todayCount = forwardSlips.filter(f => (f.createdAt || '').slice(0, 10) === getLocalDateString()).length + 1;
-    const seqPad = String(todayCount).padStart(3, '0');
     const newSlip: TwoDForwardSlip = {
       ...slipData,
       roundId: resolvedRoundId,
       commissionRate: commRate,
       commissionAmount: commAmt,
       netPaid,
-      id: `fwd-2d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      slipNo: `FWD2D-${todayStr}-${seqPad}`,
-      createdAt: new Date().toISOString()
+      id: generateUUID(),
+      slipNo: `${shortCode}-FWD2D-${pad}`,
+      createdAt: new Date().toISOString(),
+      upperCommissionRate: commRate,
+      snapshotSource: 'created'
     };
     setForwardSlips(prev => [newSlip, ...prev]);
     return newSlip;
   }, [forwardSlips, settings.defaultCommissionRate, activeRoundId, rounds]);
 
-  const deleteForwardSlip = useCallback((id: string) => {
-    const updated = forwardSlips.filter(f => f.id !== id);
+  const deleteForwardSlip = useCallback((id: string, reason: string = 'user-deleted') => {
+    const nowIso = new Date().toISOString();
+    const updated = forwardSlips.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f);
     saveMultipleAtomic({
       [STORAGE_KEYS.FORWARD_SLIPS_2D]: updated
     });

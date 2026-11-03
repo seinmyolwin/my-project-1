@@ -663,7 +663,7 @@ export const FootballFixturesView: React.FC = () => {
                       : `Warning: ${relatedSlips.length} active/settled vouchers are linked to this match. Deleting will leave them pending. Continue deleting?`;
                   }
                   if (window.confirm(confirmMsg)) {
-                    deleteMatch(match.id);
+                    deleteMatch(match.id, 'User deleted via Fixtures View');
                   }
                 }}
                 className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"

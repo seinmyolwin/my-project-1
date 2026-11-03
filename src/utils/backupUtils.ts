@@ -1,6 +1,5 @@
 import { STORAGE_KEYS } from './storage';
 import { SECURITY_STORAGE_KEYS, obscurePin, verifyObscuredPin, revealObscuredPin } from './securityUtils';
-import { cleanDuplicate2DVouchers, cleanDuplicate3DVouchers, cleanDuplicateFootballSlips } from './deduplicationUtils';
 import { createRestorePoint } from './restorePoints';
 
 export const TELEGRAM_STORAGE_KEYS = {
@@ -473,10 +472,7 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
           try {
             const vArr = JSON.parse(p3.vouchers);
             if (Array.isArray(vArr)) {
-              const { cleaned, duplicateCount } = cleanDuplicate3DVouchers(vArr);
-              count3D = cleaned.length;
-              p3.vouchers = JSON.stringify(cleaned);
-              totalDuplicatesCleaned += duplicateCount;
+              count3D = vArr.length;
             }
           } catch {
             // ignore
@@ -492,17 +488,14 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
         setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID, p3.activeRoundId);
       }
 
-      // Restore 2D (Clean duplicate vouchers!)
+      // Restore 2D
       const p2 = parsed.payload['2d'];
       if (p2) {
         if (p2.vouchers) {
           try {
             const vArr = JSON.parse(p2.vouchers);
             if (Array.isArray(vArr)) {
-              const { cleaned, duplicateCount } = cleanDuplicate2DVouchers(vArr);
-              count2D = cleaned.length;
-              p2.vouchers = JSON.stringify(cleaned);
-              totalDuplicatesCleaned += duplicateCount;
+              count2D = vArr.length;
             }
           } catch {
             // ignore
@@ -518,17 +511,14 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
         setItemWithBackup(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, p2.activeRoundId);
       }
 
-      // Restore Football (Clean duplicate slips!)
+      // Restore Football
       const pf = parsed.payload['football'];
       if (pf) {
         if (pf.slips) {
           try {
             const sArr = JSON.parse(pf.slips);
             if (Array.isArray(sArr)) {
-              const { cleaned, duplicateCount } = cleanDuplicateFootballSlips(sArr);
-              countFB = cleaned.length;
-              pf.slips = JSON.stringify(cleaned);
-              totalDuplicatesCleaned += duplicateCount;
+              countFB = sArr.length;
             }
           } catch {
             // ignore
@@ -642,18 +632,7 @@ export async function restoreUnifiedMasterBackup(jsonString: string): Promise<bo
     const m3 = parsed.modules['3d'];
     if (m3) {
       if (m3.rounds) localStorage.setItem(STORAGE_KEYS.ROUNDS, m3.rounds);
-      if (m3.vouchers) {
-        try {
-          const vArr = JSON.parse(m3.vouchers);
-          if (Array.isArray(vArr)) {
-            localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(cleanDuplicate3DVouchers(vArr).cleaned));
-          } else {
-            localStorage.setItem(STORAGE_KEYS.VOUCHERS, m3.vouchers);
-          }
-        } catch {
-          localStorage.setItem(STORAGE_KEYS.VOUCHERS, m3.vouchers);
-        }
-      }
+      if (m3.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS, m3.vouchers);
       if (m3.limits) localStorage.setItem(STORAGE_KEYS.LIMITS, m3.limits);
       if (m3.blocked) localStorage.setItem(STORAGE_KEYS.BLOCKED, m3.blocked);
       if (m3.forwardSlips) localStorage.setItem(STORAGE_KEYS.FORWARD_SLIPS, m3.forwardSlips);
@@ -664,18 +643,7 @@ export async function restoreUnifiedMasterBackup(jsonString: string): Promise<bo
     const m2 = parsed.modules['2d'];
     if (m2) {
       if (m2.rounds) localStorage.setItem(STORAGE_KEYS.ROUNDS_2D, m2.rounds);
-      if (m2.vouchers) {
-        try {
-          const vArr = JSON.parse(m2.vouchers);
-          if (Array.isArray(vArr)) {
-            localStorage.setItem(STORAGE_KEYS.VOUCHERS_2D, JSON.stringify(cleanDuplicate2DVouchers(vArr).cleaned));
-          } else {
-            localStorage.setItem(STORAGE_KEYS.VOUCHERS_2D, m2.vouchers);
-          }
-        } catch {
-          localStorage.setItem(STORAGE_KEYS.VOUCHERS_2D, m2.vouchers);
-        }
-      }
+      if (m2.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS_2D, m2.vouchers);
       if (m2.limits) localStorage.setItem(STORAGE_KEYS.LIMITS_2D, m2.limits);
       if (m2.blocked) localStorage.setItem(STORAGE_KEYS.BLOCKED_2D, m2.blocked);
       if (m2.forwardSlips) localStorage.setItem(STORAGE_KEYS.FORWARD_SLIPS_2D, m2.forwardSlips);
@@ -686,18 +654,7 @@ export async function restoreUnifiedMasterBackup(jsonString: string): Promise<bo
     const mf = parsed.modules['football'];
     if (mf) {
       if (mf.matches) localStorage.setItem(STORAGE_KEYS.MATCHES_FOOTBALL, mf.matches);
-      if (mf.slips) {
-        try {
-          const sArr = JSON.parse(mf.slips);
-          if (Array.isArray(sArr)) {
-            localStorage.setItem(STORAGE_KEYS.SLIPS_FOOTBALL, JSON.stringify(cleanDuplicateFootballSlips(sArr).cleaned));
-          } else {
-            localStorage.setItem(STORAGE_KEYS.SLIPS_FOOTBALL, mf.slips);
-          }
-        } catch {
-          localStorage.setItem(STORAGE_KEYS.SLIPS_FOOTBALL, mf.slips);
-        }
-      }
+      if (mf.slips) localStorage.setItem(STORAGE_KEYS.SLIPS_FOOTBALL, mf.slips);
       if (mf.forwardSlips) localStorage.setItem(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, mf.forwardSlips);
       if (mf.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS_FOOTBALL, mf.settings);
       if (mf.activeDate) localStorage.setItem(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, mf.activeDate);

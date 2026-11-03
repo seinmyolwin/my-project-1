@@ -216,7 +216,7 @@ export function generateStatementRecords(
         let retainedPayout = 0;
         let winnersCount = 0;
         const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-        let mult = v.payoutMultiplier || round.multiplier || data.lottery2D.settings.defaultMultiplier || 80;
+        let mult = round.multiplier || data.lottery2D.settings.defaultMultiplier || 80;
 
         if (winningNum) {
           const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
