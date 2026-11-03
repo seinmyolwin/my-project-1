@@ -30,7 +30,6 @@ export interface Voucher {
   voucherNo: string; // e.g. "V-3D-1001"
   roundId: string;
   customerName: string;
-  customerPhone?: string;
   items: VoucherItem[];
   subtotal: number;
   discountPercent: number; // e.g. 10% dealer discount to customer
@@ -240,7 +239,6 @@ export interface TwoDVoucher {
   voucherNo: string; // e.g. "V-2D-1001"
   roundId: string;
   customerName: string;
-  customerPhone?: string;
   items: TwoDVoucherItem[];
   subtotal: number;
   discountPercent: number;
@@ -407,7 +405,6 @@ export interface FootballSlip {
   slipNo: string; // e.g. "FB-0902-1001"
   roundDate: string; // "2026-09-02"
   customerName: string;
-  customerPhone?: string;
   slipType: FootballSlipType; // 'body_single' or 'maung'
   selections: FootballBetSelection[];
   teamCount: number; // 1 for single, 2..11 for maung

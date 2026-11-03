@@ -495,11 +495,11 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const pad = String(counter).padStart(6, '0');
 
     // Never save customerPhone
-    const { customerPhone: _discardPhone, ...cleanSlipData } = slipData as any;
+    const cleanSlipData = { ...slipData } as any;
 
     const newSlip: FootballSlip = {
       ...cleanSlipData,
-      customerPhone: undefined,
+
       id: generateUUID(),
       slipNo: `${shortCode}-V-${pad}`,
       createdAt: new Date().toISOString(),
