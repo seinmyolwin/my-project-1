@@ -70,12 +70,12 @@ function extractDateKey(roundId?: string, createdAt?: string, roundDate?: string
 
 /**
  * Generates fingerprints for a 2D voucher.
- * Returns:
- * 1. idKey: exact ID
- * 2. voucherNoKey: round + voucherNo
- * 3. contentKey: date/round + customer + stake + items (identifies same voucher even if re-numbered)
+ * Matching rules:
+ * - idKey: exact ID
+ * - voucherNoKey: round + voucherNo
+ * - contentKey: date/round + minute + customer + stake + items (strictly disabled if customerName is empty)
  */
-export function get2DVoucherSignatures(v: TwoDVoucher): { idKey: string; voucherNoKey?: string; contentKey: string } {
+export function get2DVoucherSignatures(v: TwoDVoucher): { idKey: string; voucherNoKey?: string; contentKey?: string } {
   const dateKey = extractDateKey(v.roundId, v.createdAt);
   const custName = (v.customerName || '').trim().toLowerCase();
   const subtotal = Number(v.subtotal) || Number(v.netPayable) || 0;
@@ -83,8 +83,16 @@ export function get2DVoucherSignatures(v: TwoDVoucher): { idKey: string; voucher
   const vNo = (v.voucherNo || '').trim().toUpperCase();
 
   const idKey = v.id ? `id::${v.id}` : '';
-  const voucherNoKey = vNo ? `vno::${v.roundId || dateKey}::${vNo}` : undefined;
-  const contentKey = `content::${v.roundId || dateKey}::${custName}::${subtotal}::${itemsStr}`;
+  const roundOrDate = v.roundId || dateKey;
+  const voucherNoKey = (vNo && roundOrDate) ? `vno::${roundOrDate}::${vNo}` : undefined;
+
+  // Rule B2: contentKey (date+customer+stake+items) must NOT be used if customerName is blank.
+  // When customerName is present, it must match down to the minute (createdAt.slice(0, 16)).
+  let contentKey: string | undefined = undefined;
+  const minuteStr = v.createdAt ? v.createdAt.slice(0, 16) : '';
+  if (custName && minuteStr) {
+    contentKey = `content::${roundOrDate}::${minuteStr}::${custName}::${subtotal}::${itemsStr}`;
+  }
 
   return { idKey, voucherNoKey, contentKey };
 }
@@ -92,7 +100,7 @@ export function get2DVoucherSignatures(v: TwoDVoucher): { idKey: string; voucher
 /**
  * Generates fingerprints for a 3D voucher
  */
-export function get3DVoucherSignatures(v: Voucher): { idKey: string; voucherNoKey?: string; contentKey: string } {
+export function get3DVoucherSignatures(v: Voucher): { idKey: string; voucherNoKey?: string; contentKey?: string } {
   const dateKey = extractDateKey(v.roundId, v.createdAt);
   const custName = (v.customerName || '').trim().toLowerCase();
   const subtotal = Number(v.subtotal) || Number(v.netPayable) || 0;
@@ -100,8 +108,14 @@ export function get3DVoucherSignatures(v: Voucher): { idKey: string; voucherNoKe
   const vNo = (v.voucherNo || '').trim().toUpperCase();
 
   const idKey = v.id ? `id::${v.id}` : '';
-  const voucherNoKey = vNo ? `vno::${v.roundId || dateKey}::${vNo}` : undefined;
-  const contentKey = `content::${v.roundId || dateKey}::${custName}::${subtotal}::${itemsStr}`;
+  const roundOrDate = v.roundId || dateKey;
+  const voucherNoKey = (vNo && roundOrDate) ? `vno::${roundOrDate}::${vNo}` : undefined;
+
+  let contentKey: string | undefined = undefined;
+  const minuteStr = v.createdAt ? v.createdAt.slice(0, 16) : '';
+  if (custName && minuteStr) {
+    contentKey = `content::${roundOrDate}::${minuteStr}::${custName}::${subtotal}::${itemsStr}`;
+  }
 
   return { idKey, voucherNoKey, contentKey };
 }
@@ -109,7 +123,7 @@ export function get3DVoucherSignatures(v: Voucher): { idKey: string; voucherNoKe
 /**
  * Generates fingerprints for a Football slip
  */
-export function getFootballSlipSignatures(s: FootballSlip): { idKey: string; voucherNoKey?: string; contentKey: string } {
+export function getFootballSlipSignatures(s: FootballSlip): { idKey: string; voucherNoKey?: string; contentKey?: string } {
   const dateKey = extractDateKey(undefined, s.createdAt, s.roundDate);
   const custName = (s.customerName || '').trim().toLowerCase();
   const stake = Number(s.stakeAmount) || Number(s.netPayable) || 0;
@@ -117,32 +131,52 @@ export function getFootballSlipSignatures(s: FootballSlip): { idKey: string; vou
   const sNo = (s.slipNo || '').trim().toUpperCase();
 
   const idKey = s.id ? `id::${s.id}` : '';
-  const voucherNoKey = sNo ? `sno::${dateKey}::${sNo}` : undefined;
-  const contentKey = `content::${dateKey}::${custName}::${stake}::${selStr}`;
+  const voucherNoKey = (sNo && dateKey) ? `sno::${dateKey}::${sNo}` : undefined;
+
+  let contentKey: string | undefined = undefined;
+  const minuteStr = s.createdAt ? s.createdAt.slice(0, 16) : '';
+  if (custName && minuteStr) {
+    contentKey = `content::${dateKey}::${minuteStr}::${custName}::${stake}::${selStr}`;
+  }
 
   return { idKey, voucherNoKey, contentKey };
 }
 
+export interface DedupeResult<T> {
+  cleaned: T[]; // Active non-tombstone records
+  updated: T[]; // All records (existing records with duplicates tombstoned)
+  duplicates: T[]; // Duplicate records that were tombstoned
+  duplicateCount: number;
+}
+
 /**
- * Deduplicates an existing array of 2D vouchers, removing any duplicates
+ * Identifies duplicate 2D vouchers and flags them with tombstones (deletedAt) instead of hard deletion.
  */
-export function cleanDuplicate2DVouchers(vouchers: TwoDVoucher[]): { cleaned: TwoDVoucher[]; duplicateCount: number } {
-  if (!Array.isArray(vouchers) || vouchers.length <= 1) {
-    return { cleaned: vouchers || [], duplicateCount: 0 };
+export function markDuplicate2DVouchers(vouchers: TwoDVoucher[]): DedupeResult<TwoDVoucher> {
+  if (!Array.isArray(vouchers) || vouchers.length === 0) {
+    return { cleaned: [], updated: [], duplicates: [], duplicateCount: 0 };
   }
 
   const seenIds = new Set<string>();
   const seenVoucherNos = new Set<string>();
   const seenContents = new Set<string>();
-  const cleaned: TwoDVoucher[] = [];
-  let duplicateCount = 0;
+
+  const updated: TwoDVoucher[] = [];
+  const duplicates: TwoDVoucher[] = [];
+  const now = new Date().toISOString();
 
   for (const v of vouchers) {
     if (!v) continue;
+
+    // Already tombstoned records remain as tombstoned
+    if (v.deletedAt) {
+      updated.push(v);
+      continue;
+    }
+
     const { idKey, voucherNoKey, contentKey } = get2DVoucherSignatures(v);
 
     let isDuplicate = false;
-
     if (idKey && seenIds.has(idKey)) {
       isDuplicate = true;
     } else if (voucherNoKey && seenVoucherNos.has(voucherNoKey)) {
@@ -152,38 +186,57 @@ export function cleanDuplicate2DVouchers(vouchers: TwoDVoucher[]): { cleaned: Tw
     }
 
     if (isDuplicate) {
-      duplicateCount++;
+      const tombstoned: TwoDVoucher = {
+        ...v,
+        deletedAt: now,
+        deletedReason: 'duplicate',
+        deletedBy: 'manual-clean'
+      };
+      duplicates.push(tombstoned);
+      updated.push(tombstoned);
     } else {
       if (idKey) seenIds.add(idKey);
       if (voucherNoKey) seenVoucherNos.add(voucherNoKey);
       if (contentKey) seenContents.add(contentKey);
-      cleaned.push(v);
+      updated.push(v);
     }
   }
 
-  return { cleaned, duplicateCount };
+  const cleaned = updated.filter(v => !v.deletedAt);
+  return { cleaned, updated, duplicates, duplicateCount: duplicates.length };
+}
+
+export function cleanDuplicate2DVouchers(vouchers: TwoDVoucher[]): DedupeResult<TwoDVoucher> {
+  return markDuplicate2DVouchers(vouchers);
 }
 
 /**
- * Deduplicates an existing array of 3D vouchers, removing any duplicates
+ * Identifies duplicate 3D vouchers and flags them with tombstones (deletedAt) instead of hard deletion.
  */
-export function cleanDuplicate3DVouchers(vouchers: Voucher[]): { cleaned: Voucher[]; duplicateCount: number } {
-  if (!Array.isArray(vouchers) || vouchers.length <= 1) {
-    return { cleaned: vouchers || [], duplicateCount: 0 };
+export function markDuplicate3DVouchers(vouchers: Voucher[]): DedupeResult<Voucher> {
+  if (!Array.isArray(vouchers) || vouchers.length === 0) {
+    return { cleaned: [], updated: [], duplicates: [], duplicateCount: 0 };
   }
 
   const seenIds = new Set<string>();
   const seenVoucherNos = new Set<string>();
   const seenContents = new Set<string>();
-  const cleaned: Voucher[] = [];
-  let duplicateCount = 0;
+
+  const updated: Voucher[] = [];
+  const duplicates: Voucher[] = [];
+  const now = new Date().toISOString();
 
   for (const v of vouchers) {
     if (!v) continue;
+
+    if (v.deletedAt) {
+      updated.push(v);
+      continue;
+    }
+
     const { idKey, voucherNoKey, contentKey } = get3DVoucherSignatures(v);
 
     let isDuplicate = false;
-
     if (idKey && seenIds.has(idKey)) {
       isDuplicate = true;
     } else if (voucherNoKey && seenVoucherNos.has(voucherNoKey)) {
@@ -193,38 +246,57 @@ export function cleanDuplicate3DVouchers(vouchers: Voucher[]): { cleaned: Vouche
     }
 
     if (isDuplicate) {
-      duplicateCount++;
+      const tombstoned: Voucher = {
+        ...v,
+        deletedAt: now,
+        deletedReason: 'duplicate',
+        deletedBy: 'manual-clean'
+      };
+      duplicates.push(tombstoned);
+      updated.push(tombstoned);
     } else {
       if (idKey) seenIds.add(idKey);
       if (voucherNoKey) seenVoucherNos.add(voucherNoKey);
       if (contentKey) seenContents.add(contentKey);
-      cleaned.push(v);
+      updated.push(v);
     }
   }
 
-  return { cleaned, duplicateCount };
+  const cleaned = updated.filter(v => !v.deletedAt);
+  return { cleaned, updated, duplicates, duplicateCount: duplicates.length };
+}
+
+export function cleanDuplicate3DVouchers(vouchers: Voucher[]): DedupeResult<Voucher> {
+  return markDuplicate3DVouchers(vouchers);
 }
 
 /**
- * Deduplicates an existing array of Football slips, removing any duplicates
+ * Identifies duplicate Football slips and flags them with tombstones (deletedAt) instead of hard deletion.
  */
-export function cleanDuplicateFootballSlips(slips: FootballSlip[]): { cleaned: FootballSlip[]; duplicateCount: number } {
-  if (!Array.isArray(slips) || slips.length <= 1) {
-    return { cleaned: slips || [], duplicateCount: 0 };
+export function markDuplicateFootballSlips(slips: FootballSlip[]): DedupeResult<FootballSlip> {
+  if (!Array.isArray(slips) || slips.length === 0) {
+    return { cleaned: [], updated: [], duplicates: [], duplicateCount: 0 };
   }
 
   const seenIds = new Set<string>();
   const seenVoucherNos = new Set<string>();
   const seenContents = new Set<string>();
-  const cleaned: FootballSlip[] = [];
-  let duplicateCount = 0;
+
+  const updated: FootballSlip[] = [];
+  const duplicates: FootballSlip[] = [];
+  const now = new Date().toISOString();
 
   for (const s of slips) {
     if (!s) continue;
+
+    if (s.deletedAt) {
+      updated.push(s);
+      continue;
+    }
+
     const { idKey, voucherNoKey, contentKey } = getFootballSlipSignatures(s);
 
     let isDuplicate = false;
-
     if (idKey && seenIds.has(idKey)) {
       isDuplicate = true;
     } else if (voucherNoKey && seenVoucherNos.has(voucherNoKey)) {
@@ -234,32 +306,46 @@ export function cleanDuplicateFootballSlips(slips: FootballSlip[]): { cleaned: F
     }
 
     if (isDuplicate) {
-      duplicateCount++;
+      const tombstoned: FootballSlip = {
+        ...s,
+        deletedAt: now,
+        deletedReason: 'duplicate',
+        deletedBy: 'manual-clean'
+      };
+      duplicates.push(tombstoned);
+      updated.push(tombstoned);
     } else {
       if (idKey) seenIds.add(idKey);
       if (voucherNoKey) seenVoucherNos.add(voucherNoKey);
       if (contentKey) seenContents.add(contentKey);
-      cleaned.push(s);
+      updated.push(s);
     }
   }
 
-  return { cleaned, duplicateCount };
+  const cleaned = updated.filter(s => !s.deletedAt);
+  return { cleaned, updated, duplicates, duplicateCount: duplicates.length };
+}
+
+export function cleanDuplicateFootballSlips(slips: FootballSlip[]): DedupeResult<FootballSlip> {
+  return markDuplicateFootballSlips(slips);
 }
 
 /**
  * Merges incoming 2D vouchers into existing vouchers without inserting duplicates.
+ * Preserves existing vouchers intact without running auto-clean.
  */
 export function merge2DVouchersNoDuplicates(
   existingVouchers: TwoDVoucher[],
   incomingVouchers: TwoDVoucher[]
 ): { merged: TwoDVoucher[]; addedCount: number; duplicateCount: number } {
-  const { cleaned: baseCleaned } = cleanDuplicate2DVouchers(existingVouchers);
+  const baseCleaned = existingVouchers || [];
 
   const seenIds = new Set<string>();
   const seenVoucherNos = new Set<string>();
   const seenContents = new Set<string>();
 
   for (const v of baseCleaned) {
+    if (!v || v.deletedAt) continue;
     const { idKey, voucherNoKey, contentKey } = get2DVoucherSignatures(v);
     if (idKey) seenIds.add(idKey);
     if (voucherNoKey) seenVoucherNos.add(voucherNoKey);
@@ -301,18 +387,20 @@ export function merge2DVouchersNoDuplicates(
 
 /**
  * Merges incoming 3D vouchers into existing vouchers without inserting duplicates.
+ * Preserves existing vouchers intact without running auto-clean.
  */
 export function merge3DVouchersNoDuplicates(
   existingVouchers: Voucher[],
   incomingVouchers: Voucher[]
 ): { merged: Voucher[]; addedCount: number; duplicateCount: number } {
-  const { cleaned: baseCleaned } = cleanDuplicate3DVouchers(existingVouchers);
+  const baseCleaned = existingVouchers || [];
 
   const seenIds = new Set<string>();
   const seenVoucherNos = new Set<string>();
   const seenContents = new Set<string>();
 
   for (const v of baseCleaned) {
+    if (!v || v.deletedAt) continue;
     const { idKey, voucherNoKey, contentKey } = get3DVoucherSignatures(v);
     if (idKey) seenIds.add(idKey);
     if (voucherNoKey) seenVoucherNos.add(voucherNoKey);
@@ -354,18 +442,20 @@ export function merge3DVouchersNoDuplicates(
 
 /**
  * Merges incoming Football slips into existing slips without inserting duplicates.
+ * Preserves existing slips intact without running auto-clean.
  */
 export function mergeFootballSlipsNoDuplicates(
   existingSlips: FootballSlip[],
   incomingSlips: FootballSlip[]
 ): { merged: FootballSlip[]; addedCount: number; duplicateCount: number } {
-  const { cleaned: baseCleaned } = cleanDuplicateFootballSlips(existingSlips);
+  const baseCleaned = existingSlips || [];
 
   const seenIds = new Set<string>();
   const seenVoucherNos = new Set<string>();
   const seenContents = new Set<string>();
 
   for (const s of baseCleaned) {
+    if (!s || s.deletedAt) continue;
     const { idKey, voucherNoKey, contentKey } = getFootballSlipSignatures(s);
     if (idKey) seenIds.add(idKey);
     if (voucherNoKey) seenVoucherNos.add(voucherNoKey);
@@ -403,4 +493,24 @@ export function mergeFootballSlipsNoDuplicates(
     addedCount: toAdd.length,
     duplicateCount
   };
+}
+
+/**
+ * Untombstones a voucher or slip by resetting deletedAt to null (Rule B3).
+ */
+export function untombstoneItem<T extends { id: string; deletedAt?: string | null; deletedReason?: string; deletedBy?: string }>(
+  items: T[],
+  id: string
+): T[] {
+  return items.map(item => {
+    if (item.id === id) {
+      return {
+        ...item,
+        deletedAt: null,
+        deletedReason: undefined,
+        deletedBy: undefined
+      };
+    }
+    return item;
+  });
 }

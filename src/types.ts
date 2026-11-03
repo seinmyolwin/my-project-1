@@ -40,6 +40,12 @@ export interface Voucher {
   notes?: string;
   isPaid: boolean;
   status: 'active' | 'cancelled' | 'settled';
+  lowerCommissionRate?: number;
+  payoutMultiplier?: number;
+  snapshotSource?: 'created' | 'migrated';
+  deletedAt?: string | null;
+  deletedReason?: string;
+  deletedBy?: string;
 }
 
 export interface ForwardSlipItem {
@@ -61,6 +67,8 @@ export interface ForwardSlip {
   createdAt: string;
   notes?: string;
   actualPayout?: number; // ဒိုင်ကြီးဆီမှ ပြန်ရငွေ (Master Agent Payout)
+  upperCommissionRate?: number;
+  snapshotSource?: 'created' | 'migrated';
 }
 
 export interface DrawRound {
@@ -242,6 +250,12 @@ export interface TwoDVoucher {
   notes?: string;
   isPaid: boolean;
   status: 'active' | 'cancelled' | 'settled';
+  lowerCommissionRate?: number;
+  payoutMultiplier?: number;
+  snapshotSource?: 'created' | 'migrated';
+  deletedAt?: string | null;
+  deletedReason?: string;
+  deletedBy?: string;
 }
 
 export interface TwoDForwardSlip {
@@ -258,6 +272,8 @@ export interface TwoDForwardSlip {
   createdAt: string;
   notes?: string;
   actualPayout?: number; // ဒိုင်ကြီးဆီမှ ပြန်ရငွေ (Master Agent Payout)
+  upperCommissionRate?: number;
+  snapshotSource?: 'created' | 'migrated';
 }
 
 export interface TwoDQuickActionButtonsConfig {
@@ -404,8 +420,13 @@ export interface FootballSlip {
   actualPayout?: number;
   outcome?: 'pending' | 'won' | 'half_won' | 'draw' | 'half_lost' | 'lost';
   status: 'active' | 'settled' | 'cancelled';
+  payoutOdds?: number;
+  snapshotSource?: 'created' | 'migrated';
   createdAt: string;
   notes?: string;
+  deletedAt?: string | null;
+  deletedReason?: string;
+  deletedBy?: string;
 }
 
 export interface FootballForwardSlip {
@@ -425,6 +446,8 @@ export interface FootballForwardSlip {
   potentialPayout: number;
   actualPayout?: number;
   status: 'active' | 'settled';
+  upperCommissionRate?: number;
+  snapshotSource?: 'created' | 'migrated';
   createdAt: string;
   notes?: string;
 }
@@ -468,3 +491,26 @@ export interface FootballSummary {
 // Master Bookie Mode
 export type BookieMode = '3d' | '2d' | 'football';
 
+export type GameType = '2D' | '3D' | 'FB';
+
+export interface PeriodClosing {
+  id: string;
+  game: GameType;
+  periodStart: string;
+  periodEnd: string;
+  closedAt: string;
+  totals: {
+    sales: number;
+    payout: number;
+    profit: number;
+  };
+  contentHash: string;
+}
+
+export interface PeriodReopenLog {
+  id: string;
+  periodId: string;
+  reopenedAt: string;
+  reason: string;
+  previousHash: string;
+}

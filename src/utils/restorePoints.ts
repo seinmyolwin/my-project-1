@@ -17,6 +17,9 @@ export interface RestorePoint {
   keys: Record<string, string>; // { [key]: rawString }
   hashes?: Record<string, string>; // { [key]: sha256Hex }
   meta?: any;
+  excludedKeys: string[];
+  redacted: boolean;
+  redactedKeys: string[];
 }
 
 export const RESTORE_POINTS_LOCAL_KEY = 'restore_points_v1';
@@ -357,15 +360,49 @@ export async function createRestorePoint(
   meta?: any
 ): Promise<RestorePoint> {
   const storage = getStorage();
+
   const keys: Record<string, string> = {};
+  const excludedKeys: string[] = [];
+  const redactedKeys: string[] = [];
+  let redacted = false;
 
   // Comprehensive key coverage: snapshot all keys in storage (excluding internal restore points)
   for (let i = 0; i < storage.length; i++) {
     const k = storage.key(i);
     if (k && !isInternalRestorePointKey(k)) {
+      if (k.includes('telegram')) {
+        excludedKeys.push(k);
+        continue;
+      }
+      
       const val = storage.getItem(k);
       if (val !== null) {
-        keys[k] = val; // raw verbatim string, byte-for-byte
+        let finalVal = val;
+        if (val.includes('customerPhone')) {
+          try {
+            const obj = JSON.parse(val);
+            let hasPhone = false;
+            const traverse = (item: any) => {
+              if (item && typeof item === 'object') {
+                Object.keys(item).forEach(key => {
+                  if (key === 'customerPhone') {
+                    item[key] = "";
+                    hasPhone = true;
+                  } else {
+                    traverse(item[key]);
+                  }
+                });
+              }
+            };
+            traverse(obj);
+            if (hasPhone) {
+              finalVal = JSON.stringify(obj);
+              redacted = true;
+              redactedKeys.push(k);
+            }
+          } catch { /* parse error, skip redaction */ }
+        }
+        keys[k] = finalVal;
       }
     }
   }
@@ -391,7 +428,10 @@ export async function createRestorePoint(
     bytes,
     keys,
     hashes,
-    meta
+    meta,
+    excludedKeys,
+    redacted,
+    redactedKeys
   };
 
   // 1. Save to LocalStorage fallback

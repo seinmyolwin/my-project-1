@@ -19,10 +19,12 @@ import {
   saveStoredData,
   saveMultipleAtomic
 } from '../utils/storage';
+import { createTombstone } from '../utils/tombstoneUtils';
+
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
-import { cleanDuplicateFootballSlips } from '../utils/deduplicationUtils';
+
 
 interface FootballContextType {
   settings: FootballSettings;
@@ -32,7 +34,8 @@ interface FootballContextType {
   setActiveDate: (date: string) => void;
   createMatch: (match: Omit<FootballMatch, 'id'>) => FootballMatch;
   updateMatch: (id: string, data: Partial<FootballMatch>) => void;
-  deleteMatch: (id: string) => void;
+  deleteMatch: (id: string, reason: string) => void;
+
   setMatchScore: (id: string, homeScore: number, awayScore: number) => void;
 
   // Leagues & Teams Management
@@ -86,7 +89,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [slips, setSlips] = useState<FootballSlip[]>(() => {
     const raw = loadStoredData<FootballSlip[]>(STORAGE_KEYS.SLIPS_FOOTBALL, []);
-    return cleanDuplicateFootballSlips(raw || []).cleaned;
+    return raw || [];
   });
 
   const [forwardSlips, setForwardSlips] = useState<FootballForwardSlip[]>(() =>
@@ -432,83 +435,10 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   }, [settleMatches]);
 
-  const deleteMatch = useCallback((id: string) => {
-    const updatedMatches = matches.filter(m => m.id !== id);
-    const matchesMap = updatedMatches.reduce((acc, m) => {
-      acc[m.id] = m;
-      return acc;
-    }, {} as { [id: string]: FootballMatch });
+  const deleteMatch = useCallback((id: string, reason: string) => {
+    setMatches(prev => prev.map(m => m.id === id ? { ...m, ...createTombstone(reason) } : m));
+  }, []);
 
-    const settledSlipIds = new Set<string>();
-
-    const updatedSlips = slips.map(slip => {
-      if (slip.status === 'cancelled') return slip;
-
-      const hasMatch = slip.selections.some(s => s.matchId === id);
-      let workingSlip = slip;
-      if (hasMatch) {
-        workingSlip = {
-          ...slip,
-          selections: slip.selections.map(s =>
-            s.matchId === id ? { ...s, outcome: 'void' as const, odds: 1.0 } : s
-          )
-        };
-      }
-
-      const res = calculateSlipSettlement(workingSlip, matchesMap);
-      if (res.outcome !== 'pending') {
-        settledSlipIds.add(workingSlip.id);
-        return {
-          ...workingSlip,
-          status: 'settled' as const,
-          outcome: res.outcome,
-          actualPayout: res.actualPayout,
-          selections: res.evaluatedSelections
-        };
-      }
-
-      return {
-        ...workingSlip,
-        status: 'active' as const,
-        outcome: 'pending' as const,
-        actualPayout: undefined,
-        selections: res.evaluatedSelections
-      };
-    });
-
-    const updatedFwds = forwardSlips.map(fwd => {
-      const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
-                      (fwd.slipNo && updatedSlips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
-      if (isMatch) {
-        return { ...fwd, status: 'settled' as const };
-      }
-      return fwd;
-    });
-
-    let remainingRawClips: any[] = [];
-    try {
-      const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
-      if (rawStored) {
-        const parsed = JSON.parse(rawStored);
-        if (Array.isArray(parsed)) {
-          remainingRawClips = parsed.filter((c: any) => c.matchId !== id);
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    saveMultipleAtomic({
-      [STORAGE_KEYS.MATCHES_FOOTBALL]: updatedMatches,
-      [STORAGE_KEYS.SLIPS_FOOTBALL]: updatedSlips,
-      [STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL]: updatedFwds,
-      'shwe_mingalar_copied_raw_texts': remainingRawClips
-    });
-
-    setMatches(updatedMatches);
-    setSlips(updatedSlips);
-    setForwardSlips(updatedFwds);
-  }, [matches, slips, forwardSlips]);
 
   const setMatchScore = useCallback((id: string, homeScore: number, awayScore: number) => {
     setMatches(prev => {
@@ -791,8 +721,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.settings) setSettingsState(data.settings);
       if (Array.isArray(data.matches)) setMatches(data.matches);
       if (Array.isArray(data.slips)) {
-        const { cleaned } = cleanDuplicateFootballSlips(data.slips);
-        setSlips(cleaned);
+        setSlips(data.slips);
       }
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
       if (Array.isArray(data.leagues)) setLeagues(data.leagues);

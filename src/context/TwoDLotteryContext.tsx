@@ -235,7 +235,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [vouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
     const loaded = loadStoredData<TwoDVoucher[]>(STORAGE_KEYS.VOUCHERS_2D, []);
-    return cleanDuplicate2DVouchers(loaded || []).cleaned;
+    return loaded || [];
   });
 
   const [forwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
@@ -299,7 +299,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const curRoundId = activeRound?.id || activeRoundId;
     return vouchers.filter(v =>
       (v.roundId === curRoundId || (v.roundId === activeRoundId && activeRoundId)) &&
-      v.status !== 'cancelled'
+      v.status !== 'cancelled' &&
+      !v.deletedAt
     );
   }, [vouchers, activeRound?.id, activeRoundId]);
 
@@ -1044,8 +1045,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (data.activeRoundId) setActiveRoundIdState(data.activeRoundId);
       if (Array.isArray(data.vouchers)) {
-        const { cleaned } = cleanDuplicate2DVouchers(data.vouchers);
-        setVouchers(cleaned);
+        setVouchers(data.vouchers);
       }
       if (Array.isArray(data.forwardSlips)) setForwardSlips(data.forwardSlips);
       if (data.limits && typeof data.limits === 'object') setLimits(data.limits);

@@ -8,6 +8,7 @@ import { LogOut } from 'lucide-react';
 import { LotteryProvider, useLottery } from './context/LotteryContext';
 import { TwoDLotteryProvider, useTwoDLottery } from './context/TwoDLotteryContext';
 import { FootballProvider, useFootball } from './context/FootballContext';
+import { PeriodProvider } from './context/PeriodContext';
 import { Header } from './components/Header';
 import { BookieMode, Voucher, TwoDVoucher, FootballSlip } from './types';
 
@@ -752,14 +753,18 @@ function AppContent() {
   );
 }
 
+
 export default function App() {
   return (
-    <LotteryProvider>
-      <TwoDLotteryProvider>
-        <FootballProvider>
-          <AppContent />
-        </FootballProvider>
-      </TwoDLotteryProvider>
-    </LotteryProvider>
+    <PeriodProvider>
+      <LotteryProvider>
+        <TwoDLotteryProvider>
+          <FootballProvider>
+            <AppContent />
+          </FootballProvider>
+        </TwoDLotteryProvider>
+      </LotteryProvider>
+    </PeriodProvider>
   );
 }
+

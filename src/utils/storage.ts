@@ -983,7 +983,8 @@ const STORAGE_KEYS = {
   FORWARD_SLIPS_FOOTBALL: 'football_ledger_forward_slips_v1',
   SETTINGS_FOOTBALL: 'football_ledger_settings_v1',
   ACTIVE_DATE_FOOTBALL: 'football_ledger_active_date_v1',
-  LEAGUES_FOOTBALL: 'football_ledger_leagues_v1'
+  LEAGUES_FOOTBALL: 'football_ledger_leagues_v1',
+  PERIOD_CLOSINGS: 'period_closings_v1'
 };
 
 // Request browser to keep storage persistent (prevents eviction on iOS Safari & Android Chrome)

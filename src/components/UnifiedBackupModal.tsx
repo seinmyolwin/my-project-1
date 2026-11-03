@@ -220,45 +220,23 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   // Rollback / Restore handler via Restore Points (B1, B2)
   const handleRestoreClick = async () => {
     try {
-      const points = await listRestorePoints();
-
-      // ပထမ confirm: "ဖိုင်ရွေးမယ်" လမ်းကြောင်းကို တိုက်ရိုက် ရွေးချယ်စေခြင်း
-      const chooseFileFirst = window.confirm(
-        'Backup ဖိုင် (.rhmg) ကို ဖုန်း/ကွန်ပျူတာထဲမှ ရွေးချယ်သွင်းယူမည်လား?\n(Cancel နှိပ်ပါက စက်တွင်း သိမ်းဆည်းထားသော Restore Point များမှ ရွေးချယ်နိုင်ပါသည်)'
-      );
-
-      if (chooseFileFirst) {
+      const chooseFile = window.confirm('Backup ဖိုင် (.rhmg) ကို ရွေးချယ်သွင်းယူမည်လား?');
+      if (chooseFile) {
         fileInputRef.current?.click();
         return;
       }
 
-      // ဒုတိယ ရွေးချယ်မှု: စက်တွင်း Restore Point Rollback
+      const points = await listRestorePoints();
       if (points && points.length > 0) {
         const latest = points[0];
         const formattedDate = new Date(latest.createdAt).toLocaleString('my-MM') || latest.createdAt;
         const confirmLatest = window.confirm(`နောက်ဆုံး restore point (${formattedDate}၊ အကြောင်းပြချက်: ${latest.reason}) ကို ပြန်ယူမလား?`);
         if (confirmLatest) {
-          const res = await restoreFromRestorePoint(latest.id);
-          showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
-          setTimeout(() => window.location.reload(), 1500);
-          return;
-        }
-
-        // B2: Point စာရင်း ရွေးချင်ရင် window.confirm အဆင့်ဆင့် (အချိန် + reason) သာ
-        if (points.length > 1) {
-          const wantOlder = window.confirm('ယခင် restore point များထဲမှ ရွေးချယ်လိုပါသလား?');
-          if (wantOlder) {
-            for (let i = 1; i < points.length; i++) {
-              const pt = points[i];
-              const ptDate = new Date(pt.createdAt).toLocaleString('my-MM') || pt.createdAt;
-              const pickPt = window.confirm(`ယခင် restore point (${ptDate}၊ အကြောင်းပြချက်: ${pt.reason}) ကို ပြန်ယူမလား?`);
-              if (pickPt) {
-                const res = await restoreFromRestorePoint(pt.id);
-                showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
-                setTimeout(() => window.location.reload(), 1500);
-                return;
-              }
-            }
+          const confirmDestructive = window.confirm('လက်ရှိ ဒေတာ အားလုံး ပျက်သွားမည်။ သေချာပါသလား?');
+          if (confirmDestructive) {
+            const res = await restoreFromRestorePoint(latest.id);
+            showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+            setTimeout(() => window.location.reload(), 1500);
           }
         }
       } else {
