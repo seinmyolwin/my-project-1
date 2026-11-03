@@ -34,6 +34,7 @@ import { getLocalDateStr, getDaysAgoStr } from '../utils/statementUtils';
 import { STORAGE_KEYS, saveStoredData } from '../utils/storage';
 import { cleanDuplicate2DVouchers, cleanDuplicate3DVouchers, cleanDuplicateFootballSlips } from '../utils/deduplicationUtils';
 import { importVouchersFromExcel } from '../utils/excelImportUtils';
+import { listRestorePoints, restoreFromRestorePoint, createRestorePoint } from '../utils/restorePoints';
 
 interface UnifiedBackupModalProps {
   isOpen: boolean;
@@ -216,18 +217,71 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     showMsg(`"${filename}" အား စက်ထဲသို့ အောင်မြင်စွာ ဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
   };
 
+  // Rollback / Restore handler via Restore Points (B1, B2)
+  const handleRestoreClick = async () => {
+    try {
+      const points = await listRestorePoints();
+
+      // ပထမ confirm: "ဖိုင်ရွေးမယ်" လမ်းကြောင်းကို တိုက်ရိုက် ရွေးချယ်စေခြင်း
+      const chooseFileFirst = window.confirm(
+        'Backup ဖိုင် (.rhmg) ကို ဖုန်း/ကွန်ပျူတာထဲမှ ရွေးချယ်သွင်းယူမည်လား?\n(Cancel နှိပ်ပါက စက်တွင်း သိမ်းဆည်းထားသော Restore Point များမှ ရွေးချယ်နိုင်ပါသည်)'
+      );
+
+      if (chooseFileFirst) {
+        fileInputRef.current?.click();
+        return;
+      }
+
+      // ဒုတိယ ရွေးချယ်မှု: စက်တွင်း Restore Point Rollback
+      if (points && points.length > 0) {
+        const latest = points[0];
+        const formattedDate = new Date(latest.createdAt).toLocaleString('my-MM') || latest.createdAt;
+        const confirmLatest = window.confirm(`နောက်ဆုံး restore point (${formattedDate}၊ အကြောင်းပြချက်: ${latest.reason}) ကို ပြန်ယူမလား?`);
+        if (confirmLatest) {
+          const res = await restoreFromRestorePoint(latest.id);
+          showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
+
+        // B2: Point စာရင်း ရွေးချင်ရင် window.confirm အဆင့်ဆင့် (အချိန် + reason) သာ
+        if (points.length > 1) {
+          const wantOlder = window.confirm('ယခင် restore point များထဲမှ ရွေးချယ်လိုပါသလား?');
+          if (wantOlder) {
+            for (let i = 1; i < points.length; i++) {
+              const pt = points[i];
+              const ptDate = new Date(pt.createdAt).toLocaleString('my-MM') || pt.createdAt;
+              const pickPt = window.confirm(`ယခင် restore point (${ptDate}၊ အကြောင်းပြချက်: ${pt.reason}) ကို ပြန်ယူမလား?`);
+              if (pickPt) {
+                const res = await restoreFromRestorePoint(pt.id);
+                showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+                setTimeout(() => window.location.reload(), 1500);
+                return;
+              }
+            }
+          }
+        }
+      } else {
+        showMsg('စက်တွင်း Restore Point မှတ်တမ်း မရှိသေးပါ', 'error');
+      }
+    } catch (err: any) {
+      console.warn('Restore points check error:', err);
+      fileInputRef.current?.click();
+    }
+  };
+
   // Restore Master Backup File
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
         const currentPin = getStoredOwnerPin();
 
-        const result = restoreSecureMasterBackup(content, currentPin);
+        const result = await restoreSecureMasterBackup(content, currentPin);
         if (result.success) {
           showMsg(`${result.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
           setTimeout(() => window.location.reload(), 1500);
@@ -250,7 +304,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   };
 
   // Confirm password entered by user for restore
-  const handleConfirmRestorePin = () => {
+  const handleConfirmRestorePin = async () => {
     if (!pendingFileContent) return;
     const trimmedPin = restorePinInput.trim();
     if (trimmedPin.length !== 6) {
@@ -258,7 +312,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
       return;
     }
 
-    const result = restoreSecureMasterBackup(pendingFileContent, trimmedPin);
+    const result = await restoreSecureMasterBackup(pendingFileContent, trimmedPin);
     if (result.success) {
       setIsPasswordModalOpen(false);
       setPendingFileContent(null);
@@ -276,6 +330,11 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
 
     setIsImportingExcel(true);
     try {
+      try {
+        await createRestorePoint('before-import');
+      } catch (rpErr) {
+        console.warn('Restore point creation failed before excel import:', rpErr);
+      }
       const res = await importVouchersFromExcel(file);
       if (res.success) {
         showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
@@ -292,7 +351,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   };
 
   // Manual Cleanup of existing duplicate vouchers
-  const handleCleanDuplicates = () => {
+  const handleCleanDuplicates = async () => {
     const res2D = cleanDuplicate2DVouchers(lottery2D.vouchers);
     const res3D = cleanDuplicate3DVouchers(lottery3D.vouchers);
     const resFB = cleanDuplicateFootballSlips(football.slips);
@@ -300,6 +359,11 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     const totalDuplicates = res2D.duplicateCount + res3D.duplicateCount + resFB.duplicateCount;
 
     if (totalDuplicates > 0) {
+      try {
+        await createRestorePoint('manual', { action: 'clean-duplicates', count: totalDuplicates });
+      } catch (rpErr) {
+        console.warn('Restore point creation failed before clean duplicates:', rpErr);
+      }
       saveStoredData(STORAGE_KEYS.VOUCHERS_2D, res2D.cleaned);
       saveStoredData(STORAGE_KEYS.VOUCHERS, res3D.cleaned);
       saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, resFB.cleaned);
@@ -595,7 +659,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
                 />
 
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleRestoreClick}
                   className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-3 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/20 group"
                 >
                   <Upload className="w-5 h-5 mx-auto text-slate-400 group-hover:text-indigo-600 transition-colors mb-1" />

@@ -557,7 +557,7 @@ export function parseTwoDBatchInput(
     }
 
     // Pattern: "5 ထိပ် 1000", "ထိပ် 5 1000", "1 ရှေ့ပိတ် 1000", "5h1000"
-    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်|h|H)/i.test(line)) {
+    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်|(?:\b\d+\s*[hH]\b|\b[hH]\s*\d+\b|\b[hH]\b))/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const headDigit = parseInt(nums[0].slice(-1), 10);
@@ -575,7 +575,7 @@ export function parseTwoDBatchInput(
     }
 
     // Pattern: "2 နောက်ပိတ် 1000", "5 နောက် 1000", "5 ပိတ် 1000", "5t1000"
-    if (/(?:နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်|t|T)/i.test(line) && !/(?:ရှေ့ပိတ်|ရှေ့စီး)/i.test(line)) {
+    if (/(?:နောက်ပိတ်|နောက်စီး|နောက်|ပိတ်|(?:\b\d+\s*[tT]\b|\b[tT]\s*\d+\b|\b[tT]\b))/i.test(line) && !/(?:ရှေ့ပိတ်|ရှေ့စီး)/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const tailDigit = parseInt(nums[0].slice(-1), 10);

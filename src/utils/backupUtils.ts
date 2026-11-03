@@ -1,6 +1,7 @@
 import { STORAGE_KEYS } from './storage';
 import { SECURITY_STORAGE_KEYS, obscurePin, verifyObscuredPin, revealObscuredPin } from './securityUtils';
 import { cleanDuplicate2DVouchers, cleanDuplicate3DVouchers, cleanDuplicateFootballSlips } from './deduplicationUtils';
+import { createRestorePoint } from './restorePoints';
 
 export const TELEGRAM_STORAGE_KEYS = {
   CONFIG: 'shwe_mingalar_telegram_config',
@@ -364,7 +365,7 @@ export interface RestoreResult {
  * Restores 100% of ALL system data from encrypted .rhmg file (or legacy JSON backup)
  * Prompts cleanly for PIN if password-protected, never drops vouchers, and ensures safe restore.
  */
-export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: string = ''): RestoreResult {
+export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin: string = ''): Promise<RestoreResult> {
   try {
     const trimmed = rawFileContent.trim();
 
@@ -441,7 +442,12 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
         return { success: false, message: 'ဒေတာ ဖော်မတ်/စကီးမား မှားယွင်းနေပါသည် (Schema Validation Failed)' };
       }
 
-      // 2. Take Snapshot before overwrite
+      // 2. Mandatory Restore Point before overwrite
+      try {
+        await createRestorePoint('before-import');
+      } catch (rpErr) {
+        console.error('[Restore] Failed to create before-import restore point:', rpErr);
+      }
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           const snapshotData: Record<string, string | null> = {};
@@ -591,7 +597,7 @@ export function restoreSecureMasterBackup(rawFileContent: string, ownerPin: stri
     try {
       const parsed = JSON.parse(trimmed);
       if (parsed.modules || parsed.storageType === 'UNIFIED_MASTER_BACKUP') {
-        const ok = restoreUnifiedMasterBackup(trimmed);
+        const ok = await restoreUnifiedMasterBackup(trimmed);
         if (ok) {
           return {
             success: true,
@@ -621,10 +627,17 @@ export function exportUnifiedMasterBackup(): string {
 /**
  * Legacy support for raw JSON restore
  */
-export function restoreUnifiedMasterBackup(jsonString: string): boolean {
+export async function restoreUnifiedMasterBackup(jsonString: string): Promise<boolean> {
   try {
     const parsed = JSON.parse(jsonString);
     if (!parsed.modules) return false;
+
+    // Mandatory restore point before restoring legacy backup
+    try {
+      await createRestorePoint('before-import');
+    } catch (rpErr) {
+      console.error('[Restore] Failed to create before-import restore point:', rpErr);
+    }
 
     const m3 = parsed.modules['3d'];
     if (m3) {

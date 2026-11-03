@@ -8,6 +8,7 @@
  */
 
 import { STORAGE_KEYS, saveBatchTransactional } from './storage';
+import { createRestorePoint } from './restorePoints';
 
 export const SNAPSHOT_KEY = 'pre_migration_snapshot_v1';
 export const MIGRATION_FLAG_KEY = 'part1_migration_completed_v1';
@@ -99,11 +100,17 @@ export function isSampleMasterAgent(name?: string, phone?: string): boolean {
  * 3. Strips customerPhone from all stored vouchers, slips, raw clips, and orders
  * 4. Saves changes atomically
  */
-export function runPart1Migration(): boolean {
+export async function runPart1Migration(): Promise<boolean> {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return false;
 
-    // 1. Mandatory snapshot first
+    // 1. Mandatory snapshot first: create formal before-migration restore point
+    try {
+      await createRestorePoint('before-migration');
+    } catch (rpErr) {
+      console.error('[Migration] CRITICAL: createRestorePoint before-migration failed! Aborting migration.', rpErr);
+      return false;
+    }
     takePreMigrationSnapshot();
 
     const updates: Record<string, any> = {};

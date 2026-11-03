@@ -68,11 +68,11 @@ import {
   exportPeriodVouchersBackup,
   saveFileWithCustomLocation,
   shareFileDirectly,
-  downloadFile,
   getBackupFileName
 } from '../utils/backupUtils';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import { importVouchersFromExcel } from '../utils/excelImportUtils';
+import { listRestorePoints, restoreFromRestorePoint, createRestorePoint } from '../utils/restorePoints';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -1380,17 +1380,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTimeout(() => setBackupMsg(null), 4000);
   };
 
+  // Rollback / Restore handler via Restore Points (B1, B2)
+  const handleRestoreButtonClick = async () => {
+    try {
+      const points = await listRestorePoints();
+
+      // ပထမ confirm: "ဖိုင်ရွေးမယ်" လမ်းကြောင်းကို တိုက်ရိုက် ရွေးချယ်စေခြင်း
+      const chooseFileFirst = window.confirm(
+        'Backup ဖိုင် (.rhmg) ကို ဖုန်း/ကွန်ပျူတာထဲမှ ရွေးချယ်သွင်းယူမည်လား?\n(Cancel နှိပ်ပါက စက်တွင်း သိမ်းဆည်းထားသော Restore Point များမှ ရွေးချယ်နိုင်ပါသည်)'
+      );
+
+      if (chooseFileFirst) {
+        backupFileInputRef.current?.click();
+        return;
+      }
+
+      // ဒုတိယ ရွေးချယ်မှု: စက်တွင်း Restore Point Rollback
+      if (points && points.length > 0) {
+        const latest = points[0];
+        const formattedDate = new Date(latest.createdAt).toLocaleString('my-MM') || latest.createdAt;
+        const confirmLatest = window.confirm(`နောက်ဆုံး restore point (${formattedDate}၊ အကြောင်းပြချက်: ${latest.reason}) ကို ပြန်ယူမလား?`);
+        if (confirmLatest) {
+          const res = await restoreFromRestorePoint(latest.id);
+          setBackupMsg({ type: 'success', text: `${res.message}။ အက်ပ်အား Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
+
+        // B2: Point စာရင်း ရွေးချင်ရင် window.confirm အဆင့်ဆင့် (အချိန် + reason) သာ
+        if (points.length > 1) {
+          const wantOlder = window.confirm('ယခင် restore point များထဲမှ ရွေးချယ်လိုပါသလား?');
+          if (wantOlder) {
+            for (let i = 1; i < points.length; i++) {
+              const pt = points[i];
+              const ptDate = new Date(pt.createdAt).toLocaleString('my-MM') || pt.createdAt;
+              const pickPt = window.confirm(`ယခင် restore point (${ptDate}၊ အကြောင်းပြချက်: ${pt.reason}) ကို ပြန်ယူမလား?`);
+              if (pickPt) {
+                const res = await restoreFromRestorePoint(pt.id);
+                setBackupMsg({ type: 'success', text: `${res.message}။ အက်ပ်အား Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
+                setTimeout(() => window.location.reload(), 1500);
+                return;
+              }
+            }
+          }
+        }
+      } else {
+        setBackupMsg({ type: 'error', text: 'စက်တွင်း Restore Point မှတ်တမ်း မရှိသေးပါ' });
+        setTimeout(() => setBackupMsg(null), 4000);
+      }
+    } catch (err: any) {
+      console.warn('Restore points check error:', err);
+      backupFileInputRef.current?.click();
+    }
+  };
+
   // Backup File Restore Handler
   const handleFileRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
         const currentPin = getStoredOwnerPin();
-        const result = restoreSecureMasterBackup(content, currentPin);
+        const result = await restoreSecureMasterBackup(content, currentPin);
         if (result.success) {
           setBackupMsg({ type: 'success', text: `${result.message}။ အက်ပ်အား Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
           setTimeout(() => window.location.reload(), 1500);
@@ -1410,7 +1464,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (backupFileInputRef.current) backupFileInputRef.current.value = '';
   };
 
-  const handleConfirmRestorePin = () => {
+  const handleConfirmRestorePin = async () => {
     if (!pendingBackupContent) return;
     const trimmedPin = restorePinInput.trim();
     if (trimmedPin.length !== 6) {
@@ -1418,7 +1472,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    const result = restoreSecureMasterBackup(pendingBackupContent, trimmedPin);
+    const result = await restoreSecureMasterBackup(pendingBackupContent, trimmedPin);
     if (result.success) {
       setIsRestorePinModalOpen(false);
       setPendingBackupContent(null);
@@ -1435,6 +1489,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     setIsImportingExcel(true);
     try {
+      try {
+        await createRestorePoint('before-import');
+      } catch (rpErr) {
+        console.warn('Restore point creation failed before excel import:', rpErr);
+      }
       const res = await importVouchersFromExcel(file);
       if (res.success) {
         setBackupMsg({ type: 'success', text: `${res.message}။ စာရင်းများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...` });
@@ -3539,7 +3598,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => backupFileInputRef.current?.click()}
+                    onClick={handleRestoreButtonClick}
                     className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
                   >
                     <Upload className="w-4 h-4" />
