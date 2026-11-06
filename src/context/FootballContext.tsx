@@ -26,6 +26,7 @@ import { getDeviceShortCode } from '../utils/deviceId';
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
+import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
 
 
 interface FootballContextType {
@@ -79,9 +80,10 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadStoredData(STORAGE_KEYS.SETTINGS_FOOTBALL, DEFAULT_FOOTBALL_SETTINGS)
   );
 
-  const [matches, setMatches] = useState<FootballMatch[]>(() =>
+  const [rawMatches, setMatches] = useState<FootballMatch[]>(() =>
     loadStoredData(STORAGE_KEYS.MATCHES_FOOTBALL, INITIAL_FOOTBALL_MATCHES)
   );
+  const matches = useMemo(() => rawMatches.filter(m => !(m as any).deletedAt), [rawMatches]);
 
   const [activeDate, setActiveDateState] = useState<string>(() => {
     const saved = loadStoredData<string>(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, '');
@@ -89,18 +91,21 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return getLocalDateString();
   });
 
-  const [slips, setSlips] = useState<FootballSlip[]>(() => {
+  const [rawSlips, setSlips] = useState<FootballSlip[]>(() => {
     const raw = loadStoredData<FootballSlip[]>(STORAGE_KEYS.SLIPS_FOOTBALL, []);
     return raw || [];
   });
+  const slips = useMemo(() => rawSlips.filter(x => !(x as any).deletedAt), [rawSlips]);
 
-  const [forwardSlips, setForwardSlips] = useState<FootballForwardSlip[]>(() =>
+  const [rawForwardSlips, setForwardSlips] = useState<FootballForwardSlip[]>(() =>
     loadStoredData<FootballForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, [])
   );
+  const forwardSlips = useMemo(() => rawForwardSlips.filter(f => !(f as any).deletedAt), [rawForwardSlips]);
 
-  const [leagues, setLeagues] = useState<FootballLeague[]>(() =>
+  const [rawLeagues, setLeagues] = useState<FootballLeague[]>(() =>
     loadStoredData(STORAGE_KEYS.LEAGUES_FOOTBALL, DEFAULT_FOOTBALL_LEAGUES)
   );
+  const leagues = useMemo(() => rawLeagues.filter(l => !(l as any).deletedAt), [rawLeagues]);
 
   // Sync to localStorage
   useEffect(() => {
@@ -108,7 +113,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [settings]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.MATCHES_FOOTBALL, matches);
+    saveStoredData(STORAGE_KEYS.MATCHES_FOOTBALL, rawMatches);
   }, [matches]);
 
   useEffect(() => {
@@ -116,15 +121,15 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [activeDate]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, slips);
+    saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, rawSlips);
   }, [slips]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, forwardSlips);
+    saveStoredData(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, rawForwardSlips);
   }, [forwardSlips]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.LEAGUES_FOOTBALL, leagues);
+    saveStoredData(STORAGE_KEYS.LEAGUES_FOOTBALL, rawLeagues);
   }, [leagues]);
 
   // Combined sorted list of all unique team names across leagues
@@ -160,18 +165,19 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const targetLeague = leagues.find(l => l.id === id);
     if (!targetLeague) return;
 
-    const remainingLeagues = leagues.filter(l => l.id !== id);
+    const nowIso = new Date().toISOString();
+    const updatedLeagues = rawLeagues.map(l => l.id === id ? ({ ...l, deletedAt: nowIso, deletedReason: 'league-deleted' } as any) : l);
     const matchesToDelete = matches.filter(m => m.league === targetLeague.name || (m as any).leagueId === id);
     const matchIdsToDelete = new Set(matchesToDelete.map(m => m.id));
 
-    const updatedMatches = matches.filter(m => !matchIdsToDelete.has(m.id));
+    const updatedMatches = rawMatches.map(m => matchIdsToDelete.has(m.id) ? ({ ...m, deletedAt: nowIso, deletedReason: 'league-deleted' } as any) : m);
     const matchesMap = updatedMatches.reduce((acc, m) => {
       acc[m.id] = m;
       return acc;
     }, {} as { [id: string]: FootballMatch });
 
     const settledSlipIds = new Set<string>();
-    const updatedSlips = slips.map(slip => {
+    const updatedSlips = rawSlips.map(slip => {
       if (slip.status === 'cancelled') return slip;
 
       const hasAffected = slip.selections.some(s => matchIdsToDelete.has(s.matchId));
@@ -206,7 +212,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
     });
 
-    const updatedFwds = forwardSlips.map(fwd => {
+    const updatedFwds = rawForwardSlips.map(fwd => {
       const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
                       (fwd.slipNo && updatedSlips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
       if (isMatch) {
@@ -221,7 +227,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (rawStored) {
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
-          remainingRawClips = parsed.filter((c: any) => !matchIdsToDelete.has(c.matchId));
+          remainingRawClips = parsed.map((c: any) => matchIdsToDelete.has(c.matchId) ? ({ ...c, deletedAt: nowIso }) : c);
         }
       }
     } catch {
@@ -229,18 +235,18 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     saveMultipleAtomic({
-      [STORAGE_KEYS.LEAGUES_FOOTBALL]: remainingLeagues,
+      [STORAGE_KEYS.LEAGUES_FOOTBALL]: updatedLeagues,
       [STORAGE_KEYS.MATCHES_FOOTBALL]: updatedMatches,
       [STORAGE_KEYS.SLIPS_FOOTBALL]: updatedSlips,
       [STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL]: updatedFwds,
       'shwe_mingalar_copied_raw_texts': remainingRawClips
     });
 
-    setLeagues(remainingLeagues);
+    setLeagues(updatedLeagues);
     setMatches(updatedMatches);
     setSlips(updatedSlips);
     setForwardSlips(updatedFwds);
-  }, [leagues, matches, slips, forwardSlips]);
+  }, [rawLeagues, rawMatches, rawSlips, rawForwardSlips, matches, slips, forwardSlips]);
 
   const addTeamToLeague = useCallback((leagueIdOrName: string, teamName: string) => {
     const trimmedTeam = teamName.trim();
@@ -459,6 +465,9 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [settleMatches]);
 
   const addSlip = useCallback((slipData: Omit<FootballSlip, 'id' | 'slipNo' | 'createdAt'>) => {
+    assertDateOpen('FB', slipData.roundDate, 'ဘောင်ချာထည့်ခြင်း');
+    // No discounts: every slip is paid at full stake
+    slipData = { ...slipData, discountAmount: 0, netPayable: slipData.stakeAmount };
     // Duplicate Protection: Prevent same football slip submit twice within 4 seconds
     const fp = generateSubmissionFingerprint('FOOTBALL_SLIP_SAVE', {
       roundDate: slipData.roundDate,
@@ -518,16 +527,17 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const deleteSlip = useCallback((id: string, reason: string = 'user-deleted') => {
-    const target = slips.find(s => s.id === id);
+    { const sl = rawSlips.find(x => x.id === id); if (sl) assertDateOpen('FB', sl.roundDate, 'ဘောင်ချာဖျက်ခြင်း'); }
+    const target = rawSlips.find(s => s.id === id);
     if (!target) return;
 
     const nowIso = new Date().toISOString();
 
     let updatedSlips: FootballSlip[];
     if (target.status === 'settled' || target.status === 'active') {
-      updatedSlips = slips.map(s => s.id === id ? { ...s, status: 'cancelled', deletedReason: reason } : s);
+      updatedSlips = rawSlips.map(s => s.id === id ? { ...s, status: 'cancelled', deletedReason: reason } : s);
     } else {
-      updatedSlips = slips.map(s => s.id === id ? { ...s, deletedAt: nowIso, deletedReason: reason } as any : s);
+      updatedSlips = rawSlips.map(s => s.id === id ? { ...s, deletedAt: nowIso, deletedReason: reason } as any : s);
     }
 
     let remainingRawClips: any[] = [];
@@ -536,7 +546,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (rawStored) {
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
-          remainingRawClips = parsed.filter((c: any) => c.voucherNumber !== target.slipNo);
+          remainingRawClips = parsed.map((c: any) => c.voucherNumber === target.slipNo ? ({ ...c, deletedAt: nowIso }) : c);
         }
       }
     } catch {
@@ -549,7 +559,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     setSlips(updatedSlips);
-  }, [slips]);
+  }, [rawSlips]);
 
   const addForwardSlip = useCallback((slipData: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
     let finalSlipId = slipData.slipId;
@@ -600,12 +610,12 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const deleteForwardSlip = useCallback((id: string, reason: string = 'user-deleted') => {
     const nowIso = new Date().toISOString();
-    const updated = forwardSlips.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f);
+    const updated = rawForwardSlips.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f);
     saveMultipleAtomic({
       [STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL]: updated
     });
     setForwardSlips(updated);
-  }, [forwardSlips]);
+  }, [rawForwardSlips]);
 
   // Overall financial summary for active date
   const summary = useMemo<FootballSummary>(() => {

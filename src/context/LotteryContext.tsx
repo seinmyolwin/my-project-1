@@ -24,15 +24,17 @@ import {
   saveStoredData,
   saveMultipleAtomic
 } from '../utils/storage';
-import { evaluateWinnings, exportLotteryDataToExcel } from '../utils/lotteryUtils';
+import { evaluateWinnings, exportLotteryDataToExcel, masterShareOf3D } from '../utils/lotteryUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
 import { triggerRibbonsCelebration } from '../utils/audioUtils';
 import { runIdMigration } from '../utils/idMigration';
+import { runPhonePurgeMigration } from '../utils/migrationUtils';
 import { generateUUID } from '../utils/restorePoints';
 import { getDeviceShortCode } from '../utils/deviceId';
+import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
 
 interface LotteryContextType {
   settings: AppSettings;
@@ -104,7 +106,9 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [migrationDone, setMigrationDone] = useState(false);
 
   useEffect(() => {
-    runIdMigration().then(() => setMigrationDone(true));
+    runIdMigration()
+      .then(() => runPhonePurgeMigration())
+      .then(() => setMigrationDone(true));
   }, []);
 
   // 1. Core State
@@ -112,9 +116,11 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadStoredData(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
   );
 
-  const [rounds, setRounds] = useState<DrawRound[]>(() =>
+  const [rawRounds, setRounds] = useState<DrawRound[]>(() =>
     loadStoredData(STORAGE_KEYS.ROUNDS, INITIAL_ROUNDS)
   );
+  // Consumers never see tombstoned (deleted) rounds; storage keeps them.
+  const rounds = useMemo(() => rawRounds.filter(r => !(r as any).deletedAt), [rawRounds]);
 
   // 3D Round Rollover and Auto-Closing Check (Rule 7A)
   useEffect(() => {
@@ -176,14 +182,16 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return rounds[0]?.id || 'round-default';
   });
 
-  const [vouchers, setVouchers] = useState<Voucher[]>(() => {
+  const [rawVouchers, setVouchers] = useState<Voucher[]>(() => {
     const raw = loadStoredData<Voucher[]>(STORAGE_KEYS.VOUCHERS, []);
     return raw || [];
   });
+  const vouchers = useMemo(() => rawVouchers.filter(v => !v.deletedAt), [rawVouchers]);
 
-  const [forwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() =>
+  const [rawForwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() =>
     loadStoredData<ForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS, [])
   );
+  const forwardSlips = useMemo(() => rawForwardSlips.filter(f => !(f as any).deletedAt), [rawForwardSlips]);
 
   const [limits, setLimits] = useState<NumberLimit>(() =>
     loadStoredData(STORAGE_KEYS.LIMITS, INITIAL_LIMITS)
@@ -199,7 +207,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [settings]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.ROUNDS, rounds);
+    saveStoredData(STORAGE_KEYS.ROUNDS, rawRounds);
   }, [rounds]);
 
   useEffect(() => {
@@ -207,11 +215,11 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [activeRoundId]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.VOUCHERS, vouchers);
+    saveStoredData(STORAGE_KEYS.VOUCHERS, rawVouchers);
   }, [vouchers]);
 
   useEffect(() => {
-    saveStoredData(STORAGE_KEYS.FORWARD_SLIPS, forwardSlips);
+    saveStoredData(STORAGE_KEYS.FORWARD_SLIPS, rawForwardSlips);
   }, [forwardSlips]);
 
   useEffect(() => {
@@ -227,7 +235,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [rounds, activeRoundId]);
 
   const activeRoundVouchers = useMemo(() => {
-    return vouchers.filter(v => v.roundId === activeRoundId && !v.deletedAt);
+    return vouchers.filter(v => v.roundId === activeRoundId && !v.deletedAt && v.status !== 'cancelled');
   }, [vouchers, activeRoundId]);
 
   const activeRoundForwardSlips = useMemo(() => {
@@ -263,69 +271,54 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Cascade Round Deletion (Rule 6B)
   const deleteRound = useCallback((roundId: string, reason: string = 'user-deleted') => {
-    const remainingRounds = rounds.filter(r => r.id !== roundId);
     const nowIso = new Date().toISOString();
+    // Tombstones only: nothing is physically removed (audit + merge safety)
+    const updatedRounds = rawRounds.map(r =>
+      r.id === roundId ? ({ ...r, deletedAt: nowIso, deletedReason: reason } as any) : r);
+    const updatedVouchers = rawVouchers.map(v =>
+      v.roundId === roundId ? ({ ...v, deletedAt: nowIso, deletedReason: reason, deletedBy: 'user' } as any) : v);
+    const updatedForwards = rawForwardSlips.map(f =>
+      f.roundId === roundId ? ({ ...f, deletedAt: nowIso, deletedReason: reason, deletedBy: 'user' } as any) : f);
 
-    // Tombstone linked vouchers
-    const updatedVouchers = vouchers.map(v => {
-      if (v.roundId === roundId) {
-        return { ...v, deletedAt: nowIso, deletedReason: reason, deletedBy: 'user' };
-      }
-      return v;
-    });
-
-    // Tombstone linked forward slips
-    const updatedForwards = forwardSlips.map(f => {
-      if (f.roundId === roundId) {
-        return { ...f, deletedAt: nowIso, deletedReason: reason, deletedBy: 'user' } as any;
-      }
-      return f;
-    });
-
-    // Clean linked telegram orders
-    let updatedTelegramOrders: any[] = [];
+    // Linked telegram orders go back to pending (unchanged behaviour)
+    const deletedVoucherIds = new Set(rawVouchers.filter(v => v.roundId === roundId).map(v => v.id));
+    const toSave: Record<string, any> = {
+      [STORAGE_KEYS.ROUNDS]: updatedRounds,
+      [STORAGE_KEYS.VOUCHERS]: updatedVouchers,
+      [STORAGE_KEYS.FORWARD_SLIPS]: updatedForwards,
+    };
     try {
       const tgStored = localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS);
       if (tgStored) {
         const parsed = JSON.parse(tgStored);
         if (Array.isArray(parsed)) {
-          const deletedVoucherIds = new Set(vouchers.filter(v => v.roundId === roundId).map(v => v.id));
-          updatedTelegramOrders = parsed.map((o: any) => {
-            if (o.voucherId && deletedVoucherIds.has(o.voucherId)) {
-              return { ...o, status: 'pending', voucherId: undefined };
-            }
-            return o;
-          });
+          toSave[TELEGRAM_STORAGE_KEYS.ORDERS] = parsed.map((o: any) =>
+            o.voucherId && deletedVoucherIds.has(o.voucherId) ? { ...o, status: 'pending', voucherId: undefined } : o);
         }
       }
     } catch {
-      // ignore
+      // ignore malformed telegram storage
     }
 
-    // Determine next active round: today's open round or undefined
+    const remainingRounds = updatedRounds.filter(r => !(r as any).deletedAt);
     const todayStr = getLocalDateString();
     const todayOpen = remainingRounds.find(r => r.drawDate === todayStr && r.status === 'open');
     const nextActiveId = todayOpen ? todayOpen.id : (remainingRounds[0]?.id || '');
+    toSave[STORAGE_KEYS.ACTIVE_ROUND_ID] = nextActiveId;
 
-    saveMultipleAtomic({
-      [STORAGE_KEYS.ROUNDS]: remainingRounds,
-      [STORAGE_KEYS.ACTIVE_ROUND_ID]: nextActiveId,
-      [STORAGE_KEYS.VOUCHERS]: updatedVouchers,
-      [STORAGE_KEYS.FORWARD_SLIPS]: updatedForwards,
-      [TELEGRAM_STORAGE_KEYS.ORDERS]: updatedTelegramOrders
-    });
-
-    setRounds(remainingRounds);
+    saveMultipleAtomic(toSave);
+    setRounds(updatedRounds);
     setActiveRoundIdState(nextActiveId);
     setVouchers(updatedVouchers);
     setForwardSlips(updatedForwards);
-  }, [rounds, vouchers, forwardSlips]);
+  }, [rawRounds, rawVouchers, rawForwardSlips]);
 
   const syncLiveRounds = useCallback(async () => {
     // Sync live 3D rounds if needed
   }, []);
 
   const addVoucher = useCallback((voucherData: Omit<Voucher, 'id' | 'voucherNo' | 'createdAt'>) => {
+    assertDateOpen('3D', dateOfRound('3D', voucherData.roundId), 'ဘောင်ချာထည့်ခြင်း');
     const targetRound = rounds.find(r => r.id === voucherData.roundId);
     if (!targetRound || targetRound.status !== 'open') {
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
@@ -375,13 +368,13 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
     }
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const discountAmount = safeRound((subtotal * discountPercent) / 100);
+    // Discounts are not used by the owner: always 0 (input is ignored)
+    const discountAmount = 0;
     const netPayable = safeRound(subtotal - discountAmount);
 
     return addVoucher({
       roundId: activeRound.id,
       customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
-      customerPhone: undefined,
       items,
       subtotal,
       discountPercent,
@@ -400,6 +393,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const deleteVoucher = useCallback((id: string, reason: string = 'user-deleted') => {
+    { const v = vouchers.find(x => x.id === id); if (v) assertDateOpen('3D', dateOfRound('3D', v.roundId), 'ဘောင်ချာဖျက်ခြင်း'); }
     const target = vouchers.find(v => v.id === id);
     if (!target) return;
 
@@ -420,6 +414,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [vouchers]);
 
   const addForwardSlip = useCallback((slipData: Omit<ForwardSlip, 'id' | 'slipNo' | 'createdAt'>): ForwardSlip => {
+    assertDateOpen('3D', dateOfRound('3D', slipData.roundId), 'ဒိုင်လွှဲထည့်ခြင်း');
     const resolvedRoundId = slipData.roundId || activeRoundId;
     const targetRound = rounds.find(r => r.id === resolvedRoundId);
     if (!targetRound || targetRound.status !== 'open') {
@@ -438,6 +433,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const pad = String(counter).padStart(6, '0');
 
     const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
+    if (!Number.isFinite(commRate)) throw new Error('ကော်မရှင်နှုန်း သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
     const netPaid = safeRound(slipData.totalAmount - commAmt);
 
@@ -678,9 +674,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       totalWinnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
       totalPayout = evalResult.totalPayout;
 
-      const winningAgg = aggregates[formattedNum];
-      const forwardedWonAmount = winningAgg ? winningAgg.forwardedAmount : 0;
-      masterPayout = forwardedWonAmount * mult;
+      masterPayout = masterShareOf3D(evalResult.winners, aggregates);
     }
 
     const netPaid = safeRound(totalForwarded - forwardedCommission);
@@ -702,7 +696,12 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier, settings.defaultToddMultiplier, aggregates]);
 
   const settleWinningNumber = useCallback((winningNum: string, multiplier?: number, toddMultiplier?: number) => {
+    assertDateOpen('3D', dateOfRound('3D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
     if (!activeRound) return;
+    const effTodd = toddMultiplier ?? activeRound.toddMultiplier ?? settings.defaultToddMultiplier;
+    if (!(Number(effTodd) > 0)) {
+      throw new Error('Todd ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
+    }
 
     const fp = generateSubmissionFingerprint('3D_SETTLE_ROUND', { activeRoundId: activeRound.id, winningNum, multiplier });
     if (isDuplicateSubmission(fp, 5000)) {

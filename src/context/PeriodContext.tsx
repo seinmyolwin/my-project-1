@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { PeriodClosing, GameType } from '../types';
 import { STORAGE_KEYS, loadStoredData, saveStoredData } from '../utils/storage';
 import { generateUUID, createRestorePoint } from '../utils/restorePoints';
-import { generateContentHash } from '../utils/hashUtils';
+import { periodRecordsHash, verifyClosedPeriods } from '../utils/periodGuard';
 import { verifyOwnerPassword, hashPassword } from '../utils/securityUtils';
 
 interface PeriodContextType {
@@ -10,6 +10,8 @@ interface PeriodContextType {
   isPeriodClosed: (game: GameType, date: string) => boolean;
   closePeriod: (period: Partial<PeriodClosing> & { game: GameType; periodStart: string; periodEnd: string; totals: any }) => Promise<PeriodClosing>;
   reopenPeriod: (id: string, pin: string, reason: string) => Promise<boolean>;
+  /** ids of closings whose stored hash no longer matches the records (tamper detected) */
+  tamperedPeriodIds: string[];
 }
 
 const PeriodContext = createContext<PeriodContextType | undefined>(undefined);
@@ -37,7 +39,7 @@ export const PeriodProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // safe fallback
     }
 
-    const contentHash = await generateContentHash(periodData);
+    const contentHash = await periodRecordsHash(periodData.game, periodData.periodStart, periodData.periodEnd);
     const newClosing: PeriodClosing = {
       id: generateUUID(),
       closedAt: new Date().toISOString(),
@@ -56,6 +58,9 @@ export const PeriodProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const reopenPeriod = useCallback(async (id: string, pin: string, reason: string): Promise<boolean> => {
     if (!verifyOwnerPassword(pin)) {
       throw new Error('Owner PIN Code မမှန်ကန်ပါ');
+    }
+    if (!reason || !reason.trim()) {
+      throw new Error('ပြန်ဖွင့်ရန် အကြောင်းပြချက် ထည့်ပါ');
     }
 
     const target = periodClosings.find(pc => pc.id === id);
@@ -84,8 +89,13 @@ export const PeriodProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return true;
   }, [periodClosings]);
 
+  const [tamperedPeriodIds, setTampered] = useState<string[]>([]);
+  useEffect(() => {
+    verifyClosedPeriods().then(setTampered).catch(() => setTampered([]));
+  }, [periodClosings]);
+
   return (
-    <PeriodContext.Provider value={{ periodClosings, isPeriodClosed, closePeriod, reopenPeriod }}>
+    <PeriodContext.Provider value={{ periodClosings, isPeriodClosed, closePeriod, reopenPeriod, tamperedPeriodIds }}>
       {children}
     </PeriodContext.Provider>
   );
