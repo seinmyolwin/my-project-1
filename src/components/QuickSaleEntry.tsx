@@ -39,6 +39,7 @@ import {
   playWarningSound,
   playDeleteSound
 } from '../utils/audioUtils';
+import { generateUUID } from '../utils/restorePoints';
 
 interface QuickSaleEntryProps {
   onVoucherCreated: (voucher: Voucher) => void;
@@ -77,14 +78,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   // Form State
   const [customerName, setCustomerName] = useState('အထွေထွေ (General)');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [discountPercent, setDiscountPercent] = useState<number>(settings.defaultCustomerDiscount || 0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0) /* no discounts */;
   const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    if (typeof settings.defaultCustomerDiscount === 'number') {
-      setDiscountPercent(settings.defaultCustomerDiscount);
-    }
-  }, [settings.defaultCustomerDiscount]);
 
   // Single Item Input
   const [numberInput, setNumberInput] = useState('');
@@ -431,7 +426,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
           blockedFound.push(cleanNum);
         } else {
           newItems.push({
-            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            id: `item-${generateUUID()}`,
             number: cleanNum,
             amount: amount,
             isRumble: false,
@@ -441,14 +436,14 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
         }
       } else {
         const perms = getPermutations(cleanNum);
-        const groupId = `r3d-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const groupId = `r3d-${generateUUID()}`;
         perms.forEach(p => {
           if (isNumberBlocked(p)) {
             blockedFound.push(p);
           } else {
             if (!newItems.some(item => item.number === p && item.groupId === groupId)) {
               newItems.push({
-                id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                id: `item-${generateUUID()}`,
                 number: p,
                 amount: amount,
                 isRumble: true,
@@ -742,7 +737,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
 
     const newItems: BetItem[] = allowed.map((num, idx) => ({
-      id: `item-pat-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 3)}`,
+      id: `item-pat-${Date.now()}-${idx}-${generateUUID()}`,
       number: num,
       amount: amount,
       isRumble: false,
@@ -827,7 +822,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     const newVoucher = addVoucher({
       roundId: activeRound?.id || 'default',
       customerName: customerName.trim() || 'အထွေထွေ (General)',
-      customerPhone: undefined,
       items: voucherItems,
       subtotal: finalSubtotal,
       discountPercent,
@@ -1107,11 +1101,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
               {customerPhone && (
                 <span className="text-[11px] font-mono text-slate-500 truncate">({customerPhone})</span>
               )}
-              {discountPercent > 0 && (
-                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
-                  -{discountPercent}%
-                </span>
-              )}
             </div>
             <button
               type="button"
@@ -1139,17 +1128,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 className="col-span-4 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-medium"
               />
-              <div className="col-span-2 relative">
-                <input
-                  type="number"
-                  min={0}
-                  max={30}
-                  placeholder="%"
-                  value={discountPercent || ''}
-                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold text-center"
-                />
-              </div>
             </div>
           )}
 
@@ -2400,32 +2378,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
               {/* Discount / Commission & Notes */}
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                    <Percent className="w-3 h-3 text-slate-400" />
-                    <span>{isMyanmar ? 'လျှော့ငွေ (%)' : 'Discount (%)'}</span>
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min="0"
-                    max="100"
-                    value={discountPercent}
-                    onChange={(e) => setDiscountPercent(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    onFocus={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    onClick={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
-                  />
-                </div>
 
                 <div className="space-y-1">
                   <label className="block text-[11px] font-semibold text-slate-600">
@@ -2452,14 +2404,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                     {formatAmount(subtotal, settings.currency)}
                   </span>
                 </div>
-                {discountAmount > 0 && (
-                  <div className="flex justify-between text-rose-600">
-                    <span>{isMyanmar ? `လျှော့ငွေ (${discountPercent}%)` : `Discount (${discountPercent}%)`}:</span>
-                    <span className="font-mono font-bold">
-                      -{formatAmount(discountAmount, settings.currency)}
-                    </span>
-                  </div>
-                )}
                 <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
                   <span>{isMyanmar ? 'အသားတင် ပေးချေငွေ' : 'Net Total'}:</span>
                   <span className="font-mono text-base text-emerald-700">

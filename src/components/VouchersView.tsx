@@ -64,7 +64,7 @@ export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher }
         const q = searchQuery.trim().toLowerCase();
         const matchesName = v.customerName.toLowerCase().includes(q);
         const matchesNo = v.voucherNo.toLowerCase().includes(q);
-        const matchesPhone = v.customerPhone?.toLowerCase().includes(q);
+        const matchesPhone = ((v) as { customerPhone?: string }).customerPhone?.toLowerCase().includes(q);
         const matchesBet = v.items.some((item) => item.number.includes(q));
         return matchesName || matchesNo || matchesPhone || matchesBet;
       }

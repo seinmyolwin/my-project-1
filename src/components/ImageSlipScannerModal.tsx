@@ -30,6 +30,7 @@ import {
   ParseImageResult
 } from '../utils/imageOcrUtils';
 import { BetItem, Voucher } from '../types';
+import { generateUUID } from '../utils/restorePoints';
 
 interface ImageSlipScannerModalProps {
   isOpen: boolean;
@@ -38,6 +39,9 @@ interface ImageSlipScannerModalProps {
   onDirectCreateVoucher?: (items: BetItem[], customerName: string, customerPhone: string) => void;
   mode?: '3d' | '2d' | 'auto';
 }
+
+/** Technical image-preprocessing tuning for offline OCR. Not a business setting. */
+const OCR_FALLBACK_IMAGE_BRIGHTNESS = 10;
 
 export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
   isOpen,
@@ -397,7 +401,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
 
           const tesseractCanvas = preprocessCanvas(tempCanvas, {
             contrast: contrast || 40,
-            brightness: brightness || 10,
+            brightness: brightness || OCR_FALLBACK_IMAGE_BRIGHTNESS,
             threshold: true,
             grayscale: true
           });
@@ -606,7 +610,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
     }
 
     const validItems: BetItem[] = nonBlocked.map(r => ({
-      id: `ocr-item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `ocr-item-${generateUUID()}`,
       number: r.number,
       amount: r.amount,
       isRumble: r.isRumble,

@@ -30,9 +30,11 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
-import { verifyOwnerPassword } from '../utils/securityUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
 import { PeriodSettlementModal } from './PeriodSettlementModal';
+import { usePeriod } from '../context/PeriodContext';
+import { verifyOwnerPassword } from '../utils/securityUtils';
+import { getLocalDateString } from '../utils/moneyUtils';
 import {
   StatementRecord,
   StatementGrandTotals,
@@ -62,6 +64,41 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
+  const periodCtx = usePeriod();
+
+  /** Close the 2D week (Mon-Fri) that contains the most recent Friday, after owner PIN + confirmation. */
+  const handleClosePeriod2D = async () => {
+    const now = new Date();
+    const dow = now.getDay(); // 0 Sun .. 6 Sat
+    const back = (dow + 2) % 7; // days since last Friday
+    const fri = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+    const mon = new Date(fri.getFullYear(), fri.getMonth(), fri.getDate() - 4);
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const periodStart = fmt(mon);
+    const periodEnd = fmt(fri);
+    if (periodEnd > getLocalDateString()) { window.alert('ဤကာလ ကုန်ဆုံးခါမှ ပိတ်နိုင်ပါသည်'); return; }
+    if (periodCtx.periodClosings.some(pc => pc.game === '2D' && pc.periodStart === periodStart)) {
+      window.alert('ဤကာလကို ပိတ်ပြီးသားဖြစ်ပါသည်'); return;
+    }
+    const pin = window.prompt('Owner PIN (၆ လုံး) ရိုက်ထည့်ပါ');
+    if (!pin || !verifyOwnerPassword(pin.trim())) { window.alert('PIN မမှန်ကန်ပါ'); return; }
+
+    const inRange = (d?: string) => !!d && d >= periodStart && d <= periodEnd;
+    const roundDate = new Map<string, string>(lottery2D.rounds.map(r => [r.id, r.drawDate]));
+    const vs = lottery2D.vouchers.filter(v =>
+      v.status !== 'cancelled' && !v.deletedAt && inRange(roundDate.get(v.roundId)));
+    const sales = vs.reduce((a, v) => a + (v.netPayable || 0), 0);
+    const payout = vs.reduce((a, v) => a + v.items.reduce((x, it) => x + (it.isWon ? (it.wonAmount || 0) : 0), 0), 0);
+    const profit = sales - payout;
+    const ok = window.confirm(`2D ကာလ ${periodStart} ~ ${periodEnd}\nရောင်းအား: ${sales}\nပေးရမည့် ပေါက်ငွေ: ${payout}\nအမြတ် (ခန့်မှန်း): ${profit}\n\nပိတ်ပြီးပါက ဤကာလ ပြင်ဆင်လို့ မရတော့ပါ။ ပိတ်မလား?`);
+    if (!ok) return;
+    try {
+      await periodCtx.closePeriod({ game: '2D', periodStart, periodEnd, totals: { sales, payout, profit } });
+      window.alert('ကာလ ပိတ်ပြီးပါပြီ');
+    } catch (err: any) {
+      window.alert(err?.message || 'ပိတ်၍ မရပါ');
+    }
+  };
   const football = useFootball();
 
   const [selectedMode, setSelectedMode] = useState<'all' | '3d' | '2d' | 'football'>(initialMode);
@@ -391,6 +428,14 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Excel ထုတ်</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleClosePeriod2D}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="2D ကာလ (တနင်္လာ–သောကြာ) ပိတ်ရန်"
+            >
+              <span className="hidden sm:inline">2D ကာလပိတ်</span>
             </button>
             <button
               type="button"

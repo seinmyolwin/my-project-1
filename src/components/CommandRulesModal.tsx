@@ -35,6 +35,7 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useLottery } from '../context/LotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { BookieMode } from '../types';
+import { generateUUID } from '../utils/restorePoints';
 
 interface CommandRulesModalProps {
   isOpen: boolean;
@@ -132,7 +133,7 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
         const isOver = /over|အပေါ်/i.test(line);
         const isUnder = /under|အောက်/i.test(line);
         items.push({
-          id: `fb-sim-${Math.random()}`,
+          id: `fb-sim-${generateUUID()}`,
           team: teamPart.replace(/over|under|အပေါ်|အောက်|body/gi, '').trim(),
           type: isOver ? 'Over' : isUnder ? 'Under' : 'Body',
           amount: amt

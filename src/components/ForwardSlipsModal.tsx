@@ -23,6 +23,7 @@ import { formatAmount, convertMyanmarToEnglishDigits, LOTTERY_PATTERNS, getPermu
 import { DEFAULT_3D_ACTION_BUTTONS, cleanMasterAgentName } from '../utils/storage';
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../utils/audioUtils';
 import { printVoucherSlip } from '../utils/printUtils';
+import { generateUUID } from '../utils/restorePoints';
 
 // Helper to simplify agent name
 const simplifyAgentName = (name: string) => name.split('(')[0].trim();
@@ -271,7 +272,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
       } else {
         const agg = aggregates[numStr];
         newDrafts.push({
-          id: `manual-3d-${numStr}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          id: `manual-3d-${numStr}-${generateUUID()}`,
           number: numStr,
           totalSold: agg?.totalSold || 0,
           limit: agg?.limit || 0,

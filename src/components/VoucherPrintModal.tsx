@@ -41,7 +41,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({ voucher, o
 ဘောင်ချာအမှတ်: ${voucher.voucherNo}
 ပွဲစဉ်: ${activeRound?.name || '-'}
 ရက်စွဲ: ${new Date(voucher.createdAt).toLocaleString('en-GB')}
-ဝယ်သူ: ${voucher.customerName} ${voucher.customerPhone ? `(${voucher.customerPhone})` : ''}
+ဝယ်သူ: ${voucher.customerName} ${((voucher) as { customerPhone?: string }).customerPhone ? `(${((voucher) as { customerPhone?: string }).customerPhone})` : ''}
 --------------------------------
 ${lines}
 --------------------------------
@@ -128,7 +128,7 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
               <div className="flex justify-between">
                 <span className="text-slate-500">ဝယ်သူ:</span>
                 <span className="font-bold text-slate-900 font-sans truncate max-w-[170px]">
-                  {voucher.customerName} {voucher.customerPhone ? `(${voucher.customerPhone})` : ''}
+                  {voucher.customerName} {((voucher) as { customerPhone?: string }).customerPhone ? `(${((voucher) as { customerPhone?: string }).customerPhone})` : ''}
                 </span>
               </div>
               {activeRound && (

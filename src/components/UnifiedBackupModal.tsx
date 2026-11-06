@@ -173,7 +173,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     setIsSaving(true);
     try {
       const pin = includePinProtection ? getStoredOwnerPin() : '';
-      const armoredEncrypted = exportSecureMasterBackup(pin);
+      const armoredEncrypted = await exportSecureMasterBackup(pin);
       const filename = getBackupFileName(appName, 'rhmg');
       
       const res = await saveFileWithCustomLocation(armoredEncrypted, filename, 'text/plain;charset=utf-8');
@@ -193,7 +193,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     setIsSaving(true);
     try {
       const pin = includePinProtection ? getStoredOwnerPin() : '';
-      const armoredEncrypted = exportSecureMasterBackup(pin);
+      const armoredEncrypted = await exportSecureMasterBackup(pin);
       const filename = getBackupFileName(appName, 'rhmg');
 
       const res = await shareFileDirectly(armoredEncrypted, filename, 'text/plain');
@@ -209,9 +209,9 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     }
   };
 
-  const handleDirectDownload = () => {
+  const handleDirectDownload = async () => {
     const pin = includePinProtection ? getStoredOwnerPin() : '';
-    const armoredEncrypted = exportSecureMasterBackup(pin);
+    const armoredEncrypted = await exportSecureMasterBackup(pin);
     const filename = getBackupFileName(appName, 'rhmg');
     downloadFile(armoredEncrypted, filename, 'text/plain;charset=utf-8');
     showMsg(`"${filename}" အား စက်ထဲသို့ အောင်မြင်စွာ ဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
@@ -392,7 +392,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
         'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
         'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
         'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
-        'ဖုန်းနံပါတ်': v.customerPhone || '-',
+        'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
         'ထိုးဂဏန်းများ': itemsStr,
         'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
         'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
@@ -412,7 +412,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
         'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
         'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
         'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
-        'ဖုန်းနံပါတ်': v.customerPhone || '-',
+        'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
         'ထိုးဂဏန်းများ': itemsStr,
         'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
         'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
@@ -431,7 +431,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
         'ဘောင်ချာအမှတ်': s.slipNo || s.id,
         'ရက်စွဲ/အချိန်': s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : '-',
         'ဝယ်သူအမည်': s.customerName || 'အထွေထွေ',
-        'ဖုန်းနံပါတ်': s.customerPhone || '-',
+        'ဖုန်းနံပါတ်': ((s) as { customerPhone?: string }).customerPhone || '-',
         'ထိုးဂဏန်းများ': itemsStr,
         'မူလထိုးကြေး (ကျပ်)': s.stakeAmount || 0,
         'အောက်လက်ကော်မရှင် (ကျပ်)': s.discountAmount || 0,
@@ -449,14 +449,14 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     showMsg(`"${filename}" အား Excel ဖိုင်အဖြစ် အောင်မြင်စွာ ဒေါင်းလုဒ်ထုတ်ယူပြီးပါပြီ`);
   };
 
-  const handleExportPeriodVouchersArchive = () => {
+  const handleExportPeriodVouchersArchive = async () => {
     if (totalFilteredCount === 0) {
       showMsg('ရွေးချယ်ထားသော ကာလအတွင်း ဘောင်ချာမှတ်တမ်း မရှိပါ', 'error');
       return;
     }
 
     const pin = getStoredOwnerPin();
-    const encryptedContent = exportPeriodVouchersBackup(
+    const encryptedContent = await exportPeriodVouchersBackup(
       filtered3DVouchers,
       filtered2DVouchers,
       filteredFootballSlips,

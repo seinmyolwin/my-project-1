@@ -243,7 +243,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       'စဉ်': i + 1,
       'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
       'ဝယ်သူအမည်': v.customerName,
-      'ဖုန်း': v.customerPhone || '-',
+      'ဖုန်း': ((v) as { customerPhone?: string }).customerPhone || '-',
       'စုစုပေါင်းထိုးငွေ': v.subtotal,
       'ကော်မရှင်': v.discountAmount,
       'ပေးငွေ': v.netPayable,
@@ -260,7 +260,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       'စဉ်': i + 1,
       'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
       'ဝယ်သူအမည်': v.customerName,
-      'ဖုန်း': v.customerPhone || '-',
+      'ဖုန်း': ((v) as { customerPhone?: string }).customerPhone || '-',
       'စုစုပေါင်းထိုးငွေ': v.subtotal,
       'ကော်မရှင်': v.discountAmount,
       'ပေးငွေ': v.netPayable,
@@ -530,7 +530,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
             'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
             'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
-            'ဖုန်းနံပါတ်': v.customerPhone || '-',
+            'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
             'ထိုးဂဏန်းများ': itemsStr,
             'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
             'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
@@ -556,7 +556,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
             'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
             'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
-            'ဖုန်းနံပါတ်': v.customerPhone || '-',
+            'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
             'ထိုးဂဏန်းများ': itemsStr,
             'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
             'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
@@ -582,7 +582,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             'ဘောင်ချာအမှတ်': s.slipNo || s.id,
             'ရက်စွဲ/အချိန်': s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : '-',
             'ဝယ်သူအမည်': s.customerName || 'အထွေထွေ',
-            'ဖုန်းနံပါတ်': s.customerPhone || '-',
+            'ဖုန်းနံပါတ်': ((s) as { customerPhone?: string }).customerPhone || '-',
             'ထိုးဂဏန်းများ': itemsStr,
             'မူလထိုးကြေး (ကျပ်)': s.stakeAmount || 0,
             'အောက်လက်ကော်မရှင် (ကျပ်)': s.discountAmount || 0,
@@ -668,7 +668,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
         'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
         'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
-        'ဖုန်းနံပါတ်': v.customerPhone || '-',
+        'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
         'ထိုးဂဏန်းများ': itemsStr,
         'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
         'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
@@ -687,7 +687,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         'ဘောင်ချာအမှတ်': v.voucherNo || v.id,
         'ရက်စွဲ/အချိန်': v.createdAt ? new Date(v.createdAt).toLocaleString('en-GB') : '-',
         'ဝယ်သူအမည်': v.customerName || 'အထွေထွေ',
-        'ဖုန်းနံပါတ်': v.customerPhone || '-',
+        'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
         'ထိုးဂဏန်းများ': itemsStr,
         'မူလထိုးကြေး (ကျပ်)': v.subtotal ?? v.items?.reduce((s, it) => s + (it.amount || 0), 0) ?? 0,
         'အောက်လက်ကော်မရှင် (ကျပ်)': v.discountAmount || 0,
@@ -706,7 +706,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         'ဘောင်ချာအမှတ်': s.slipNo || s.id,
         'ရက်စွဲ/အချိန်': s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : '-',
         'ဝယ်သူအမည်': s.customerName || 'အထွေထွေ',
-        'ဖုန်းနံပါတ်': s.customerPhone || '-',
+        'ဖုန်းနံပါတ်': ((s) as { customerPhone?: string }).customerPhone || '-',
         'ထိုးဂဏန်းများ': itemsStr,
         'မူလထိုးကြေး (ကျပ်)': s.stakeAmount || 0,
         'အောက်လက်ကော်မရှင် (ကျပ်)': s.discountAmount || 0,
@@ -731,7 +731,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
     const pin = getStoredOwnerPin();
-    const encryptedContent = exportPeriodVouchersBackup(
+    const encryptedContent = await exportPeriodVouchersBackup(
       archive3DVouchers,
       archive2DVouchers,
       archiveFootballSlips,
@@ -1369,7 +1369,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Backup Export Handlers
   const handleExportBackup = async () => {
     const pin = getStoredOwnerPin();
-    const armored = exportSecureMasterBackup(pin);
+    const armored = await exportSecureMasterBackup(pin);
     const appName = name3D || name2D || nameFB || 'ရွှေမင်္ဂလာ';
     const filename = getBackupFileName(appName, 'rhmg');
     const res = await saveFileWithCustomLocation(armored, filename, 'text/plain;charset=utf-8');
