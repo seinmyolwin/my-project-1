@@ -49,7 +49,7 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
       list = list.filter(s =>
         s.slipNo.toLowerCase().includes(q) ||
         s.customerName.toLowerCase().includes(q) ||
-        (s.customerPhone && s.customerPhone.includes(q))
+        (((s) as { customerPhone?: string }).customerPhone && ((s) as { customerPhone?: string }).customerPhone.includes(q))
       );
     }
 

@@ -59,18 +59,12 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [stakeAmount, setStakeAmount] = useState('5000');
-  const [discountPercent, setDiscountPercent] = useState<number>(settings.defaultCustomerDiscount || 0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0) /* no discounts */;
 
   // Quick Command Entry state
   const [isQuickCommandOpen, setIsQuickCommandOpen] = useState(false);
   const [commandText, setCommandText] = useState('');
   const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof settings.defaultCustomerDiscount === 'number') {
-      setDiscountPercent(settings.defaultCustomerDiscount);
-    }
-  }, [settings.defaultCustomerDiscount]);
 
   // Selected match legs
   const [selections, setSelections] = useState<FootballBetSelection[]>([]);
@@ -290,7 +284,6 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({
     const slip = addSlip({
       roundDate: activeDate,
       customerName: customerName.trim() || (isMyanmar ? 'အထွေထွေ' : 'Walk-in'),
-      customerPhone: undefined,
       slipType: isMaung ? 'maung' : 'body_single',
       teamCount: selections.length,
       selections,
