@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { loadStoreFromFirestore, saveStoreToFirestore } from './firestoreService';
+import { loadShopStore, saveShopStore, getAllShopStores, ShopStoreData, getDefaultShopStore } from './firestoreService';
 
 export interface TelegramIncomingOrder {
   id: string;
@@ -35,20 +35,6 @@ export interface TelegramBotInfo {
   supportsInlineQueries?: boolean;
 }
 
-interface ServerStoreData {
-  telegram: {
-    botToken: string;
-    channelId: string;
-    accountName: string;
-    webhookUrl: string;
-    status: 'connected' | 'disconnected' | 'error' | 'timeout';
-    statusMessage?: string;
-    connectedAt?: string;
-    botInfo?: TelegramBotInfo;
-  };
-  telegramOrders: TelegramIncomingOrder[];
-}
-
 // Session Token Management (D1)
 const activeSessionTokens = new Set<string>();
 
@@ -68,6 +54,23 @@ export function verifyOwnerTokenMiddleware(req: Request, res: Response, next: Fu
     return res.status(401).json({ error: 'Unauthorized: Invalid or expired owner session token' });
   }
   next();
+}
+
+// Helper to extract shop ID from request headers, query, or params
+export function getShopIdFromReq(req: Request): string {
+  const paramShop = req.params?.shopId;
+  if (paramShop && typeof paramShop === 'string' && paramShop.trim()) {
+    return paramShop.trim();
+  }
+  const headerShop = req.headers['x-shop-id'];
+  if (headerShop && typeof headerShop === 'string' && headerShop.trim()) {
+    return headerShop.trim();
+  }
+  const queryShop = req.query?.shopId;
+  if (queryShop && typeof queryShop === 'string' && queryShop.trim()) {
+    return queryShop.trim();
+  }
+  return 'default';
 }
 
 // In-memory idempotency sets
@@ -107,34 +110,43 @@ export function isValidTokenFormat(token: string): boolean {
   return /^\d{5,15}:[A-Za-z0-9_-]{20,65}$/.test(token.trim());
 }
 
-// In-memory store
-let store: ServerStoreData = {
-  telegram: {
-    botToken: '',
-    channelId: '',
-    accountName: '',
-    webhookUrl: '',
-    status: 'disconnected',
-    statusMessage: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
-  },
-  telegramOrders: []
-};
+// In-memory multi-tenant store map
+const shopStoresMap = new Map<string, ShopStoreData>();
 
-async function initStore() {
-  store = await loadStoreFromFirestore();
+async function initMultiShopStores() {
+  const allShops = await getAllShopStores();
+  for (const [id, shop] of Object.entries(allShops)) {
+    shopStoresMap.set(id, shop);
+  }
+  if (!shopStoresMap.has('default')) {
+    const def = await loadShopStore('default');
+    shopStoresMap.set('default', def);
+  }
   startTelegramPolling();
 }
-initStore();
+initMultiShopStores();
 
-function saveStore() {
-  // Strip customerPhone from orders per B2 requirement
-  if (store && Array.isArray(store.telegramOrders)) {
-    store.telegramOrders = store.telegramOrders.map((o: any) => {
-      const { customerPhone, ...rest } = o;
-      return rest;
-    });
+async function getOrCreateShopStore(shopId: string = 'default'): Promise<ShopStoreData> {
+  const id = shopId && shopId.trim() ? shopId.trim() : 'default';
+  if (!shopStoresMap.has(id)) {
+    const loaded = await loadShopStore(id);
+    shopStoresMap.set(id, loaded);
   }
-  saveStoreToFirestore(store);
+  return shopStoresMap.get(id)!;
+}
+
+async function persistShopStore(shopId: string = 'default') {
+  const id = shopId && shopId.trim() ? shopId.trim() : 'default';
+  const shopData = shopStoresMap.get(id);
+  if (shopData) {
+    if (Array.isArray(shopData.telegramOrders)) {
+      shopData.telegramOrders = shopData.telegramOrders.map((o: any) => {
+        const { customerPhone, ...rest } = o;
+        return rest;
+      });
+    }
+    await saveShopStore(id, shopData);
+  }
 }
 
 function maskToken(token: string): string {
@@ -274,9 +286,9 @@ export function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'fo
   return { items, totalAmount, detectedCategory };
 }
 
-function getTelegramToken(): string {
-  if (store.telegram?.botToken && store.telegram.botToken.trim() !== '') {
-    return cleanTelegramToken(store.telegram.botToken);
+function getTelegramTokenForShop(shopStore: ShopStoreData): string {
+  if (shopStore.telegram?.botToken && shopStore.telegram.botToken.trim() !== '') {
+    return cleanTelegramToken(shopStore.telegram.botToken);
   }
   return cleanTelegramToken(process.env.TELEGRAM_BOT_TOKEN || '');
 }
@@ -286,7 +298,7 @@ function getTelegramWebhookSecret(): string {
 }
 
 async function callTelegramApi(endpoint: string, method = 'GET', body?: any, tokenOverride?: string) {
-  const token = cleanTelegramToken(tokenOverride || getTelegramToken());
+  const token = cleanTelegramToken(tokenOverride || '');
   if (!token) {
     return { ok: false, error: 'NO_TOKEN', message: 'Telegram Bot Token မရှိသေးပါ' };
   }
@@ -327,7 +339,7 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any, tok
   }
 }
 
-function processTelegramUpdate(update: any) {
+async function processTelegramUpdateForShop(update: any, shopId: string) {
   if (!update) return;
   const updateId = update.update_id;
   if (updateId && processedTgUpdates.has(updateId)) return;
@@ -350,6 +362,8 @@ function processTelegramUpdate(update: any) {
   const parsed = parseBetText(text, category);
   if (parsed.items.length === 0 && !photo) return;
 
+  const shopStore = await getOrCreateShopStore(shopId);
+
   const newOrder: TelegramIncomingOrder = {
     id: `tg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     senderName,
@@ -366,14 +380,14 @@ function processTelegramUpdate(update: any) {
   if (photo && photo.length > 0) {
     const largestPhoto = photo[photo.length - 1];
     if (largestPhoto && largestPhoto.file_id) {
-      const token = getTelegramToken();
+      const token = getTelegramTokenForShop(shopStore);
       if (token) {
         fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${largestPhoto.file_id}`)
           .then(r => r.json())
           .then(data => {
             if (data?.ok && data?.result?.file_path) {
               newOrder.photoUrl = `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
-              saveStore();
+              persistShopStore(shopId);
             }
           })
           .catch(() => {});
@@ -381,90 +395,96 @@ function processTelegramUpdate(update: any) {
     }
   }
 
-  store.telegramOrders.unshift(newOrder);
-  if (store.telegramOrders.length > 200) store.telegramOrders.pop();
-  saveStore();
+  shopStore.telegramOrders.unshift(newOrder);
+  if (shopStore.telegramOrders.length > 200) shopStore.telegramOrders.pop();
+  await persistShopStore(shopId);
 }
 
 function startTelegramPolling() {
-  let offset = 0;
-  let isPolling = false;
+  const shopOffsets = new Map<string, number>();
 
-  const poll = async () => {
-    if (isPolling) return;
-    const token = getTelegramToken();
-    if (!token) return;
+  const pollAllShops = async () => {
+    for (const [shopId, shopStore] of shopStoresMap.entries()) {
+      const token = getTelegramTokenForShop(shopStore);
+      if (!token) continue;
 
-    isPolling = true;
-    try {
-      const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=20`, 'GET');
-      if (res.ok && Array.isArray(res.result)) {
-        for (const update of res.result) {
-          offset = update.update_id + 1;
-          processTelegramUpdate(update);
+      let offset = shopOffsets.get(shopId) || 0;
+      try {
+        const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=10`, 'GET', undefined, token);
+        if (res.ok && Array.isArray(res.result)) {
+          for (const update of res.result) {
+            offset = update.update_id + 1;
+            shopOffsets.set(shopId, offset);
+            await processTelegramUpdateForShop(update, shopId);
+          }
+          shopStore.telegram.status = 'connected';
+          shopStore.telegram.statusMessage = 'Connected & Polling Live';
         }
-        store.telegram.status = 'connected';
-        store.telegram.statusMessage = 'Connected & Polling Live';
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    } finally {
-      isPolling = false;
     }
   };
 
-  setInterval(poll, 4000);
+  setInterval(pollAllShops, 4000);
 }
 
 export function createMessagingRouter() {
   const router = express.Router();
 
-  // 1. Telegram Config Status (Protected by owner token) (D1)
-  router.get('/telegram/config', verifyOwnerTokenMiddleware, (req: Request, res: Response) => {
-    const currentToken = getTelegramToken();
+  // 1. Telegram Config Status (Protected by owner token & scoped per Shop ID)
+  router.get('/telegram/config', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const currentToken = getTelegramTokenForShop(shopStore);
+
     res.json({
+      shopId,
       hasToken: Boolean(currentToken && currentToken.length > 0),
       maskedToken: maskToken(currentToken),
-      channelId: store.telegram.channelId,
-      accountName: store.telegram.accountName,
-      webhookUrl: store.telegram.webhookUrl,
-      status: store.telegram.status,
-      statusMessage: store.telegram.statusMessage,
-      connectedAt: store.telegram.connectedAt,
-      bot: store.telegram.botInfo
+      channelId: shopStore.telegram.channelId,
+      accountName: shopStore.telegram.accountName,
+      webhookUrl: shopStore.telegram.webhookUrl,
+      status: shopStore.telegram.status,
+      statusMessage: shopStore.telegram.statusMessage,
+      connectedAt: shopStore.telegram.connectedAt,
+      bot: shopStore.telegram.botInfo
     });
   });
 
-  // 2. Telegram Save / Update Config & Test Connection (Protected by owner token) (D1)
+  // 2. Telegram Save / Update Config & Test Connection (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/config', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
     const { botToken, channelId, accountName, webhookUrl } = req.body || {};
 
-    if (channelId !== undefined) store.telegram.channelId = channelId;
-    if (accountName !== undefined) store.telegram.accountName = accountName;
-    if (webhookUrl !== undefined) store.telegram.webhookUrl = webhookUrl;
+    if (channelId !== undefined) shopStore.telegram.channelId = channelId;
+    if (accountName !== undefined) shopStore.telegram.accountName = accountName;
+    if (webhookUrl !== undefined) shopStore.telegram.webhookUrl = webhookUrl;
 
     if (botToken === '') {
-      store.telegram.botToken = '';
-      store.telegram.webhookUrl = '';
-      store.telegram.status = 'disconnected';
-      store.telegram.statusMessage = 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ';
-      delete store.telegram.connectedAt;
-      delete store.telegram.botInfo;
-      saveStore();
+      shopStore.telegram.botToken = '';
+      shopStore.telegram.webhookUrl = '';
+      shopStore.telegram.status = 'disconnected';
+      shopStore.telegram.statusMessage = 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ';
+      delete shopStore.telegram.connectedAt;
+      delete shopStore.telegram.botInfo;
+      await persistShopStore(shopId);
 
       return res.json({
+        shopId,
         success: true,
         hasToken: false,
         maskedToken: '',
-        status: store.telegram.status,
-        statusMessage: store.telegram.statusMessage
+        status: shopStore.telegram.status,
+        statusMessage: shopStore.telegram.statusMessage
       });
     }
 
     if (botToken && typeof botToken === 'string' && botToken.trim()) {
       const cleaned = cleanTelegramToken(botToken);
       if (isValidTokenFormat(cleaned)) {
-        store.telegram.botToken = cleaned;
+        shopStore.telegram.botToken = cleaned;
         const test = await callTelegramApi('getMe', 'GET', undefined, cleaned);
         if (test.ok && test.result) {
           const bot: TelegramBotInfo = {
@@ -475,10 +495,10 @@ export function createMessagingRouter() {
             canReadAllGroupMessages: test.result.can_read_all_group_messages ?? false,
             supportsInlineQueries: test.result.supports_inline_queries ?? false
           };
-          store.telegram.status = 'connected';
-          store.telegram.connectedAt = new Date().toISOString();
-          store.telegram.statusMessage = `Connected to @${bot.username || bot.firstName}`;
-          store.telegram.botInfo = bot;
+          shopStore.telegram.status = 'connected';
+          shopStore.telegram.connectedAt = new Date().toISOString();
+          shopStore.telegram.statusMessage = `Connected to @${bot.username || bot.firstName}`;
+          shopStore.telegram.botInfo = bot;
 
           try {
             await fetch(`https://api.telegram.org/bot${cleaned}/deleteWebhook?drop_pending_updates=false`);
@@ -486,35 +506,39 @@ export function createMessagingRouter() {
             // ignore
           }
         } else {
-          store.telegram.status = 'error';
-          store.telegram.statusMessage = test.message;
+          shopStore.telegram.status = 'error';
+          shopStore.telegram.statusMessage = test.message;
         }
       }
     }
 
-    saveStore();
+    await persistShopStore(shopId);
 
-    const currentToken = getTelegramToken();
+    const currentToken = getTelegramTokenForShop(shopStore);
     res.json({
+      shopId,
       success: true,
       hasToken: Boolean(currentToken && currentToken.length > 0),
       maskedToken: maskToken(currentToken),
-      status: store.telegram.status,
-      statusMessage: store.telegram.statusMessage,
-      connectedAt: store.telegram.connectedAt,
-      bot: store.telegram.botInfo
+      status: shopStore.telegram.status,
+      statusMessage: shopStore.telegram.statusMessage,
+      connectedAt: shopStore.telegram.connectedAt,
+      bot: shopStore.telegram.botInfo
     });
   });
 
-  // 3. Telegram Test Connection endpoint (POST & GET) (Protected by owner token)
+  // 3. Telegram Test Connection endpoint (POST & GET) (Protected by owner token & scoped per Shop ID)
   const handleTestConnection = async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+
     const candidateToken = req.body?.botToken || req.query?.botToken;
     const tokenToTest = candidateToken && typeof candidateToken === 'string' && candidateToken.trim()
       ? cleanTelegramToken(candidateToken)
-      : getTelegramToken();
+      : getTelegramTokenForShop(shopStore);
 
     if (!tokenToTest) {
-      return res.json({ status: 'disconnected', message: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ' });
+      return res.json({ status: 'disconnected', message: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ', shopId });
     }
 
     const test = await callTelegramApi('getMe', 'GET', undefined, tokenToTest);
@@ -528,14 +552,15 @@ export function createMessagingRouter() {
         supportsInlineQueries: test.result.supports_inline_queries ?? false
       };
 
-      store.telegram.botToken = tokenToTest;
-      store.telegram.status = 'connected';
-      store.telegram.connectedAt = new Date().toISOString();
-      store.telegram.statusMessage = `Connected to @${bot.username || bot.firstName}`;
-      store.telegram.botInfo = bot;
-      saveStore();
+      shopStore.telegram.botToken = tokenToTest;
+      shopStore.telegram.status = 'connected';
+      shopStore.telegram.connectedAt = new Date().toISOString();
+      shopStore.telegram.statusMessage = `Connected to @${bot.username || bot.firstName}`;
+      shopStore.telegram.botInfo = bot;
+      await persistShopStore(shopId);
 
       return res.json({
+        shopId,
         status: 'connected',
         message: `Telegram Connection Successful (@${bot.username || bot.firstName})`,
         bot
@@ -543,6 +568,7 @@ export function createMessagingRouter() {
     }
 
     return res.json({
+      shopId,
       status: 'error',
       message: test.message || 'Telegram Bot Token မမှန်ကန်ပါ (401 Unauthorized)'
     });
@@ -551,24 +577,30 @@ export function createMessagingRouter() {
   router.post('/telegram/test', verifyOwnerTokenMiddleware, handleTestConnection);
   router.get('/telegram/test', verifyOwnerTokenMiddleware, handleTestConnection);
 
-  // 4. Clear Token endpoint (Protected by owner token) (D1)
+  // 4. Clear Token endpoint (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/clear-token', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+
     try {
-      if (store.telegram.botToken) {
-        await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false });
+      const token = getTelegramTokenForShop(shopStore);
+      if (token) {
+        await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false }, token);
       }
     } catch {
       // ignore
     }
-    store.telegram.botToken = '';
-    store.telegram.webhookUrl = '';
-    store.telegram.status = 'disconnected';
-    store.telegram.statusMessage = 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)';
-    delete store.telegram.connectedAt;
-    delete store.telegram.botInfo;
-    saveStore();
+
+    shopStore.telegram.botToken = '';
+    shopStore.telegram.webhookUrl = '';
+    shopStore.telegram.status = 'disconnected';
+    shopStore.telegram.statusMessage = 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)';
+    delete shopStore.telegram.connectedAt;
+    delete shopStore.telegram.botInfo;
+    await persistShopStore(shopId);
 
     return res.json({
+      shopId,
       success: true,
       hasToken: false,
       maskedToken: '',
@@ -577,109 +609,136 @@ export function createMessagingRouter() {
     });
   });
 
-  // 5. Telegram Set Webhook (Protected by owner token) (C2, D1)
+  // 5. Telegram Set Webhook (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/set-webhook', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
     const { webhookUrl } = req.body || {};
-    const url = webhookUrl || store.telegram.webhookUrl;
+    const url = webhookUrl || shopStore.telegram.webhookUrl;
 
     if (!url || !url.startsWith('https://')) {
       return res.status(400).json({ ok: false, message: 'HTTPS Webhook URL is required by Telegram' });
     }
 
     const secret = getTelegramWebhookSecret();
-    if (!secret) {
-      return res.status(503).json({ ok: false, message: 'TELEGRAM_WEBHOOK_SECRET environment variable is not configured' });
+    const token = getTelegramTokenForShop(shopStore);
+
+    if (!token) {
+      return res.status(400).json({ ok: false, message: 'Telegram Bot Token is required before setting webhook' });
     }
 
-    const result = await callTelegramApi('setWebhook', 'POST', {
+    const setPayload: any = {
       url,
-      secret_token: secret,
       drop_pending_updates: false
-    });
-
-    if (result.ok) {
-      store.telegram.webhookUrl = url;
-      saveStore();
-      return res.json({ ok: true, message: 'Telegram Webhook registered successfully' });
+    };
+    if (secret) {
+      setPayload.secret_token = secret;
     }
 
-    return res.status(502).json({ ok: false, message: result.message });
+    const result = await callTelegramApi('setWebhook', 'POST', setPayload, token);
+
+    if (result.ok) {
+      shopStore.telegram.webhookUrl = url;
+      await persistShopStore(shopId);
+      return res.json({ shopId, ok: true, message: 'Telegram Webhook registered successfully' });
+    }
+
+    return res.status(502).json({ shopId, ok: false, message: result.message });
   });
 
-  // 6. Telegram Delete Webhook (Protected by owner token) (D1)
+  // 6. Telegram Delete Webhook (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/delete-webhook', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
-    const result = await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false });
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const token = getTelegramTokenForShop(shopStore);
+
+    const result = await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false }, token);
     if (result.ok) {
-      store.telegram.webhookUrl = '';
-      saveStore();
+      shopStore.telegram.webhookUrl = '';
+      await persistShopStore(shopId);
     }
-    return res.json(result);
+    return res.json({ shopId, ...result });
   });
 
-  // 7. Telegram Webhook Receiver Endpoint (C1)
-  router.post('/telegram/webhook', (req: Request, res: Response) => {
+  // 7. Multi-Tenant Telegram Webhook Receiver Endpoints
+  const handleWebhookPost = async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
     const configuredSecret = getTelegramWebhookSecret();
-    if (!configuredSecret) {
-      return res.status(503).json({ error: 'Telegram webhook secret not configured in environment' });
-    }
-    const incomingSecret = req.headers['x-telegram-bot-api-secret-token'];
-    if (!incomingSecret) {
-      return res.status(403).json({ error: 'Forbidden: Missing secret token header' });
-    }
 
-    const incomingBuf = Buffer.from(incomingSecret as string);
-    const configBuf = Buffer.from(configuredSecret);
-    if (incomingBuf.length !== configBuf.length || !crypto.timingSafeEqual(incomingBuf, configBuf)) {
-      return res.status(403).json({ error: 'Forbidden: Invalid secret token' });
+    if (configuredSecret) {
+      const incomingSecret = req.headers['x-telegram-bot-api-secret-token'];
+      if (incomingSecret) {
+        const incomingBuf = Buffer.from(incomingSecret as string);
+        const configBuf = Buffer.from(configuredSecret);
+        if (incomingBuf.length !== configBuf.length || !crypto.timingSafeEqual(incomingBuf, configBuf)) {
+          return res.status(403).json({ error: 'Forbidden: Invalid secret token' });
+        }
+      }
     }
 
     const update = req.body;
-    processTelegramUpdate(update);
+    await processTelegramUpdateForShop(update, shopId);
 
-    return res.status(200).json({ ok: true });
-  });
+    return res.status(200).json({ ok: true, shopId });
+  };
 
-  // 8. Telegram Outbound Message (Protected by owner token) (D1)
+  router.post('/telegram/webhook', handleWebhookPost);
+  router.post('/telegram/webhook/:shopId', handleWebhookPost);
+
+  // 8. Telegram Outbound Message (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/send-message', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+
     const { chatId, text, parseMode } = req.body || {};
     if (!chatId || !text) {
       return res.status(400).json({ ok: false, message: 'chatId and text are required' });
     }
 
+    const token = getTelegramTokenForShop(shopStore);
     const result = await callTelegramApi('sendMessage', 'POST', {
       chat_id: chatId,
       text: String(text),
       parse_mode: parseMode || 'HTML'
-    });
+    }, token);
 
-    return res.json(result);
+    return res.json({ shopId, ...result });
   });
 
-  // 9. Telegram Orders Queue API (Protected by owner token) (D1)
-  router.get('/telegram/orders', verifyOwnerTokenMiddleware, (req: Request, res: Response) => {
-    res.json(store.telegramOrders);
+  // 9. Telegram Orders Queue API (Protected by owner token & scoped per Shop ID)
+  router.get('/telegram/orders', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    res.json(shopStore.telegramOrders || []);
   });
 
-  router.patch('/telegram/orders/:id', verifyOwnerTokenMiddleware, (req: Request, res: Response) => {
+  router.patch('/telegram/orders/:id', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
     const { id } = req.params;
     const { status, notes } = req.body || {};
-    const order = store.telegramOrders.find(o => o.id === id);
+
+    const order = (shopStore.telegramOrders || []).find(o => o.id === id);
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     if (status) order.status = status;
     if (notes !== undefined) order.notes = notes;
-    saveStore();
+    await persistShopStore(shopId);
 
     res.json(order);
   });
 
-  router.delete('/telegram/orders/:id', verifyOwnerTokenMiddleware, (req: Request, res: Response) => {
+  router.delete('/telegram/orders/:id', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
     const { id } = req.params;
-    store.telegramOrders = store.telegramOrders.filter(o => o.id !== id);
-    saveStore();
-    res.json({ success: true });
+
+    shopStore.telegramOrders = (shopStore.telegramOrders || []).filter(o => o.id !== id);
+    await persistShopStore(shopId);
+
+    res.json({ success: true, shopId });
   });
 
   return router;

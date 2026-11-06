@@ -263,9 +263,17 @@ Instructions:
   }
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
-  app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
-    console.log(`Server running on http://${process.env.HOST || "0.0.0.0"}:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
+      console.log(`Server running on http://${process.env.HOST || "0.0.0.0"}:${PORT}`);
+    });
+  }
+  return app;
 }
 
-startServer();
+const appPromise = startServer();
+export { appPromise };
+export default async (req: Request, res: Response) => {
+  const app = await appPromise;
+  app(req, res);
+};

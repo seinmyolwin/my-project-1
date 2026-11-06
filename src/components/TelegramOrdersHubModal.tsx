@@ -51,7 +51,9 @@ import {
   deleteTelegramWebhook,
   cleanTelegramToken,
   isValidTokenFormat,
-  ConnectionStatus
+  ConnectionStatus,
+  getShopId,
+  setShopId
 } from '../utils/telegramIntegration';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
@@ -107,6 +109,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [ocrProgress, setOcrProgress] = useState(0);
 
   // Bot Config State
+  const [currentShopId, setCurrentShopId] = useState(() => getShopId());
   const [botToken, setBotToken] = useState(() => config.botToken || '');
   const [channelId, setChannelId] = useState(config.channelId || '');
   const [accountName, setAccountName] = useState(config.accountName || '');
@@ -115,7 +118,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return config.webhookUrl;
     }
     if (typeof window !== 'undefined' && window.location.origin) {
-      return `${window.location.origin}/api/telegram/webhook`;
+      const activeShop = getShopId();
+      return `${window.location.origin}/api/telegram/webhook/${activeShop}`;
     }
     return '';
   });
@@ -1314,6 +1318,36 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
               {/* FORM INPUTS */}
               <div className="space-y-4">
+                {/* MULTI-TENANT SHOP ID */}
+                <div className="bg-sky-50/60 border border-sky-200 p-3.5 rounded-2xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-sky-600" />
+                      <span>ဆိုင် / အသုံးပြုသူ အိုင်ဒီ (Multi-Tenant Shop ID)</span>
+                    </label>
+                    <span className="text-[10px] font-mono bg-sky-200/70 text-sky-900 px-2 py-0.5 rounded-md font-bold">
+                      {currentShopId}
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={currentShopId}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^a-zA-Z0-9_-]/g, '_');
+                      setCurrentShopId(val);
+                      const saved = setShopId(val);
+                      if (typeof window !== 'undefined' && window.location.origin) {
+                        setWebhookUrl(`${window.location.origin}/api/telegram/webhook/${saved}`);
+                      }
+                    }}
+                    placeholder="shop_1"
+                    className="w-full bg-white border border-sky-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                  />
+                  <p className="text-[10px] text-slate-600 font-medium">
+                    *အသုံးပြုသူ သို့မဟုတ် ဒိုင်တစ်ဦးစီသည် မိမိကိုယ်ပိုင် ဆိုင်အိုင်ဒီ သတ်မှတ်၍ Telegram Bot များကို သီးသန့် ချိတ်ဆက်အသုံးပြုနိုင်ပါသည် (Data Collisions ကာကွယ်ပြီး)
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Bot အမည် / Account Name (မှတ်သားရန်)
@@ -1433,7 +1467,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 </div>
               </div>
 
-              {/* RECEPTION MODE SWITCH & POLING HELPER */}
+              {/* RECEPTION MODE SWITCH & VERCEL WEBHOOK HELPER */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1442,20 +1476,74 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       <span>အမှာစာ လက်ခံမည့် စနစ် (Reception Engine)</span>
                     </h5>
                     <p className="text-[11px] text-slate-600 mt-0.5">
-                      တက်ဘလက် / ဖုန်းတွင် Auto-Polling စနစ်ဖြင့် Webhook မလိုဘဲ အလိုအလျောက် လက်ခံနိုင်ပါသည်
+                      Vercel Serverless တွင် Webhook စနစ်ဖြင့် လက်ခံရန် အောက်ပါ <b>"Vercel Webhook ချိတ်ဆက်မည်"</b> ကို နှိပ်ပါ
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleRestorePolling}
-                    disabled={isRestoringPolling}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                    title="Webhook အား ရှင်းလင်းပြီး တိုက်ရိုက် Auto-Polling ဖြင့် လက်ခံမည်"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRestoringPolling ? 'animate-spin' : ''}`} />
-                    <span>{isRestoringPolling ? 'စနစ်ဖွင့်နေဆဲ...' : 'Auto-Polling သို့ ပြန်ပြောင်းမည် (Restore)'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRestorePolling}
+                      disabled={isRestoringPolling}
+                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                      title="Webhook အား ရှင်းလင်းပြီး တိုက်ရိုက် Auto-Polling ဖြင့် လက်ခံမည်"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRestoringPolling ? 'animate-spin' : ''}`} />
+                      <span>{isRestoringPolling ? 'စနစ်ဖွင့်နေဆဲ...' : 'Auto-Polling'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRegisterWebhookWithTelegram}
+                      disabled={isRegisteringWebhook}
+                      className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                      title="Vercel Domain သို့ Webhook အား အလိုအလျောက် မှတ်ပုံတင်မည်"
+                    >
+                      <Globe className={`w-3.5 h-3.5 ${isRegisteringWebhook ? 'animate-spin' : ''}`} />
+                      <span>{isRegisteringWebhook ? 'မှတ်ပုံတင်နေဆဲ...' : 'Vercel Webhook ချိတ်ဆက်မည်'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* VERCEL WEBHOOK INPUT & AUTO DETECT */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-200/70">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-bold text-slate-700 flex items-center gap-1">
+                      <Link2 className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Webhook URL (Vercel Serverless Webhook)</span>
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAutoDetectWebhook}
+                        className="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200"
+                      >
+                        <Zap className="w-3 h-3 text-sky-600" />
+                        <span>Auto-Detect Vercel URL</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyWebhook}
+                        className="text-[11px] text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedWebhook ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedWebhook ? 'ကူးယူပြီး' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    placeholder={`https://your-app.vercel.app/api/telegram/webhook/${currentShopId}`}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                  />
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    *Vercel ပေါ်တွင် Host လုပ်ထားပါက အထက်ပါ URL အား Telegram မှ Webhook သို့ စာများ အလိုအလျောက် ပေးပို့မည်ဖြစ်ပါသည်
+                  </p>
                 </div>
 
                 {webhookActionMsg && (

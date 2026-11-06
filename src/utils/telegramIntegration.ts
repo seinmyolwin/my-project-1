@@ -31,6 +31,7 @@ export interface TelegramBotInfo {
 }
 
 export interface TelegramAccountConfig {
+  shopId?: string;
   botToken: string;
   channelId: string;
   accountName: string;
@@ -44,6 +45,7 @@ export interface TelegramAccountConfig {
 
 const TELEGRAM_CONFIG_KEY = 'shwe_mingalar_telegram_config';
 const TELEGRAM_ORDERS_KEY = 'shwe_mingalar_telegram_orders';
+const SHOP_ID_KEY = 'shwe_mingalar_shop_id';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
   botToken: '',
@@ -56,6 +58,32 @@ export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
 };
 
 import { getStoredOwnerPassword } from './securityUtils';
+
+export function getShopId(): string {
+  try {
+    let id = localStorage.getItem(SHOP_ID_KEY);
+    if (!id || !id.trim()) {
+      id = 'shop_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem(SHOP_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return 'default_shop';
+  }
+}
+
+export function setShopId(newShopId: string): string {
+  try {
+    const cleanId = newShopId.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (cleanId) {
+      localStorage.setItem(SHOP_ID_KEY, cleanId);
+      return cleanId;
+    }
+  } catch {
+    // ignore
+  }
+  return getShopId();
+}
 
 async function getAuthHeaders(forceRefresh = false): Promise<Record<string, string>> {
   if (forceRefresh) {
@@ -96,9 +124,11 @@ async function getAuthHeaders(forceRefresh = false): Promise<Record<string, stri
       }
     }
   }
+  const currentShopId = getShopId();
   return {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
+    'x-shop-id': currentShopId,
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
   };
 }
@@ -134,13 +164,14 @@ export function getTelegramConfig(): TelegramAccountConfig {
       const parsed: TelegramAccountConfig = JSON.parse(raw);
       return {
         ...parsed,
+        shopId: parsed.shopId || getShopId(),
         botToken: cleanTelegramToken(parsed.botToken || '')
       };
     }
   } catch {
     // ignore
   }
-  return DEFAULT_TELEGRAM_CONFIG;
+  return { ...DEFAULT_TELEGRAM_CONFIG, shopId: getShopId() };
 }
 
 export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null> {
@@ -163,6 +194,7 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
 
       const updated: TelegramAccountConfig = {
         ...current,
+        shopId: data.shopId || getShopId(),
         channelId: data.channelId ?? current.channelId,
         accountName: data.accountName ?? current.accountName,
         webhookUrl: data.webhookUrl ?? current.webhookUrl,
@@ -281,6 +313,7 @@ export async function saveTelegramConfig(config: TelegramAccountConfig): Promise
 
   const toSave: TelegramAccountConfig = {
     ...config,
+    shopId: config.shopId || getShopId(),
     botToken: cleanedToken
   };
 
