@@ -72,7 +72,7 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
         v =>
           v.voucherNo.toLowerCase().includes(q) ||
           v.customerName.toLowerCase().includes(q) ||
-          (v.customerPhone && v.customerPhone.includes(q)) ||
+          (((v) as { customerPhone?: string }).customerPhone && ((v) as { customerPhone?: string }).customerPhone.includes(q)) ||
           v.items.some(it => it.number.includes(q))
       );
     }
@@ -105,7 +105,7 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
 ဘောင်ချာအမှတ်: ${v.voucherNo}
 ပွဲစဉ်: ${activeRound?.name || '-'}
 ရက်စွဲ: ${new Date(v.createdAt).toLocaleString('en-GB')}
-ဝယ်သူ: ${v.customerName} ${v.customerPhone ? `(${v.customerPhone})` : ''}
+ဝယ်သူ: ${v.customerName} ${((v) as { customerPhone?: string }).customerPhone ? `(${((v) as { customerPhone?: string }).customerPhone})` : ''}
 --------------------------------
 ${lines}
 --------------------------------
@@ -675,10 +675,10 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     <span className="text-slate-600">ထိုးသူ:</span>
                     <span className="font-bold text-slate-900">{selectedVoucher.customerName}</span>
                   </div>
-                  {selectedVoucher.customerPhone && (
+                  {((selectedVoucher) as { customerPhone?: string }).customerPhone && (
                     <div className="flex items-center gap-1 text-slate-500 text-[11px]">
                       <Phone className="w-3 h-3 text-slate-400" />
-                      <span>{selectedVoucher.customerPhone}</span>
+                      <span>{((selectedVoucher) as { customerPhone?: string }).customerPhone}</span>
                     </div>
                   )}
                 </div>

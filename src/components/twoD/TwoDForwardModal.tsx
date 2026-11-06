@@ -38,6 +38,7 @@ import {
 } from '../../utils/twoDLotteryUtils';
 import { DEFAULT_2D_ACTION_BUTTONS, cleanMasterAgentName } from '../../utils/storage';
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../../utils/audioUtils';
+import { generateUUID } from '../../utils/restorePoints';
 
 interface TwoDForwardModalProps {
   isOpen: boolean;
@@ -283,7 +284,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       } else {
         const agg = aggregates[numStr];
         newDrafts.push({
-          id: `manual-2d-${numStr}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          id: `manual-2d-${numStr}-${generateUUID()}`,
           number: numStr,
           totalSold: agg?.totalSold || 0,
           limit: agg?.limit || 0,

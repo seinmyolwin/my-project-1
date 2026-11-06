@@ -62,6 +62,7 @@ import {
   playWarningSound,
   playDeleteSound
 } from '../../utils/audioUtils';
+import { generateUUID } from '../../utils/restorePoints';
 
 interface TwoDQuickSaleEntryProps {
   onVoucherCreated: (voucher: TwoDVoucher) => void;
@@ -101,14 +102,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   // Customer info
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [discountPercent, setDiscountPercent] = useState<number>(settings.defaultCustomerDiscount || 0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0) /* no discounts */;
   const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    if (typeof settings.defaultCustomerDiscount === 'number') {
-      setDiscountPercent(settings.defaultCustomerDiscount);
-    }
-  }, [settings.defaultCustomerDiscount]);
 
   // Single Bet Input
   const [numberInput, setNumberInput] = useState('');
@@ -376,7 +371,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           blockedFound.push(n);
         } else {
           newItems.push({
-            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            id: `item-${generateUUID()}`,
             number: n,
             amount: targetAmt,
             originalInput: label
@@ -464,7 +459,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             blockedFound.push(it.number);
           } else {
             newItems.push({
-              id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              id: `item-${generateUUID()}`,
               number: it.number,
               amount: it.amount || defAmt,
               isRumble: it.isRumble,
@@ -573,13 +568,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     targetNumbers.forEach(cleanNum => {
       if (effectiveRumble) {
         const revs = getTwoDReversal(cleanNum);
-        const groupId = `r2d-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const groupId = `r2d-${generateUUID()}`;
         revs.forEach(r => {
           if (isNumberBlocked(r)) {
             blockedFound.push(r);
           } else {
             newItems.push({
-              id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              id: `item-${generateUUID()}`,
               number: r,
               amount: amt,
               isRumble: true,
@@ -597,7 +592,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           blockedFound.push(cleanNum);
         } else {
           newItems.push({
-            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            id: `item-${generateUUID()}`,
             number: cleanNum,
             amount: amt,
             isRumble: false,
@@ -1256,7 +1251,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const voucher = addVoucher({
       roundId: activeRound.id,
       customerName: customerName.trim() || (isMyanmar ? 'အထွေထွေ' : 'Walk-in'),
-      customerPhone: undefined,
       items: finalItems.map(i => ({
         number: i.number,
         amount: i.amount,
@@ -1314,7 +1308,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     setCustomerName('');
     setCustomerPhone('');
     setNotes('');
-    setDiscountPercent(settings.defaultCustomerDiscount || 0);
+    setDiscountPercent(0);
 
     onVoucherCreated(voucher);
   };
@@ -1469,11 +1463,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               {customerPhone && (
                 <span className="text-[11px] font-mono text-slate-500 truncate">({customerPhone})</span>
               )}
-              {discountPercent > 0 && (
-                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
-                  -{discountPercent}%
-                </span>
-              )}
             </div>
             <button
               type="button"
@@ -1501,17 +1490,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 className="col-span-4 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-medium"
               />
-              <div className="col-span-2 relative">
-                <input
-                  type="number"
-                  min={0}
-                  max={30}
-                  placeholder="%"
-                  value={discountPercent || ''}
-                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold text-center"
-                />
-              </div>
             </div>
           )}
 
@@ -2400,32 +2378,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   className="w-full h-11 px-3.5 text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
                 />
               </div>
-              <div className="sm:col-span-3">
-                <div className="relative">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min={0}
-                    max={30}
-                    placeholder="0"
-                    value={discountPercent || ''}
-                    onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                    onFocus={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    onClick={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    className="w-full h-11 pl-3.5 pr-8 text-sm font-bold text-right rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-slate-50 focus:bg-white transition-all"
-                  />
-                  <span className="absolute right-3 top-3 text-xs font-bold text-slate-500">% လျှော့</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -2620,12 +2572,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 <span>{isMyanmar ? 'စုစုပေါင်း ထိုးကြေး' : 'Subtotal'}:</span>
                 <span className="font-bold text-slate-900">{formatAmount(subtotal, settings.currency)}</span>
               </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-xs text-emerald-600 font-bold">
-                  <span>{isMyanmar ? `ဖောက်သည်လျှော့ငွေ (${discountPercent}%)` : 'Discount'}:</span>
-                  <span>- {formatAmount(discountAmount, settings.currency)}</span>
-                </div>
-              )}
               <div className="flex justify-between text-base font-black text-slate-900 border-t border-slate-200 pt-2">
                 <span>{isMyanmar ? 'ကျသင့်ငွေ (Net Payable)' : 'Net Payable'}:</span>
                 <span className="text-teal-600 text-lg font-mono">
