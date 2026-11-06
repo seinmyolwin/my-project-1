@@ -1424,19 +1424,36 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                     </button>
                   </div>
 
-                  {/* LIVE TOKEN VALIDATION BADGE */}
+                  {/* LIVE TOKEN VALIDATION BADGE & QUICK CONNECT ACTION */}
                   {botToken.trim().length > 0 && (
-                    <div className="mt-1.5 text-[11px]">
+                    <div className="mt-2 space-y-2 text-[11px]">
                       {botToken.trim().startsWith('@') ? (
                         <p className="text-amber-700 font-semibold flex items-center gap-1">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>⚠️ ဒါက Bot Username (@name) ဖြစ်နေပါသည်။ BotFather မှ ပေးသော နံပါတ်နှင့်စသည့် Token (ဥပမာ 123456789:ABC...) ကို ထည့်ပါ</span>
                         </p>
                       ) : isValidTokenFormat(cleanTelegramToken(botToken)) ? (
-                        <p className="text-emerald-700 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>✓ Token ပုံစံ မှန်ကန်ပါသည် (Bot ID: {cleanTelegramToken(botToken).split(':')[0]}) - Browser တွင် သိမ်းဆည်းပြီး</span>
-                        </p>
+                        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-emerald-800 font-bold flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>✓ Token ပုံစံ မှန်ကန်ပါသည် (Bot ID: {cleanTelegramToken(botToken).split(':')[0]})</span>
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={handleTestConnection}
+                              disabled={isTestingConnection}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer disabled:opacity-60"
+                            >
+                              <Zap className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
+                              <span>{isTestingConnection ? 'စမ်းသပ်နေဆဲ...' : '⚡ ယခု ချိတ်ဆက်မည် (Connect Now)'}</span>
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-emerald-700">
+                            *အထက်ပါ <b>"⚡ ယခု ချိတ်ဆက်မည် (Connect Now)"</b> ခလုတ်ကို နှိပ်လိုက်ပါက Telegram Official Server နှင့် ချက်ချင်း ချိတ်ဆက်မည် ဖြစ်ပါသည်
+                          </p>
+                        </div>
                       ) : botToken.includes('Use this token to access the HTTP API') ? (
                         <p className="text-sky-700 font-semibold flex items-center gap-1">
                           <Info className="w-3.5 h-3.5 text-sky-600 shrink-0" />
@@ -1465,15 +1482,29 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                     type="text"
                     value={channelId}
                     onChange={(e) => {
-                      const val = e.target.value;
+                      // Automatically clean double spaces or trailing spaces
+                      const val = e.target.value.replace(/\s+/g, ' ');
                       setChannelId(val);
                     }}
-                    placeholder="ဥပမာ - @shwemingalar_group သို့မဟုတ် -100123456789"
+                    onBlur={() => {
+                      if (channelId.includes(' ')) {
+                        const sanitized = channelId.replace(/\s+/g, '_').trim();
+                        setChannelId(sanitized);
+                      }
+                    }}
+                    placeholder="ဥပမာ - @shwemingalar_group သို့မဟုတ် -100123456789 (ကွက်လပ်မပါရပါ)"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
                   />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    *အသုံးပြုသူ သီးသန့် Chat ID / Group ID ကို မိမိ Browser တွင် သိမ်းဆည်းပြီး ဤ Chat ID သို့ တိုက်ရိုက် စာများ ပေးပို့မည်ဖြစ်ပါသည်
-                  </p>
+                  {channelId.includes(' ') ? (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>⚠️ Group ID တွင် Space (ကွက်လပ်) ပါဝင်၍ မရပါခင်ဗျာ။ (ဥပမာ @didi_agent ဟု _ ဖြင့် ပြောင်းပေးပါ)</span>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      *Bot ကို Group ထဲသို့ Add ထားပါက ဤနေရာတွင် ID မထည့်ထားသော်လည်း အလိုအလျောက် စာရင်းလက်ခံနိုင်ပါသည်
+                    </p>
+                  )}
                 </div>
               </div>
 

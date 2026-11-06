@@ -49,13 +49,20 @@ const SHOP_ID_KEY = 'shwe_mingalar_shop_id';
 const CHAT_ID_KEY = 'shwe_mingalar_chat_id';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
-  botToken: '',
+  botToken: '8733288986:AAG4sx6QGOa4lHmJzE7ZB71HR2Mir09c3C8',
   channelId: '',
-  accountName: '',
+  accountName: '@smlssh_bot',
   webhookUrl: '',
-  status: 'disconnected',
-  statusMessage: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
-  hasServerToken: false
+  status: 'connected',
+  statusMessage: 'Connected to @smlssh_bot',
+  hasServerToken: true,
+  botInfo: {
+    id: 8733288986,
+    username: 'smlssh_bot',
+    firstName: 'smlssh_bot',
+    canJoinGroups: true,
+    canReadAllGroupMessages: true
+  }
 };
 
 import { getStoredOwnerPassword } from './securityUtils';

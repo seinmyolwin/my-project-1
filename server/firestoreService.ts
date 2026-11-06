@@ -38,12 +38,20 @@ export function getDefaultShopStore(shopId: string = 'default'): ShopStoreData {
   return {
     shopId,
     telegram: {
-      botToken: '',
+      botToken: '8733288986:AAG4sx6QGOa4lHmJzE7ZB71HR2Mir09c3C8',
       channelId: '',
-      accountName: '',
+      accountName: '@smlssh_bot',
       webhookUrl: '',
-      status: 'disconnected',
-      statusMessage: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ',
+      status: 'connected',
+      statusMessage: 'Connected to @smlssh_bot',
+      connectedAt: new Date().toISOString(),
+      botInfo: {
+        id: 8733288986,
+        username: 'smlssh_bot',
+        firstName: 'smlssh_bot',
+        canJoinGroups: true,
+        canReadAllGroupMessages: true
+      }
     },
     telegramOrders: []
   };
