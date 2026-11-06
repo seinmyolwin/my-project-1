@@ -7,16 +7,18 @@
 import fs from 'fs';
 import path from 'path';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = (process.env.VERCEL || process.env.NODE_ENV === 'production')
+  ? '/tmp'
+  : path.resolve(process.cwd(), 'data');
 const MULTI_SHOP_STORE_FILE = path.join(DATA_DIR, 'messaging_shops.json');
 const LOCAL_STORE_FILE = path.join(DATA_DIR, 'messaging_store.json');
 
-if (!fs.existsSync(DATA_DIR)) {
-  try {
+try {
+  if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-  } catch (err) {
-    // ignore
   }
+} catch {
+  // ignore filesystem creation error on read-only environments
 }
 
 export interface ShopStoreData {
