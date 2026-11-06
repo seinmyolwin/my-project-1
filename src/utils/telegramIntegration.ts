@@ -63,11 +63,24 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     const storedPin = getStoredOwnerPassword();
     if (storedPin) {
       try {
-        const res = await fetch('/api/auth/token', {
+        let res = await fetch('/api/auth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pin: storedPin })
         });
+        if (res.status === 409) {
+          // First use on this server: register the owner PIN hash once, then retry
+          await fetch('/api/auth/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: storedPin })
+          });
+          res = await fetch('/api/auth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: storedPin })
+          });
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.token) {

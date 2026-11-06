@@ -32,16 +32,24 @@ export async function runSnapshotMigration(): Promise<void> {
 
       // Snapshot Logic
       if (!item.snapshotSource) {
+        // No invented defaults: copy owner settings as-is. Missing values stay missing
+        // and the record is flagged so settlement can refuse it until the owner sets them.
+        let missing = false;
         if (key.includes('3d') || key === STORAGE_KEYS.VOUCHERS) {
-          item.lowerCommissionRate = settings3D.defaultCommissionRate ?? 10;
-          item.payoutMultiplier = settings3D.defaultMultiplier ?? 600;
+          const c = settings3D.defaultCommissionRate, m = settings3D.defaultMultiplier;
+          if (c == null || m == null) missing = true;
+          item.lowerCommissionRate = c;
+          item.payoutMultiplier = m;
         } else if (key.includes('2d') || key === STORAGE_KEYS.VOUCHERS_2D) {
-          item.lowerCommissionRate = settings2D.defaultCommissionRate ?? 12;
-          item.payoutMultiplier = settings2D.defaultMultiplier ?? 80;
+          const c = settings2D.defaultCommissionRate, m = settings2D.defaultMultiplier;
+          if (c == null || m == null) missing = true;
+          item.lowerCommissionRate = c;
+          item.payoutMultiplier = m;
         } else if (key.includes('football') || key === STORAGE_KEYS.SLIPS_FOOTBALL) {
-          item.payoutOdds = item.combinedOdds || 1.9;
+          if (item.combinedOdds == null) missing = true;
+          item.payoutOdds = item.combinedOdds;
         }
-        item.snapshotSource = 'migrated';
+        item.snapshotSource = missing ? 'migrated-missing-settings' : 'migrated';
       }
       return item;
     };

@@ -10,6 +10,7 @@ import {
   TwoDBetItem,
   BetType
 } from '../types';
+import { generateUUID } from './restorePoints';
 
 /**
  * Check if a 2D round is closed based on round status (Only returns true if closed or settled, no auto-closing by time/date)
@@ -290,7 +291,7 @@ export function parseTwoDBatchInput(
           validTokens.forEach((numStr) => {
             // 1. Direct bet (e.g. 23 = 800)
             items.push({
-              id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              id: `batch-${generateUUID()}`,
               number: numStr,
               amount: directAmt,
               isRumble: false,
@@ -303,7 +304,7 @@ export function parseTwoDBatchInput(
             const reverseNum = revs.length > 1 ? revs[1] : revs[0];
             if (reverseNum !== numStr) {
               items.push({
-                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                id: `batch-${generateUUID()}`,
                 number: reverseNum,
                 amount: revAmt,
                 isRumble: true,
@@ -313,7 +314,7 @@ export function parseTwoDBatchInput(
             } else {
               // If double number (e.g. 22), add reversal with revAmt
               items.push({
-                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                id: `batch-${generateUUID()}`,
                 number: numStr,
                 amount: revAmt,
                 isRumble: true,
@@ -339,7 +340,7 @@ export function parseTwoDBatchInput(
       if (headDigit >= 0 && headDigit <= 9 && headAmt > 0) {
         getTwoDHeadNumbers(headDigit).forEach(num => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: headAmt,
             originalInput: `${headDigit} ထိပ် (${headAmt})`
@@ -350,7 +351,7 @@ export function parseTwoDBatchInput(
       if (tailDigit >= 0 && tailDigit <= 9 && tailAmt > 0) {
         getTwoDTailNumbers(tailDigit).forEach(num => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: tailAmt,
             originalInput: `${tailDigit} ပိတ် (${tailAmt})`
@@ -375,7 +376,7 @@ export function parseTwoDBatchInput(
 
       getTwoDBreakNumbers(brkDigit).forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: `${brkDigit} ဘရိတ် (${amt})`
@@ -395,10 +396,10 @@ export function parseTwoDBatchInput(
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         const generated = getTwoDKhwayPuuRumble(rawDigits);
-        const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const groupId = `r2d-batch-${generateUUID()}`;
         generated.forEach((num) => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             isRumble: true,
@@ -421,10 +422,10 @@ export function parseTwoDBatchInput(
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         const generated = getTwoDKhwayRumble(rawDigits);
-        const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const groupId = `r2d-batch-${generateUUID()}`;
         generated.forEach((num) => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             isRumble: true,
@@ -449,7 +450,7 @@ export function parseTwoDBatchInput(
         const generated = getTwoDKhwayPuu(rawDigits);
         generated.forEach((num) => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             originalInput: `${rawDigits} ခွေပူး`
@@ -468,7 +469,7 @@ export function parseTwoDBatchInput(
         const generated = getTwoDKhway(rawDigits);
         generated.forEach((num) => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             originalInput: `${rawDigits} ခွေ`
@@ -484,7 +485,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       TWO_D_DOUBLES.forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'အပူး'
@@ -499,7 +500,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       TWO_D_POWER.forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'ပါဝါ'
@@ -514,7 +515,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       TWO_D_NATKHAT.forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'နက္ခတ်'
@@ -529,7 +530,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       TWO_D_BROTHERS.forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'ညီကို'
@@ -546,7 +547,7 @@ export function parseTwoDBatchInput(
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         getTwoDIncludesNumbers(targetDigit).forEach(num => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             originalInput: `${targetDigit} ပါ`
@@ -564,7 +565,7 @@ export function parseTwoDBatchInput(
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         getTwoDHeadNumbers(headDigit).forEach(num => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             originalInput: `${headDigit} ထိပ်`
@@ -582,7 +583,7 @@ export function parseTwoDBatchInput(
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
         getTwoDTailNumbers(tailDigit).forEach(num => {
           items.push({
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `batch-${generateUUID()}`,
             number: num,
             amount: amt,
             originalInput: `${tailDigit} နောက်ပိတ်`
@@ -598,7 +599,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       getTwoDEvenEven().forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'စုံစုံ'
@@ -611,7 +612,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       getTwoDOddOdd().forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'မမ'
@@ -624,7 +625,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       getTwoDEvenOdd().forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'စုံမ'
@@ -637,7 +638,7 @@ export function parseTwoDBatchInput(
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
       getTwoDOddEven().forEach(num => {
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: num,
           amount: amt,
           originalInput: 'မစုံ'
@@ -686,14 +687,14 @@ export function parseTwoDBatchInput(
           }
 
           // Generate permutations for ALL collected number tokens in this segment
-          const groupId = `r2d-batch-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+          const groupId = `r2d-batch-${generateUUID()}`;
           numTokens.forEach(token => {
             if (!/^\d{1,2}$/.test(token)) return;
             const numStr = token.padStart(2, '0');
             const revs = getTwoDReversal(numStr);
             revs.forEach(r => {
               items.push({
-                id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                id: `batch-${generateUUID()}`,
                 number: r,
                 amount: betAmount,
                 isRumble: true,
@@ -743,7 +744,7 @@ export function parseTwoDBatchInput(
 
         const numStr = token.padStart(2, '0');
         items.push({
-          id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: `batch-${generateUUID()}`,
           number: numStr,
           amount: betAmount,
           isRumble: false,
@@ -777,7 +778,8 @@ export function parseTwoDBatchInput(
 // 2D WINNING EVALUATION & PROFIT CALCULATION
 // ====================================================
 export function normalizeTwoDMultiplier(val?: number): number {
-  if (!val || isNaN(val) || val <= 0) return 80;
+  // No default multiplier: the owner must set it. 0 means "not set" and blocks payouts.
+  if (!val || isNaN(val) || val <= 0) return 0;
   return Math.round(val);
 }
 
@@ -897,7 +899,7 @@ export function exportTwoDLotteryToExcel(
     return {
       'ဘောင်ချာနံပါတ် (Voucher No)': v.voucherNo,
       'ထိုးသူအမည် (Customer)': v.customerName,
-      'ဖုန်းနံပါတ် (Phone)': v.customerPhone || '-',
+      'ဖုန်းနံပါတ် (Phone)': ((v) as { customerPhone?: string }).customerPhone || '-',
       'ထိုးဂဏန်းများ (Bets)': v.items.map(i => `${i.number}=${i.amount}`).join(', '),
       'စုစုပေါင်း ထိုးကြေး (Total Stake)': v.subtotal,
       'ကော်မရှင်/လျှော့ငွေ (Commission)': v.discountAmount,
@@ -936,7 +938,7 @@ export function exportTwoDLotteryToExcel(
           winData.push({
             'ဘောင်ချာအမှတ်': v.voucherNo,
             'ထိုးသူအမည်': v.customerName,
-            'ဖုန်းနံပါတ်': v.customerPhone || '-',
+            'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
             'ပေါက်ဂဏန်း': it.number,
             'ထိုးကြေးငွေ': it.amount,
             'အလျော်ဆ (Multiplier)': `${round.multiplier || 0}ဆ`,

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { Voucher, DrawRound, ForwardSlip, BetItem, BetType } from '../types';
 import { formatAmount, calculatePayout, safeRound, getLocalDateString } from './moneyUtils';
+import { generateUUID } from './restorePoints';
 
 export { formatAmount, safeRound, getLocalDateString };
 
@@ -190,7 +191,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
 
               // 2. Rumble items (all unique permutations)
               const perms = getPermutations(cleanNum);
-              const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${Math.random().toString(36).substr(2, 5)}`;
+              const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${generateUUID()}`;
               perms.forEach(p => {
                 items.push({
                   id: `item-${Date.now()}-${idCounter++}`,
@@ -244,7 +245,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
           if (cleanNum.length === 3) {
             if (isRumble) {
               const perms = getPermutations(cleanNum);
-              const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${Math.random().toString(36).substr(2, 5)}`;
+              const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${generateUUID()}`;
               perms.forEach(p => {
                 items.push({
                   id: `item-${Date.now()}-${idCounter++}`,
@@ -278,7 +279,7 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
         const cleanNum = parts[0];
         if (isRumble) {
           const perms = getPermutations(cleanNum);
-          const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${Math.random().toString(36).substr(2, 5)}`;
+          const groupId = `r3d-batch-${Date.now()}-${idCounter++}-${generateUUID()}`;
           perms.forEach(p => {
             items.push({
               id: `item-${Date.now()}-${idCounter++}`,
@@ -382,7 +383,7 @@ export function evaluateWinnings(
           voucherId: v.id,
           voucherNo: v.voucherNo,
           customerName: v.customerName,
-          customerPhone: v.customerPhone,
+          customerPhone: ((v) as { customerPhone?: string }).customerPhone,
           betNumber: item.number,
           betAmount: item.amount,
           winType: 'straight',
@@ -420,7 +421,7 @@ export function evaluateWinnings(
               voucherId: v.id,
               voucherNo: v.voucherNo,
               customerName: v.customerName,
-              customerPhone: v.customerPhone,
+              customerPhone: ((v) as { customerPhone?: string }).customerPhone,
               betNumber: item.number,
               betAmount: item.amount,
               winType: 'todd',
@@ -439,7 +440,7 @@ export function evaluateWinnings(
               voucherId: v.id,
               voucherNo: v.voucherNo,
               customerName: v.customerName,
-              customerPhone: v.customerPhone,
+              customerPhone: ((v) as { customerPhone?: string }).customerPhone,
               betNumber: item.number,
               betAmount: item.amount,
               winType: 'todd',
@@ -479,11 +480,11 @@ export function exportLotteryDataToExcel(
     { 'Property': 'System', 'Value': 'ရွှေမင်္ဂလာ စာရင်းစီမံခန့်ခွဲမှုစနစ်' },
     { 'Property': 'RoundName', 'Value': round.name },
     { 'Property': 'DrawDate', 'Value': round.drawDate },
-    { 'Property': 'ClosingTime', 'Value': round.closingTime || '15:30' },
+    { 'Property': 'ClosingTime', 'Value': round.closingTime ?? '' },
     { 'Property': 'WinningNumber', 'Value': winningNumber || round.winningNumber || '' },
     { 'Property': 'Multiplier', 'Value': multiplier },
-    { 'Property': 'ToddMultiplier', 'Value': round.toddMultiplier || 100 },
-    { 'Property': 'CommissionRate', 'Value': round.commissionRate || 10 },
+    { 'Property': 'ToddMultiplier', 'Value': round.toddMultiplier ?? '' },
+    { 'Property': 'CommissionRate', 'Value': round.commissionRate ?? '' },
     { 'Property': 'ExportTimestamp', 'Value': new Date().toISOString() }
   ];
   const wsMeta = XLSX.utils.json_to_sheet(metaRows);
@@ -541,7 +542,7 @@ export function exportLotteryDataToExcel(
     voucherData.push({
       'ဘောင်ချာအမှတ် (Voucher No)': v.voucherNo,
       'ဝယ်သူအမည် (Customer)': v.customerName,
-      'ဖုန်းနံပါတ် (Phone)': v.customerPhone || '-',
+      'ဖုန်းနံပါတ် (Phone)': ((v) as { customerPhone?: string }).customerPhone || '-',
       'ထိုးဂဏန်းများ (Bets)': numbersList,
       'စုစုပေါင်း ထိုးကြေး (Total Stake)': v.subtotal,
       'ကော်မရှင်/လျှော့ငွေ (Commission)': v.discountAmount,
@@ -659,9 +660,18 @@ export async function parseExcelToRoundData3D(file: File): Promise<{
       if (metaMap['DrawDate']) drawDate = metaMap['DrawDate'];
       if (metaMap['ClosingTime']) closingTime = metaMap['ClosingTime'];
       if (metaMap['WinningNumber'] && /^\d{3}$/.test(metaMap['WinningNumber'])) winningNumber = metaMap['WinningNumber'];
-      if (metaMap['Multiplier']) multiplier = parseInt(metaMap['Multiplier'], 10) || 600;
-      if (metaMap['ToddMultiplier']) toddMultiplier = parseInt(metaMap['ToddMultiplier'], 10) || 100;
-      if (metaMap['CommissionRate']) commissionRate = parseFloat(metaMap['CommissionRate']) || 10;
+      if (metaMap['Multiplier']) {
+        multiplier = parseInt(metaMap['Multiplier'], 10);
+        if (Number.isNaN(multiplier)) throw new Error('Multiplier မမှန်ကန်ပါ (Excel)');
+      }
+      if (metaMap['ToddMultiplier']) {
+        toddMultiplier = parseInt(metaMap['ToddMultiplier'], 10);
+        if (Number.isNaN(toddMultiplier)) throw new Error('ToddMultiplier မမှန်ကန်ပါ (Excel)');
+      }
+      if (metaMap['CommissionRate']) {
+        commissionRate = parseFloat(metaMap['CommissionRate']);
+        if (Number.isNaN(commissionRate)) throw new Error('CommissionRate မမှန်ကန်ပါ (Excel)');
+      }
     } else {
       const winSheetName = workbook.SheetNames.find(n => n.includes('ပေါက်') || n.includes('Winner'));
       if (winSheetName) {
@@ -711,7 +721,6 @@ export async function parseExcelToRoundData3D(file: File): Promise<{
         roundId: '',
         voucherNo,
         customerName,
-        customerPhone: phone !== '-' ? phone : undefined,
         items,
         subtotal: subtotal || items.reduce((s, i) => s + i.amount, 0),
         discountPercent: commissionRate,
@@ -739,3 +748,25 @@ export async function parseExcelToRoundData3D(file: File): Promise<{
   }
 }
 
+
+/**
+ * Amount the forward master reimburses for the winners of this round.
+ * Forwards are recorded per number: for each winning bet number K the forwarded
+ * share is (forwardedAmount(K) / totalSold(K)) of that number's winning payout.
+ * Covers straight winners and Todd (rumble) winners alike.
+ */
+export function masterShareOf3D(
+  winners: Array<{ betNumber: string; wonPayout: number }>,
+  aggregates: { [num: string]: { totalSold: number; forwardedAmount: number } | undefined }
+): number {
+  const byNumber: { [num: string]: number } = {};
+  winners.forEach(w => { byNumber[w.betNumber] = (byNumber[w.betNumber] || 0) + w.wonPayout; });
+  let master = 0;
+  Object.keys(byNumber).forEach(k => {
+    const agg = aggregates[k];
+    if (!agg || agg.totalSold <= 0 || agg.forwardedAmount <= 0) return;
+    const share = Math.min(1, agg.forwardedAmount / agg.totalSold);
+    master += byNumber[k] * share;
+  });
+  return safeRound(master);
+}

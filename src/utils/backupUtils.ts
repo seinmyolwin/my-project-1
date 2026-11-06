@@ -7,6 +7,30 @@ export const TELEGRAM_STORAGE_KEYS = {
   ORDERS: 'shwe_mingalar_telegram_orders'
 };
 
+import { encryptBackupV2, decryptBackupV2, isV2Payload } from './cryptoBackup';
+import { exportPayloadV2Full, restoreV2Flow } from './backupSyncV2';
+
+/** Removes customer phone numbers and bot tokens from any backup data (recursive, JSON strings included). */
+const scrubForBackup = (value: any): any => {
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if ((t.startsWith('{') || t.startsWith('[')) && t.length > 1) {
+      try { return JSON.stringify(scrubForBackup(JSON.parse(t))); } catch { return value; }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(scrubForBackup);
+  if (value && typeof value === 'object') {
+    const out: any = {};
+    for (const k of Object.keys(value)) {
+      if (k === 'customerPhone' || k === 'botToken') continue;
+      out[k] = scrubForBackup(value[k]);
+    }
+    return out;
+  }
+  return value;
+};
+
 const CIPHER_HEADER = '-----BEGIN SHWE MINGALAR SECURE ENCRYPTED LEDGER ARCHIVE v3-----';
 const CIPHER_FOOTER = '-----END SHWE MINGALAR SECURE ENCRYPTED LEDGER ARCHIVE-----';
 const SECRET_SEED = 'SHWE_MINGALAR_PRO_BOOKIE_SECURE_KEY_2026_!@#$%^&*()';
@@ -28,44 +52,10 @@ function getStorageItemSafe(key: string): string | null {
 }
 
 /**
- * Custom fast & resilient string encryption/obfuscation cipher
- * Converts UTF-8 string to encrypted cipher payload with dynamic rotating XOR and salted substitution
- */
-function encryptPayload(plaintext: string, pin: string = ''): string {
-  const salt = Math.random().toString(36).substring(2, 10);
-  const key = `${SECRET_SEED}_${pin}_${salt}`;
-  let result = '';
-
-  // 1. Convert to UTF-8 URI encoding to safely handle Myanmar fonts & special chars
-  const encoded = encodeURIComponent(plaintext);
-
-  // 2. Multi-round rotating XOR cipher
-  for (let i = 0; i < encoded.length; i++) {
-    const charCode = encoded.charCodeAt(i);
-    const keyChar = key.charCodeAt(i % key.length);
-    const pinMod = pin.length > 0 ? pin.charCodeAt(i % pin.length) : 88;
-    const cipherByte = charCode ^ keyChar ^ pinMod ^ ((i * 7) & 0xff);
-    result += String.fromCharCode(cipherByte);
-  }
-
-  // 3. Base64 package with salt prefix
-  try {
-    const rawB64 = btoa(unescape(encodeURIComponent(result)));
-    return `${salt}::${rawB64}`;
-  } catch {
-    // Fallback binary hex
-    let hex = '';
-    for (let i = 0; i < result.length; i++) {
-      hex += result.charCodeAt(i).toString(16).padStart(2, '0');
-    }
-    return `${salt}::HEX::${hex}`;
-  }
-}
-
-/**
+ * READ-ONLY legacy reader (old XOR archives). Never used for export.
  * Decrypts encrypted payload using dynamic rotating cipher and salt
  */
-function decryptPayload(ciphertext: string, pin: string = ''): string {
+function decryptLegacyPayload(ciphertext: string, pin: string = ''): string {
   const parts = ciphertext.split('::');
   if (parts.length < 2) {
     throw new Error('Invalid cipher format');
@@ -155,6 +145,19 @@ export async function saveFileWithCustomLocation(
   mimeType: string = 'text/plain;charset=utf-8'
 ): Promise<{ success: boolean; method: 'picker' | 'share' | 'download'; message: string }> {
   const blob = new Blob([content], { type: mimeType });
+
+  // One-time offer of an automatic-backup folder (uses the user gesture of this export)
+  try {
+    const { getAutoBackupFolder, storeAutoBackupFolder } = await import('./backupSyncV2');
+    if ('showDirectoryPicker' in window && !(await getAutoBackupFolder())) {
+      if (window.confirm('အလိုအလျောက် backup (ကာလပိတ်ချိန်) သိမ်းမည့် ဖိုင်တွဲ ရွေးမလား?')) {
+        const dir = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+        await storeAutoBackupFolder(dir);
+      }
+    }
+  } catch {
+    // folder offer is optional
+  }
 
   // 1. Try Native File System Access API (Native save directory picker)
   if ('showSaveFilePicker' in window) {
@@ -248,7 +251,7 @@ export function downloadJSONFile(content: string, filename: string) {
 /**
  * Exports 100% of ALL system data in a secure, unreadable, encrypted format (.rhmg)
  */
-export function exportSecureMasterBackup(ownerPin: string = ''): string {
+export async function exportSecureMasterBackup(ownerPin: string = ''): Promise<string> {
   const fullData = {
     app: 'ရွှေမင်္ဂလာ စာရင်းစီမံခန့်ခွဲမှုစနစ် (Master Suite)',
     version: '3.0',
@@ -308,11 +311,10 @@ export function exportSecureMasterBackup(ownerPin: string = ''): string {
     }
   };
 
-  const rawJson = JSON.stringify(fullData);
-  const checksum = generateChecksum(rawJson);
-  const encryptedPayload = encryptPayload(rawJson, ownerPin);
+  const { encrypted: encryptedPayload, checksum } = await exportPayloadV2Full(ownerPin);
+  void fullData;
 
-  // Armored unreadable encrypted file wrapper
+  // Armored encrypted file wrapper (v2)
   const armoredFile = [
     CIPHER_HEADER,
     `Format: SMG-ENCRYPTED-ARCHIVE-V3`,
@@ -397,31 +399,39 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
       let decryptedJson = '';
       let decryptionSuccess = false;
 
-      // 1. Try with user-provided ownerPin first
-      if (ownerPin) {
+      if (isV2Payload(payloadLine)) {
         try {
-          const test = decryptPayload(payloadLine, ownerPin);
-          const computedChecksum = generateChecksum(test);
-          if (computedChecksum === headerChecksum) {
+          const test = await decryptBackupV2(payloadLine, ownerPin || 'NO_PIN');
+          if (generateChecksum(test) === headerChecksum) {
             decryptedJson = test;
             decryptionSuccess = true;
           }
         } catch {
-          // ignore
+          // wrong passphrase or altered file
         }
-      }
-
-      // 2. Try without PIN (in case backup was unencrypted)
-      if (!decryptionSuccess) {
-        try {
-          const test = decryptPayload(payloadLine, '');
-          const computedChecksum = generateChecksum(test);
-          if (computedChecksum === headerChecksum) {
-            decryptedJson = test;
-            decryptionSuccess = true;
+      } else {
+        // Legacy archive (read-only compatibility)
+        if (ownerPin) {
+          try {
+            const test = decryptLegacyPayload(payloadLine, ownerPin);
+            if (generateChecksum(test) === headerChecksum) {
+              decryptedJson = test;
+              decryptionSuccess = true;
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
+        }
+        if (!decryptionSuccess) {
+          try {
+            const test = decryptLegacyPayload(payloadLine, '');
+            if (generateChecksum(test) === headerChecksum) {
+              decryptedJson = test;
+              decryptionSuccess = true;
+            }
+          } catch {
+            // ignore
+          }
         }
       }
 
@@ -437,6 +447,9 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
       }
 
       const parsed = JSON.parse(decryptedJson);
+      if (parsed && parsed.manifest && parsed.manifest.schemaVersion === 2) {
+        return await restoreV2Flow(decryptedJson, ownerPin);
+      }
       if (!validateBackupSchema(parsed)) {
         return { success: false, message: 'ဒေတာ ဖော်မတ်/စကီးမား မှားယွင်းနေပါသည် (Schema Validation Failed)' };
       }
@@ -610,7 +623,7 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
 /**
  * Legacy support for raw JSON Unified Master Backup
  */
-export function exportUnifiedMasterBackup(): string {
+export async function exportUnifiedMasterBackup(): Promise<string> {
   return exportSecureMasterBackup();
 }
 
@@ -670,13 +683,13 @@ export async function restoreUnifiedMasterBackup(jsonString: string): Promise<bo
 /**
  * Exports period-filtered vouchers across 3D, 2D, and Football into an encrypted .rhmg archive
  */
-export function exportPeriodVouchersBackup(
+export async function exportPeriodVouchersBackup(
   vouchers3D: any[],
   vouchers2D: any[],
   slipsFB: any[],
   periodLabel: string,
   ownerPin: string = ''
-): string {
+): Promise<string> {
   const data = {
     app: 'ရွှေမင်္ဂလာ စာရင်းစီမံခန့်ခွဲမှုစနစ် (Voucher Archive)',
     version: '3.0',
@@ -689,9 +702,9 @@ export function exportPeriodVouchersBackup(
       'football_slips': slipsFB
     }
   };
-  const rawJson = JSON.stringify(data);
+  const rawJson = JSON.stringify(scrubForBackup(data));
   const checksum = generateChecksum(rawJson);
-  const encryptedPayload = encryptPayload(rawJson, ownerPin);
+  const encryptedPayload = await encryptBackupV2(rawJson, ownerPin || 'NO_PIN');
 
   return [
     CIPHER_HEADER,

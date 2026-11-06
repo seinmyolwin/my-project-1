@@ -1,3 +1,4 @@
+import { generateUUID } from './restorePoints';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -25,20 +26,13 @@ export interface RawBetClip {
 
 const STORAGE_KEY = 'shwe_mingalar_copied_raw_texts';
 
-export function getRawClips(): RawBetClip[] {
+/** All stored clips including tombstones (used by every write path). */
+export function readAllRawClips(): any[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => {
-          if (item && 'customerPhone' in item) {
-            const { customerPhone, ...clean } = item;
-            return clean as RawBetClip;
-          }
-          return item as RawBetClip;
-        });
-      }
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (err) {
     console.error('Failed to read raw clips:', err);
@@ -46,12 +40,38 @@ export function getRawClips(): RawBetClip[] {
   return [];
 }
 
+/** Visible clips for the UI: tombstoned clips are hidden, customer phone never returned. */
+export function getRawClips(): RawBetClip[] {
+  return readAllRawClips()
+    .filter((item: any) => item && !item.deletedAt)
+    .map((item: any) => {
+      if (item && 'customerPhone' in item) {
+        const { customerPhone, ...clean } = item;
+        return clean as RawBetClip;
+      }
+      return item as RawBetClip;
+    });
+}
+
+/** Tombstones every stored clip matching `pred` (nothing is physically removed). */
+function tombstoneRawClips(pred: (c: any) => boolean, reason: string): void {
+  const nowIso = new Date().toISOString();
+  const updated = readAllRawClips().map((c: any) =>
+    c && !c.deletedAt && pred(c) ? { ...c, deletedAt: nowIso, deletedReason: reason } : c);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+  } catch (err) {
+    console.error('Failed to tombstone raw clips:', err);
+  }
+}
+
 export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): RawBetClip {
   const clips = getRawClips();
   const { customerPhone, ...rest } = clipData;
   const newClip: RawBetClip = {
     ...rest,
-    id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: `clip-${generateUUID()}`,
     timestamp: Date.now()
   };
 
@@ -66,47 +86,19 @@ export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): Raw
 }
 
 export function deleteRawClipsByVoucherNumber(voucherNumber: string): void {
-  const clips = getRawClips();
-  const updated = clips.filter(c => c.voucherNumber !== voucherNumber);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
-  } catch (err) {
-    console.error('Failed to delete raw clips by voucher number:', err);
-  }
+  tombstoneRawClips(c => c.voucherNumber === voucherNumber, 'voucher-deleted');
 }
 
 export function deleteRawClip(id: string): void {
-  const clips = getRawClips();
-  const updated = clips.filter(c => c.id !== id);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated', { detail: { deletedId: id } }));
-  } catch (err) {
-    console.error('Failed to delete raw clip:', err);
-  }
+  tombstoneRawClips(c => c.id === id, 'user-deleted');
 }
 
 export function deleteRawClipsByRound(roundId: string): void {
-  const clips = getRawClips();
-  const updated = clips.filter(c => c.roundId !== roundId);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
-  } catch (err) {
-    console.error('Failed to delete raw clips by round:', err);
-  }
+  tombstoneRawClips(c => c.roundId === roundId, 'round-deleted');
 }
 
 export function deleteRawClipsByDate(date: string): void {
-  const clips = getRawClips();
-  const updated = clips.filter(c => c.date !== date);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
-  } catch (err) {
-    console.error('Failed to delete raw clips by date:', err);
-  }
+  tombstoneRawClips(c => c.date === date, 'date-deleted');
 }
 
 export function clearAllRawClips(): void {

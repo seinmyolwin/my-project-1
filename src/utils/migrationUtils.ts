@@ -15,21 +15,30 @@ export const MIGRATION_FLAG_KEY = 'phone_purge_v1_completed';
 
 import { isSampleAgentDigest } from './tombstoneUtils';
 
+/** Remove customerPhone from every item of a list (count-only logging by caller). */
+export function stripCustomerPhoneFromList(list: any[]): any[] {
+  return list.map((item: any) => {
+    if (!item || typeof item !== 'object' || !('customerPhone' in item)) return item;
+    const { customerPhone: _removed, ...rest } = item;
+    return rest;
+  });
+}
+
 /**
- * ...
+ * phone_purge_v1: one-time, idempotent removal of stored customer phone numbers.
  */
 export async function runPhonePurgeMigration(): Promise<boolean> {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return false;
 
     // 1. Mandatory snapshot first: create formal before-migration restore point
+    if (localStorage.getItem(MIGRATION_FLAG_KEY) === 'true') return true;
     try {
-      await createRestorePoint('before-phone-purge');
+      await createRestorePoint('before-migration', { action: 'phone-purge' });
     } catch (rpErr) {
-      console.error('[Migration] CRITICAL: createRestorePoint before-phone-purge failed! Aborting.', rpErr);
+      console.error('[Migration] CRITICAL: restore point before phone purge failed! Aborting.', rpErr);
       return false;
     }
-    takePreMigrationSnapshot();
 
     const updates: Record<string, any> = {};
 
