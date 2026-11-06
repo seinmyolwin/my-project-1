@@ -46,6 +46,7 @@ export interface TelegramAccountConfig {
 const TELEGRAM_CONFIG_KEY = 'shwe_mingalar_telegram_config';
 const TELEGRAM_ORDERS_KEY = 'shwe_mingalar_telegram_orders';
 const SHOP_ID_KEY = 'shwe_mingalar_shop_id';
+const CHAT_ID_KEY = 'shwe_mingalar_chat_id';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
   botToken: '',
@@ -85,6 +86,22 @@ export function setShopId(newShopId: string): string {
   return getShopId();
 }
 
+export function getPersonalChatId(): string {
+  try {
+    return localStorage.getItem(CHAT_ID_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setPersonalChatId(chatId: string): void {
+  try {
+    localStorage.setItem(CHAT_ID_KEY, chatId.trim());
+  } catch {
+    // ignore
+  }
+}
+
 async function getAuthHeaders(forceRefresh = false): Promise<Record<string, string>> {
   if (forceRefresh) {
     sessionStorage.removeItem('rhmg_server_session_token');
@@ -100,7 +117,6 @@ async function getAuthHeaders(forceRefresh = false): Promise<Record<string, stri
           body: JSON.stringify({ pin: storedPin })
         });
         if (res.status === 409) {
-          // First use on this server: register the owner PIN hash once, then retry
           await fetch('/api/auth/setup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -124,11 +140,18 @@ async function getAuthHeaders(forceRefresh = false): Promise<Record<string, stri
       }
     }
   }
+
+  const config = getTelegramConfig();
   const currentShopId = getShopId();
+  const personalToken = cleanTelegramToken(config.botToken || '');
+  const personalChatId = config.channelId || getPersonalChatId();
+
   return {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
     'x-shop-id': currentShopId,
+    ...(personalToken ? { 'x-telegram-bot-token': personalToken } : {}),
+    ...(personalChatId ? { 'x-telegram-chat-id': personalChatId } : {}),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
   };
 }
@@ -165,13 +188,18 @@ export function getTelegramConfig(): TelegramAccountConfig {
       return {
         ...parsed,
         shopId: parsed.shopId || getShopId(),
+        channelId: parsed.channelId || getPersonalChatId(),
         botToken: cleanTelegramToken(parsed.botToken || '')
       };
     }
   } catch {
     // ignore
   }
-  return { ...DEFAULT_TELEGRAM_CONFIG, shopId: getShopId() };
+  return {
+    ...DEFAULT_TELEGRAM_CONFIG,
+    shopId: getShopId(),
+    channelId: getPersonalChatId()
+  };
 }
 
 export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null> {
@@ -195,29 +223,15 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
       const updated: TelegramAccountConfig = {
         ...current,
         shopId: data.shopId || getShopId(),
-        channelId: data.channelId ?? current.channelId,
+        channelId: current.channelId || data.channelId || getPersonalChatId(),
         accountName: data.accountName ?? current.accountName,
         webhookUrl: data.webhookUrl ?? current.webhookUrl,
-        status: data.status || current.status || 'disconnected',
+        status: current.botToken && isValidTokenFormat(current.botToken) ? 'connected' : (data.status || current.status || 'disconnected'),
         statusMessage: data.statusMessage || current.statusMessage,
         connectedAt: data.connectedAt || current.connectedAt,
-        hasServerToken: Boolean(data.hasToken),
+        hasServerToken: Boolean(data.hasToken || current.botToken),
         botInfo: data.bot || current.botInfo
       };
-
-      if (!data.hasToken && current.botToken && isValidTokenFormat(current.botToken)) {
-        const postHeaders = await getAuthHeaders();
-        fetch('/api/telegram/config', {
-          method: 'POST',
-          headers: postHeaders,
-          body: JSON.stringify({
-            botToken: current.botToken,
-            channelId: current.channelId,
-            accountName: current.accountName,
-            webhookUrl: current.webhookUrl
-          })
-        }).catch(() => {});
-      }
 
       try {
         localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(updated));
@@ -230,7 +244,7 @@ export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null
   } catch {
     // network failure to backend
   }
-  return null;
+  return getTelegramConfig();
 }
 
 export async function testTelegramConnection(candidateToken: string, webhookUrl?: string): Promise<{
@@ -258,8 +272,40 @@ export async function testTelegramConnection(candidateToken: string, webhookUrl?
     };
   }
 
+  // 1. Try Direct Telegram API verification from client browser using personal token
+  if (cleaned) {
+    try {
+      const directRes = await fetch(`https://api.telegram.org/bot${cleaned}/getMe`, {
+        signal: AbortSignal.timeout(6000)
+      });
+      if (directRes.ok) {
+        const data = await directRes.json();
+        if (data && data.ok && data.result) {
+          const bot: TelegramBotInfo = {
+            id: data.result.id,
+            username: data.result.username || '',
+            firstName: data.result.first_name || '',
+            canJoinGroups: data.result.can_join_groups ?? true,
+            canReadAllGroupMessages: data.result.can_read_all_group_messages ?? false,
+            supportsInlineQueries: data.result.supports_inline_queries ?? false
+          };
+          return {
+            status: 'connected',
+            message: `Telegram Connection Successful (@${bot.username || bot.firstName}) [Verified via Local Keys]`,
+            bot
+          };
+        }
+      }
+    } catch {
+      // fallback to backend test proxy
+    }
+  }
+
+  // 2. Fallback to backend test API signed with client headers
   try {
     const headers = await getAuthHeaders();
+    if (cleaned) headers['x-telegram-bot-token'] = cleaned;
+
     const res = await fetch('/api/telegram/test', {
       method: 'POST',
       headers,
@@ -317,6 +363,10 @@ export async function saveTelegramConfig(config: TelegramAccountConfig): Promise
     botToken: cleanedToken
   };
 
+  if (config.channelId) {
+    setPersonalChatId(config.channelId);
+  }
+
   try {
     localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(toSave));
   } catch {
@@ -324,6 +374,9 @@ export async function saveTelegramConfig(config: TelegramAccountConfig): Promise
   }
 
   const headers = await getAuthHeaders();
+  if (cleanedToken) headers['x-telegram-bot-token'] = cleanedToken;
+  if (config.channelId) headers['x-telegram-chat-id'] = config.channelId;
+
   fetch('/api/telegram/config', {
     method: 'POST',
     headers,
@@ -348,6 +401,7 @@ export async function clearTelegramToken(): Promise<{ success: boolean; message:
     const updated: TelegramAccountConfig = {
       ...current,
       botToken: '',
+      channelId: '',
       webhookUrl: '',
       status: 'disconnected',
       statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)',
@@ -355,6 +409,7 @@ export async function clearTelegramToken(): Promise<{ success: boolean; message:
       botInfo: undefined
     };
     localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(updated));
+    localStorage.removeItem(CHAT_ID_KEY);
 
     return { success: true, message: 'Telegram Bot Token ကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ' };
   } catch (err: any) {
@@ -425,13 +480,46 @@ export async function fetchTelegramOrdersFromServer(): Promise<TelegramIncomingO
   return null;
 }
 
-export async function sendTelegramMessage(chatId: string | number, text: string): Promise<boolean> {
+export async function sendTelegramMessage(
+  chatId: string | number,
+  text: string,
+  tokenOverride?: string
+): Promise<boolean> {
+  const config = getTelegramConfig();
+  const tokenToUse = cleanTelegramToken(tokenOverride || config.botToken || '');
+  const targetChat = chatId || config.channelId || getPersonalChatId();
+
+  // 1. Direct Telegram API call signed with user's local token
+  if (tokenToUse && targetChat) {
+    try {
+      const directRes = await fetch(`https://api.telegram.org/bot${tokenToUse}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChat,
+          text: String(text),
+          parse_mode: 'HTML'
+        })
+      });
+      if (directRes.ok) {
+        const data = await directRes.json();
+        if (data && data.ok) return true;
+      }
+    } catch {
+      // Direct call fallback to backend
+    }
+  }
+
+  // 2. Backend proxy call with signed client headers
   try {
     const headers = await getAuthHeaders();
+    if (tokenToUse) headers['x-telegram-bot-token'] = tokenToUse;
+    if (targetChat) headers['x-telegram-chat-id'] = String(targetChat);
+
     const res = await fetch('/api/telegram/send-message', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ chatId, text })
+      body: JSON.stringify({ chatId: targetChat, text })
     });
     return res.ok;
   } catch {

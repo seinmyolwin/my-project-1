@@ -1365,8 +1365,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <span>Telegram Bot Token (BotFather Token)</span>
-                      <span className="text-[10px] text-rose-500 font-bold">*လိုအပ်သည်</span>
+                      <span>Telegram Bot Token (Personal Key)</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
+                        🔒 localStorage တွင် သိမ်းမည်
+                      </span>
                     </label>
 
                     <div className="flex items-center gap-2">
@@ -1433,7 +1435,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       ) : isValidTokenFormat(cleanTelegramToken(botToken)) ? (
                         <p className="text-emerald-700 font-semibold flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>✓ Token ပုံစံ မှန်ကန်ပါသည် (Bot ID: {cleanTelegramToken(botToken).split(':')[0]})</span>
+                          <span>✓ Token ပုံစံ မှန်ကန်ပါသည် (Bot ID: {cleanTelegramToken(botToken).split(':')[0]}) - Browser တွင် သိမ်းဆည်းပြီး</span>
                         </p>
                       ) : botToken.includes('Use this token to access the HTTP API') ? (
                         <p className="text-sky-700 font-semibold flex items-center gap-1">
@@ -1449,20 +1451,28 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   )}
                 </div>
 
-                {/* GROUP ID / CHANNEL ID */}
+                {/* GROUP ID / CHAT ID */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Telegram Channel / Group ID (ရွေးချယ်နိုင်သည်)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span>Telegram Chat ID / Group ID (Personal Chat ID)</span>
+                      <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded border border-sky-200">
+                        🔒 localStorage တွင် သိမ်းမည်
+                      </span>
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={channelId}
-                    onChange={(e) => setChannelId(e.target.value)}
-                    placeholder="@shwemingalar_group (သို့မဟုတ် ကွက်လပ်ထားနိုင်သည်)"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setChannelId(val);
+                    }}
+                    placeholder="ဥပမာ - @shwemingalar_group သို့မဟုတ် -100123456789"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
-                    *Bot ကို Group ထဲသို့ Add ထားပါက ဤနေရာတွင် ID မထည့်ထားသော်လည်း အလိုအလျောက် စာရင်းလက်ခံနိုင်ပါသည်
+                    *အသုံးပြုသူ သီးသန့် Chat ID / Group ID ကို မိမိ Browser တွင် သိမ်းဆည်းပြီး ဤ Chat ID သို့ တိုက်ရိုက် စာများ ပေးပို့မည်ဖြစ်ပါသည်
                   </p>
                 </div>
               </div>
