@@ -30,6 +30,7 @@ export interface Voucher {
   voucherNo: string; // e.g. "V-3D-1001"
   roundId: string;
   customerName: string;
+  customerPhone?: string;
   items: VoucherItem[];
   subtotal: number;
   discountPercent: number; // e.g. 10% dealer discount to customer
@@ -239,6 +240,7 @@ export interface TwoDVoucher {
   voucherNo: string; // e.g. "V-2D-1001"
   roundId: string;
   customerName: string;
+  customerPhone?: string;
   items: TwoDVoucherItem[];
   subtotal: number;
   discountPercent: number;

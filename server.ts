@@ -9,7 +9,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
-import { createMessagingRouter, verifyOwnerTokenMiddleware, generateOwnerSessionToken } from './server/messagingHub.ts';
+import { createMessagingRouter, verifyOwnerTokenMiddleware, generateOwnerSessionToken } from './server/messagingHub';
 
 dotenv.config();
 
@@ -263,8 +263,8 @@ Instructions:
   }
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
-  app.listen(PORT, process.env.HOST || '127.0.0.1', () => {
-    console.log(`Server running on http://${process.env.HOST || "127.0.0.1"}:${PORT}`);
+  app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
+    console.log(`Server running on http://${process.env.HOST || "0.0.0.0"}:${PORT}`);
   });
 }
 

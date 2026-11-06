@@ -96,7 +96,7 @@ export function cleanTelegramToken(raw: string): string {
   cleaned = cleaned.replace(/api\.telegram\.org\/bot/gi, '');
   cleaned = cleaned.replace(/\bbot(?=\d+:)/gi, '');
   cleaned = cleaned.replace(/(\d+)\s*:\s*([A-Za-z0-9_-]+)/g, '$1:$2');
-  const match = cleaned.match(/(\d{7,12}:[A-Za-z0-9_-]{25,50})/);
+  const match = cleaned.match(/(\d{5,15}:[A-Za-z0-9_-]{20,65})/);
   if (match) return match[1];
   cleaned = cleaned.replace(/^['"`<([{\s]+|['"`>)\]}\s]+$/g, '').trim();
   return cleaned;
@@ -104,7 +104,7 @@ export function cleanTelegramToken(raw: string): string {
 
 export function isValidTokenFormat(token: string): boolean {
   if (!token) return false;
-  return /^\d{7,12}:[A-Za-z0-9_-]{25,50}$/.test(token);
+  return /^\d{5,15}:[A-Za-z0-9_-]{20,65}$/.test(token.trim());
 }
 
 // In-memory store
@@ -293,14 +293,17 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any, tok
 
   const url = `https://api.telegram.org/bot${token}/${endpoint}`;
   try {
-    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TelegramBotApi/1.0'
+    };
     if (body) headers['Content-Type'] = 'application/json';
 
     const response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(7000)
+      signal: AbortSignal.timeout(10000)
     });
 
     let data: any = null;
@@ -315,7 +318,12 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any, tok
     }
     return { ok: false, message: data?.description || `Telegram API error (${response.status})` };
   } catch (err: any) {
-    return { ok: false, message: err.message || 'Telegram network connection failed' };
+    return {
+      ok: false,
+      message: err.name === 'AbortError' || err.name === 'TimeoutError'
+        ? 'Telegram API ချိတ်ဆက်မှု အချိန်လွန်သွားပါသည် (Timeout)'
+        : (err.message || 'Telegram network connection failed')
+    };
   }
 }
 
@@ -354,6 +362,24 @@ function processTelegramUpdate(update: any) {
     status: 'pending_review',
     timestamp: Date.now()
   };
+
+  if (photo && photo.length > 0) {
+    const largestPhoto = photo[photo.length - 1];
+    if (largestPhoto && largestPhoto.file_id) {
+      const token = getTelegramToken();
+      if (token) {
+        fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${largestPhoto.file_id}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data?.ok && data?.result?.file_path) {
+              newOrder.photoUrl = `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
+              saveStore();
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }
 
   store.telegramOrders.unshift(newOrder);
   if (store.telegramOrders.length > 200) store.telegramOrders.pop();
@@ -480,18 +506,50 @@ export function createMessagingRouter() {
     });
   });
 
-  // 3. Telegram Test Connection endpoint (Protected by owner token) (D1)
-  router.get('/telegram/test', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
-    const token = getTelegramToken();
-    if (!token) {
+  // 3. Telegram Test Connection endpoint (POST & GET) (Protected by owner token)
+  const handleTestConnection = async (req: Request, res: Response) => {
+    const candidateToken = req.body?.botToken || req.query?.botToken;
+    const tokenToTest = candidateToken && typeof candidateToken === 'string' && candidateToken.trim()
+      ? cleanTelegramToken(candidateToken)
+      : getTelegramToken();
+
+    if (!tokenToTest) {
       return res.json({ status: 'disconnected', message: 'Telegram Bot Token ထည့်သွင်းထားခြင်း မရှိသေးပါ' });
     }
-    const test = await callTelegramApi('getMe', 'GET', undefined, token);
-    if (test.ok) {
-      return res.json({ status: 'connected', message: 'Telegram Connection Successful', bot: test.result });
+
+    const test = await callTelegramApi('getMe', 'GET', undefined, tokenToTest);
+    if (test.ok && test.result) {
+      const bot: TelegramBotInfo = {
+        id: test.result.id,
+        username: test.result.username || '',
+        firstName: test.result.first_name || '',
+        canJoinGroups: test.result.can_join_groups ?? true,
+        canReadAllGroupMessages: test.result.can_read_all_group_messages ?? false,
+        supportsInlineQueries: test.result.supports_inline_queries ?? false
+      };
+
+      store.telegram.botToken = tokenToTest;
+      store.telegram.status = 'connected';
+      store.telegram.connectedAt = new Date().toISOString();
+      store.telegram.statusMessage = `Connected to @${bot.username || bot.firstName}`;
+      store.telegram.botInfo = bot;
+      saveStore();
+
+      return res.json({
+        status: 'connected',
+        message: `Telegram Connection Successful (@${bot.username || bot.firstName})`,
+        bot
+      });
     }
-    return res.json({ status: 'error', message: test.message });
-  });
+
+    return res.json({
+      status: 'error',
+      message: test.message || 'Telegram Bot Token မမှန်ကန်ပါ (401 Unauthorized)'
+    });
+  };
+
+  router.post('/telegram/test', verifyOwnerTokenMiddleware, handleTestConnection);
+  router.get('/telegram/test', verifyOwnerTokenMiddleware, handleTestConnection);
 
   // 4. Clear Token endpoint (Protected by owner token) (D1)
   router.post('/telegram/clear-token', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {

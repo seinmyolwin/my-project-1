@@ -57,7 +57,10 @@ export const DEFAULT_TELEGRAM_CONFIG: TelegramAccountConfig = {
 
 import { getStoredOwnerPassword } from './securityUtils';
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
+async function getAuthHeaders(forceRefresh = false): Promise<Record<string, string>> {
+  if (forceRefresh) {
+    sessionStorage.removeItem('rhmg_server_session_token');
+  }
   let token = sessionStorage.getItem('rhmg_server_session_token');
   if (!token) {
     const storedPin = getStoredOwnerPassword();
@@ -113,7 +116,7 @@ export function cleanTelegramToken(raw: string): string {
   cleaned = cleaned.replace(/api\.telegram\.org\/bot/gi, '');
   cleaned = cleaned.replace(/\bbot(?=\d+:)/gi, '');
   cleaned = cleaned.replace(/(\d+)\s*:\s*([A-Za-z0-9_-]+)/g, '$1:$2');
-  const match = cleaned.match(/(\d{7,12}:[A-Za-z0-9_-]{25,50})/);
+  const match = cleaned.match(/(\d{5,15}:[A-Za-z0-9_-]{20,65})/);
   if (match) return match[1];
   cleaned = cleaned.replace(/^['"`<([{\s]+|['"`>)\]}\s]+$/g, '').trim();
   return cleaned;
@@ -121,7 +124,7 @@ export function cleanTelegramToken(raw: string): string {
 
 export function isValidTokenFormat(token: string): boolean {
   if (!token) return false;
-  return /^\d{7,12}:[A-Za-z0-9_-]{25,50}$/.test(token);
+  return /^\d{5,15}:[A-Za-z0-9_-]{20,65}$/.test(token.trim());
 }
 
 export function getTelegramConfig(): TelegramAccountConfig {
@@ -142,11 +145,18 @@ export function getTelegramConfig(): TelegramAccountConfig {
 
 export async function syncTelegramConfig(): Promise<TelegramAccountConfig | null> {
   try {
-    const headers = await getAuthHeaders();
-    const res = await fetch('/api/telegram/config', {
+    let headers = await getAuthHeaders();
+    let res = await fetch('/api/telegram/config', {
       headers,
       signal: AbortSignal.timeout(5000)
     });
+    if (res.status === 401) {
+      headers = await getAuthHeaders(true);
+      res = await fetch('/api/telegram/config', {
+        headers,
+        signal: AbortSignal.timeout(5000)
+      });
+    }
     if (res.ok) {
       const data = await res.json();
       const current = getTelegramConfig();
@@ -357,11 +367,18 @@ export function saveTelegramOrders(orders: TelegramIncomingOrder[]): void {
 
 export async function fetchTelegramOrdersFromServer(): Promise<TelegramIncomingOrder[] | null> {
   try {
-    const headers = await getAuthHeaders();
-    const res = await fetch('/api/telegram/orders', {
+    let headers = await getAuthHeaders();
+    let res = await fetch('/api/telegram/orders', {
       headers,
       signal: AbortSignal.timeout(5000)
     });
+    if (res.status === 401) {
+      headers = await getAuthHeaders(true);
+      res = await fetch('/api/telegram/orders', {
+        headers,
+        signal: AbortSignal.timeout(5000)
+      });
+    }
     if (res.ok) {
       const orders = await res.json();
       if (Array.isArray(orders)) {
