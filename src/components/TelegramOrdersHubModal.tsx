@@ -307,7 +307,11 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         if (cfg.webhookUrl && !cfg.webhookUrl.includes('telegram.shwemingalar.app')) {
           setWebhookUrl(cfg.webhookUrl);
         } else if (typeof window !== 'undefined' && window.location.origin) {
-          setWebhookUrl(`${window.location.origin}/api/telegram/webhook`);
+          const activeShop = getShopId();
+          setWebhookUrl(activeShop && activeShop !== 'default'
+            ? `${window.location.origin}/api/telegram/webhook/${activeShop}`
+            : `${window.location.origin}/api/telegram/webhook`
+          );
         }
         if (cfg.channelId) setChannelId(cfg.channelId);
         if (cfg.accountName) setAccountName(cfg.accountName);
@@ -747,7 +751,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   const handleAutoDetectWebhook = () => {
     const origin = window.location.origin;
-    const detected = `${origin}/api/telegram/webhook`;
+    const activeShop = getShopId();
+    const detected = activeShop && activeShop !== 'default'
+      ? `${origin}/api/telegram/webhook/${activeShop}`
+      : `${origin}/api/telegram/webhook`;
     setWebhookUrl(detected);
     setWebhookActionMsg({
       type: 'success',

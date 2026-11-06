@@ -662,7 +662,7 @@ export function createMessagingRouter() {
 
   // 7. Multi-Tenant Telegram Webhook Receiver Endpoints
   const handleWebhookPost = async (req: Request, res: Response) => {
-    const shopId = getShopIdFromReq(req);
+    const rawShopId = req.params?.shopId || (req.headers['x-shop-id'] as string) || (req.query?.shopId as string);
     const configuredSecret = getTelegramWebhookSecret();
 
     if (configuredSecret) {
@@ -677,9 +677,18 @@ export function createMessagingRouter() {
     }
 
     const update = req.body;
-    await processTelegramUpdateForShop(update, shopId);
+    if (rawShopId && typeof rawShopId === 'string' && rawShopId.trim() && rawShopId.trim() !== 'default') {
+      await processTelegramUpdateForShop(update, rawShopId.trim());
+    } else {
+      // If no explicit non-default shopId in webhook URL, process for all registered shops in memory
+      const allShops = Array.from(shopStoresMap.keys());
+      if (allShops.length === 0) allShops.push('default');
+      for (const targetShopId of allShops) {
+        await processTelegramUpdateForShop(update, targetShopId);
+      }
+    }
 
-    return res.status(200).json({ ok: true, shopId });
+    return res.status(200).json({ ok: true });
   };
 
   router.post('/telegram/webhook', handleWebhookPost);
