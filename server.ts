@@ -1,3 +1,4 @@
+import { setupOwnerAuth, verifyOwnerAuth, makeFailureThrottle } from './server/ownerAuth';
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
@@ -25,11 +26,37 @@ async function startServer() {
   }));
 
   // Session Token Auth Endpoint (D1)
-  app.post('/api/auth/token', (req: Request, res: Response) => {
+  const DATA_DIR = path.join(process.cwd(), 'data');
+  const authThrottle = makeFailureThrottle(5, 15 * 60 * 1000);
+
+  // One-time owner PIN registration (first come). Stores only a salted PBKDF2 hash.
+  app.post('/api/auth/setup', (req: Request, res: Response) => {
     const { pin } = req.body || {};
     if (!pin || typeof pin !== 'string' || !/^\d{6}$/.test(pin.trim())) {
       return res.status(400).json({ error: 'Valid 6-digit PIN required' });
     }
+    const created = setupOwnerAuth(DATA_DIR, pin.trim());
+    if (!created) return res.status(409).json({ error: 'already-setup' });
+    return res.json({ success: true });
+  });
+
+  // Owner session token: PIN must match the server-side hash. Throttled per client IP.
+  app.post('/api/auth/token', (req: Request, res: Response) => {
+    const key = req.ip || 'unknown';
+    if (authThrottle.blocked(key)) {
+      return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    }
+    const { pin } = req.body || {};
+    if (!pin || typeof pin !== 'string' || !/^\d{6}$/.test(pin.trim())) {
+      return res.status(400).json({ error: 'Valid 6-digit PIN required' });
+    }
+    const ok = verifyOwnerAuth(DATA_DIR, pin.trim());
+    if (ok === 'not-setup') return res.status(409).json({ error: 'setup-required' });
+    if (!ok) {
+      authThrottle.fail(key);
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
+    authThrottle.reset(key);
     const token = generateOwnerSessionToken(pin.trim());
     return res.json({ success: true, token });
   });
@@ -236,8 +263,8 @@ Instructions:
   }
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, process.env.HOST || '127.0.0.1', () => {
+    console.log(`Server running on http://${process.env.HOST || "127.0.0.1"}:${PORT}`);
   });
 }
 

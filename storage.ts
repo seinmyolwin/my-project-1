@@ -1,0 +1,1096 @@
+import {
+  DrawRound,
+  Voucher,
+  ForwardSlip,
+  AppSettings,
+  NumberLimit,
+  BlockedNumbers,
+  TwoDAppSettings,
+  TwoDQuickActionButtonsConfig,
+  TwoDDrawRound,
+  TwoDVoucher,
+  TwoDForwardSlip,
+  FootballSettings,
+  FootballMatch,
+  FootballSlip,
+  FootballForwardSlip,
+  FootballLeague,
+  ThreeDQuickActionButtonsConfig,
+  ThreeDQuickButtonItem,
+  TwoDQuickButtonItem
+} from '../types';
+import { generateUpToDate2DRounds, generateUpToDate3DRounds } from './thaiLotteryApi';
+
+export const DEFAULT_3D_ACTION_BUTTONS: ThreeDQuickActionButtonsConfig = {
+  straight: true,
+  rumble: true,
+  triples: true,
+  brothers: true,
+  power: true,
+  natkhat: true
+};
+
+export const DEFAULT_3D_CUSTOM_BUTTONS: ThreeDQuickButtonItem[] = [
+  {
+    id: 'btn-3d-straight',
+    key: 'straight',
+    label: 'ဒဲ့',
+    nameMyanmar: 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)',
+    nameEnglish: 'Straight / Direct',
+    desc: 'ရိုက်ထည့်ထားသော ၃ လုံးဂဏန်းများကို တိုက်ရိုက်ယူပါသည် (ဥပမာ: 123 -> 123 ဒဲ့)',
+    syntaxExample: '123 ရိုက်ထည့်ပါက -> 123 (ဒဲ့ ၁ ကွက်)',
+    actionType: 'straight',
+    isEnabled: true,
+    previewClass: 'px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-2xs'
+  },
+  {
+    id: 'btn-3d-rumble',
+    key: 'rumble',
+    label: 'အာ',
+    nameMyanmar: 'အာ / R (ပတ်လည် ၆ ခွေ / ၃ ခွေ)',
+    nameEnglish: 'Rumble / Permutations',
+    desc: '၃ လုံး မတူပါက ၆ ခွေ၊ အပူးပါပါက ၃ ခွေ အပြန်အလှန် လှည့်တွဲယူပါသည်',
+    syntaxExample: '123 ရိုက်ထည့်ပါက -> 123, 132, 213, 231, 312, 321 (၆ ခွေ)',
+    actionType: 'rumble',
+    isEnabled: true,
+    previewClass: 'px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-black shadow-2xs'
+  },
+  {
+    id: 'btn-3d-triples',
+    key: 'triples',
+    label: 'အပူး',
+    nameMyanmar: 'အပူး (၃ လုံးပူး ၁၀ ကွက်)',
+    nameEnglish: 'Triples',
+    desc: '000 မှ 999 အထိ ၃ လုံးတူ ၁၀ ကွက်ကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '000, 111, 222, 333, 444, 555, 666, 777, 888, 999 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['000', '111', '222', '333', '444', '555', '666', '777', '888', '999'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-3d-brothers',
+    key: 'brothers',
+    label: 'ညီကို',
+    nameMyanmar: 'ညီကို (စဉ်တိုက်ဂဏန်းများ)',
+    nameEnglish: 'Brothers / Consecutives',
+    desc: 'စဉ်တိုက် ညီကိုဂဏန်းအတွဲများကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '012, 123, 234, 345, 456, 567, 678, 789, 890, 901...',
+    actionType: 'preset_list',
+    customNumbers: [
+      '012', '123', '234', '345', '456', '567', '678', '789', '890', '901',
+      '210', '321', '432', '543', '654', '765', '876', '987', '098', '109'
+    ],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-3d-power',
+    key: 'power',
+    label: 'ပါဝါ',
+    nameMyanmar: 'ပါဝါ (Power Pairs အတွဲများ)',
+    nameEnglish: 'Power Pairs',
+    desc: 'ပါဝါအတွဲ ၃ လုံးဂဏန်းများကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '050, 051, 052, 160, 161, 270... (၁၅ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['050', '051', '052', '160', '161', '162', '270', '271', '272', '380', '381', '382', '490', '491', '492'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-3d-natkhat',
+    key: 'natkhat',
+    label: 'နက္ခတ်',
+    nameMyanmar: 'နက္ခတ် (Natkhat Pairs အတွဲများ)',
+    nameEnglish: 'Natkhat Pairs',
+    desc: 'နက္ခတ်အတွဲ ၃ လုံးဂဏန်းများကို အလိုအလျောက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '070, 071, 072, 180, 181, 240... (၁၅ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['070', '071', '072', '180', '181', '182', '240', '241', '242', '350', '351', '352', '690', '691', '692'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold'
+  }
+];
+
+export const cleanMasterAgentName = (name?: string): string => {
+  if (!name) return '';
+  return name
+    .replace(/\s*[\(\[（]\s*ဒိုင်ချုပ်(?:ကြီး)?\s*[\)\]）]\s*/gi, '')
+    .replace(/ဒိုင်ချုပ်ကြီး/g, '')
+    .replace(/ဒိုင်ချုပ်/g, '')
+    .trim();
+};
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  appName: 'ရွှေမင်္ဂလာ',
+  shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
+  shopPhone: '09-798889900',
+  shopAddress: 'ရန်ကုန်မြို့ / မန္တလေးမြို့',
+  currency: 'Ks',
+  defaultMultiplier: 600,
+  defaultToddMultiplier: 100,
+  defaultCommissionRate: 0,
+  defaultCustomerDiscount: 0,
+  globalStockLimit: 100000, // 100,000 Ks per number default limit
+  lowStockAlertPercentage: 80, // alert when 80% reached
+  language: 'my',
+  soundEffects: true,
+  printPaperSize: '80mm',
+  voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၃ ရက်အတွင်း ငွေလာရောက်ထုတ်ယူနိုင်ပါသည်။',
+  defaultMasterAgentName: undefined,
+  defaultMasterAgentPhone: undefined,
+  quickActionButtons: DEFAULT_3D_ACTION_BUTTONS,
+  custom3DButtons: DEFAULT_3D_CUSTOM_BUTTONS
+};
+
+export const INITIAL_ROUNDS: DrawRound[] = generateUpToDate3DRounds();
+
+export const INITIAL_LIMITS: NumberLimit = {
+  '789': 60000,
+  '555': 40000,
+  '123': 80000,
+  '999': 50000,
+  '853': 50000
+};
+
+export const INITIAL_BLOCKED: BlockedNumbers = {
+  '000': false,
+  '777': false
+};
+
+export const INITIAL_VOUCHERS: Voucher[] = [
+  {
+    id: 'vouch-1',
+    voucherNo: 'V-3D-1001',
+    roundId: 'round-3d-2026-10-01',
+    customerName: 'ဦးကျော်စွာ',
+    items: [
+      { number: '789', amount: 5000, betType: 'straight' },
+      { number: '123', amount: 3000, betType: 'straight' },
+      { number: '456', amount: 2000, betType: 'straight' }
+    ],
+    subtotal: 10000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 10000,
+    createdAt: '2026-10-01T10:00:00.000Z',
+    notes: 'ဖုန်းဖြင့် မှာယူသည်',
+    isPaid: true,
+    status: 'active'
+  },
+  {
+    id: 'vouch-2',
+    voucherNo: 'V-3D-1002',
+    roundId: 'round-3d-2026-10-01',
+    customerName: 'ဒေါ်လှလှဝင်း',
+    items: [
+      { number: '853', amount: 10000, betType: 'straight' },
+      { number: '538', amount: 2000, betType: 'rumble' },
+      { number: '358', amount: 2000, betType: 'rumble' },
+      { number: '835', amount: 2000, betType: 'rumble' }
+    ],
+    subtotal: 16000,
+    discountPercent: 5,
+    discountAmount: 800,
+    netPayable: 15200,
+    createdAt: '2026-10-01T11:30:00.000Z',
+    notes: 'ဆိုင်လာထိုးသူ',
+    isPaid: true,
+    status: 'active'
+  },
+  {
+    id: 'vouch-3',
+    voucherNo: 'V-3D-1003',
+    roundId: 'round-3d-2026-10-01',
+    customerName: 'ကိုအောင်သူ (စက်ရုံ)',
+    items: [
+      { number: '789', amount: 25000, betType: 'straight' },
+      { number: '999', amount: 15000, betType: 'straight' },
+      { number: '555', amount: 10000, betType: 'straight' }
+    ],
+    subtotal: 50000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 50000,
+    createdAt: '2026-10-01T13:00:00.000Z',
+    notes: 'VIP ဖောက်သည်',
+    isPaid: true,
+    status: 'active'
+  },
+  {
+    id: 'vouch-4',
+    voucherNo: 'V-3D-1004',
+    roundId: 'round-3d-2026-10-01',
+    customerName: 'မနွယ်နွယ်',
+    items: [
+      { number: '789', amount: 20000, betType: 'straight' },
+      { number: '853', amount: 15000, betType: 'straight' },
+      { number: '369', amount: 5000, betType: 'straight' }
+    ],
+    subtotal: 40000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 40000,
+    createdAt: '2026-10-01T14:15:00.000Z',
+    notes: 'KPay ဖြင့်လွှဲထားသည်',
+    isPaid: true,
+    status: 'active'
+  }
+];
+
+export const INITIAL_FORWARD_SLIPS: ForwardSlip[] = [
+  {
+    id: 'fwd-1',
+    slipNo: 'FWD-1001-01',
+    roundId: 'round-3d-2026-10-01',
+    masterAgentName: 'ဒိုင်ချုပ်',
+    masterAgentPhone: '',
+    items: [
+      { number: '789', amount: 20000 }
+    ],
+    totalAmount: 20000,
+    commissionRate: 12,
+    commissionAmount: 2400,
+    netPaid: 17600,
+    createdAt: '2026-10-01T14:30:00.000Z',
+    notes: '၇၈၉ အထွက်များ၍ ဘေးကင်းရန် အပေါ်ဖြတ်တင်သည်'
+  }
+];
+
+// ====================================================
+// 2D LOTTERY INITIAL DATA & STORAGE
+// ====================================================
+export const DEFAULT_2D_ACTION_BUTTONS: TwoDQuickActionButtonsConfig = {
+  straight: true,       // ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)
+  rumble: true,         // ပတ်လည် (အာ / R)
+  break: true,          // ရိတ် (ဘရိတ် ၁၀ ကွက်)
+  includes: true,       // အပါ (အပါ ၁၉ ကွက်)
+  head: true,           // ထိပ် (ထိပ်စီး ၁၀ ကွက်)
+  tail: true,           // ပိတ် (နောက်ပိတ် ၁၀ ကွက်)
+  doubles: true,        // ပူး (အပူး ၁၀ ကွက်)
+  power: true,          // ပါဝါ (ပါဝါ ၁၀ ကွက်)
+  natkhat: true,        // နက္ခတ် (နက္ခတ် ၁၀ ကွက်)
+  brothers: true,       // ညီကို (ညီကို ၂၀ ကွက်)
+  khway: true,          // ခွေ (ရိုးရိုးခွေ)
+  khwayPuu: true,       // ခွေပူး (ခွေ + အပူး)
+  khwayRumble: true,    // ခွေr (ခွေအာ လှည့်တွဲ)
+  khwayPuuRumble: true  // ခွေပူးr (ခွေပူးအာ)
+};
+
+export const DEFAULT_2D_CUSTOM_BUTTONS: TwoDQuickButtonItem[] = [
+  {
+    id: 'btn-2d-straight',
+    key: 'straight',
+    label: 'ဒဲ့',
+    nameMyanmar: 'ဒဲ့ (တိုက်ရိုက်ထိုးကြေး)',
+    nameEnglish: 'Straight / Direct',
+    desc: 'ရိုက်ထည့်ထားသော ၂ လုံးဂဏန်းများကို တိုက်ရိုက်ယူပါသည် (ဥပမာ: 24 -> 24 ဒဲ့)',
+    syntaxExample: '24 ရိုက်ထည့်ပါက -> 24 (ဒဲ့ ၁ ကွက်)',
+    actionType: 'straight',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-2xs'
+  },
+  {
+    id: 'btn-2d-rumble',
+    key: 'rumble',
+    label: 'အာ',
+    nameMyanmar: 'ပတ်လည် (အာ / R)',
+    nameEnglish: 'Rumble / Reversal',
+    desc: 'ဂဏန်း ၂ လုံးကို အပြန်အလှန် လှည့်ယူပါသည် (ဥပမာ: 24 -> 24, 42)',
+    syntaxExample: '24 ရိုက်ထည့်ပါက -> 24, 42 (၂ ကွက်)',
+    actionType: 'rumble',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-teal-600 text-white rounded-lg text-xs font-bold shadow-2xs'
+  },
+  {
+    id: 'btn-2d-break',
+    key: 'break',
+    label: 'ရိတ်',
+    nameMyanmar: 'ရိတ် (ဘရိတ် ၁၀ ကွက်)',
+    nameEnglish: 'Break Digit',
+    desc: 'ပေါင်းလဒ် ဘရိတ် ၁၀ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ ရိတ် -> ၀၅, ၁၄, ၂၃...)',
+    syntaxExample: '5 ရိတ် -> 05, 14, 23, 32, 41, 50, 69, 78, 87, 96 (၁၀ ကွက်)',
+    actionType: 'break',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-sky-50 border border-sky-200 text-sky-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-includes',
+    key: 'includes',
+    label: 'အပါ',
+    nameMyanmar: 'အပါ (ဂဏန်းပါ ၁၉ ကွက်)',
+    nameEnglish: 'Includes Digit',
+    desc: 'ရွေးချယ်ဂဏန်းပါသော ၁၉ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ အပါ -> ၀၅, ၁၅, ၂၅... ၅၀, ၅၁...)',
+    syntaxExample: '5 အပါ -> 05, 15, 25, 35, 45, 55, 65, 75, 85, 95, 50, 51, 52, 53, 54, 56, 57, 58, 59 (၁၉ ကွက်)',
+    actionType: 'includes',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-head',
+    key: 'head',
+    label: 'ထိပ်',
+    nameMyanmar: 'ထိပ် (ထိပ်စီး ၁၀ ကွက်)',
+    nameEnglish: 'Head Digit',
+    desc: 'ရှေ့ဂဏန်း ထိပ်စီး ၁၀ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ ထိပ် -> ၅၀ မှ ၅၉)',
+    syntaxExample: '5 ထိပ် -> 50, 51, 52, 53, 54, 55, 56, 57, 58, 59 (၁၀ ကွက်)',
+    actionType: 'head',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-tail',
+    key: 'tail',
+    label: 'ပိတ်',
+    nameMyanmar: 'ပိတ် (နောက်ပိတ် ၁၀ ကွက်)',
+    nameEnglish: 'Tail Digit',
+    desc: 'နောက်ဂဏန်း နောက်ပိတ် ၁၀ ကွက် ထုတ်ယူပါသည် (ဥပမာ: ၅ ပိတ် -> ၀၅ မှ ၉၅)',
+    syntaxExample: '5 ပိတ် -> 05, 15, 25, 35, 45, 55, 65, 75, 85, 95 (၁၀ ကွက်)',
+    actionType: 'tail',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-doubles',
+    key: 'doubles',
+    label: 'ပူး',
+    nameMyanmar: 'ပူး (အပူး ၁၀ ကွက်)',
+    nameEnglish: 'Doubles',
+    desc: '၀၀ မှ ၉၉ အထိ ၂ လုံးတူ ၁၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '00, 11, 22, 33, 44, 55, 66, 77, 88, 99 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['00', '11', '22', '33', '44', '55', '66', '77', '88', '99'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-power',
+    key: 'power',
+    label: 'ပါဝါ',
+    nameMyanmar: 'ပါဝါ (၁၀ ကွက်)',
+    nameEnglish: 'Power Numbers',
+    desc: '၀၅ မှ ၄၉ အထိ ပါဝါ ၁၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '05, 16, 27, 38, 49, 50, 61, 72, 83, 94 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['05', '16', '27', '38', '49', '50', '61', '72', '83', '94'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-natkhat',
+    key: 'natkhat',
+    label: 'နက္ခတ်',
+    nameMyanmar: 'နက္ခတ် (၁၀ ကွက်)',
+    nameEnglish: 'Natkhat Numbers',
+    desc: '၀၇ မှ ၉၆ အထိ နက္ခတ် ၁၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '07, 18, 24, 35, 69, 70, 81, 42, 53, 96 (၁၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: ['07', '18', '24', '35', '69', '70', '81', '42', '53', '96'],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-brothers',
+    key: 'brothers',
+    label: 'ညီကို',
+    nameMyanmar: 'ညီကို (၂၀ ကွက်)',
+    nameEnglish: 'Brothers Numbers',
+    desc: '၀၁ မှ ၀၉ အထိ ညီကို ၂၀ ကွက် ထည့်သွင်းယူပါသည်',
+    syntaxExample: '01, 12, 23, 34, 45, 56, 67, 78, 89, 90, 10, 21, 32, 43, 54, 65, 76, 87, 98, 09 (၂၀ ကွက်)',
+    actionType: 'preset_list',
+    customNumbers: [
+      '01', '12', '23', '34', '45', '56', '67', '78', '89', '90',
+      '10', '21', '32', '43', '54', '65', '76', '87', '98', '09'
+    ],
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-bold'
+  },
+  {
+    id: 'btn-2d-khway',
+    key: 'khway',
+    label: 'ခွေ',
+    nameMyanmar: 'ခွေ (ရိုးရိုးခွေ)',
+    nameEnglish: 'Khway Straight',
+    desc: 'ရိုက်ထည့်ဂဏန်းများအား ၂ လုံးတွဲ ရိုးရိုးခွေယူပါသည် (ဥပမာ: 1234 -> ၆ ကွက်)',
+    syntaxExample: '1234 -> 12, 13, 14, 23, 24, 34 (၆ ကွက်)',
+    actionType: 'khway',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-black shadow-xs'
+  },
+  {
+    id: 'btn-2d-khwayPuu',
+    key: 'khwayPuu',
+    label: 'ခွေပူး',
+    nameMyanmar: 'ခွေပူး (ခွေ + အပူး)',
+    nameEnglish: 'Khway Puu',
+    desc: 'ရိုးရိုးခွေနှင့် အပူးများ ပေါင်းစပ်ယူပါသည် (ဥပမာ: 1234 -> ၁၀ ကွက်)',
+    syntaxExample: '1234 -> 12, 13, 14, 23, 24, 34, 11, 22, 33, 44 (၁၀ ကွက်)',
+    actionType: 'khwayPuu',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-xs'
+  },
+  {
+    id: 'btn-2d-khwayRumble',
+    key: 'khwayRumble',
+    label: 'ခွေr',
+    nameMyanmar: 'ခွေr (ခွေအာ လှည့်တွဲ)',
+    nameEnglish: 'Khway Rumble',
+    desc: 'ရိုက်ထည့်ဂဏန်းများအား အပြန်အလှန် လှည့်တွဲယူပါသည် (ဥပမာ: 1234 -> ၁၂ ကွက်)',
+    syntaxExample: '1234 -> 12, 21, 13, 31, 14, 41, 23, 32, 24, 42, 34, 43 (၁၂ ကွက်)',
+    actionType: 'khwayRumble',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-black shadow-xs'
+  },
+  {
+    id: 'btn-2d-khwayPuuRumble',
+    key: 'khwayPuuRumble',
+    label: 'ခွေပူးr',
+    nameMyanmar: 'ခွေပူးr (ခွေပူးအာ)',
+    nameEnglish: 'Khway Puu Rumble',
+    desc: 'ခွေအာနှင့် အပူးပါ အကုန်လုံး ပေါင်းစပ်ယူပါသည် (ဥပမာ: 1234 -> ၁၆ ကွက်)',
+    syntaxExample: '1234 -> 12, 21, 13, 31, 14, 41, 23, 32, 24, 42, 34, 43, 11, 22, 33, 44 (၁၆ ကွက်)',
+    actionType: 'khwayPuuRumble',
+    isEnabled: true,
+    previewClass: 'px-2.5 py-1 bg-purple-600 text-white rounded-lg text-xs font-black shadow-xs'
+  }
+];
+
+export const DEFAULT_2D_SETTINGS: TwoDAppSettings = {
+  appName: 'ရွှေမင်္ဂလာ',
+  shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
+  shopPhone: '09-798889900',
+  shopAddress: 'ရန်ကုန်မြို့ / မန္တလေးမြို့',
+  currency: 'Ks',
+  defaultMultiplier: 80, // 80x for 2D (Standard Myanmar 2D payout)
+  defaultCommissionRate: 0,
+  defaultCustomerDiscount: 0,
+  globalStockLimit: 200000, // 200,000 Ks per 2D number
+  lowStockAlertPercentage: 80,
+  language: 'my',
+  soundEffects: true,
+  printPaperSize: '80mm',
+  voucherFooterMessage: 'ထိုးပြီးဘောင်ချာအား သေချာသိမ်းထားပေးပါ။ ပေါက်ဂဏန်းထွက်ပြီး ၂၄ နာရီအတွင်း ငွေထုတ်ယူနိုင်ပါသည်။',
+  defaultMasterAgentName: undefined,
+  defaultMasterAgentPhone: undefined,
+  quickActionButtons: DEFAULT_2D_ACTION_BUTTONS,
+  custom2DButtons: DEFAULT_2D_CUSTOM_BUTTONS
+};
+
+export const INITIAL_2D_ROUNDS: TwoDDrawRound[] = generateUpToDate2DRounds(80, 0);
+
+export const INITIAL_2D_LIMITS: NumberLimit = {
+  '82': 100000,
+  '55': 80000,
+  '99': 80000,
+  '24': 150000,
+  '42': 150000,
+  '00': 100000
+};
+
+export const INITIAL_2D_BLOCKED: BlockedNumbers = {
+  '11': false,
+  '77': false
+};
+
+export const INITIAL_2D_VOUCHERS: TwoDVoucher[] = [];
+
+export const INITIAL_2D_FORWARD_SLIPS: TwoDForwardSlip[] = [
+  {
+    id: 'fwd-2d-1',
+    slipNo: 'FWD-2D-1008-01',
+    roundId: 'round-2d-2026-10-08-eve',
+    masterAgentName: 'ဒိုင်ချုပ်',
+    masterAgentPhone: '',
+    items: [
+      { number: '82', amount: 30000 }
+    ],
+    totalAmount: 30000,
+    commissionRate: 14,
+    commissionAmount: 4200,
+    netPaid: 25800,
+    createdAt: '2026-10-08T15:30:00.000Z',
+    notes: '၈၂ အထွက်များ၍ ဒိုင်ကြီးဆီ လွှဲတင်သည်'
+  }
+];
+
+// ====================================================
+// FOOTBALL BETTING INITIAL DATA & STORAGE
+// ====================================================
+export const DEFAULT_FOOTBALL_SETTINGS: FootballSettings = {
+  appName: 'ရွှေမင်္ဂလာ',
+  shopName: 'ပိုင်ရှင်အကြိုက် ဆိုင်အမည်',
+  shopPhone: '09-798889900',
+  currency: 'Ks',
+  minMaungCount: 2,
+  maxMaungCount: 11,
+  defaultCommissionRate: 0,
+  defaultCustomerDiscount: 0,
+  maxPayoutPerTicket: 15000000, // 15 million Ks
+  language: 'my',
+  soundEffects: true,
+  printPaperSize: '80mm',
+  slipFooterMessage: 'ဘောလုံးပွဲစဉ် ပြီးဆုံးပြီး တရားဝင်ရလဒ်ထွက်ချိန်တွင် ငွေထုတ်ယူနိုင်ပါသည်။ သရေပွဲများ အဆမဖြတ်ပါက ပုံမှန်အတိုင်း ပြန်ပေါင်းတွက်ပါမည်။',
+  defaultMasterAgentName: undefined,
+  defaultMasterAgentPhone: undefined
+};
+
+export const DEFAULT_FOOTBALL_LEAGUES: FootballLeague[] = [
+  {
+    id: 'league-epl',
+    name: 'English Premier League',
+    teams: [
+      'Arsenal',
+      'Chelsea',
+      'Liverpool',
+      'Man City',
+      'Man United',
+      'Tottenham',
+      'Aston Villa',
+      'Newcastle',
+      'Brighton',
+      'West Ham',
+      'Wolves',
+      'Everton',
+      'Fulham',
+      'Crystal Palace',
+      'Brentford',
+      'Bournemouth',
+      'Leicester City',
+      'Southampton',
+      'Ipswich Town',
+      'Nottingham Forest'
+    ]
+  },
+  {
+    id: 'league-laliga',
+    name: 'Spanish La Liga',
+    teams: [
+      'Real Madrid',
+      'Barcelona',
+      'Atletico Madrid',
+      'Sevilla',
+      'Villarreal',
+      'Real Sociedad',
+      'Athletic Bilbao',
+      'Real Betis',
+      'Girona',
+      'Valencia',
+      'Celta Vigo',
+      'Mallorca',
+      'Osasuna',
+      'Las Palmas',
+      'Rayo Vallecano',
+      'Getafe',
+      'Alaves',
+      'Espanyol',
+      'Leganes',
+      'Valladolid'
+    ]
+  },
+  {
+    id: 'league-seriea',
+    name: 'Italian Serie A',
+    teams: [
+      'Inter Milan',
+      'AC Milan',
+      'Juventus',
+      'Napoli',
+      'Roma',
+      'Lazio',
+      'Atalanta',
+      'Fiorentina',
+      'Torino',
+      'Bologna',
+      'Monza',
+      'Genoa',
+      'Udinese',
+      'Cagliari',
+      'Parma',
+      'Verona',
+      'Lecce',
+      'Empoli',
+      'Venezia',
+      'Como'
+    ]
+  },
+  {
+    id: 'league-bundesliga',
+    name: 'German Bundesliga',
+    teams: [
+      'Bayern Munich',
+      'Dortmund',
+      'Bayer Leverkusen',
+      'RB Leipzig',
+      'Stuttgart',
+      'Eintracht Frankfurt',
+      'Wolfsburg',
+      'Freiburg',
+      'Hoffenheim',
+      'Werder Bremen',
+      'Borussia M\'gladbach',
+      'Augsburg',
+      'Union Berlin',
+      'Mainz',
+      'Heidenheim',
+      'St. Pauli',
+      'Holstein Kiel',
+      'Bochum'
+    ]
+  },
+  {
+    id: 'league-ligue1',
+    name: 'French Ligue 1',
+    teams: [
+      'PSG',
+      'Monaco',
+      'Marseille',
+      'Lille',
+      'Lyon',
+      'Lens',
+      'Nice',
+      'Rennes',
+      'Reims',
+      'Brest',
+      'Strasbourg',
+      'Toulouse',
+      'Montpellier',
+      'Nantes',
+      'Auxerre',
+      'Angers',
+      'Saint-Etienne',
+      'Le Havre'
+    ]
+  },
+  {
+    id: 'league-ucl',
+    name: 'UEFA Champions League',
+    teams: [
+      'Real Madrid',
+      'Man City',
+      'Bayern Munich',
+      'Arsenal',
+      'Barcelona',
+      'PSG',
+      'Inter Milan',
+      'Liverpool',
+      'Bayer Leverkusen',
+      'Atletico Madrid',
+      'Dortmund',
+      'Juventus',
+      'AC Milan',
+      'Aston Villa',
+      'Sporting CP',
+      'Benfica',
+      'Celtic',
+      'Monaco'
+    ]
+  },
+  {
+    id: 'league-mnl',
+    name: 'Myanmar National League',
+    teams: [
+      'Shan United',
+      'Yangon United',
+      'Hantharwaddy United',
+      'Yadanarbon',
+      'ISPE FC',
+      'Dagon Star United',
+      'Mahar United',
+      'Rakhine United',
+      'Ayeyawady United',
+      'Thitsar Arman',
+      'Dagon Port',
+      'Glory Goal'
+    ]
+  },
+  {
+    id: 'league-other',
+    name: 'အခြားလိဂ် / နိုင်ငံတကာ (Other & International)',
+    teams: [
+      'England',
+      'France',
+      'Spain',
+      'Germany',
+      'Argentina',
+      'Brazil',
+      'Portugal',
+      'Italy',
+      'Netherlands',
+      'Japan',
+      'South Korea',
+      'Myanmar'
+    ]
+  }
+];
+
+export const INITIAL_FOOTBALL_MATCHES: FootballMatch[] = [
+  {
+    id: 'match-1',
+    league: 'English Premier League',
+    homeTeam: 'Arsenal',
+    awayTeam: 'Chelsea',
+    matchDate: '2026-10-09',
+    kickoffTime: '21:00',
+    handicapTeam: 'home',
+    handicapValue: '0.5 (ဝက်နိုင်)',
+    overUnderValue: '2.5 (၂ လုံးခွဲ)',
+    bodyOdds: 1.90,
+    goalOdds: 1.92,
+    status: 'upcoming',
+    isFeatured: true
+  },
+  {
+    id: 'match-2',
+    league: 'English Premier League',
+    homeTeam: 'Man City',
+    awayTeam: 'Tottenham',
+    matchDate: '2026-10-09',
+    kickoffTime: '23:30',
+    handicapTeam: 'home',
+    handicapValue: '1-80 (၁ လုံး ၈၀ စား)',
+    overUnderValue: '3.0 (၃ လုံးသရေ)',
+    bodyOdds: 1.95,
+    goalOdds: 1.88,
+    status: 'upcoming',
+    isFeatured: true
+  },
+  {
+    id: 'match-3',
+    league: 'Spanish La Liga',
+    homeTeam: 'Real Madrid',
+    awayTeam: 'Barcelona',
+    matchDate: '2026-10-09',
+    kickoffTime: '01:30',
+    handicapTeam: 'home',
+    handicapValue: '0-50 (သရေ ၅၀ ရှုံး)',
+    overUnderValue: '2.5-3 (၂ လုံးခွဲ ၃ လုံးရှုံး)',
+    bodyOdds: 1.90,
+    goalOdds: 1.90,
+    status: 'upcoming',
+    isFeatured: true
+  },
+  {
+    id: 'match-4',
+    league: 'English Premier League',
+    homeTeam: 'Liverpool',
+    awayTeam: 'Aston Villa',
+    matchDate: '2026-10-08',
+    kickoffTime: '19:30',
+    handicapTeam: 'home',
+    handicapValue: '0.5-1 (တစ်လုံး ၅၀ စား)',
+    overUnderValue: '2.5 (၂ လုံးခွဲ)',
+    bodyOdds: 1.92,
+    goalOdds: 1.85,
+    homeScore: 3,
+    awayScore: 1,
+    status: 'finished'
+  },
+  {
+    id: 'match-5',
+    league: 'German Bundesliga',
+    homeTeam: 'Bayern Munich',
+    awayTeam: 'Dortmund',
+    matchDate: '2026-10-08',
+    kickoffTime: '22:00',
+    handicapTeam: 'home',
+    handicapValue: '1=1.5 (၁ ပြား ၇၀)',
+    overUnderValue: '3=3.5 (၃ ပြား ၇၀)',
+    bodyOdds: 1.90,
+    goalOdds: 1.90,
+    homeScore: 3,
+    awayScore: 0,
+    status: 'finished'
+  },
+  {
+    id: 'match-6',
+    league: 'Italian Serie A',
+    homeTeam: 'AC Milan',
+    awayTeam: 'Inter Milan',
+    matchDate: '2026-10-07',
+    kickoffTime: '23:15',
+    handicapTeam: 'away',
+    handicapValue: '0-50 (သရေ ၅၀ ရှုံး)',
+    overUnderValue: '2.5 (၂ လုံးခွဲ)',
+    bodyOdds: 1.92,
+    goalOdds: 1.88,
+    homeScore: 1,
+    awayScore: 2,
+    status: 'finished'
+  }
+];
+
+export const INITIAL_FOOTBALL_SLIPS: FootballSlip[] = [
+  {
+    id: 'fb-slip-1',
+    slipNo: 'FB-1009-1001',
+    roundDate: '2026-10-09',
+    customerName: 'ကိုအောင်မိုး',
+    slipType: 'maung',
+    teamCount: 3,
+    stakeAmount: 10000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 10000,
+    combinedOdds: 6.85,
+    potentialPayout: 68500,
+    outcome: 'pending',
+    status: 'active',
+    createdAt: '2026-10-09T08:00:00.000Z',
+    notes: '၃ သင်းမောင်း',
+    selections: [
+      {
+        matchId: 'match-1',
+        matchSummary: 'Arsenal vs Chelsea',
+        league: 'English Premier League',
+        betType: 'body_home',
+        choiceLabel: 'Arsenal (-0.5)',
+        lineDescription: 'အကြော 0.5 (ဝက်နိုင်)',
+        odds: 1.90
+      },
+      {
+        matchId: 'match-2',
+        matchSummary: 'Man City vs Tottenham',
+        league: 'English Premier League',
+        betType: 'over',
+        choiceLabel: 'Over 3.0 (ဂိုးပေါင်းအပေါ်)',
+        lineDescription: 'ဂိုးပေါင်း 3.0',
+        odds: 1.88
+      },
+      {
+        matchId: 'match-3',
+        matchSummary: 'Real Madrid vs Barcelona',
+        league: 'Spanish La Liga',
+        betType: 'body_home',
+        choiceLabel: 'Real Madrid (-0/50)',
+        lineDescription: 'အကြော 0-50',
+        odds: 1.90
+      }
+    ]
+  },
+  {
+    id: 'fb-slip-2',
+    slipNo: 'FB-1009-1002',
+    roundDate: '2026-10-09',
+    customerName: 'ကိုသူရိန်',
+    slipType: 'body_single',
+    teamCount: 1,
+    stakeAmount: 50000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 50000,
+    combinedOdds: 1.95,
+    potentialPayout: 97500,
+    outcome: 'pending',
+    status: 'active',
+    createdAt: '2026-10-09T09:15:00.000Z',
+    notes: 'ဘော်ဒီသီးသန့် (Single)',
+    selections: [
+      {
+        matchId: 'match-2',
+        matchSummary: 'Man City vs Tottenham',
+        league: 'English Premier League',
+        betType: 'body_home',
+        choiceLabel: 'Man City (-1/80)',
+        lineDescription: 'အကြော 1-80',
+        odds: 1.95
+      }
+    ]
+  },
+  {
+    id: 'fb-slip-3',
+    slipNo: 'FB-1008-1001',
+    roundDate: '2026-10-08',
+    customerName: 'ကိုဝင်းနိုင်',
+    slipType: 'body_single',
+    teamCount: 1,
+    stakeAmount: 20000,
+    discountPercent: 0,
+    discountAmount: 0,
+    netPayable: 20000,
+    combinedOdds: 1.92,
+    potentialPayout: 38400,
+    actualPayout: 38400,
+    outcome: 'won',
+    status: 'settled',
+    createdAt: '2026-10-08T18:00:00.000Z',
+    notes: 'မနေ့က ပေါက်မဲဘောင်ချာ',
+    selections: [
+      {
+        matchId: 'match-4',
+        matchSummary: 'Liverpool vs Aston Villa',
+        league: 'English Premier League',
+        betType: 'body_home',
+        choiceLabel: 'Liverpool (-0.5/1)',
+        lineDescription: 'အကြော 0.5-1',
+        odds: 1.92,
+        outcome: 'win',
+        homeScore: 3,
+        awayScore: 1
+      }
+    ]
+  }
+];
+
+export const INITIAL_FOOTBALL_FORWARD_SLIPS: FootballForwardSlip[] = [
+  {
+    id: 'fb-fwd-1',
+    slipNo: 'FB-FWD-1009-01',
+    roundDate: '2026-10-09',
+    masterAgentName: 'ဒိုင်ချုပ်',
+    masterAgentPhone: '',
+    slipType: 'body',
+    description: 'Man City ဘော်ဒီ ထိုးကြေးကြီးသဖြင့် ဒိုင်ကြီးဆီ လွှဲတင်',
+    matchesSummary: 'Man City (-1-80)',
+    stakeAmount: 30000,
+    commissionRate: 8,
+    commissionAmount: 2400,
+    netPaid: 27600,
+    potentialPayout: 58500,
+    status: 'active',
+    createdAt: '2026-10-09T09:20:00.000Z',
+    notes: 'အန္တရာယ်ကင်းစေရန် အပေါ်လွှဲ'
+  }
+];
+
+// ====================================================
+// STORAGE KEYS DEFINITION (STRICTLY SEGREGATED)
+// ====================================================
+const STORAGE_KEYS = {
+  // 3D Storage Keys
+  ROUNDS: '3d_ledger_rounds_v1',
+  VOUCHERS: '3d_ledger_vouchers_v1',
+  LIMITS: '3d_ledger_limits_v1',
+  BLOCKED: '3d_ledger_blocked_v1',
+  FORWARD_SLIPS: '3d_ledger_forward_slips_v1',
+  SETTINGS: '3d_ledger_settings_v1',
+  ACTIVE_ROUND_ID: '3d_ledger_active_round_id_v1',
+
+  // Active Dealer Mode ('3d' | '2d' | 'football')
+  DEALER_MODE: 'master_bookie_dealer_mode_v1',
+
+  // 2D Storage Keys (Isolated)
+  ROUNDS_2D: '2d_ledger_rounds_v1',
+  VOUCHERS_2D: '2d_ledger_vouchers_v1',
+  LIMITS_2D: '2d_ledger_limits_v1',
+  BLOCKED_2D: '2d_ledger_blocked_v1',
+  FORWARD_SLIPS_2D: '2d_ledger_forward_slips_v1',
+  SETTINGS_2D: '2d_ledger_settings_v1',
+  ACTIVE_ROUND_ID_2D: '2d_ledger_active_round_id_v1',
+
+  // Football Storage Keys (Isolated)
+  MATCHES_FOOTBALL: 'football_ledger_matches_v1',
+  SLIPS_FOOTBALL: 'football_ledger_slips_v1',
+  FORWARD_SLIPS_FOOTBALL: 'football_ledger_forward_slips_v1',
+  SETTINGS_FOOTBALL: 'football_ledger_settings_v1',
+  ACTIVE_DATE_FOOTBALL: 'football_ledger_active_date_v1',
+  LEAGUES_FOOTBALL: 'football_ledger_leagues_v1',
+  PERIOD_CLOSINGS: 'period_closings_v1'
+};
+
+// Request browser to keep storage persistent (prevents eviction on iOS Safari & Android Chrome)
+if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().catch(() => {});
+}
+
+export function loadStoredData<T>(key: string, defaultValue: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+    // Secondary fallback to safety backup copy if primary was null
+    const backupRaw = localStorage.getItem(`${key}_backup`);
+    if (backupRaw) {
+      return JSON.parse(backupRaw);
+    }
+    return defaultValue;
+  } catch (err) {
+    console.error(`Failed to load ${key} from storage, attempting backup recovery:`, err);
+    try {
+      const backupRaw = localStorage.getItem(`${key}_backup`);
+      if (backupRaw) {
+        return JSON.parse(backupRaw);
+      }
+    } catch {
+      // ignore
+    }
+    return defaultValue;
+  }
+}
+
+export function saveStoredData<T>(key: string, data: T): boolean {
+  const previousPrimary = localStorage.getItem(key);
+  const previousBackup = localStorage.getItem(`${key}_backup`);
+
+  try {
+    const str = JSON.stringify(data);
+    localStorage.setItem(key, str);
+    localStorage.setItem(`${key}_backup`, str);
+    return true;
+  } catch (err) {
+    console.error(`Failed to save ${key} to storage. Rolling back to previous state:`, err);
+    try {
+      if (previousPrimary !== null) {
+        localStorage.setItem(key, previousPrimary);
+      } else {
+        localStorage.removeItem(key);
+      }
+      if (previousBackup !== null) {
+        localStorage.setItem(`${key}_backup`, previousBackup);
+      } else {
+        localStorage.removeItem(`${key}_backup`);
+      }
+    } catch (rollbackErr) {
+      console.error(`Rollback failed for ${key}:`, rollbackErr);
+    }
+    return false;
+  }
+}
+
+/**
+ * Atomically saves multiple key-value pairs to localStorage.
+ * If any single key write fails (e.g. storage limit, browser error),
+ * ALL keys are immediately rolled back to their exact previous state (ACID transaction).
+ */
+export function saveBatchTransactional(updates: Record<string, any>): boolean {
+  const snapshots: Record<string, { primary: string | null; backup: string | null }> = {};
+
+  // 1. Take snapshot of all target keys
+  for (const key of Object.keys(updates)) {
+    snapshots[key] = {
+      primary: localStorage.getItem(key),
+      backup: localStorage.getItem(`${key}_backup`)
+    };
+  }
+
+  // 2. Attempt atomic updates
+  const writtenKeys: string[] = [];
+  try {
+    for (const [key, value] of Object.entries(updates)) {
+      const str = JSON.stringify(value);
+      localStorage.setItem(key, str);
+      localStorage.setItem(`${key}_backup`, str);
+      writtenKeys.push(key);
+    }
+    return true;
+  } catch (err) {
+    console.error('Atomic batch save failed! Reverting all modified storage keys...', err);
+    // 3. Rollback all modified keys to exact previous snapshot
+    for (const key of writtenKeys) {
+      const snap = snapshots[key];
+      if (snap) {
+        if (snap.primary !== null) localStorage.setItem(key, snap.primary);
+        else localStorage.removeItem(key);
+
+        if (snap.backup !== null) localStorage.setItem(`${key}_backup`, snap.backup);
+        else localStorage.removeItem(`${key}_backup`);
+      }
+    }
+    return false;
+  }
+}
+
+export const saveMultipleAtomic = saveBatchTransactional;
+
+export { STORAGE_KEYS };
+
