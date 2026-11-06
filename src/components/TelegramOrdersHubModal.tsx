@@ -140,7 +140,164 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [receptionMode, setReceptionMode] = useState<'polling' | 'webhook'>('polling');
 
+  // Interactive Voucher Review & Edit Entry State
+  const [isVoucherEntryMode, setIsVoucherEntryMode] = useState(false);
+  const [voucherCustomerName, setVoucherCustomerName] = useState('');
+  const [voucherCategory, setVoucherCategory] = useState<'3d' | '2d' | 'football'>('3d');
+  const [voucherItems, setVoucherItems] = useState<{ number: string; amount: number; isRumble: boolean; originalRaw: string }[]>([]);
+  const [voucherDiscountPercent, setVoucherDiscountPercent] = useState(0);
+  const [addNumInput, setAddNumInput] = useState('');
+  const [addAmtInput, setAddAmtInput] = useState('');
+  const [addRumbleInput, setAddRumbleInput] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleStartVoucherEntry = (order: TelegramIncomingOrder) => {
+    setSelectedOrderId(order.id);
+    setVoucherCustomerName(order.senderName || 'Telegram User');
+    setVoucherCategory(order.category);
+    setVoucherItems(order.parsedItems.map(pi => ({ ...pi })));
+    setVoucherDiscountPercent(0);
+    setAddNumInput('');
+    setAddAmtInput('');
+    setAddRumbleInput(false);
+    setIsVoucherEntryMode(true);
+  };
+
+  const handleAddItemToVoucher = () => {
+    if (!addNumInput.trim()) return;
+    const amount = parseInt(addAmtInput, 10);
+    if (isNaN(amount) || amount <= 0) return;
+
+    setVoucherItems(prev => [
+      ...prev,
+      {
+        number: addNumInput.trim(),
+        amount,
+        isRumble: addRumbleInput,
+        originalRaw: `${addNumInput.trim()}=${amount}${addRumbleInput ? 'R' : ''}`
+      }
+    ]);
+    setAddNumInput('');
+    setAddAmtInput('');
+    setAddRumbleInput(false);
+  };
+
+  const handleRemoveVoucherItem = (index: number) => {
+    setVoucherItems(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleUpdateVoucherItem = (index: number, field: 'number' | 'amount' | 'isRumble', val: any) => {
+    setVoucherItems(prev => prev.map((item, idx) => {
+      if (idx !== index) return item;
+      return { ...item, [field]: val };
+    }));
+  };
+
+  const handleConfirmEditedVoucher = (order: TelegramIncomingOrder) => {
+    const validItems = voucherItems.filter(it => it.number && it.amount > 0);
+    if (validItems.length === 0) {
+      alert('⚠️ အနည်းဆုံး ဂဏန်း (၁) ကွက်နှင့် ထိုးကြေး ပမာဏ ဖြည့်သွင်းရပါမည်');
+      return;
+    }
+
+    const subtotal = validItems.reduce((acc, it) => acc + (it.amount || 0), 0);
+    const discountAmount = safeRound((subtotal * (voucherDiscountPercent || 0)) / 100);
+    const netPayable = Math.max(0, subtotal - discountAmount);
+
+    if (voucherCategory === '3d') {
+      const items: VoucherItem[] = validItems.map(pi => ({
+        number: pi.number,
+        amount: pi.amount,
+        betType: pi.isRumble ? 'rumble' : 'straight'
+      }));
+      lottery3D.addVoucher({
+        roundId: lottery3D.activeRoundId,
+        customerName: voucherCustomerName.trim() || order.senderName,
+        items,
+        subtotal,
+        discountPercent: voucherDiscountPercent || 0,
+        discountAmount,
+        netPayable,
+        isPaid: true,
+        status: 'active',
+        notes: `[Telegram Bot] ${order.notes || ''}`
+      });
+    } else if (voucherCategory === '2d') {
+      const items: TwoDVoucherItem[] = validItems.map(pi => ({
+        number: pi.number,
+        amount: pi.amount,
+        betType: pi.isRumble ? 'rumble' : 'straight'
+      }));
+      lottery2D.addVoucher({
+        roundId: lottery2D.activeRoundId,
+        customerName: voucherCustomerName.trim() || order.senderName,
+        items,
+        subtotal,
+        discountPercent: voucherDiscountPercent || 0,
+        discountAmount,
+        netPayable,
+        isPaid: true,
+        status: 'active',
+        notes: `[Telegram Bot] ${order.notes || ''}`
+      });
+    } else {
+      const availableMatches = football.matches.filter(m => m.status === 'upcoming' || m.status === 'live');
+      if (availableMatches.length === 0) {
+        alert(football.settings.language === 'my' ? 'လတ်တလော ထိုးနိုင်သော ဘောလုံးပွဲစဉ် မရှိသေးပါ' : 'No available football matches');
+        return;
+      }
+      const selections: FootballBetSelection[] = validItems.map((b, idx) => {
+        const found = availableMatches.find(m =>
+          (b.originalRaw && (m.homeTeam.toLowerCase().includes(b.originalRaw.toLowerCase()) || m.awayTeam.toLowerCase().includes(b.originalRaw.toLowerCase())))
+        ) || availableMatches[idx % availableMatches.length];
+
+        return {
+          matchId: found ? found.id : `match-order-${Date.now()}-${idx}`,
+          matchSummary: found ? `${found.homeTeam} vs ${found.awayTeam}` : 'Special Match',
+          league: found ? found.league : 'Football League',
+          betType: 'body_home',
+          choiceLabel: found ? `${found.homeTeam} (Body)` : 'Home Body',
+          lineDescription: found ? `အကြော ${found.handicapValue}` : 'အကြော 0=0',
+          odds: found ? found.bodyOdds : 1.0,
+          outcome: 'pending'
+        };
+      });
+
+      const combinedOdds = selections.reduce((acc, s) => acc * s.odds, 1.0);
+      const potentialPayout = safeRound(netPayable * combinedOdds);
+
+      football.addSlip({
+        roundDate: football.activeDate,
+        customerName: voucherCustomerName.trim() || order.senderName,
+        slipType: selections.length > 1 ? 'maung' : 'body_single',
+        teamCount: selections.length,
+        selections,
+        stakeAmount: subtotal,
+        discountPercent: voucherDiscountPercent || 0,
+        discountAmount,
+        netPayable,
+        combinedOdds,
+        potentialPayout,
+        status: 'active',
+        notes: `[Telegram Bot] ${order.notes || ''}`
+      });
+    }
+
+    const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
+    handleUpdateOrders(updated);
+    updateTelegramOrderOnServer(order.id, { status: 'approved' });
+
+    if (order.chatId) {
+      sendTelegramMessage(
+        order.chatId,
+        generateTelegramConfirmationMessage(voucherCustomerName.trim() || order.senderName, netPayable)
+      ).catch(() => {});
+    }
+
+    setIsVoucherEntryMode(false);
+    alert(`✅ မင်္ဂလာပါ! ဘောင်ချာအား စစ်ဆေး/ပြင်ဆင်ပြီး ဒိုင်စာရင်းသို့ အတည်ပြု ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
+  };
 
   useEffect(() => {
     const pollData = async () => {
@@ -947,8 +1104,16 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                                 <>
                                   <button
                                     type="button"
+                                    onClick={() => handleStartVoucherEntry(order)}
+                                    className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>ဘောင်ချာသွင်းမည်</span>
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => handleApproveOrder(order)}
-                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer"
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer"
                                   >
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     <span>လက်ခံမည်</span>
@@ -956,7 +1121,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                                   <button
                                     type="button"
                                     onClick={() => handleRejectOrder(order.id)}
-                                    className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 cursor-pointer"
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 cursor-pointer"
                                   >
                                     ပယ်ချ
                                   </button>
@@ -977,63 +1142,243 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   )}
                 </div>
 
-                {/* Selected Order Details Preview */}
+                {/* Selected Order Details Preview / Interactive Voucher Entry */}
                 <div className="md:col-span-6">
                   {selectedOrder ? (
-                    <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs sticky top-4">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-sky-600" />
-                          <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
-                        </div>
-                        <span className="text-xs font-mono text-slate-500">ID: {selectedOrder.id}</span>
-                      </div>
-
-                      {selectedOrder.photoUrl && (
-                        <div className="rounded-xl overflow-hidden border border-slate-200 max-h-48 bg-slate-950 flex items-center justify-center">
-                          <img src={selectedOrder.photoUrl} alt="Slip" className="max-h-48 object-contain" />
-                        </div>
-                      )}
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">အမှာစာ စာသား / ဂဏန်းများ:</label>
-                        <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto">
-                          {selectedOrder.rawText}
-                        </pre>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">ခွဲထုတ်ထားသော ဂဏန်းစာရင်း:</label>
-                        <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
-                          {selectedOrder.parsedItems.map((pi, idx) => (
-                            <div key={idx} className="flex items-center justify-between px-3 py-1.5 text-xs font-mono">
-                              <span className="font-bold text-slate-900">{pi.number} {pi.isRumble ? '(ပတ်လည်)' : '(တည့်)'}</span>
-                              <span className="font-bold text-emerald-700">{formatAmount(pi.amount, 'Ks')}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700">စုစုပေါင်းတန်ဖိုး:</span>
-                        <span className="text-sm font-mono font-black text-emerald-700">
-                          {formatAmount(selectedOrder.totalAmount, 'Ks')}
-                        </span>
-                      </div>
-
-                      {selectedOrder.status === 'pending_review' && (
-                        <div className="flex items-center gap-2 pt-2">
+                    isVoucherEntryMode ? (
+                      /* INTERACTIVE VOUCHER ENTRY & EDIT MODE */
+                      <div className="bg-white border-2 border-sky-400 rounded-2xl p-4 space-y-3.5 shadow-md sticky top-4 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-sky-600" />
+                            <h4 className="text-xs font-black text-slate-900">
+                              📝 ဘောင်ချာ စာရင်းသွင်း စစ်ဆေးခြင်း (Voucher Review & Edit)
+                            </h4>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => handleApproveOrder(selectedOrder)}
-                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            onClick={() => setIsVoucherEntryMode(false)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
                           >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>အတည်ပြု၍ ဒိုင်စာရင်းသို့ ထည့်မည်</span>
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                      )}
-                    </div>
+
+                        <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-[11px] text-sky-950 font-bold flex items-center gap-1.5">
+                          <Info className="w-4 h-4 text-sky-600 shrink-0" />
+                          <span>စာရင်းများကို စစ်ဆေး/ပြင်ဆင်ပြီးပါက 'အတည်ပြုမည်' ကို နှိပ်မှသာ ဒိုင်စာရင်းသို့ ရောက်ရှိပါမည်။</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1 text-[11px]">ဝယ်သူအမည်</label>
+                            <input
+                              type="text"
+                              value={voucherCustomerName}
+                              onChange={(e) => setVoucherCustomerName(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1 text-[11px]">လုပ်ငန်းလိုင်း (Category)</label>
+                            <select
+                              value={voucherCategory}
+                              onChange={(e) => setVoucherCategory(e.target.value as any)}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
+                            >
+                              <option value="3d">အိုးစည်လေး (3D)</option>
+                              <option value="2d">ဇီးကွက် (2D)</option>
+                              <option value="football">ပစ်တိုင်းထောင် (Football)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* ITEMS TABLE EDIT */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                            <span>ဂဏန်းနှင့် ထိုးကြေးများ ({voucherItems.length}):</span>
+                          </div>
+
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 p-2 rounded-xl bg-slate-50/50">
+                            {voucherItems.map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 text-xs">
+                                <input
+                                  type="text"
+                                  value={item.number}
+                                  onChange={(e) => handleUpdateVoucherItem(idx, 'number', e.target.value)}
+                                  className="w-16 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-slate-900 text-center"
+                                />
+                                <input
+                                  type="number"
+                                  value={item.amount || ''}
+                                  onChange={(e) => handleUpdateVoucherItem(idx, 'amount', parseInt(e.target.value, 10) || 0)}
+                                  className="w-24 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-emerald-700 text-right"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateVoucherItem(idx, 'isRumble', !item.isRumble)}
+                                  className={`px-2 py-1 rounded font-bold text-[10px] transition-colors cursor-pointer ${
+                                    item.isRumble ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                                  }`}
+                                >
+                                  {item.isRumble ? 'R (ပတ်)' : 'တည့်'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveVoucherItem(idx)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* ADD ITEM ROW */}
+                        <div className="bg-sky-50/60 border border-sky-200 p-2 rounded-xl space-y-1">
+                          <label className="text-[10px] font-bold text-sky-900">+ ဂဏန်းအသစ် ထပ်ထည့်ရန်:</label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={addNumInput}
+                              onChange={(e) => setAddNumInput(e.target.value)}
+                              placeholder="ဂဏန်း"
+                              className="w-16 bg-white border border-sky-300 rounded px-1.5 py-1 text-xs font-mono font-bold text-slate-900 text-center"
+                            />
+                            <input
+                              type="number"
+                              value={addAmtInput}
+                              onChange={(e) => setAddAmtInput(e.target.value)}
+                              placeholder="ပမာဏ"
+                              className="w-24 bg-white border border-sky-300 rounded px-1.5 py-1 text-xs font-mono font-bold text-slate-900 text-right"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setAddRumbleInput(!addRumbleInput)}
+                              className={`px-2 py-1 rounded font-bold text-[10px] cursor-pointer ${
+                                addRumbleInput ? 'bg-amber-500 text-white' : 'bg-white border border-slate-300 text-slate-700'
+                              }`}
+                            >
+                              {addRumbleInput ? 'R' : 'တည့်'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleAddItemToVoucher}
+                              className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded transition-all cursor-pointer shrink-0"
+                            >
+                              + ထည့်မည်
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* DISCOUNT & TOTALS */}
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-700">ကော်မရှင် / လျှော့ဈေး (%):</span>
+                            <input
+                              type="number"
+                              value={voucherDiscountPercent || ''}
+                              onChange={(e) => setVoucherDiscountPercent(parseFloat(e.target.value) || 0)}
+                              placeholder="0"
+                              className="w-16 bg-slate-50 border border-slate-300 rounded px-2 py-1 font-mono font-bold text-slate-900 text-right"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 font-bold">
+                            <span className="text-slate-700">အသားတင် ပေးချေရန်:</span>
+                            <span className="text-base font-mono font-black text-emerald-700">
+                              {formatAmount(
+                                Math.max(
+                                  0,
+                                  voucherItems.reduce((acc, it) => acc + (it.amount || 0), 0) -
+                                    safeRound(
+                                      (voucherItems.reduce((acc, it) => acc + (it.amount || 0), 0) * (voucherDiscountPercent || 0)) / 100
+                                    )
+                                ),
+                                'Ks'
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmEditedVoucher(selectedOrder)}
+                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>✅ စစ်ဆေးပြီး အတည်ပြုမည် (Confirm Voucher)</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* REGULAR REVIEW MODE */
+                      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs sticky top-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-sky-600" />
+                            <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
+                          </div>
+                          <span className="text-xs font-mono text-slate-500">ID: {selectedOrder.id}</span>
+                        </div>
+
+                        {selectedOrder.photoUrl && (
+                          <div className="rounded-xl overflow-hidden border border-slate-200 max-h-48 bg-slate-950 flex items-center justify-center">
+                            <img src={selectedOrder.photoUrl} alt="Slip" className="max-h-48 object-contain" />
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">အမှာစာ စာသား / ဂဏန်းများ:</label>
+                          <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto">
+                            {selectedOrder.rawText}
+                          </pre>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">ခွဲထုတ်ထားသော ဂဏန်းစာရင်း:</label>
+                          <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
+                            {selectedOrder.parsedItems.map((pi, idx) => (
+                              <div key={idx} className="flex items-center justify-between px-3 py-1.5 text-xs font-mono">
+                                <span className="font-bold text-slate-900">{pi.number} {pi.isRumble ? '(ပတ်လည်)' : '(တည့်)'}</span>
+                                <span className="font-bold text-emerald-700">{formatAmount(pi.amount, 'Ks')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">စုစုပေါင်းတန်ဖိုး:</span>
+                          <span className="text-sm font-mono font-black text-emerald-700">
+                            {formatAmount(selectedOrder.totalAmount, 'Ks')}
+                          </span>
+                        </div>
+
+                        {selectedOrder.status === 'pending_review' && (
+                          <div className="flex flex-col gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleStartVoucherEntry(selectedOrder)}
+                              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-transform active:scale-95"
+                            >
+                              <FileText className="w-4 h-4" />
+                              <span>📝 ဘောင်ချာ စာရင်းသွင်းမည် (Quick Entry & Review)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleApproveOrder(selectedOrder)}
+                              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>အတည်ပြု၍ တိုက်ရိုက် ထည့်မည် (Direct Add)</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
                   ) : (
                     <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-12 text-center text-slate-400 space-y-2">
                       <Layers className="w-8 h-8 mx-auto text-slate-300" />
