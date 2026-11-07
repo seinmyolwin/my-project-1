@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Mount messaging router
+// Mount messaging router securely
 const messagingRouter = createMessagingRouter();
 app.use('/api', messagingRouter);
 
