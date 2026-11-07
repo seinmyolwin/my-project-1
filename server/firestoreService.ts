@@ -144,12 +144,7 @@ export async function loadStoreFromFirestore(): Promise<any> {
 export async function saveStoreToFirestore(store: any) {
   await saveShopStore('default', {
     shopId: 'default',
-    telegram: store.telegram,
-    telegramOrders: store.telegramOrders || []
-  });
-}
-    shopId: 'default',
-    telegram: store.telegram,
-    telegramOrders: store.telegramOrders || []
+    telegram: store?.telegram || getDefaultShopStore('default').telegram,
+    telegramOrders: store?.telegramOrders || []
   });
 }
