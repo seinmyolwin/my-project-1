@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { loadShopStore, saveShopStore, getAllShopStores, ShopStoreData, getDefaultShopStore } from './firestoreService';
+import { loadShopStore, saveShopStore, getAllShopStores, ShopStoreData, getDefaultShopStore } from './firestoreService.js';
 
 export interface TelegramIncomingOrder {
   id: string;
@@ -63,7 +63,6 @@ export function verifyOwnerTokenMiddleware(req: Request, res: Response, next: Fu
   next();
 }
 
-// Helper to extract shop ID from request headers, query, or params
 export function getShopIdFromReq(req: Request): string {
   const paramShop = req.params?.shopId;
   if (paramShop && typeof paramShop === 'string' && paramShop.trim()) {
@@ -80,7 +79,6 @@ export function getShopIdFromReq(req: Request): string {
   return 'default';
 }
 
-// In-memory idempotency sets
 const processedTgUpdates = new Set<number>();
 
 function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 5000) {
@@ -117,7 +115,6 @@ export function isValidTokenFormat(token: string): boolean {
   return /^\d{5,15}:[A-Za-z0-9_-]{20,65}$/.test(token.trim());
 }
 
-// In-memory multi-tenant store map
 const shopStoresMap = new Map<string, ShopStoreData>();
 
 async function initMultiShopStores() {
@@ -211,7 +208,7 @@ export function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'fo
     if (!line) continue;
 
     const slashMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
-                       line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
+                      line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
     if (slashMatch) {
       const numbersRaw = slashMatch[1].trim();
       const directAmt = parseInt(slashMatch[2], 10);
@@ -441,7 +438,6 @@ function startTelegramPolling() {
 export function createMessagingRouter() {
   const router = express.Router();
 
-  // 1. Telegram Config Status (Protected by owner token & scoped per Shop ID)
   router.get('/telegram/config', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -461,7 +457,6 @@ export function createMessagingRouter() {
     });
   });
 
-  // 2. Telegram Save / Update Config & Test Connection (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/config', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -536,7 +531,6 @@ export function createMessagingRouter() {
     });
   });
 
-  // 3. Telegram Test Connection endpoint (POST & GET) (Protected by owner token & scoped per Shop ID)
   const handleTestConnection = async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -586,7 +580,6 @@ export function createMessagingRouter() {
   router.post('/telegram/test', verifyOwnerTokenMiddleware, handleTestConnection);
   router.get('/telegram/test', verifyOwnerTokenMiddleware, handleTestConnection);
 
-  // 4. Clear Token endpoint (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/clear-token', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -618,7 +611,6 @@ export function createMessagingRouter() {
     });
   });
 
-  // 5. Telegram Set Webhook (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/set-webhook', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -655,7 +647,6 @@ export function createMessagingRouter() {
     return res.status(502).json({ shopId, ok: false, message: result.message });
   });
 
-  // 6. Telegram Delete Webhook (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/delete-webhook', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -669,7 +660,6 @@ export function createMessagingRouter() {
     return res.json({ shopId, ...result });
   });
 
-  // 7. Multi-Tenant Telegram Webhook Receiver Endpoints
   const handleWebhookPost = async (req: Request, res: Response) => {
     const rawShopId = req.params?.shopId || (req.headers['x-shop-id'] as string) || (req.query?.shopId as string);
     const configuredSecret = getTelegramWebhookSecret();
@@ -689,7 +679,6 @@ export function createMessagingRouter() {
     if (rawShopId && typeof rawShopId === 'string' && rawShopId.trim() && rawShopId.trim() !== 'default') {
       await processTelegramUpdateForShop(update, rawShopId.trim());
     } else {
-      // If no explicit non-default shopId in webhook URL, process for all registered shops in memory
       const allShops = Array.from(shopStoresMap.keys());
       if (allShops.length === 0) allShops.push('default');
       for (const targetShopId of allShops) {
@@ -703,7 +692,6 @@ export function createMessagingRouter() {
   router.post('/telegram/webhook', handleWebhookPost);
   router.post('/telegram/webhook/:shopId', handleWebhookPost);
 
-  // 8. Telegram Outbound Message (Protected by owner token & scoped per Shop ID)
   router.post('/telegram/send-message', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
@@ -723,7 +711,6 @@ export function createMessagingRouter() {
     return res.json({ shopId, ...result });
   });
 
-  // 9. Telegram Orders Queue API (Protected by owner token & scoped per Shop ID)
   router.get('/telegram/orders', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
