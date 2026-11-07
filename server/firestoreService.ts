@@ -68,7 +68,6 @@ function readAllShopsFromDisk(): Record<string, ShopStoreData> {
       const data = JSON.parse(content);
       if (data && typeof data === 'object') return data;
     } else if (fs.existsSync(LOCAL_STORE_FILE)) {
-      // Migrate legacy single store into 'default' shop
       const content = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');
       const legacy = JSON.parse(content);
       if (legacy && typeof legacy === 'object') {
@@ -91,7 +90,6 @@ function writeAllShopsToDisk(shopsMap: Record<string, ShopStoreData>) {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    // Clean & strip customerPhone from orders per B2 requirement
     const cleanedShops: Record<string, ShopStoreData> = {};
     for (const [id, shop] of Object.entries(shopsMap)) {
       const orders = Array.isArray(shop.telegramOrders)
@@ -145,6 +143,11 @@ export async function loadStoreFromFirestore(): Promise<any> {
 
 export async function saveStoreToFirestore(store: any) {
   await saveShopStore('default', {
+    shopId: 'default',
+    telegram: store.telegram,
+    telegramOrders: store.telegramOrders || []
+  });
+}
     shopId: 'default',
     telegram: store.telegram,
     telegramOrders: store.telegramOrders || []
