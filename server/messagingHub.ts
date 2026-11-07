@@ -385,6 +385,12 @@ setInterval(async () => {
     let offset = shopOffsets.get(shopId) || 0;
     try {
       const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=2`, 'GET', undefined, token);
+      if (!res.ok && res.message && res.message.includes("can't use getUpdates while webhook is active")) {
+        if (!shopStore.telegram.webhookUrl) {
+          console.log(`[Telegram Polling] Clearing stale Telegram webhook for shop ${shopId}...`);
+          await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false }, token);
+        }
+      }
       if (res.ok && Array.isArray(res.result)) {
         for (const update of res.result) {
           offset = update.update_id + 1;

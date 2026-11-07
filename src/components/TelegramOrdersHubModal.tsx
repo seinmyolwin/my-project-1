@@ -205,42 +205,92 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const discountAmount = safeRound((subtotal * (voucherDiscountPercent || 0)) / 100);
     const netPayable = Math.max(0, subtotal - discountAmount);
 
-    if (voucherCategory === '3d') {
+    const isAll2D = validItems.every(pi => pi.number && pi.number.trim().length === 2);
+    const isAll3D = validItems.every(pi => pi.number && pi.number.trim().length === 3);
+    let effectiveCategory = voucherCategory;
+    if (isAll2D) effectiveCategory = '2d';
+    else if (isAll3D) effectiveCategory = '3d';
+
+    if (effectiveCategory === '3d') {
+      let open3DRound = lottery3D.rounds.find(r => r.id === lottery3D.activeRoundId && r.status === 'open') ||
+                        lottery3D.rounds.find(r => r.status === 'open') ||
+                        lottery3D.rounds[0];
+
+      if (!open3DRound) {
+        alert('⚠️ အိုးစည်လေး (3D) ပွဲစဉ် မရှိသေးပါခင်ဗျာ');
+        return;
+      }
+
+      if (open3DRound.status !== 'open') {
+        lottery3D.updateRound(open3DRound.id, { status: 'open' });
+      }
+
       const items: VoucherItem[] = validItems.map(pi => ({
-        number: pi.number,
+        number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
-      lottery3D.addVoucher({
-        roundId: lottery3D.activeRoundId,
-        customerName: voucherCustomerName.trim() || order.senderName,
-        items,
-        subtotal,
-        discountPercent: voucherDiscountPercent || 0,
-        discountAmount,
-        netPayable,
-        isPaid: true,
-        status: 'active',
-        notes: `[Telegram Bot] ${order.notes || ''}`
-      });
-    } else if (voucherCategory === '2d') {
+
+      try {
+        const created = lottery3D.addVoucher({
+          roundId: open3DRound.id,
+          customerName: voucherCustomerName.trim() || order.senderName,
+          items,
+          subtotal,
+          discountPercent: voucherDiscountPercent || 0,
+          discountAmount,
+          netPayable,
+          isPaid: true,
+          status: 'active',
+          notes: `[Telegram Bot] ${order.notes || ''}`
+        });
+
+        lottery3D.setActiveRoundId(open3DRound.id);
+        alert(`✅ မင်္ဂလာပါ! အိုးစည်လေး (3D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
+      } catch (err: any) {
+        alert(`⚠️ အိုးစည်လေး (3D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
+        return;
+      }
+    } else if (effectiveCategory === '2d') {
+      let open2DRound = lottery2D.rounds.find(r => r.id === lottery2D.activeRoundId && r.status === 'open') ||
+                        lottery2D.rounds.find(r => r.status === 'open') ||
+                        lottery2D.rounds[0];
+
+      if (!open2DRound) {
+        alert('⚠️ ဇီးကွက် (2D) ပွဲစဉ် မရှိသေးပါခင်ဗျာ');
+        return;
+      }
+
+      if (open2DRound.status !== 'open') {
+        lottery2D.updateRound(open2DRound.id, { status: 'open' });
+      }
+
       const items: TwoDVoucherItem[] = validItems.map(pi => ({
-        number: pi.number,
+        number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
-      lottery2D.addVoucher({
-        roundId: lottery2D.activeRoundId,
-        customerName: voucherCustomerName.trim() || order.senderName,
-        items,
-        subtotal,
-        discountPercent: voucherDiscountPercent || 0,
-        discountAmount,
-        netPayable,
-        isPaid: true,
-        status: 'active',
-        notes: `[Telegram Bot] ${order.notes || ''}`
-      });
+
+      try {
+        const created = lottery2D.addVoucher({
+          roundId: open2DRound.id,
+          customerName: voucherCustomerName.trim() || order.senderName,
+          items,
+          subtotal,
+          discountPercent: voucherDiscountPercent || 0,
+          discountAmount,
+          netPayable,
+          isPaid: true,
+          status: 'active',
+          notes: `[Telegram Bot] ${order.notes || ''}`
+        });
+
+        lottery2D.setActiveRoundId(open2DRound.id);
+        alert(`✅ မင်္ဂလာပါ! ဇီးကွက် (2D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
+      } catch (err: any) {
+        alert(`⚠️ ဇီးကွက် (2D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
+        return;
+      }
     } else {
       const availableMatches = football.matches.filter(m => m.status === 'upcoming' || m.status === 'live');
       if (availableMatches.length === 0) {
@@ -267,21 +317,27 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       const combinedOdds = selections.reduce((acc, s) => acc * s.odds, 1.0);
       const potentialPayout = safeRound(netPayable * combinedOdds);
 
-      football.addSlip({
-        roundDate: football.activeDate,
-        customerName: voucherCustomerName.trim() || order.senderName,
-        slipType: selections.length > 1 ? 'maung' : 'body_single',
-        teamCount: selections.length,
-        selections,
-        stakeAmount: subtotal,
-        discountPercent: voucherDiscountPercent || 0,
-        discountAmount,
-        netPayable,
-        combinedOdds,
-        potentialPayout,
-        status: 'active',
-        notes: `[Telegram Bot] ${order.notes || ''}`
-      });
+      try {
+        football.addSlip({
+          roundDate: football.activeDate,
+          customerName: voucherCustomerName.trim() || order.senderName,
+          slipType: selections.length > 1 ? 'maung' : 'body_single',
+          teamCount: selections.length,
+          selections,
+          stakeAmount: subtotal,
+          discountPercent: voucherDiscountPercent || 0,
+          discountAmount,
+          netPayable,
+          combinedOdds,
+          potentialPayout,
+          status: 'active',
+          notes: `[Telegram Bot] ${order.notes || ''}`
+        });
+        alert(`✅ မင်္ဂလာပါ! ဘောလုံး ဒိုင်စာရင်း သို့ Slip အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
+      } catch (err: any) {
+        alert(`⚠️ ဘောလုံး စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
+        return;
+      }
     }
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
@@ -296,7 +352,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     }
 
     setIsVoucherEntryMode(false);
-    alert(`✅ မင်္ဂလာပါ! ဘောင်ချာအား စစ်ဆေး/ပြင်ဆင်ပြီး ဒိုင်စာရင်းသို့ အတည်ပြု ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
   };
 
   useEffect(() => {
@@ -520,44 +575,94 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       originalInput: pi.originalRaw
     }));
 
-    if (order.category === '3d') {
+    const isAll2D = order.parsedItems.every(pi => pi.number && pi.number.trim().length === 2);
+    const isAll3D = order.parsedItems.every(pi => pi.number && pi.number.trim().length === 3);
+    let effectiveCategory = order.category;
+    if (isAll2D) effectiveCategory = '2d';
+    else if (isAll3D) effectiveCategory = '3d';
+
+    if (effectiveCategory === '3d') {
+      let open3DRound = lottery3D.rounds.find(r => r.id === lottery3D.activeRoundId && r.status === 'open') ||
+                        lottery3D.rounds.find(r => r.status === 'open') ||
+                        lottery3D.rounds[0];
+
+      if (!open3DRound) {
+        alert('⚠️ အိုးစည်လေး (3D) ပွဲစဉ် မရှိသေးပါခင်ဗျာ');
+        return;
+      }
+
+      if (open3DRound.status !== 'open') {
+        lottery3D.updateRound(open3DRound.id, { status: 'open' });
+      }
+
       const voucherItems: VoucherItem[] = order.parsedItems.map(pi => ({
-        number: pi.number,
+        number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
       const subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
-      lottery3D.addVoucher({
-        roundId: lottery3D.activeRoundId,
-        customerName: order.senderName,
-        items: voucherItems,
-        subtotal,
-        discountPercent: 0,
-        discountAmount: 0,
-        netPayable: subtotal,
-        isPaid: true,
-        status: 'active',
-        notes: `[Telegram Bot] ${order.notes || ''}`
-      });
-    } else if (order.category === '2d') {
+
+      try {
+        const created = lottery3D.addVoucher({
+          roundId: open3DRound.id,
+          customerName: order.senderName,
+          items: voucherItems,
+          subtotal,
+          discountPercent: 0,
+          discountAmount: 0,
+          netPayable: subtotal,
+          isPaid: true,
+          status: 'active',
+          notes: `[Telegram Bot] ${order.notes || ''}`
+        });
+
+        lottery3D.setActiveRoundId(open3DRound.id);
+        alert(`✅ အိုးစည်လေး (3D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ!`);
+      } catch (err: any) {
+        alert(`⚠️ အိုးစည်လေး (3D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
+        return;
+      }
+    } else if (effectiveCategory === '2d') {
+      let open2DRound = lottery2D.rounds.find(r => r.id === lottery2D.activeRoundId && r.status === 'open') ||
+                        lottery2D.rounds.find(r => r.status === 'open') ||
+                        lottery2D.rounds[0];
+
+      if (!open2DRound) {
+        alert('⚠️ ဇီးကွက် (2D) ပွဲစဉ် မရှိသေးပါခင်ဗျာ');
+        return;
+      }
+
+      if (open2DRound.status !== 'open') {
+        lottery2D.updateRound(open2DRound.id, { status: 'open' });
+      }
+
       const voucherItems: TwoDVoucherItem[] = order.parsedItems.map(pi => ({
-        number: pi.number,
+        number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
       const subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
-      lottery2D.addVoucher({
-        roundId: lottery2D.activeRoundId,
-        customerName: order.senderName,
-        items: voucherItems,
-        subtotal,
-        discountPercent: 0,
-        discountAmount: 0,
-        netPayable: subtotal,
-        isPaid: true,
-        status: 'active',
-        notes: `[Telegram Bot] ${order.notes || ''}`
-      });
+
+      try {
+        const created = lottery2D.addVoucher({
+          roundId: open2DRound.id,
+          customerName: order.senderName,
+          items: voucherItems,
+          subtotal,
+          discountPercent: 0,
+          discountAmount: 0,
+          netPayable: subtotal,
+          isPaid: true,
+          status: 'active',
+          notes: `[Telegram Bot] ${order.notes || ''}`
+        });
+
+        lottery2D.setActiveRoundId(open2DRound.id);
+        alert(`✅ ဇီးကွက် (2D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ!`);
+      } catch (err: any) {
+        alert(`⚠️ ဇီးကွက် (2D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
+        return;
+      }
     } else {
       const availableMatches = football.matches.filter(m => m.status === 'upcoming' || m.status === 'live');
       if (availableMatches.length === 0) {
@@ -1128,80 +1233,49 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
                 <div className="md:col-span-6">
                   {selectedOrder ? (
-                    isVoucherEntryMode ? (
-                      <div className="bg-white border-2 border-sky-400 rounded-2xl p-4 space-y-3.5 shadow-md sticky top-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                          <h4 className="text-xs font-black text-slate-900">📝 ဘောင်ချာ စာရင်းသွင်း စစ်ဆေးခြင်း</h4>
-                          <button type="button" onClick={() => setIsVoucherEntryMode(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs sticky top-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
+                        <span className="text-xs font-mono text-slate-500">ID: {selectedOrder.id}</span>
+                      </div>
 
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 p-2 rounded-xl bg-slate-50/50">
-                          {voucherItems.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 text-xs">
-                              <input
-                                type="text"
-                                value={item.number}
-                                onChange={(e) => handleUpdateVoucherItem(idx, 'number', e.target.value)}
-                                className="w-16 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-center"
-                              />
-                              <input
-                                type="number"
-                                value={item.amount || ''}
-                                onChange={(e) => handleUpdateVoucherItem(idx, 'amount', parseInt(e.target.value, 10) || 0)}
-                                className="w-24 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-emerald-700 text-right"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateVoucherItem(idx, 'isRumble', !item.isRumble)}
-                                className={`px-2 py-1 rounded font-bold text-[10px] cursor-pointer ${
-                                  item.isRumble ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-                                }`}
-                              >
-                                {item.isRumble ? 'R (ပတ်)' : 'တည့်'}
-                              </button>
-                              <button type="button" onClick={() => handleRemoveVoucherItem(idx)} className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                      <div className="bg-slate-900 text-sky-300 p-3 rounded-xl text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto border border-slate-800">
+                        <span className="text-[10px] text-slate-400 block mb-1 font-sans font-bold">မူရင်း Telegram မက်ဆေ့ခ်ျ:</span>
+                        {selectedOrder.rawText || '(ဓါတ်ပုံအမှာစာ)'}
+                      </div>
+
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                        <span className="text-xs font-bold text-slate-700 block">ဖတ်ယူရရှိသော ထိုးကြေးများ ({selectedOrder.parsedItems.length} ကွက်):</span>
+                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                          {selectedOrder.parsedItems.map((pi, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs">
+                              <span className="font-mono font-bold text-slate-900">{pi.number} {pi.isRumble ? '(R)' : '(တည့်)'}</span>
+                              <span className="font-mono font-bold text-emerald-700">{formatAmount(pi.amount, 'Ks')}</span>
                             </div>
                           ))}
                         </div>
+                      </div>
 
-                        <div className="pt-2 flex items-center gap-2">
+                      {selectedOrder.status === 'pending_review' && (
+                        <div className="flex flex-col gap-2 pt-2">
                           <button
                             type="button"
-                            onClick={() => handleConfirmEditedVoucher(selectedOrder)}
-                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
+                            onClick={() => handleStartVoucherEntry(selectedOrder)}
+                            className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-colors flex items-center justify-center gap-2"
                           >
-                            ✅ စစ်ဆေးပြီး အတည်ပြုမည် (Confirm Voucher)
+                            <span>📝 ဘောင်ချာ စာရင်းသွင်း စစ်ဆေးမည် (Quick Entry)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleApproveOrder(selectedOrder)}
+                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                          >
+                            ⚡ တိုက်ရိုက် အတည်ပြုမည် (Quick Approve)
                           </button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs sticky top-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                          <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
-                          <span className="text-xs font-mono text-slate-500">ID: {selectedOrder.id}</span>
-                        </div>
-
-                        <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto">
-                          {selectedOrder.rawText}
-                        </pre>
-
-                        {selectedOrder.status === 'pending_review' && (
-                          <div className="flex flex-col gap-2 pt-2">
-                            <button
-                              type="button"
-                              onClick={() => handleStartVoucherEntry(selectedOrder)}
-                              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl cursor-pointer"
-                            >
-                              📝 ဘောင်ချာ စာရင်းသွင်းမည်
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )
+                      )}
+                    </div>
                   ) : (
                     <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-12 text-center text-slate-400 space-y-2">
                       <Layers className="w-8 h-8 mx-auto text-slate-300" />
@@ -1209,6 +1283,183 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Sale Entry Review Overlay Modal Dialog */}
+          {isVoucherEntryMode && selectedOrder && (
+            <div className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+              <div className="bg-white border-2 border-sky-500 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+                
+                {/* Modal Header */}
+                <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-400/30 text-sky-400 flex items-center justify-center font-bold text-sm">
+                      📝
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-black tracking-tight">Quick Sale Entry - ဘောင်ချာ စစ်ဆေး စာရင်းသွင်းခြင်း</h4>
+                      <p className="text-[10px] text-slate-400">ဂဏန်းနှင့် ထိုးကြေးများကို စစ်ဆေး/ပြင်ဆင်ပြီးမှ ဒိုင်စာရင်းသို့ သွင်းပါမည်</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsVoucherEntryMode(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-4 sm:p-5 overflow-y-auto space-y-4 bg-slate-50/50 flex-1">
+                  
+                  {/* Customer & Category */}
+                  <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">ဝယ်သူအမည်</label>
+                      <input
+                        type="text"
+                        value={voucherCustomerName}
+                        onChange={(e) => setVoucherCustomerName(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                        placeholder="ဝယ်သူအမည်"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">အမျိုးအစား</label>
+                      <select
+                        value={voucherCategory}
+                        onChange={(e) => setVoucherCategory(e.target.value as any)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 cursor-pointer"
+                      >
+                        <option value="2d">ဇီးကွက် (2D)</option>
+                        <option value="3d">အိုးစည်လေး (3D)</option>
+                        <option value="football">ဘောလုံး (Football)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Raw Telegram Message Box */}
+                  <div className="bg-slate-900 text-sky-300 p-3 rounded-2xl text-xs font-mono whitespace-pre-wrap max-h-24 overflow-y-auto border border-slate-800 shadow-2xs">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 font-sans font-bold">မူရင်း Telegram မက်ဆေ့ခ်ျ:</span>
+                    {selectedOrder.rawText || '(ဓါတ်ပုံအမှာစာ)'}
+                  </div>
+
+                  {/* Quick Add Row */}
+                  <div className="bg-sky-50 p-2.5 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
+                    <span className="text-[10px] font-bold text-sky-900 block">ဂဏန်းအသစ် ထပ်ထည့်ရန်:</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={addNumInput}
+                        onChange={(e) => setAddNumInput(convertMyanmarToEnglishDigits(e.target.value))}
+                        placeholder="ဂဏန်း"
+                        className="w-20 bg-white border border-sky-300 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-center text-slate-900"
+                      />
+                      <input
+                        type="number"
+                        value={addAmtInput}
+                        onChange={(e) => setAddAmtInput(e.target.value)}
+                        placeholder="ထိုးကြေး"
+                        className="w-28 bg-white border border-sky-300 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-right text-emerald-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAddRumbleInput(!addRumbleInput)}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                          addRumbleInput ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {addRumbleInput ? 'R (ပတ်)' : 'တည့်'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddItemToVoucher}
+                        className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+                      >
+                        + ထည့်မည်
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Items List */}
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto border border-slate-200 p-2 rounded-2xl bg-white shadow-2xs">
+                    {voucherItems.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400 font-semibold">
+                        ဂဏန်း/ထိုးကြေး မရှိသေးပါ (အထက်တွင် ထည့်သွင်းပါ)
+                      </div>
+                    ) : (
+                      voucherItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs">
+                          <div className="flex items-center gap-2 flex-1">
+                            <span className="text-[10px] font-mono text-slate-400 w-5 font-bold">{idx + 1}.</span>
+                            <input
+                              type="text"
+                              value={item.number}
+                              onChange={(e) => handleUpdateVoucherItem(idx, 'number', e.target.value)}
+                              className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold text-center text-slate-900"
+                            />
+                            <input
+                              type="number"
+                              value={item.amount || ''}
+                              onChange={(e) => handleUpdateVoucherItem(idx, 'amount', parseInt(e.target.value, 10) || 0)}
+                              className="w-28 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold text-emerald-700 text-right"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateVoucherItem(idx, 'isRumble', !item.isRumble)}
+                              className={`px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer ${
+                                item.isRumble ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              {item.isRumble ? 'R (ပတ်)' : 'တည့်'}
+                            </button>
+                          </div>
+                          <button type="button" onClick={() => handleRemoveVoucherItem(idx)} className="p-1 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Summary Footer */}
+                  <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between text-xs shadow-md">
+                    <div>
+                      <span className="text-slate-400 text-[10px] block font-semibold">စုစုပေါင်း ကွက်ရေ</span>
+                      <span className="font-mono font-black text-sky-400 text-sm">{voucherItems.length} ကွက်</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-400 text-[10px] block font-semibold">ကျသင့်ငွေ စုစုပေါင်း</span>
+                      <span className="font-mono font-black text-emerald-400 text-base">
+                        {formatAmount(voucherItems.reduce((acc, it) => acc + (it.amount || 0), 0), 'Ks')}
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Modal Actions */}
+                <div className="bg-white px-5 py-3 border-t border-slate-200 flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsVoucherEntryMode(false)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                  >
+                    ✕ မသွင်းသေးပါ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmEditedVoucher(selectedOrder)}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>✅ စစ်ဆေးပြီး ဒိုင်စာရင်းသို့ သွင်းမည် (Confirm)</span>
+                  </button>
+                </div>
+
               </div>
             </div>
           )}
