@@ -591,6 +591,9 @@ export function createMessagingRouter() {
     const rawShopId = req.params?.shopId || (req.headers['x-shop-id'] as string) || (req.query?.shopId as string);
     
     let update = req.body;
+    if (typeof update === 'string') {
+      try { update = JSON.parse(update); } catch {}
+    }
     
     // Vercel serverless environment fallback for raw body parsing
     if (!update || Object.keys(update).length === 0) {
