@@ -326,21 +326,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     };
 
     pollData();
-    const interval = setInterval(pollData, 4000);
+    const interval = setInterval(pollData, 3000);
     return () => clearInterval(interval);
   }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // 1. Fetch latest orders directly from backend server
       const ordList = await fetchTelegramOrdersFromServer();
       if (ordList !== null) {
         setOrders(ordList);
       } else {
         setOrders(getTelegramOrders());
       }
-      // 2. Also sync telegram configuration & connection status
       const cfg = await syncTelegramConfig();
       if (cfg) {
         setConfig(cfg);
@@ -376,7 +374,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     saveTelegramOrders(newOrders);
   };
 
-  // OCR Photo Ingestion via Gemini AI Vision OCR
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -434,7 +431,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     }
   };
 
-  // Submit New Order to Queue
   const handleCreateOrder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRawText.trim() && !newPhotoPreview) return;
@@ -473,7 +469,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     setActiveTab('queue');
   };
 
-  // Approve Order into Active Voucher
   const handleApproveOrder = (order: TelegramIncomingOrder) => {
     if (order.status === 'approved') {
       alert('⚠️ ဤအမှာစာအား ယခင်ကပင် ဒိုင်စာရင်းသို့ အတည်ပြုပြီးဖြစ်ပါသည် (Duplicate approval blocked)');
@@ -532,7 +527,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         notes: `[Telegram Bot] ${order.notes || ''}`
       });
     } else {
-      // Football bets
       const availableMatches = football.matches.filter(m => m.status === 'upcoming' || m.status === 'live');
       if (availableMatches.length === 0) {
         alert(football.settings.language === 'my' ? 'လတ်တလော ထိုးနိုင်သော ဘောလုံးပွဲစဉ် မရှိသေးပါ' : 'No available football matches');
@@ -597,11 +591,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
     handleUpdateOrders(updated);
-
-    // Sync status with backend
     updateTelegramOrderOnServer(order.id, { status: 'approved' });
 
-    // Send confirmation message to Telegram user if chatId exists
     if (order.chatId) {
       sendTelegramMessage(
         order.chatId,
@@ -613,8 +604,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const handleRejectOrder = (orderId: string) => {
     const updated = orders.map(o => o.id === orderId ? { ...o, status: 'rejected' as const } : o);
     handleUpdateOrders(updated);
-
-    // Sync status with backend
     updateTelegramOrderOnServer(orderId, { status: 'rejected' });
   };
 
@@ -622,8 +611,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const updated = orders.filter(o => o.id !== orderId);
     handleUpdateOrders(updated);
     if (selectedOrderId === orderId) setSelectedOrderId(null);
-
-    // Sync deletion with backend
     deleteTelegramOrderOnServer(orderId);
   };
 
@@ -632,7 +619,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const nameCandidate = accountName.trim();
     const channelCandidate = channelId.trim();
 
-    // Smart Swap: If user accidentally pasted token into Bot Name or Channel ID field on tablet
     if (!isValidTokenFormat(cleanTelegramToken(rawInput))) {
       if (isValidTokenFormat(cleanTelegramToken(nameCandidate))) {
         rawInput = nameCandidate;
@@ -723,10 +709,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (res.ok) {
       setWebhookActionMsg({
         type: 'success',
-        text: '✓ Webhook အား ဖျက်သိမ်းပြီး တိုက်ရိုက် Auto-Polling စနစ်ကို အောင်မြင်စွာ ပြန်လည်အသက်သွင်းလိုက်ပါပြီ! တက်ဘလက်ပေါ်တွင် စာရင်းများ တိုက်ရိုက် တက်လာပါမည်။'
+        text: '✓ Webhook အား ဖျက်သိမ်းပြီး တိုက်ရိုက် Auto-Polling စနစ်ကို အောင်မြင်စွာ ပြန်လည်အသက်သွင်းလိုက်ပါပြီ!'
       });
       setWebhookUrl('');
-      // Re-test connection
       handleTestConnection();
     } else {
       setWebhookActionMsg({
@@ -744,9 +729,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         const cleaned = cleanTelegramToken(clipText);
         setBotToken(cleaned || clipText.trim());
       }
-    } catch {
-      // clipboard permission denied
-    }
+    } catch {}
   };
 
   const handleAutoDetectWebhook = () => {
@@ -784,7 +767,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (!webhookUrl.trim() || !webhookUrl.startsWith('https://')) {
       setWebhookActionMsg({
         type: 'error',
-        text: 'Webhook URL သည် https:// ဖြင့် စတင်ရပါမည် (HTTP မရပါ)'
+        text: 'Webhook URL သည် https:// ဖြင့် စတင်ရပါမည်'
       });
       setTimeout(() => setWebhookActionMsg(null), 4000);
       return;
@@ -793,7 +776,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     setIsRegisteringWebhook(true);
     setWebhookActionMsg(null);
 
-    // First save settings to server
     const currentConf: TelegramAccountConfig = {
       botToken: tokenToUse,
       channelId: channelId.trim(),
@@ -804,7 +786,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     };
     saveTelegramConfig(currentConf);
 
-    // Call set-webhook API
     const res = await registerTelegramWebhook(webhookUrl.trim());
     setIsRegisteringWebhook(false);
 
@@ -834,7 +815,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         accountName: '',
         webhookUrl: '',
         status: 'disconnected',
-        statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ (Disconnected)',
+        statusMessage: 'Telegram Bot Token ဖျက်ပြီးပါပြီ',
         hasServerToken: false
       });
       setWebhookActionMsg({
@@ -852,7 +833,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const nameCandidate = accountName.trim();
     const channelCandidate = channelId.trim();
 
-    // Smart Swap if token was accidentally pasted in Name or Channel field on tablet
     if (!isValidTokenFormat(cleanTelegramToken(rawInput))) {
       if (isValidTokenFormat(cleanTelegramToken(nameCandidate))) {
         rawInput = nameCandidate;
@@ -867,7 +847,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     const cleaned = cleanTelegramToken(rawInput);
 
-    // If user has not typed anything and server doesn't have token either
     if (!cleaned && !config.hasServerToken) {
       const newConfig: TelegramAccountConfig = {
         botToken: '',
@@ -884,7 +863,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return;
     }
 
-    // If candidate token provided, test and verify
     if (cleaned) {
       setIsTestingConnection(true);
       const result = await testTelegramConnection(cleaned, webhookUrl.trim() || undefined);
@@ -911,7 +889,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         details: result.details
       });
     } else {
-      // Keep existing server token
       const newConfig: TelegramAccountConfig = {
         ...config,
         channelId: channelId.trim(),
@@ -967,9 +944,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
             type="button"
             onClick={() => setActiveTab('queue')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'queue'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200'
+              activeTab === 'queue' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
             }`}
           >
             <MessageCircle className="w-4 h-4" />
@@ -980,9 +955,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
             type="button"
             onClick={() => setActiveTab('new_order')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'new_order'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200'
+              activeTab === 'new_order' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Plus className="w-4 h-4" />
@@ -993,9 +966,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
             type="button"
             onClick={() => setActiveTab('settings')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'settings'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200'
+              activeTab === 'settings' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Bot className="w-4 h-4" />
@@ -1009,7 +980,6 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           {/* TAB 1: QUEUE */}
           {activeTab === 'queue' && (
             <div className="space-y-4">
-              {/* Filter bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                 <div className="flex items-center gap-2 text-xs font-bold">
                   <span className="text-slate-500">အခြေအနေ:</span>
@@ -1019,9 +989,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       type="button"
                       onClick={() => setStatusFilter(f)}
                       className={`px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
-                        statusFilter === f
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        statusFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
                       {f === 'all' && 'အားလုံး'}
@@ -1037,14 +1005,12 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   onClick={handleRefresh}
                   disabled={isRefreshing}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
-                  title="ဆာဗာမှ နောက်ဆုံးရ Telegram အမှာစာများကို ပြန်လည်ရယူမည်"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-sky-600' : ''}`} />
                   <span>{isRefreshing ? 'ရယူနေဆဲ...' : 'Refresh'}</span>
                 </button>
               </div>
 
-              {/* Orders List */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-6 space-y-3">
                   {filteredOrders.length === 0 ? (
@@ -1060,9 +1026,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                           key={order.id}
                           onClick={() => setSelectedOrderId(order.id)}
                           className={`bg-white border rounded-2xl p-4 space-y-3 cursor-pointer transition-all shadow-2xs ${
-                            isSelected
-                              ? 'border-sky-500 ring-2 ring-sky-100'
-                              : 'border-slate-200 hover:border-slate-300'
+                            isSelected ? 'border-sky-500 ring-2 ring-sky-100' : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -1073,28 +1037,18 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                               <div>
                                 <h4 className="text-xs font-bold text-slate-900">{order.senderName}</h4>
                                 <p className="text-[10px] text-slate-400 font-mono">
-                                  {new Date(order.timestamp).toLocaleString()} • {order.senderPhone || 'ဖုန်းမပါ'}
+                                  {new Date(order.timestamp).toLocaleString()}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
-                                order.category === '3d' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
-                                order.category === '2d' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
-                                'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                              }`}>
-                                {order.category.toUpperCase()}
-                              </span>
-
-                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
-                                order.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
-                                order.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
-                                'bg-amber-100 text-amber-800 animate-pulse'
-                              }`}>
-                                {order.status === 'approved' ? 'အတည်ပြုပြီး' : order.status === 'rejected' ? 'ပယ်ဖျက်ပြီး' : 'စောင့်ဆိုင်းဆဲ'}
-                              </span>
-                            </div>
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                              order.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                              order.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
+                              'bg-amber-100 text-amber-800 animate-pulse'
+                            }`}>
+                              {order.status === 'approved' ? 'အတည်ပြုပြီး' : order.status === 'rejected' ? 'ပယ်ဖျက်ပြီး' : 'စောင့်ဆိုင်းဆဲ'}
+                            </span>
                           </div>
 
                           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs font-mono text-slate-800 line-clamp-2">
@@ -1112,25 +1066,16 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                                   <button
                                     type="button"
                                     onClick={() => handleStartVoucherEntry(order)}
-                                    className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
+                                    className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl cursor-pointer"
                                   >
-                                    <FileText className="w-3.5 h-3.5" />
-                                    <span>ဘောင်ချာသွင်းမည်</span>
+                                    ဘောင်ချာသွင်းမည်
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleApproveOrder(order)}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer"
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer"
                                   >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>လက်ခံမည်</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRejectOrder(order.id)}
-                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 cursor-pointer"
-                                  >
-                                    ပယ်ချ
+                                    လက်ခံမည်
                                   </button>
                                 </>
                               )}
@@ -1149,238 +1094,77 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   )}
                 </div>
 
-                {/* Selected Order Details Preview / Interactive Voucher Entry */}
                 <div className="md:col-span-6">
                   {selectedOrder ? (
                     isVoucherEntryMode ? (
-                      /* INTERACTIVE VOUCHER ENTRY & EDIT MODE */
-                      <div className="bg-white border-2 border-sky-400 rounded-2xl p-4 space-y-3.5 shadow-md sticky top-4 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="bg-white border-2 border-sky-400 rounded-2xl p-4 space-y-3.5 shadow-md sticky top-4">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-sky-600" />
-                            <h4 className="text-xs font-black text-slate-900">
-                              📝 ဘောင်ချာ စာရင်းသွင်း စစ်ဆေးခြင်း (Voucher Review & Edit)
-                            </h4>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsVoucherEntryMode(false)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-                          >
+                          <h4 className="text-xs font-black text-slate-900">📝 ဘောင်ချာ စာရင်းသွင်း စစ်ဆေးခြင်း</h4>
+                          <button type="button" onClick={() => setIsVoucherEntryMode(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
 
-                        <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-[11px] text-sky-950 font-bold flex items-center gap-1.5">
-                          <Info className="w-4 h-4 text-sky-600 shrink-0" />
-                          <span>စာရင်းများကို စစ်ဆေး/ပြင်ဆင်ပြီးပါက 'အတည်ပြုမည်' ကို နှိပ်မှသာ ဒိုင်စာရင်းသို့ ရောက်ရှိပါမည်။</span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <label className="block font-bold text-slate-700 mb-1 text-[11px]">ဝယ်သူအမည်</label>
-                            <input
-                              type="text"
-                              value={voucherCustomerName}
-                              onChange={(e) => setVoucherCustomerName(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block font-bold text-slate-700 mb-1 text-[11px]">လုပ်ငန်းလိုင်း (Category)</label>
-                            <select
-                              value={voucherCategory}
-                              onChange={(e) => setVoucherCategory(e.target.value as any)}
-                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
-                            >
-                              <option value="3d">အိုးစည်လေး (3D)</option>
-                              <option value="2d">ဇီးကွက် (2D)</option>
-                              <option value="football">ပစ်တိုင်းထောင် (Football)</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* ITEMS TABLE EDIT */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                            <span>ဂဏန်းနှင့် ထိုးကြေးများ ({voucherItems.length}):</span>
-                          </div>
-
-                          <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 p-2 rounded-xl bg-slate-50/50">
-                            {voucherItems.map((item, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 text-xs">
-                                <input
-                                  type="text"
-                                  value={item.number}
-                                  onChange={(e) => handleUpdateVoucherItem(idx, 'number', e.target.value)}
-                                  className="w-16 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-slate-900 text-center"
-                                />
-                                <input
-                                  type="number"
-                                  value={item.amount || ''}
-                                  onChange={(e) => handleUpdateVoucherItem(idx, 'amount', parseInt(e.target.value, 10) || 0)}
-                                  className="w-24 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-emerald-700 text-right"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateVoucherItem(idx, 'isRumble', !item.isRumble)}
-                                  className={`px-2 py-1 rounded font-bold text-[10px] transition-colors cursor-pointer ${
-                                    item.isRumble ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-                                  }`}
-                                >
-                                  {item.isRumble ? 'R (ပတ်)' : 'တည့်'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveVoucherItem(idx)}
-                                  className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* ADD ITEM ROW */}
-                        <div className="bg-sky-50/60 border border-sky-200 p-2 rounded-xl space-y-1">
-                          <label className="text-[10px] font-bold text-sky-900">+ ဂဏန်းအသစ် ထပ်ထည့်ရန်:</label>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={addNumInput}
-                              onChange={(e) => setAddNumInput(e.target.value)}
-                              placeholder="ဂဏန်း"
-                              className="w-16 bg-white border border-sky-300 rounded px-1.5 py-1 text-xs font-mono font-bold text-slate-900 text-center"
-                            />
-                            <input
-                              type="number"
-                              value={addAmtInput}
-                              onChange={(e) => setAddAmtInput(e.target.value)}
-                              placeholder="ပမာဏ"
-                              className="w-24 bg-white border border-sky-300 rounded px-1.5 py-1 text-xs font-mono font-bold text-slate-900 text-right"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setAddRumbleInput(!addRumbleInput)}
-                              className={`px-2 py-1 rounded font-bold text-[10px] cursor-pointer ${
-                                addRumbleInput ? 'bg-amber-500 text-white' : 'bg-white border border-slate-300 text-slate-700'
-                              }`}
-                            >
-                              {addRumbleInput ? 'R' : 'တည့်'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleAddItemToVoucher}
-                              className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded transition-all cursor-pointer shrink-0"
-                            >
-                              + ထည့်မည်
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* DISCOUNT & TOTALS */}
-                        <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-700">ကော်မရှင် / လျှော့ဈေး (%):</span>
-                            <input
-                              type="number"
-                              value={voucherDiscountPercent || ''}
-                              onChange={(e) => setVoucherDiscountPercent(parseFloat(e.target.value) || 0)}
-                              placeholder="0"
-                              className="w-16 bg-slate-50 border border-slate-300 rounded px-2 py-1 font-mono font-bold text-slate-900 text-right"
-                            />
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 font-bold">
-                            <span className="text-slate-700">အသားတင် ပေးချေရန်:</span>
-                            <span className="text-base font-mono font-black text-emerald-700">
-                              {formatAmount(
-                                Math.max(
-                                  0,
-                                  voucherItems.reduce((acc, it) => acc + (it.amount || 0), 0) -
-                                    safeRound(
-                                      (voucherItems.reduce((acc, it) => acc + (it.amount || 0), 0) * (voucherDiscountPercent || 0)) / 100
-                                    )
-                                ),
-                                'Ks'
-                              )}
-                            </span>
-                          </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 p-2 rounded-xl bg-slate-50/50">
+                          {voucherItems.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 text-xs">
+                              <input
+                                type="text"
+                                value={item.number}
+                                onChange={(e) => handleUpdateVoucherItem(idx, 'number', e.target.value)}
+                                className="w-16 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-center"
+                              />
+                              <input
+                                type="number"
+                                value={item.amount || ''}
+                                onChange={(e) => handleUpdateVoucherItem(idx, 'amount', parseInt(e.target.value, 10) || 0)}
+                                className="w-24 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 font-mono font-bold text-emerald-700 text-right"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateVoucherItem(idx, 'isRumble', !item.isRumble)}
+                                className={`px-2 py-1 rounded font-bold text-[10px] cursor-pointer ${
+                                  item.isRumble ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                {item.isRumble ? 'R (ပတ်)' : 'တည့်'}
+                              </button>
+                              <button type="button" onClick={() => handleRemoveVoucherItem(idx)} className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
 
                         <div className="pt-2 flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleConfirmEditedVoucher(selectedOrder)}
-                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
                           >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>✅ စစ်ဆေးပြီး အတည်ပြုမည် (Confirm Voucher)</span>
+                            ✅ စစ်ဆေးပြီး အတည်ပြုမည် (Confirm Voucher)
                           </button>
                         </div>
                       </div>
                     ) : (
-                      /* REGULAR REVIEW MODE */
                       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs sticky top-4">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-sky-600" />
-                            <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
-                          </div>
+                          <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
                           <span className="text-xs font-mono text-slate-500">ID: {selectedOrder.id}</span>
                         </div>
 
-                        {selectedOrder.photoUrl && (
-                          <div className="rounded-xl overflow-hidden border border-slate-200 max-h-48 bg-slate-950 flex items-center justify-center">
-                            <img src={selectedOrder.photoUrl} alt="Slip" className="max-h-48 object-contain" />
-                          </div>
-                        )}
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700">အမှာစာ စာသား / ဂဏန်းများ:</label>
-                          <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto">
-                            {selectedOrder.rawText}
-                          </pre>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-700">ခွဲထုတ်ထားသော ဂဏန်းစာရင်း:</label>
-                          <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
-                            {selectedOrder.parsedItems.map((pi, idx) => (
-                              <div key={idx} className="flex items-center justify-between px-3 py-1.5 text-xs font-mono">
-                                <span className="font-bold text-slate-900">{pi.number} {pi.isRumble ? '(ပတ်လည်)' : '(တည့်)'}</span>
-                                <span className="font-bold text-emerald-700">{formatAmount(pi.amount, 'Ks')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-700">စုစုပေါင်းတန်ဖိုး:</span>
-                          <span className="text-sm font-mono font-black text-emerald-700">
-                            {formatAmount(selectedOrder.totalAmount, 'Ks')}
-                          </span>
-                        </div>
+                        <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto">
+                          {selectedOrder.rawText}
+                        </pre>
 
                         {selectedOrder.status === 'pending_review' && (
                           <div className="flex flex-col gap-2 pt-2">
                             <button
                               type="button"
                               onClick={() => handleStartVoucherEntry(selectedOrder)}
-                              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-transform active:scale-95"
+                              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-xl cursor-pointer"
                             >
-                              <FileText className="w-4 h-4" />
-                              <span>📝 ဘောင်ချာ စာရင်းသွင်းမည် (Quick Entry & Review)</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleApproveOrder(selectedOrder)}
-                              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>အတည်ပြု၍ တိုက်ရိုက် ထည့်မည် (Direct Add)</span>
+                              📝 ဘောင်ချာ စာရင်းသွင်းမည်
                             </button>
                           </div>
                         )}
@@ -1397,117 +1181,40 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
             </div>
           )}
 
-          {/* TAB 2: NEW ORDER (SIMULATE / OCR) */}
+          {/* TAB 2: NEW ORDER */}
           {activeTab === 'new_order' && (
             <form onSubmit={handleCreateOrder} className="bg-white border border-slate-200 rounded-2xl p-5 max-w-2xl mx-auto space-y-4 shadow-xs">
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Plus className="w-4 h-4 text-sky-600" />
-                <span>Telegram မှ အမှာစာအသစ် လက်ခံခြင်း (Simulate / OCR)</span>
+              <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
+                Telegram မှ အမှာစာအသစ် လက်ခံခြင်း (Simulate / OCR)
               </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">ဝယ်သူအမည်</label>
-                  <input
-                    type="text"
-                    value={newSenderName}
-                    onChange={(e) => setNewSenderName(e.target.value)}
-                    placeholder="ဥပမာ - ကိုကျော်ဇေယျ"
-                    required
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">ဖုန်းနံပါတ်</label>
-                  <input
-                    type="text"
-                    value={newSenderPhone}
-                    onChange={(e) => setNewSenderPhone(e.target.value)}
-                    placeholder="09-xxxxxxxxx"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">လုပ်ငန်းလိုင်း (Category)</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
-                  >
-                    <option value="3d">အိုးစည်လေး (3D)</option>
-                    <option value="2d">ဇီးကွက် (2D)</option>
-                    <option value="football">ပစ်တိုင်းထောင် (Football)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">အမှာစာ အမျိုးအစား</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setNewOrderType('text')}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                        newOrderType === 'text' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      စာသား (Text)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                        newOrderType === 'photo' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      <Camera className="w-3.5 h-3.5 inline mr-1" /> စလစ်ပုံ (OCR)
-                    </button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                  </div>
-                </div>
-              </div>
-
-              {newPhotoPreview && (
-                <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-950 p-2 text-center">
-                  <img src={newPhotoPreview} alt="Preview" className="max-h-36 mx-auto object-contain rounded" />
-                  {isOcrProcessing && (
-                    <div className="absolute inset-0 bg-sky-950/80 flex items-center justify-center text-white text-xs font-bold gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Gemini AI ဖြင့် ဓါတ်ပုံစကင်ဖတ်နေပါသည် ({ocrProgress}%)...</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">ထိုးကြေးစာရင်း (သို့မဟုတ် OCR ဖတ်ရရှိသော စာသား)</label>
-                <textarea
-                  value={newRawText}
-                  onChange={(e) => setNewRawText(convertMyanmarToEnglishDigits(e.target.value))}
-                  placeholder={`123=1000\n456=500\n789R=1000`}
-                  rows={4}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900"
+                <label className="block text-xs font-bold text-slate-700 mb-1">ဝယ်သူအမည်</label>
+                <input
+                  type="text"
+                  value={newSenderName}
+                  onChange={(e) => setNewSenderName(e.target.value)}
+                  placeholder="ဥပမာ - ကိုကျော်ဇေယျ"
+                  required
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">မှတ်ချက်</label>
-                <input
-                  type="text"
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Telegram Bot မှ ဝင်ရောက်လာသည်"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                <label className="block text-xs font-bold text-slate-700 mb-1">ထိုးကြေးစာရင်း</label>
+                <textarea
+                  value={newRawText}
+                  onChange={(e) => setNewRawText(convertMyanmarToEnglishDigits(e.target.value))}
+                  placeholder={`123=1000\n456=500`}
+                  rows={4}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900"
                 />
               </div>
 
               <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
+                  className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl cursor-pointer"
                 >
                   အမှာစာ တင်သွင်းမည် (Add to Queue)
                 </button>
@@ -1518,501 +1225,45 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           {/* TAB 3: SETTINGS */}
           {activeTab === 'settings' && (
             <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 max-w-2xl mx-auto space-y-5 shadow-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-sky-600" />
-                  <div>
-                    <h4 className="text-sm font-black text-slate-900">
-                      Telegram Bot API & အမှာစာများ အချိန်နှင့်တစ်ပြေးညီ လက်ခံခြင်း
-                    </h4>
-                    <p className="text-[11px] text-slate-500">
-                      တက်ဘလက် / ဖုန်းတွင် Telegram Group မှ စာရင်းများကို အလိုအလျောက် ရယူရန် စနစ်
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1">
-                    <Radio className="w-3 h-3 text-sky-600 animate-pulse" />
-                    <span>Auto-Polling အသင့်ဖြစ်</span>
-                  </span>
-                </div>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h4 className="text-sm font-black text-slate-900">Telegram Bot API ဆက်တင်များ</h4>
               </div>
 
-              {/* SUCCESS NOTICE */}
               {configSuccess && (
-                <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>✓ Telegram ဆက်တင်များကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။</span>
+                <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl text-xs font-bold">
+                  ✓ Telegram ဆက်တင်များကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။
                 </div>
               )}
 
-              {/* CONNECTED STATUS CARD */}
-              {(testDiagnostics?.bot || config.botInfo || (config.status === 'connected' && config.hasServerToken)) && (
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs">
-                        <Bot className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-black text-emerald-950">
-                            {testDiagnostics?.bot?.firstName || config.botInfo?.firstName || accountName || 'Telegram Bot'}
-                          </span>
-                          <span className="text-[11px] font-mono text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md font-bold">
-                            @{testDiagnostics?.bot?.username || config.botInfo?.username || 'bot'}
-                          </span>
-                        </div>
-                        <p className="text-[10px] font-mono text-emerald-800">
-                          Bot ID: {testDiagnostics?.bot?.id || config.botInfo?.id || 'Connected'} • ချိတ်ဆက်ပြီးပါပြီ
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-600 text-white flex items-center gap-1 shadow-2xs">
-                      <Check className="w-3 h-3" />
-                      <span>တရားဝင်ချိတ်ဆက်ပြီး</span>
-                    </span>
-                  </div>
-
-                  <div className="pt-2 border-t border-emerald-200/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                    <div className="bg-white/80 p-2 rounded-xl border border-emerald-200/50 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="text-emerald-950 font-medium">Group ထဲ ဝင်ရောက်ခွင့်: <b>ရရှိထားသည်</b></span>
-                    </div>
-
-                    <div className="bg-white/80 p-2 rounded-xl border border-emerald-200/50 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="text-emerald-950 font-medium">
-                        {(testDiagnostics?.bot?.canReadAllGroupMessages || config.botInfo?.canReadAllGroupMessages)
-                          ? 'Group စာဖတ်ခွင့်: အားလုံးဖတ်နိုင်သည်'
-                          : 'Group စာဖတ်ခွင့်: Bot ကို Admin ခန့်ပါ'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ERROR / 401 UNAUTHORIZED DIAGNOSTIC ALERT */}
-              {(testDiagnostics?.status === 'error' || config.status === 'error' || testDiagnostics?.errorType === 'unauthorized') && (
-                <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 text-rose-950 space-y-3 shadow-xs animate-in shake duration-300">
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="flex items-start gap-2.5">
-                      <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                      <div>
-                        <h5 className="text-xs font-black text-rose-900">
-                          {testDiagnostics?.message || config.statusMessage || 'Telegram Bot Token မမှန်ကန်ပါ (401 Unauthorized)'}
-                        </h5>
-                        <p className="text-[11px] text-rose-800 mt-1 leading-relaxed">
-                          Telegram Official Server မှ ဤ Bot Token သည် မမှန်ကန်ပါ (သို့မဟုတ်) BotFather တွင် Revoke လုပ်ထားပြီးဖြစ်ကြောင်း အကြောင်းပြန်ပါသည်။
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await handlePasteFromClipboard();
-                        setTimeout(() => handleTestConnection(), 150);
-                      }}
-                      className="shrink-0 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Clipboard မှ ကူးယူစမ်းသပ်မည်</span>
-                    </button>
-                  </div>
-
-                  <div className="bg-white/95 border border-rose-200 rounded-xl p-3.5 text-[11px] space-y-2 text-rose-950">
-                    <div className="font-bold flex items-center gap-1.5 text-rose-900">
-                      <HelpCircle className="w-4 h-4 text-rose-600" />
-                      <span>တက်ဘလက်တွင် Telegram ချိတ်မရခြင်း အကြောင်းရင်းနှင့် ဖြေရှင်းနည်း (၂ မိနစ်):</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
-                      <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-100 space-y-1">
-                        <p className="font-bold text-rose-900">ဖြစ်နိုင်ခြေရှိသော အကြောင်းရင်းများ:</p>
-                        <ul className="list-disc list-inside space-y-0.5 text-slate-700 font-medium text-[10px]">
-                          <li>BotFather တွင် Token အသစ် ထုတ်ယူထားမိခြင်း</li>
-                          <li>Token စာလုံး အစ/အဆုံး မပြည့်စုံဘဲ ကျန်ခဲ့ခြင်း</li>
-                          <li>Bot အမည် (@name) အား Token နေရာတွင် ထည့်မိခြင်း</li>
-                        </ul>
-                      </div>
-
-                      <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100 space-y-1">
-                        <p className="font-bold text-emerald-900">အမြန်ဖြေရှင်းပုံ (BotFather တွင်):</p>
-                        <ol className="list-decimal list-inside space-y-0.5 text-slate-700 font-medium text-[10px]">
-                          <li>Telegram App တွင် <b className="font-mono">@BotFather</b> သို့ သွားပါ</li>
-                          <li><b className="font-mono">/mybots</b> ပို့ပြီး မိမိ Bot ကို ရွေးပါ</li>
-                          <li><b>API Token</b> &gt; <b>Revoke current token</b> နှိပ်ပါ</li>
-                          <li>ထွက်လာသော Token အသစ်အား ဤနေရာသို့ Paste လုပ်ပါ</li>
-                        </ol>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* INSTRUCTION & QUICK GUIDE ACCORDION */}
-              <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-4 text-xs text-sky-950 space-y-2.5 shadow-2xs">
-                <div className="font-bold flex items-center justify-between text-sky-950">
-                  <div className="flex items-center gap-1.5">
-                    <Info className="w-4 h-4 text-sky-600 shrink-0" />
-                    <span>တက်ဘလက် / ဖုန်းတွင် Telegram Group မှ စာရင်းများ ဖတ်ယူနိုင်စေရန် အရေးကြီးအချက်များ:</span>
-                  </div>
-                </div>
-
-                <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 leading-relaxed font-medium">
-                  <li><b>(အလွယ်ကူဆုံးနည်း) Bot အား Group တွင် Admin ခန့်ပါ:</b> Bot ကို Group ထဲသို့ ထည့်ပြီး Group Settings ထဲတွင် <b>"Promote to Admin"</b> လုပ်ထားပါက Telegram မှ စာများအားလုံးကို အလိုအလျောက် ပေးပို့ပါသည်။</li>
-                  <li><b>သို့မဟုတ် Privacy Disable လုပ်ပါ:</b> BotFather တွင် <code className="bg-sky-100 px-1 rounded font-mono">/setprivacy</code> ရိုက်ပြီး မိမိ Bot ကို ရွေးကာ <code className="bg-sky-100 px-1 rounded font-mono">Disable</code> လုပ်ပေးပါ။</li>
-                  <li><b>စာရင်းပေးပို့ပုံများ:</b> အဖွဲ့ဝင်များက <code className="bg-white border px-1 rounded font-mono">23 45 800/200</code> သို့မဟုတ် <code className="bg-white border px-1 rounded font-mono">123=1000</code> သို့မဟုတ် <code className="bg-white border px-1 rounded font-mono">@မိမိBot 24=500</code> ဟု ရိုက်ပို့နိုင်ပါသည်။</li>
-                </ul>
-              </div>
-
-              {/* FORM INPUTS */}
               <div className="space-y-4">
-                {/* MULTI-TENANT SHOP ID */}
-                <div className="bg-sky-50/60 border border-sky-200 p-3.5 rounded-2xl space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-sky-950 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-sky-600" />
-                      <span>ဆိုင် / အသုံးပြုသူ အိုင်ဒီ (Multi-Tenant Shop ID)</span>
-                    </label>
-                    <span className="text-[10px] font-mono bg-sky-200/70 text-sky-900 px-2 py-0.5 rounded-md font-bold">
-                      {currentShopId}
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    value={currentShopId}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^a-zA-Z0-9_-]/g, '_');
-                      setCurrentShopId(val);
-                      const saved = setShopId(val);
-                      if (typeof window !== 'undefined' && window.location.origin) {
-                        setWebhookUrl(`${window.location.origin}/api/telegram/webhook/${saved}`);
-                      }
-                    }}
-                    placeholder="shop_1"
-                    className="w-full bg-white border border-sky-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
-                  />
-                  <p className="text-[10px] text-slate-600 font-medium">
-                    *အသုံးပြုသူ သို့မဟုတ် ဒိုင်တစ်ဦးစီသည် မိမိကိုယ်ပိုင် ဆိုင်အိုင်ဒီ သတ်မှတ်၍ Telegram Bot များကို သီးသန့် ချိတ်ဆက်အသုံးပြုနိုင်ပါသည် (Data Collisions ကာကွယ်ပြီး)
-                  </p>
-                </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Bot အမည် / Account Name (မှတ်သားရန်)
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Telegram Bot Token</label>
                   <input
-                    type="text"
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    placeholder="ဥပမာ - ရွှေမင်္ဂလာ Telegram Bot"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    type={showBotToken ? "text" : "password"}
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900"
                   />
                 </div>
 
-                {/* BOT TOKEN INPUT */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <span>Telegram Bot Token (Personal Key)</span>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
-                        🔒 localStorage တွင် သိမ်းမည်
-                      </span>
-                    </label>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handlePasteFromClipboard}
-                        className="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200"
-                        title="ကလစ်ဘုတ်မှ တိုက်ရိုက် ထည့်မည်"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>Clipboard မှ Paste</span>
-                      </button>
-
-                      {(config.hasServerToken || botToken || config.status === 'connected') && (
-                        <button
-                          type="button"
-                          onClick={handleClearToken}
-                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer hover:underline"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>Token ဖျက်မည်</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type={showBotToken ? "text" : "password"}
-                      value={botToken}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setBotToken(val);
-                      }}
-                      onBlur={() => {
-                        if (botToken) {
-                          const cleaned = cleanTelegramToken(botToken);
-                          if (cleaned && cleaned !== botToken) {
-                            setBotToken(cleaned);
-                          }
-                        }
-                      }}
-                      placeholder={config.hasServerToken ? "•••••••••••••••• (လက်ရှိ Token ချိတ်ဆက်ထားသည်)" : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-10 py-2.5 text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 shadow-2xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowBotToken(!showBotToken)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      title={showBotToken ? "Token ဖုံးမည်" : "Token ကြည့်မည်"}
-                    >
-                      {showBotToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-
-                  {/* LIVE TOKEN VALIDATION BADGE & QUICK CONNECT ACTION */}
-                  {botToken.trim().length > 0 && (
-                    <div className="mt-2 space-y-2 text-[11px]">
-                      {botToken.trim().startsWith('@') ? (
-                        <p className="text-amber-700 font-semibold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          <span>⚠️ ဒါက Bot Username (@name) ဖြစ်နေပါသည်။ BotFather မှ ပေးသော နံပါတ်နှင့်စသည့် Token (ဥပမာ 123456789:ABC...) ကို ထည့်ပါ</span>
-                        </p>
-                      ) : isValidTokenFormat(cleanTelegramToken(botToken)) ? (
-                        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-emerald-800 font-bold flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                              <span>✓ Token ပုံစံ မှန်ကန်ပါသည် (Bot ID: {cleanTelegramToken(botToken).split(':')[0]})</span>
-                            </p>
-
-                            <button
-                              type="button"
-                              onClick={handleTestConnection}
-                              disabled={isTestingConnection}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer disabled:opacity-60"
-                            >
-                              <Zap className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
-                              <span>{isTestingConnection ? 'စမ်းသပ်နေဆဲ...' : '⚡ ယခု ချိတ်ဆက်မည် (Connect Now)'}</span>
-                            </button>
-                          </div>
-                          <p className="text-[10px] text-emerald-700">
-                            *အထက်ပါ <b>"⚡ ယခု ချိတ်ဆက်မည် (Connect Now)"</b> ခလုတ်ကို နှိပ်လိုက်ပါက Telegram Official Server နှင့် ချက်ချင်း ချိတ်ဆက်မည် ဖြစ်ပါသည်
-                          </p>
-                        </div>
-                      ) : botToken.includes('Use this token to access the HTTP API') ? (
-                        <p className="text-sky-700 font-semibold flex items-center gap-1">
-                          <Info className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                          <span>✓ BotFather စာသားထဲမှ Token အား အလိုအလျောက် သန့်စင်ထုတ်ယူပါမည်</span>
-                        </p>
-                      ) : (
-                        <p className="text-slate-500 font-mono">
-                          ရှေ့တွင် ဂဏန်း ၈-၁၁ လုံးနှင့် colon (:) ပါဝင်ရပါမည်
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* GROUP ID / CHAT ID */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <span>Telegram Chat ID / Group ID (Personal Chat ID)</span>
-                      <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded border border-sky-200">
-                        🔒 localStorage တွင် သိမ်းမည်
-                      </span>
-                    </label>
-                  </div>
-                  <input
-                    type="text"
-                    value={channelId}
-                    onChange={(e) => {
-                      // Automatically clean double spaces or trailing spaces
-                      const val = e.target.value.replace(/\s+/g, ' ');
-                      setChannelId(val);
-                    }}
-                    onBlur={() => {
-                      if (channelId.includes(' ')) {
-                        const sanitized = channelId.replace(/\s+/g, '_').trim();
-                        setChannelId(sanitized);
-                      }
-                    }}
-                    placeholder="ဥပမာ - @shwemingalar_group သို့မဟုတ် -100123456789 (ကွက်လပ်မပါရပါ)"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500"
-                  />
-                  {channelId.includes(' ') ? (
-                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                      <span>⚠️ Group ID တွင် Space (ကွက်လပ်) ပါဝင်၍ မရပါခင်ဗျာ။ (ဥပမာ @didi_agent ဟု _ ဖြင့် ပြောင်းပေးပါ)</span>
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      *Bot ကို Group ထဲသို့ Add ထားပါက ဤနေရာတွင် ID မထည့်ထားသော်လည်း အလိုအလျောက် စာရင်းလက်ခံနိုင်ပါသည်
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* RECEPTION MODE SWITCH & VERCEL WEBHOOK HELPER */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h5 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      <Radio className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>အမှာစာ လက်ခံမည့် စနစ် (Reception Engine)</span>
-                    </h5>
-                    <p className="text-[11px] text-slate-600 mt-0.5">
-                      Vercel Serverless တွင် Webhook စနစ်ဖြင့် လက်ခံရန် အောက်ပါ <b>"Vercel Webhook ချိတ်ဆက်မည်"</b> ကို နှိပ်ပါ
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleRestorePolling}
-                      disabled={isRestoringPolling}
-                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                      title="Webhook အား ရှင်းလင်းပြီး တိုက်ရိုက် Auto-Polling ဖြင့် လက်ခံမည်"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isRestoringPolling ? 'animate-spin' : ''}`} />
-                      <span>{isRestoringPolling ? 'စနစ်ဖွင့်နေဆဲ...' : 'Auto-Polling'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleRegisterWebhookWithTelegram}
-                      disabled={isRegisteringWebhook}
-                      className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                      title="Vercel Domain သို့ Webhook အား အလိုအလျောက် မှတ်ပုံတင်မည်"
-                    >
-                      <Globe className={`w-3.5 h-3.5 ${isRegisteringWebhook ? 'animate-spin' : ''}`} />
-                      <span>{isRegisteringWebhook ? 'မှတ်ပုံတင်နေဆဲ...' : 'Vercel Webhook ချိတ်ဆက်မည်'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* VERCEL WEBHOOK INPUT & AUTO DETECT */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-200/70">
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="font-bold text-slate-700 flex items-center gap-1">
-                      <Link2 className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Webhook URL (Vercel Serverless Webhook)</span>
-                    </label>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleAutoDetectWebhook}
-                        className="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200"
-                      >
-                        <Zap className="w-3 h-3 text-sky-600" />
-                        <span>Auto-Detect Vercel URL</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleCopyWebhook}
-                        className="text-[11px] text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        {copiedWebhook ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        <span>{copiedWebhook ? 'ကူးယူပြီး' : 'Copy'}</span>
-                      </button>
-                    </div>
-                  </div>
-
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Webhook URL (Vercel Serverless Webhook)</label>
                   <input
                     type="text"
                     value={webhookUrl}
                     onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder={`https://your-app.vercel.app/api/telegram/webhook/${currentShopId}`}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
                   />
-                  <p className="text-[10px] text-slate-500 font-medium">
-                    *Vercel ပေါ်တွင် Host လုပ်ထားပါက အထက်ပါ URL အား Telegram မှ Webhook သို့ စာများ အလိုအလျောက် ပေးပို့မည်ဖြစ်ပါသည်
-                  </p>
                 </div>
-
-                {webhookActionMsg && (
-                  <div
-                    className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-                      webhookActionMsg.type === 'success'
-                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                        : 'bg-rose-100 text-rose-900 border border-rose-300'
-                    }`}
-                  >
-                    {webhookActionMsg.type === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    )}
-                    <span>{webhookActionMsg.text}</span>
-                  </div>
-                )}
               </div>
 
-              {/* CONNECTION STATUS & TEST ACTION BUTTONS */}
-              <div className="pt-3 border-t border-slate-200 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    {config.status === 'connected' && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300 shadow-2xs">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>Connected (ချိတ်ဆက်ပြီး - စာရင်းဝင်နေသည်)</span>
-                      </span>
-                    )}
-                    {config.status === 'disconnected' && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300">
-                        <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                        <span>Disconnected (မချိတ်ဆက်ရသေးပါ)</span>
-                      </span>
-                    )}
-                    {config.status === 'connecting' && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Connecting (စမ်းသပ်စစ်ဆေးနေပါသည်...)</span>
-                      </span>
-                    )}
-                    {config.status === 'error' && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold border border-rose-300">
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span>Error (Token စစ်ဆေးရန် လိုအပ်သည်)</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleTestConnection}
-                    disabled={isTestingConnection}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl border border-sky-600 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
-                    <span>{isTestingConnection ? 'စမ်းသပ်နေဆဲ...' : 'ချိတ်ဆက်မှု စမ်းသပ်မည် (Test)'}</span>
-                  </button>
-                </div>
-
-                {config.statusMessage && (
-                  <p className="text-[11px] font-medium text-slate-600 font-mono bg-slate-50 p-2 rounded-lg border border-slate-200">
-                    {config.statusMessage}
-                  </p>
-                )}
-              </div>
-
-              {/* SAVE CONFIG BUTTON */}
               <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
-                  disabled={isTestingConnection}
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer transition-transform active:scale-95 disabled:opacity-60"
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl cursor-pointer"
                 >
-                  {isTestingConnection ? 'စစ်ဆေးနေပါသည်...' : 'ဆက်တင်များ သိမ်းဆည်းမည် (Save)'}
+                  ဆက်တင်များ သိမ်းဆည်းမည် (Save)
                 </button>
               </div>
             </form>
