@@ -748,3 +748,7 @@ export function createMessagingRouter() {
 
   return router;
 }
+
+// ** အရေးကြီးဆုံး: Vercel /api/index.ts မှ import ခေါ်နိုင်ရန် router ကို default export လုပ်ပေးခြင်း **
+const mainRouter = createMessagingRouter();
+export default mainRouter;
