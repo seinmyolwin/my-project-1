@@ -103,7 +103,7 @@ async function initMultiShopStores() {
     shopStoresMap.set('default', def);
   }
 }
-initMultiShopStores();
+initMultiShopStores().catch(err => console.error('Failed to init multi-shop stores:', err));
 
 async function getOrCreateShopStore(shopId: string = 'default'): Promise<ShopStoreData> {
   const id = shopId && shopId.trim() ? shopId.trim() : 'default';
@@ -311,15 +311,27 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
   if (!update) return;
   const updateId = update.update_id;
   
-  // Update ID တစ်ခုတည်းကို တစ်ကြိမ်သာ လက်ခံရန် (Duplicate မဖြစ်စေရန်)
+  // Idempotency check: process each update ID only once
   if (updateId && processedTgUpdates.has(updateId)) return;
   if (updateId) addToIdempotencySet(processedTgUpdates, updateId);
 
-  const message = update.message || update.edited_message;
+  const message = update.message || update.edited_message || update.channel_post || update.edited_channel_post;
   if (!message) return;
 
   const chatId = message.chat?.id;
-  const senderName = message.from?.first_name || message.from?.username || 'Telegram User';
+  const isGroup = message.chat?.type === 'group' || message.chat?.type === 'supergroup';
+  const chatTitle = message.chat?.title;
+
+  let senderName = message.from?.first_name || '';
+  if (message.from?.last_name) senderName += ` ${message.from.last_name}`;
+  if (!senderName.trim()) senderName = message.from?.username || 'Telegram User';
+  
+  if (isGroup && chatTitle) {
+    senderName = `${senderName.trim()} [${chatTitle}]`;
+  } else {
+    senderName = senderName.trim();
+  }
+
   const text = message.text || message.caption || '';
   const photo = message.photo;
 
@@ -339,9 +351,14 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
     shopStore.telegramOrders = [];
   }
 
-  // Duplicate raw text or order check if needed, ensuring already processed orders are not duplicated
+  const orderId = `tg-${updateId || Date.now()}-${message.message_id || Math.random().toString(36).substring(2, 6)}`;
+  
+  // Deduplicate against existing orders in this shop store
+  const exists = shopStore.telegramOrders.some((o: any) => o.id === orderId);
+  if (exists) return;
+
   const newOrder: TelegramIncomingOrder = {
-    id: `tg-${updateId || Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    id: orderId,
     senderName,
     chatId,
     orderType: photo && photo.length > 0 ? 'photo' : 'text',
@@ -350,7 +367,8 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
     parsedItems: parsed.items,
     totalAmount: parsed.totalAmount,
     status: 'pending_review',
-    timestamp: Date.now()
+    timestamp: message.date ? message.date * 1000 : Date.now(),
+    notes: isGroup ? `[Group Chat: ${chatTitle || 'Group'}]` : undefined
   };
 
   shopStore.telegramOrders.unshift(newOrder);
@@ -441,12 +459,140 @@ export function createMessagingRouter() {
     res.json({ shopId, success: true, status: shopStore.telegram.status });
   });
 
+  // Test Telegram Bot Connection
+  router.post('/telegram/test', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const { botToken, webhookUrl } = req.body || {};
+    const candidateToken = cleanTelegramToken(botToken || (req.headers['x-telegram-bot-token'] as string) || getTelegramTokenForShop(shopStore));
+
+    if (!candidateToken || !isValidTokenFormat(candidateToken)) {
+      return res.status(400).json({ status: 'error', error_type: 'format_invalid', message: 'Valid Telegram Bot Token is required' });
+    }
+
+    const testRes = await callTelegramApi('getMe', 'GET', undefined, candidateToken);
+    if (testRes.ok && testRes.result) {
+      const bot = {
+        id: testRes.result.id,
+        username: testRes.result.username || '',
+        firstName: testRes.result.first_name || '',
+        canJoinGroups: testRes.result.can_join_groups ?? true,
+        canReadAllGroupMessages: testRes.result.can_read_all_group_messages ?? false,
+        supportsInlineQueries: testRes.result.supports_inline_queries ?? false
+      };
+      shopStore.telegram.botToken = candidateToken;
+      shopStore.telegram.status = 'connected';
+      shopStore.telegram.statusMessage = `Connected to @${bot.username || bot.firstName}`;
+      shopStore.telegram.connectedAt = new Date().toISOString();
+      shopStore.telegram.botInfo = testRes.result;
+      if (webhookUrl) shopStore.telegram.webhookUrl = webhookUrl;
+      await persistShopStore(shopId);
+
+      return res.json({
+        status: 'connected',
+        message: `Connected to @${bot.username || bot.firstName}`,
+        bot
+      });
+    }
+
+    return res.status(400).json({
+      status: 'error',
+      message: testRes.message || 'Telegram Bot Connection Failed'
+    });
+  });
+
+  // Webhook Registration Handler
+  router.post('/telegram/set-webhook', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    let { webhookUrl } = req.body || {};
+    const token = getTelegramTokenForShop(shopStore);
+
+    if (!token) {
+      return res.status(400).json({ ok: false, message: 'Telegram Bot Token is missing' });
+    }
+
+    if (!webhookUrl || !webhookUrl.trim()) {
+      const host = req.headers.host || 'localhost:3000';
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      webhookUrl = `${protocol}://${host}/api/telegram/webhook/${shopId}`;
+    }
+
+    const tgRes = await callTelegramApi('setWebhook', 'POST', { url: webhookUrl.trim() }, token);
+    if (tgRes.ok) {
+      shopStore.telegram.webhookUrl = webhookUrl.trim();
+      shopStore.telegram.status = 'connected';
+      await persistShopStore(shopId);
+      return res.json({ ok: true, message: 'Telegram Webhook Registered Successfully', webhookUrl: webhookUrl.trim() });
+    }
+
+    return res.status(400).json({ ok: false, message: tgRes.message || 'Failed to set Telegram Webhook' });
+  });
+
+  // Delete Webhook Handler
+  router.post('/telegram/delete-webhook', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const token = getTelegramTokenForShop(shopStore);
+
+    if (!token) {
+      return res.status(400).json({ ok: false, message: 'Telegram Bot Token is missing' });
+    }
+
+    const tgRes = await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false }, token);
+    if (tgRes.ok) {
+      shopStore.telegram.webhookUrl = '';
+      await persistShopStore(shopId);
+      return res.json({ ok: true, message: 'Webhook Deleted Successfully. Reverted to Auto-Polling.' });
+    }
+
+    return res.status(400).json({ ok: false, message: tgRes.message || 'Failed to delete Webhook' });
+  });
+
+  // Clear Token Handler
+  router.post('/telegram/clear-token', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    shopStore.telegram.botToken = '';
+    shopStore.telegram.webhookUrl = '';
+    shopStore.telegram.status = 'disconnected';
+    shopStore.telegram.statusMessage = 'Bot Token cleared';
+    delete shopStore.telegram.connectedAt;
+    delete shopStore.telegram.botInfo;
+    await persistShopStore(shopId);
+    res.json({ ok: true, message: 'Bot Token cleared' });
+  });
+
+  // Send Message Proxy
+  router.post('/telegram/send-message', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const { chatId, text } = req.body || {};
+    const token = getTelegramTokenForShop(shopStore);
+    const targetChat = chatId || (req.headers['x-telegram-chat-id'] as string) || shopStore.telegram.channelId;
+
+    if (!token || !targetChat || !text) {
+      return res.status(400).json({ ok: false, message: 'Missing bot token, chat ID, or message text' });
+    }
+
+    const tgRes = await callTelegramApi('sendMessage', 'POST', {
+      chat_id: targetChat,
+      text: String(text),
+      parse_mode: 'HTML'
+    }, token);
+
+    if (tgRes.ok) {
+      return res.json({ ok: true, result: tgRes.result });
+    }
+    return res.status(400).json({ ok: false, message: tgRes.message || 'Failed to send message' });
+  });
+
   const handleWebhookPost = async (req: Request, res: Response) => {
     const rawShopId = req.params?.shopId || (req.headers['x-shop-id'] as string) || (req.query?.shopId as string);
     
     let update = req.body;
     
-    // Vercel serverless မှာ req.body အလွတ်ဖြစ်နေရင် (သို့မဟုတ် string ဖြစ်နေရင်) Raw Body အနေနဲ့ ထပ်မံဖမ်းယူခြင်း
+    // Vercel serverless environment fallback for raw body parsing
     if (!update || Object.keys(update).length === 0) {
       try {
         let rawBody = '';
@@ -484,6 +630,38 @@ export function createMessagingRouter() {
     const shopId = getShopIdFromReq(req);
     const shopStore = await getOrCreateShopStore(shopId);
     res.json(shopStore.telegramOrders || []);
+  });
+
+  router.patch('/telegram/orders/:id', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const orderId = req.params.id;
+    const { status, notes } = req.body || {};
+
+    if (!Array.isArray(shopStore.telegramOrders)) shopStore.telegramOrders = [];
+
+    const orderIdx = shopStore.telegramOrders.findIndex((o: any) => o.id === orderId);
+    if (orderIdx === -1) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (status) shopStore.telegramOrders[orderIdx].status = status;
+    if (notes !== undefined) shopStore.telegramOrders[orderIdx].notes = notes;
+
+    await persistShopStore(shopId);
+    res.json({ ok: true, order: shopStore.telegramOrders[orderIdx] });
+  });
+
+  router.delete('/telegram/orders/:id', verifyOwnerTokenMiddleware, async (req: Request, res: Response) => {
+    const shopId = getShopIdFromReq(req);
+    const shopStore = await getOrCreateShopStore(shopId);
+    const orderId = req.params.id;
+
+    if (!Array.isArray(shopStore.telegramOrders)) shopStore.telegramOrders = [];
+
+    shopStore.telegramOrders = shopStore.telegramOrders.filter((o: any) => o.id !== orderId);
+    await persistShopStore(shopId);
+    res.json({ ok: true, message: 'Order deleted' });
   });
 
   return router;

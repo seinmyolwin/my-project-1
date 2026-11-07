@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({
     limit: '15mb',
     verify: (req: any, _res, buf) => {
@@ -249,9 +250,9 @@ Instructions:
 
   // Vite middleware for development or static serving for production
   const distPath = path.resolve(__dirname, 'dist');
-  if (process.env.NODE_ENV === 'production' || fs.existsSync(distPath)) {
+  if (process.env.NODE_ENV === 'production' || (fs.existsSync(distPath) && !process.env.VITE_DEV_MODE)) {
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
@@ -262,18 +263,35 @@ Instructions:
     app.use(vite.middlewares);
   }
 
-  const PORT = parseInt(process.env.PORT || '3000', 10);
-  if (!process.env.VERCEL) {
-    app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
-      console.log(`Server running on http://${process.env.HOST || "0.0.0.0"}:${PORT}`);
-    });
+  // Parse CLI args for --port and --host
+  let PORT = parseInt(process.env.PORT || '3000', 10);
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    const parsed = parseInt(process.argv[portArgIdx + 1], 10);
+    if (!isNaN(parsed)) PORT = parsed;
   }
+
+  let HOST = process.env.HOST || '0.0.0.0';
+  const hostArgIdx = process.argv.indexOf('--host');
+  if (hostArgIdx !== -1 && process.argv[hostArgIdx + 1]) {
+    HOST = process.argv[hostArgIdx + 1];
+  }
+
+  app.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`);
+  });
+
   return app;
 }
 
-const appPromise = startServer();
+const appPromise = startServer().catch((err) => {
+  console.error('Fatal server startup error:', err);
+  process.exit(1);
+});
+
 export { appPromise };
 export default async (req: Request, res: Response) => {
   const app = await appPromise;
-  app(req, res);
+  if (app) app(req, res);
 };
+

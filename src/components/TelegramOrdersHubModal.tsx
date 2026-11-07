@@ -321,7 +321,23 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
       const ordList = await fetchTelegramOrdersFromServer();
       if (ordList !== null) {
-        setOrders(ordList);
+        setOrders(prev => {
+          const map = new Map<string, TelegramIncomingOrder>();
+          ordList.forEach(o => map.set(o.id, o));
+          prev.forEach(p => {
+            if (!map.has(p.id)) {
+              map.set(p.id, p);
+            } else {
+              const existing = map.get(p.id)!;
+              if (p.status !== 'pending_review' && existing.status === 'pending_review') {
+                map.set(p.id, { ...existing, status: p.status, notes: p.notes || existing.notes });
+              }
+            }
+          });
+          const merged = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+          saveTelegramOrders(merged);
+          return merged;
+        });
       }
     };
 
@@ -335,7 +351,23 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     try {
       const ordList = await fetchTelegramOrdersFromServer();
       if (ordList !== null) {
-        setOrders(ordList);
+        setOrders(prev => {
+          const map = new Map<string, TelegramIncomingOrder>();
+          ordList.forEach(o => map.set(o.id, o));
+          prev.forEach(p => {
+            if (!map.has(p.id)) {
+              map.set(p.id, p);
+            } else {
+              const existing = map.get(p.id)!;
+              if (p.status !== 'pending_review' && existing.status === 'pending_review') {
+                map.set(p.id, { ...existing, status: p.status, notes: p.notes || existing.notes });
+              }
+            }
+          });
+          const merged = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+          saveTelegramOrders(merged);
+          return merged;
+        });
       } else {
         setOrders(getTelegramOrders());
       }
@@ -1224,49 +1256,184 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
           {/* TAB 3: SETTINGS */}
           {activeTab === 'settings' && (
-            <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 max-w-2xl mx-auto space-y-5 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h4 className="text-sm font-black text-slate-900">Telegram Bot API ဆက်တင်များ</h4>
-              </div>
-
-              {configSuccess && (
-                <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl text-xs font-bold">
-                  ✓ Telegram ဆက်တင်များကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Telegram Bot Token</label>
-                  <input
-                    type={showBotToken ? "text" : "password"}
-                    value={botToken}
-                    onChange={(e) => setBotToken(e.target.value)}
-                    placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900"
-                  />
+            <div className="max-w-3xl mx-auto space-y-6">
+              <form onSubmit={handleSaveConfig} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Bot className="w-5 h-5 text-sky-600" />
+                    <h4 className="text-sm font-black text-slate-900">Telegram Bot API & Webhook ဆက်တင်များ</h4>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                    config.status === 'connected' ? 'bg-emerald-100 text-emerald-800' :
+                    config.status === 'error' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {config.status === 'connected' ? `✓ Connected ${config.accountName || ''}` : config.status === 'error' ? '✕ Error' : 'Disconnected'}
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Webhook URL (Vercel Serverless Webhook)</label>
-                  <input
-                    type="text"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
-                  />
-                </div>
-              </div>
+                {configSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>✓ Telegram ဆက်တင်များကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။</span>
+                  </div>
+                )}
 
-              <div className="flex justify-end pt-2 border-t border-slate-100">
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl cursor-pointer"
-                >
-                  ဆက်တင်များ သိမ်းဆည်းမည် (Save)
-                </button>
+                {webhookActionMsg && (
+                  <div className={`p-3 rounded-xl text-xs font-bold border flex items-center gap-2 ${
+                    webhookActionMsg.type === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-300 text-rose-900'
+                  }`}>
+                    {webhookActionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />}
+                    <span>{webhookActionMsg.text}</span>
+                  </div>
+                )}
+
+                {testDiagnostics && (
+                  <div className={`p-3.5 rounded-xl text-xs space-y-1.5 border ${
+                    testDiagnostics.status === 'connected' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'
+                  }`}>
+                    <div className="font-bold flex items-center gap-1.5">
+                      {testDiagnostics.status === 'connected' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-rose-600" />}
+                      <span>{testDiagnostics.message}</span>
+                    </div>
+                    {testDiagnostics.details && <p className="text-[11px] font-mono opacity-90">{testDiagnostics.details}</p>}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700">Telegram Bot Token (@BotFather)</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowBotToken(!showBotToken)}
+                          className="text-[11px] text-sky-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          {showBotToken ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          <span>{showBotToken ? 'ဝှက်မည်' : 'ပြမည်'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handlePasteFromClipboard}
+                          className="text-[11px] text-slate-600 hover:underline font-bold cursor-pointer"
+                        >
+                          Paste
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type={showBotToken ? "text" : "password"}
+                      value={botToken}
+                      onChange={(e) => setBotToken(e.target.value)}
+                      placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700">Webhook URL (Vercel Serverless Endpoint)</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAutoDetectWebhook}
+                          className="text-[11px] text-sky-600 hover:underline font-bold cursor-pointer"
+                        >
+                          Auto-Detect
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCopyWebhook}
+                          className="text-[11px] text-slate-600 hover:underline font-bold cursor-pointer"
+                        >
+                          {copiedWebhook ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      placeholder="https://your-domain.vercel.app/api/telegram/webhook/shop_1"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      disabled={isTestingConnection}
+                      className="px-3.5 py-2 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin text-sky-600' : ''}`} />
+                      <span>{isTestingConnection ? 'စစ်ဆေးနေပါသည်...' : 'Bot Token စစ်ဆေးမည် (Test)'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRegisterWebhookWithTelegram}
+                      disabled={isRegisteringWebhook}
+                      className="px-3.5 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span>{isRegisteringWebhook ? 'ချိတ်ဆက်နေပါသည်...' : 'Webhook မှတ်ပုံတင်မည်'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRestorePolling}
+                      disabled={isRestoringPolling}
+                      className="px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>Auto-Polling သို့ ပြန်ပြောင်းမည်</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {config.hasServerToken && (
+                      <button
+                        type="button"
+                        onClick={handleClearToken}
+                        className="px-3 py-2 text-rose-600 hover:bg-rose-50 font-bold text-xs rounded-xl cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl cursor-pointer"
+                    >
+                      သိမ်းဆည်းမည် (Save)
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Group Chat & Privacy Guide */}
+              <div className="bg-sky-50/60 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex items-center gap-2 text-sky-900 font-black text-xs">
+                  <ShieldCheck className="w-4 h-4 text-sky-600" />
+                  <span>Telegram Group Chats မှ အမှာစာများ အလိုအလျောက် လက်ခံရန် လမ်းညွှန်ချက်</span>
+                </div>
+                <ul className="text-xs text-slate-700 space-y-2 list-disc pl-5 font-medium leading-relaxed">
+                  <li>
+                    <strong>Bot ကို Telegram Group သို့ ထည့်သွင်းပါ:</strong> ထိုးကြေးအမှာစာများ ပို့ဆောင်မည့် Telegram Group ထဲသို့ မိမိ၏ Bot ကို Add လုပ်ပေးပါခင်ဗျာ။
+                  </li>
+                  <li>
+                    <strong>Group Privacy ဖြုတ်ရန် (သို့မဟုတ်) Bot ကို Admin ပေးရန်:</strong>
+                    <br />
+                    Telegram privacy စည်းမျဉ်းအရ Bot သည် Group ထဲမှ စာများကို ဖတ်ယူနိုင်ရန်အတွက် <code>@BotFather</code> ထံ သွားရောက်၍ <code>/mybots</code> &gt; Bot ရွေးချယ်ပါ &gt; <strong>Bot Settings</strong> &gt; <strong>Group Privacy</strong> &gt; <strong>Turn off</strong> ပြုလုပ်ပေးပါ (သို့မဟုတ် Group ထဲတွင် Bot ကို Admin အဖြစ် ခန့်အပ်ပေးပါ)။
+                  </li>
+                  <li>
+                    <strong>မက်ဆေ့ခ်ျ ပုံစံ:</strong> Group သို့မဟုတ် Private Chat တွင် အဖွဲ့ဝင်များ ရိုက်ပို့သော စာများ (ဥပမာ <code>123=1000</code> သို့မဟုတ် ဓါတ်ပုံအမှာစာများ) သည် Webhook / Polling မှတစ်ဆင့် Dashboard ထံ တိုက်ရိုက် ရောက်ရှိလာမည်ဖြစ်ပါသည်။
+                  </li>
+                </ul>
               </div>
-            </form>
+            </div>
           )}
 
         </div>
