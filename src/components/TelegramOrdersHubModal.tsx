@@ -63,6 +63,7 @@ import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/t
 import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../utils/imageOcrUtils';
 import { BetItem, VoucherItem, TwoDVoucherItem, FootballBetSelection, FootballBetType } from '../types';
 import { safeRound } from '../utils/moneyUtils';
+import { playSuccessSound, playAddSound, playWarningSound, playTapSound } from '../utils/audioUtils';
 
 interface TelegramOrdersHubModalProps {
   isOpen: boolean;
@@ -178,6 +179,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         originalRaw: `${addNumInput.trim()}=${amount}${addRumbleInput ? 'R' : ''}`
       }
     ]);
+    playAddSound();
     setAddNumInput('');
     setAddAmtInput('');
     setAddRumbleInput(false);
@@ -246,6 +248,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         });
 
         lottery3D.setActiveRoundId(open3DRound.id);
+        playSuccessSound();
         alert(`✅ မင်္ဂလာပါ! အိုးစည်လေး (3D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
       } catch (err: any) {
         alert(`⚠️ အိုးစည်လေး (3D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
@@ -286,6 +289,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         });
 
         lottery2D.setActiveRoundId(open2DRound.id);
+        playSuccessSound();
         alert(`✅ မင်္ဂလာပါ! ဇီးကွက် (2D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
       } catch (err: any) {
         alert(`⚠️ ဇီးကွက် (2D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
@@ -333,6 +337,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           status: 'active',
           notes: `[Telegram Bot] ${order.notes || ''}`
         });
+        playSuccessSound();
         alert(`✅ မင်္ဂလာပါ! ဘောလုံး ဒိုင်စာရင်း သို့ Slip အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
       } catch (err: any) {
         alert(`⚠️ ဘောလုံး စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
@@ -617,6 +622,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         });
 
         lottery3D.setActiveRoundId(open3DRound.id);
+        playSuccessSound();
         alert(`✅ အိုးစည်လေး (3D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ!`);
       } catch (err: any) {
         alert(`⚠️ အိုးစည်လေး (3D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
@@ -658,6 +664,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         });
 
         lottery2D.setActiveRoundId(open2DRound.id);
+        playSuccessSound();
         alert(`✅ ဇီးကွက် (2D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ!`);
       } catch (err: any) {
         alert(`⚠️ ဇီးကွက် (2D) စာရင်းသို့ ထည့်သွင်းရာတွင် အမှားရှိပါသည်: ${err.message || err}`);
@@ -724,6 +731,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         status: 'active',
         notes: `[Telegram Bot] ${order.notes || ''}`
       });
+      playSuccessSound();
     }
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
