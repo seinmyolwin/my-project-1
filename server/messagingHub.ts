@@ -443,7 +443,27 @@ export function createMessagingRouter() {
 
   const handleWebhookPost = async (req: Request, res: Response) => {
     const rawShopId = req.params?.shopId || (req.headers['x-shop-id'] as string) || (req.query?.shopId as string);
-    const update = req.body;
+    
+    let update = req.body;
+    
+    // Vercel serverless မှာ req.body အလွတ်ဖြစ်နေရင် (သို့မဟုတ် string ဖြစ်နေရင်) Raw Body အနေနဲ့ ထပ်မံဖမ်းယူခြင်း
+    if (!update || Object.keys(update).length === 0) {
+      try {
+        let rawBody = '';
+        for await (const chunk of req) {
+          rawBody += chunk;
+        }
+        if (rawBody) {
+          update = JSON.parse(rawBody);
+        }
+      } catch (err) {
+        console.error('Webhook body parse error:', err);
+      }
+    }
+
+    if (!update) {
+      return res.status(400).json({ ok: false, error: 'No update data received' });
+    }
 
     if (rawShopId && typeof rawShopId === 'string' && rawShopId.trim() && rawShopId.trim() !== 'default') {
       await processTelegramUpdateForShop(update, rawShopId.trim());
