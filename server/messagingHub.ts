@@ -24,15 +24,6 @@ export interface TelegramIncomingOrder {
   notes?: string;
 }
 
-export interface TelegramBotInfo {
-  id: number;
-  username: string;
-  firstName: string;
-  canJoinGroups?: boolean;
-  canReadAllGroupMessages?: boolean;
-  supportsInlineQueries?: boolean;
-}
-
 const activeSessionTokens = new Set<string>();
 
 export function generateOwnerSessionToken(pin: string): string {
@@ -46,15 +37,11 @@ export function verifyOwnerTokenMiddleware(req: Request, res: Response, next: Fu
   const hasBotTokenHeader = Boolean(req.headers['x-telegram-bot-token']);
   const authHeader = req.headers['authorization'];
 
-  if (hasShopHeader || hasBotTokenHeader) {
-    return next();
-  }
+  if (hasShopHeader || hasBotTokenHeader) return next();
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    if (token && (activeSessionTokens.has(token) || token.length >= 16)) {
-      return next();
-    }
+    if (token && (activeSessionTokens.has(token) || token.length >= 16)) return next();
   }
 
   next();
@@ -62,23 +49,18 @@ export function verifyOwnerTokenMiddleware(req: Request, res: Response, next: Fu
 
 export function getShopIdFromReq(req: Request): string {
   const paramShop = req.params?.shopId;
-  if (paramShop && typeof paramShop === 'string' && paramShop.trim()) {
-    return paramShop.trim();
-  }
+  if (paramShop && typeof paramShop === 'string' && paramShop.trim()) return paramShop.trim();
   const headerShop = req.headers['x-shop-id'];
-  if (headerShop && typeof headerShop === 'string' && headerShop.trim()) {
-    return headerShop.trim();
-  }
+  if (headerShop && typeof headerShop === 'string' && headerShop.trim()) return headerShop.trim();
   const queryShop = req.query?.shopId;
-  if (queryShop && typeof queryShop === 'string' && queryShop.trim()) {
-    return queryShop.trim();
-  }
+  if (queryShop && typeof queryShop === 'string' && queryShop.trim()) return queryShop.trim();
   return 'default';
 }
 
+// Global Set to prevent duplicate updates across webhook and polling
 const processedTgUpdates = new Set<number>();
 
-function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 5000) {
+function addToIdempotencySet<T>(set: Set<T>, item: T, maxSize = 10000) {
   if (set.size >= maxSize) {
     const firstItem = set.values().next().value;
     if (firstItem !== undefined) set.delete(firstItem);
@@ -120,7 +102,6 @@ async function initMultiShopStores() {
     const def = await loadShopStore('default');
     shopStoresMap.set('default', def);
   }
-  startTelegramPolling();
 }
 initMultiShopStores();
 
@@ -287,10 +268,6 @@ function getTelegramTokenForShop(shopStore: ShopStoreData): string {
   return cleanTelegramToken(process.env.TELEGRAM_BOT_TOKEN || '');
 }
 
-function getTelegramWebhookSecret(): string {
-  return process.env.TELEGRAM_WEBHOOK_SECRET || '';
-}
-
 async function callTelegramApi(endpoint: string, method = 'GET', body?: any, tokenOverride?: string) {
   const token = cleanTelegramToken(tokenOverride || '');
   if (!token) return { ok: false, error: 'NO_TOKEN', message: 'Telegram Bot Token မရှိသေးပါ' };
@@ -327,9 +304,14 @@ async function callTelegramApi(endpoint: string, method = 'GET', body?: any, tok
   }
 }
 
+// ၃ စက္ကန့်တကြိမ်ဖြင့် Telegram updates များကို စစ်ဆေးပေးမည့် Polling စနစ်
+const shopOffsets = new Map<string, number>();
+
 async function processTelegramUpdateForShop(update: any, shopId: string) {
   if (!update) return;
   const updateId = update.update_id;
+  
+  // Update ID တစ်ခုတည်းကို တစ်ကြိမ်သာ လက်ခံရန် (Duplicate မဖြစ်စေရန်)
   if (updateId && processedTgUpdates.has(updateId)) return;
   if (updateId) addToIdempotencySet(processedTgUpdates, updateId);
 
@@ -353,8 +335,13 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
   const parsed = parseBetText(text, category);
   const shopStore = await getOrCreateShopStore(shopId);
 
+  if (!Array.isArray(shopStore.telegramOrders)) {
+    shopStore.telegramOrders = [];
+  }
+
+  // Duplicate raw text or order check if needed, ensuring already processed orders are not duplicated
   const newOrder: TelegramIncomingOrder = {
-    id: `tg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    id: `tg-${updateId || Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     senderName,
     chatId,
     orderType: photo && photo.length > 0 ? 'photo' : 'text',
@@ -371,30 +358,25 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
   await persistShopStore(shopId);
 }
 
-function startTelegramPolling() {
-  const shopOffsets = new Map<string, number>();
-  const pollAllShops = async () => {
-    for (const [shopId, shopStore] of shopStoresMap.entries()) {
-      const token = getTelegramTokenForShop(shopStore);
-      if (!token) continue;
+// Background polling loop every 3 seconds
+setInterval(async () => {
+  for (const [shopId, shopStore] of shopStoresMap.entries()) {
+    const token = getTelegramTokenForShop(shopStore);
+    if (!token) continue;
 
-      let offset = shopOffsets.get(shopId) || 0;
-      try {
-        const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=10`, 'GET', undefined, token);
-        if (res.ok && Array.isArray(res.result)) {
-          for (const update of res.result) {
-            offset = update.update_id + 1;
-            shopOffsets.set(shopId, offset);
-            await processTelegramUpdateForShop(update, shopId);
-          }
-          shopStore.telegram.status = 'connected';
-          shopStore.telegram.statusMessage = 'Connected & Polling Live';
+    let offset = shopOffsets.get(shopId) || 0;
+    try {
+      const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=2`, 'GET', undefined, token);
+      if (res.ok && Array.isArray(res.result)) {
+        for (const update of res.result) {
+          offset = update.update_id + 1;
+          shopOffsets.set(shopId, offset);
+          await processTelegramUpdateForShop(update, shopId);
         }
-      } catch {}
-    }
-  };
-  setInterval(pollAllShops, 4000);
-}
+      }
+    } catch {}
+  }
+}, 3000);
 
 export function createMessagingRouter() {
   const router = express.Router();
@@ -475,7 +457,6 @@ export function createMessagingRouter() {
     return res.status(200).json({ ok: true });
   };
 
-  // Explicit Webhook Routes matching Vercel and Telegram requests
   router.post('/telegram/webhook', handleWebhookPost);
   router.post('/telegram/webhook/:shopId', handleWebhookPost);
 
