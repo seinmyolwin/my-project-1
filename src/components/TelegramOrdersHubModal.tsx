@@ -29,7 +29,9 @@ import {
   AlertTriangle,
   Info,
   HelpCircle,
-  Radio
+  Radio,
+  RotateCcw,
+  Edit3
 } from 'lucide-react';
 import {
   TelegramIncomingOrder,
@@ -59,11 +61,12 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, convertMyanmarToEnglishDigits, getPermutations, parseQuickBetText } from '../utils/lotteryUtils';
+import { parseTwoDBatchInput } from '../utils/twoDLotteryUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../utils/imageOcrUtils';
 import { BetItem, VoucherItem, TwoDVoucherItem, FootballBetSelection, FootballBetType } from '../types';
 import { safeRound } from '../utils/moneyUtils';
-import { playSuccessSound, playAddSound, playWarningSound, playTapSound } from '../utils/audioUtils';
+import { playSuccessSound, playAddSound, playWarningSound, playTapSound, playDeleteSound } from '../utils/audioUtils';
 import { saveRawClip } from '../utils/rawClipsUtils';
 
 interface TelegramOrdersHubModalProps {
@@ -151,36 +154,111 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [addNumInput, setAddNumInput] = useState('');
   const [addAmtInput, setAddAmtInput] = useState('');
   const [addRumbleInput, setAddRumbleInput] = useState(false);
+  const [rawBatchInputText, setRawBatchInputText] = useState('');
+  const [isEditingRawText, setIsEditingRawText] = useState(false);
+  const [latestDraftIndices, setLatestDraftIndices] = useState<number[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleParseTextToItems = (text: string, category: '3d' | '2d' | 'football') => {
+    let resultItems: { number: string; amount: number; isRumble: boolean; originalRaw: string }[] = [];
+    const clean = convertMyanmarToEnglishDigits(text || '').trim();
+    if (!clean || clean === '[Photo Slip]') return { items: [], detectedCategory: category };
+
+    let effectiveCategory = category;
+
+    // 1. If category is 2d OR if clean text has 2D syntax / 2-digit numbers
+    if (category === '2d' || /\b\d{2}\b/.test(clean) || /[bB]|ဘရိတ်|ထိပ်|ပိတ်|ခွေ/.test(clean)) {
+      const parsed2D = parseTwoDBatchInput(clean, 1000);
+      const itemList2D = Array.isArray(parsed2D) ? parsed2D : parsed2D.items;
+      if (itemList2D && itemList2D.length > 0) {
+        resultItems = itemList2D.map(it => ({
+          number: it.number,
+          amount: it.amount,
+          isRumble: it.isRumble || false,
+          originalRaw: it.originalInput || it.number
+        }));
+        effectiveCategory = '2d';
+      }
+    }
+
+    // 2. If 0 items or category is 3d, try 3D parsing
+    if (resultItems.length === 0) {
+      const { items: items3D } = parseQuickBetText(clean);
+      if (items3D && items3D.length > 0) {
+        resultItems = items3D.map(it => ({
+          number: it.number,
+          amount: it.amount,
+          isRumble: it.isRumble || false,
+          originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
+        }));
+        effectiveCategory = '3d';
+      }
+    }
+
+    return { items: resultItems, detectedCategory: effectiveCategory };
+  };
 
   const handleStartVoucherEntry = (order: TelegramIncomingOrder) => {
     setSelectedOrderId(order.id);
     const sender = order.senderName?.trim();
     const defaultName = (sender && sender !== 'Telegram User' && sender !== 'Telegram ဝယ်သူ') ? sender : 'အထွေထွေ';
     setVoucherCustomerName(defaultName);
-    setVoucherCategory(order.category);
 
-    if (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]') {
-      const { items } = parseQuickBetText(order.rawText);
-      if (items.length > 0) {
-        setVoucherItems(items.map(it => ({
-          number: it.number,
-          amount: it.amount,
-          isRumble: it.isRumble,
-          originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
-        })));
-      } else {
-        setVoucherItems(order.parsedItems.map(pi => ({ ...pi })));
-      }
+    const rawText = order.rawText ? order.rawText.trim() : '';
+    setRawBatchInputText(rawText);
+    setIsEditingRawText(false);
+
+    const { items: parsedList, detectedCategory } = handleParseTextToItems(rawText, order.category);
+    setVoucherCategory(detectedCategory);
+
+    if (parsedList.length > 0) {
+      setVoucherItems(parsedList);
+      setLatestDraftIndices(parsedList.map((_, i) => i));
+    } else if (order.parsedItems && order.parsedItems.length > 0) {
+      const fallbackItems = order.parsedItems.map(pi => ({
+        number: pi.number,
+        amount: pi.amount,
+        isRumble: pi.isRumble,
+        originalRaw: pi.originalRaw || pi.number
+      }));
+      setVoucherItems(fallbackItems);
+      setLatestDraftIndices(fallbackItems.map((_, i) => i));
     } else {
-      setVoucherItems(order.parsedItems.map(pi => ({ ...pi })));
+      setVoucherItems([]);
+      setLatestDraftIndices([]);
     }
+
     setVoucherDiscountPercent(0);
     setAddNumInput('');
     setAddAmtInput('');
     setAddRumbleInput(false);
     setIsVoucherEntryMode(true);
+  };
+
+  const handleReparseRawText = () => {
+    const { items: parsedList, detectedCategory } = handleParseTextToItems(rawBatchInputText, voucherCategory);
+    if (parsedList.length > 0) {
+      setVoucherItems(parsedList);
+      setLatestDraftIndices(parsedList.map((_, i) => i));
+      setVoucherCategory(detectedCategory);
+      playSuccessSound();
+    } else {
+      playWarningSound();
+      alert('⚠️ ရိုက်ထည့်ထားသော စာသားမှ ဂဏန်းနှင့် ထိုးကြေး ဖတ်ယူ၍ မရပါ (ဥပမာ- 23 63 15 21 29r300 သို့မဟုတ် 123 456 1000)');
+    }
+  };
+
+  const handleRestartFromIndex = (index: number) => {
+    playTapSound();
+    const targetItem = voucherItems[index];
+    if (!targetItem) return;
+    const preserved = voucherItems.slice(0, index);
+    setVoucherItems(preserved);
+    setLatestDraftIndices(preserved.map((_, i) => i));
+    setAddNumInput(targetItem.number);
+    setAddAmtInput(String(targetItem.amount));
+    setAddRumbleInput(targetItem.isRumble);
   };
 
   const handleAddItemToVoucher = () => {
@@ -205,6 +283,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   const handleRemoveVoucherItem = (index: number) => {
     setVoucherItems(prev => prev.filter((_, idx) => idx !== index));
+    setLatestDraftIndices(prev => prev.filter(i => i !== index).map(i => i > index ? i - 1 : i));
   };
 
   const handleUpdateVoucherItem = (index: number, field: 'number' | 'amount' | 'isRumble', val: any) => {
@@ -1506,7 +1585,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           {/* Quick Sale Entry Review Overlay Modal Dialog */}
           {isVoucherEntryMode && selectedOrder && (
             <div className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-              <div className="bg-white border-2 border-sky-500 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+              <div className="bg-white border-2 border-sky-500 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150">
                 
                 {/* Modal Header */}
                 <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -1515,8 +1594,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       📝
                     </span>
                     <div>
-                      <h4 className="text-xs font-black tracking-tight">Quick Sale Entry - ဘောင်ချာ စစ်ဆေး စာရင်းသွင်းခြင်း</h4>
-                      <p className="text-[10px] text-slate-400">ဂဏန်းနှင့် ထိုးကြေးများကို စစ်ဆေး/ပြင်ဆင်ပြီးမှ ဒိုင်စာရင်းသို့ သွင်းပါမည်</p>
+                      <h4 className="text-xs sm:text-sm font-black tracking-tight">Quick Sale Entry - ဘောင်ချာ စစ်ဆေး စာရင်းသွင်းခြင်း</h4>
+                      <p className="text-[10px] sm:text-xs text-slate-400">ဂဏန်းနှင့် ထိုးကြေးများကို စစ်ဆေး/ပြင်ဆင်ပြီးမှ ဒိုင်စာရင်းသို့ သွင်းပါမည်</p>
                     </div>
                   </div>
                   <button
@@ -1531,24 +1610,32 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 {/* Modal Body */}
                 <div className="p-4 sm:p-5 overflow-y-auto space-y-4 bg-slate-50/50 flex-1">
                   
-                  {/* Customer & Category */}
-                  <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  {/* Customer & Category Row */}
+                  <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-1">ဝယ်သူအမည်</label>
+                      <label className="block text-[10px] sm:text-xs font-bold text-slate-600 mb-1">ဝယ်သူအမည်</label>
                       <input
                         type="text"
                         value={voucherCustomerName}
                         onChange={(e) => setVoucherCustomerName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:bg-white focus:border-sky-500"
                         placeholder="ဝယ်သူအမည်"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-1">အမျိုးအစား</label>
+                      <label className="block text-[10px] sm:text-xs font-bold text-slate-600 mb-1">အမျိုးအစား</label>
                       <select
                         value={voucherCategory}
-                        onChange={(e) => setVoucherCategory(e.target.value as any)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 cursor-pointer"
+                        onChange={(e) => {
+                          const cat = e.target.value as any;
+                          setVoucherCategory(cat);
+                          const { items } = handleParseTextToItems(rawBatchInputText, cat);
+                          if (items.length > 0) {
+                            setVoucherItems(items);
+                            setLatestDraftIndices(items.map((_, i) => i));
+                          }
+                        }}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 cursor-pointer focus:bg-white focus:border-sky-500"
                       >
                         <option value="2d">ဇီးကွက် (2D)</option>
                         <option value="3d">အိုးစည်လေး (3D)</option>
@@ -1557,34 +1644,71 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                     </div>
                   </div>
 
-                  {/* Raw Telegram Message Box */}
-                  <div className="bg-slate-900 text-sky-300 p-3 rounded-2xl text-xs font-mono whitespace-pre-wrap max-h-24 overflow-y-auto border border-slate-800 shadow-2xs">
-                    <span className="text-[10px] text-slate-400 block mb-0.5 font-sans font-bold">မူရင်း Telegram မက်ဆေ့ခ်ျ:</span>
-                    {selectedOrder.rawText || '(ဓါတ်ပုံအမှာစာ)'}
+                  {/* Raw Telegram Message & Batch Paste Editor Box (Image 2 Style) */}
+                  <div className="bg-slate-900 text-sky-300 p-3.5 rounded-2xl border border-slate-800 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-sky-400" />
+                        <span>မူရင်း Telegram စာသား (Batch Text Input)</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingRawText(!isEditingRawText)}
+                        className="text-[11px] font-bold text-sky-400 hover:text-sky-300 underline cursor-pointer"
+                      >
+                        {isEditingRawText ? 'စာသားပိတ်မည်' : '✏️ စာသား ပြန်ပြင်မည် (Edit Text)'}
+                      </button>
+                    </div>
+
+                    {isEditingRawText ? (
+                      <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                        <textarea
+                          value={rawBatchInputText}
+                          onChange={(e) => setRawBatchInputText(convertMyanmarToEnglishDigits(e.target.value))}
+                          rows={4}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-mono text-emerald-400 focus:outline-none focus:border-sky-400"
+                          placeholder="23 63 15 21 29r300..."
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={handleReparseRawText}
+                            className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>⚡ စာရင်း ပြန်လည် တွက်ချက်မည် (Re-parse Text)</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs font-mono whitespace-pre-wrap max-h-24 overflow-y-auto text-sky-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                        {rawBatchInputText || selectedOrder.rawText || '(ဓါတ်ပုံအမှာစာ)'}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Quick Add Row */}
-                  <div className="bg-sky-50 p-2.5 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
-                    <span className="text-[10px] font-bold text-sky-900 block">ဂဏန်းအသစ် ထပ်ထည့်ရန်:</span>
+                  {/* Quick Add Single Item Row */}
+                  <div className="bg-sky-50 p-3 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
+                    <span className="text-[10px] sm:text-xs font-bold text-sky-900 block">ဂဏန်းအသစ် ထပ်ထည့်ရန်:</span>
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
                         value={addNumInput}
                         onChange={(e) => setAddNumInput(convertMyanmarToEnglishDigits(e.target.value))}
                         placeholder="ဂဏန်း"
-                        className="w-20 bg-white border border-sky-300 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-center text-slate-900"
+                        className="w-20 bg-white border border-sky-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-center text-slate-900"
                       />
                       <input
                         type="number"
                         value={addAmtInput}
                         onChange={(e) => setAddAmtInput(e.target.value)}
                         placeholder="ထိုးကြေး"
-                        className="w-28 bg-white border border-sky-300 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-right text-emerald-800"
+                        className="w-28 bg-white border border-sky-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-right text-emerald-800"
                       />
                       <button
                         type="button"
                         onClick={() => setAddRumbleInput(!addRumbleInput)}
-                        className={`px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
                           addRumbleInput ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
                         }`}
                       >
@@ -1593,63 +1717,190 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       <button
                         type="button"
                         onClick={handleAddItemToVoucher}
-                        className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+                        className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl cursor-pointer"
                       >
                         + ထည့်မည်
                       </button>
                     </div>
                   </div>
 
-                  {/* Items List */}
-                  <div className="space-y-1.5 max-h-56 overflow-y-auto border border-slate-200 p-2 rounded-2xl bg-white shadow-2xs">
-                    {voucherItems.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-slate-400 font-semibold">
-                        ဂဏန်း/ထိုးကြေး မရှိသေးပါ (အထက်တွင် ထည့်သွင်းပါ)
+                  {/* Staged Bet Items Header (Image 3 Style) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs px-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-900 text-sm">အရောင်းစာရင်း (ဘောင်ချာ)</span>
+                        <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-900 font-mono font-black text-xs rounded-full">
+                          {voucherItems.length}
+                        </span>
                       </div>
-                    ) : (
-                      voucherItems.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs">
-                          <div className="flex items-center gap-2 flex-1">
-                            <span className="text-[10px] font-mono text-slate-400 w-5 font-bold">{idx + 1}.</span>
-                            <input
-                              type="text"
-                              value={item.number}
-                              onChange={(e) => handleUpdateVoucherItem(idx, 'number', e.target.value)}
-                              className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold text-center text-slate-900"
-                            />
-                            <input
-                              type="number"
-                              value={item.amount || ''}
-                              onChange={(e) => handleUpdateVoucherItem(idx, 'amount', parseInt(e.target.value, 10) || 0)}
-                              className="w-28 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold text-emerald-700 text-right"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateVoucherItem(idx, 'isRumble', !item.isRumble)}
-                              className={`px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer ${
-                                item.isRumble ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                      <div className="flex items-center gap-2 text-[10px] sm:text-xs">
+                        {/* Draft Count Badge (Amber) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (latestDraftIndices.length === 0 && voucherItems.length > 0) {
+                              playTapSound();
+                              setLatestDraftIndices(voucherItems.map((_, i) => i));
+                            }
+                          }}
+                          className={`flex items-center gap-1 font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                            latestDraftIndices.length > 0
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-white text-slate-400 border-slate-200'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                          <span>ဝါ စစ်ဆေးဆဲ: {latestDraftIndices.length}</span>
+                        </button>
+
+                        {/* Confirmed Count Badge (Emerald) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (latestDraftIndices.length > 0) {
+                              playTapSound();
+                              setLatestDraftIndices([]);
+                            }
+                          }}
+                          className={`flex items-center gap-1 font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                            voucherItems.length - latestDraftIndices.length > 0
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : 'bg-white text-slate-400 border-slate-200'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span>စိမ်း ယာယီအတည်: {voucherItems.length - latestDraftIndices.length}</span>
+                        </button>
+
+                        {/* Clear All */}
+                        {voucherItems.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playDeleteSound();
+                              setVoucherItems([]);
+                              setLatestDraftIndices([]);
+                            }}
+                            className="text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer ml-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>အားလုံးဖျက်</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Staged Items List Cards (Image 3 Style) */}
+                    <div className="max-h-64 overflow-y-auto space-y-1.5 p-1 bg-slate-100/80 rounded-2xl border border-slate-200">
+                      {voucherItems.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-slate-400 font-semibold space-y-1">
+                          <p>ဂဏန်း/ထိုးကြေး မရှိသေးပါ (အထက်တွင် ထည့်သွင်းပါ)</p>
+                          <p className="text-[11px] text-slate-400">အထက်ပါ စာသားမုဒ်မှ တွက်ချက်ပါ သို့မဟုတ် အကွက်ထဲ တိုက်ရိုက် ရိုက်ထည့်ပါ</p>
+                        </div>
+                      ) : (
+                        voucherItems.map((item, idx) => {
+                          const isDraft = latestDraftIndices.includes(idx);
+                          return (
+                            <div
+                              key={idx}
+                              className={`py-2 px-3 flex items-center justify-between rounded-xl transition-all ${
+                                isDraft
+                                  ? 'bg-amber-50/95 border-2 border-amber-400 text-amber-950 shadow-xs ring-1 ring-amber-400/30'
+                                  : 'bg-emerald-50/80 border border-emerald-300 text-emerald-950 shadow-2xs hover:bg-emerald-100/60'
                               }`}
                             >
-                              {item.isRumble ? 'R (ပတ်)' : 'တည့်'}
-                            </button>
-                          </div>
-                          <button type="button" onClick={() => handleRemoveVoucherItem(idx)} className="p-1 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))
-                    )}
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-xs font-mono w-6 font-bold shrink-0 ${isDraft ? 'text-amber-800' : 'text-emerald-800'}`}>
+                                  {idx + 1}.
+                                </span>
+                                <span className="font-mono text-xl font-black text-slate-900 tracking-wider">
+                                  {item.number}
+                                </span>
+                                {item.isRumble && (
+                                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-900 text-[10px] font-black rounded font-mono shrink-0">
+                                    R
+                                  </span>
+                                )}
+                                {item.originalRaw && item.originalRaw !== item.number && (
+                                  <span className="text-[10px] font-mono text-slate-500 truncate max-w-[80px]">
+                                    {item.originalRaw}
+                                  </span>
+                                )}
+
+                                {/* Interactive Status Badge */}
+                                {isDraft ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playTapSound();
+                                      setLatestDraftIndices(prev => prev.filter(i => i !== idx));
+                                    }}
+                                    className="text-[10px] bg-amber-200 hover:bg-amber-300 text-amber-950 border border-amber-400 font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                                    title="အတည်ပြုရန် နှိပ်ပါ"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+                                    <span>စစ်ဆေးဆဲ</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playTapSound();
+                                      setLatestDraftIndices(prev => [...prev, idx]);
+                                    }}
+                                    className="text-[10px] bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                                    title="စစ်ဆေးဆဲ ပြုလုပ်ရန် နှိပ်ပါ"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>ယာယီအတည်</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="font-mono text-sm sm:text-base font-black text-emerald-700">
+                                  {formatAmount(item.amount || 0, 'Ks')}
+                                </span>
+                                
+                                {/* Restart Checkpoint Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestartFromIndex(idx)}
+                                  className="px-2 py-1 text-[10px] font-bold text-slate-700 bg-white hover:bg-indigo-50 border border-slate-300 rounded-lg flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                                  title="ဤဂဏန်းမှ စ၍ ပြန်လည်စတင်မည်"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span className="hidden sm:inline">ပြန်စ</span>
+                                </button>
+
+                                {/* Delete Item Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveVoucherItem(idx)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                                  title="ဖျက်မည်"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
 
-                  {/* Summary Footer */}
-                  <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between text-xs shadow-md">
+                  {/* Summary Footer (Image 3 Style) */}
+                  <div className="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between text-xs shadow-md border border-slate-800">
                     <div>
                       <span className="text-slate-400 text-[10px] block font-semibold">စုစုပေါင်း ကွက်ရေ</span>
-                      <span className="font-mono font-black text-sky-400 text-sm">{voucherItems.length} ကွက်</span>
+                      <span className="font-mono font-black text-sky-400 text-sm">
+                        {voucherItems.length} ကွက်
+                      </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-slate-400 text-[10px] block font-semibold">ကျသင့်ငွေ စုစုပေါင်း</span>
-                      <span className="font-mono font-black text-emerald-400 text-base">
+                      <span className="text-slate-400 text-[10px] block font-semibold">ကျသင့်ငွေ (Net Payable):</span>
+                      <span className="font-mono font-black text-emerald-400 text-base sm:text-lg">
                         {formatAmount(voucherItems.reduce((acc, it) => acc + (it.amount || 0), 0), 'Ks')}
                       </span>
                     </div>
@@ -1658,7 +1909,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 </div>
 
                 {/* Modal Actions */}
-                <div className="bg-white px-5 py-3 border-t border-slate-200 flex items-center gap-3 shrink-0">
+                <div className="bg-white px-5 py-3.5 border-t border-slate-200 flex items-center gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => setIsVoucherEntryMode(false)}
@@ -1669,9 +1920,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   <button
                     type="button"
                     onClick={() => handleConfirmEditedVoucher(selectedOrder)}
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-md cursor-pointer transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-4.5 h-4.5" />
                     <span>✅ စစ်ဆေးပြီး ဒိုင်စာရင်းသို့ သွင်းမည် (Confirm)</span>
                   </button>
                 </div>
