@@ -32,7 +32,6 @@ import { formatAmount } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
 import { PeriodSettlementModal } from './PeriodSettlementModal';
-import { CustomerPeriodStatementModal } from './CustomerPeriodStatementModal';
 import { usePeriod } from '../context/PeriodContext';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { getLocalDateString } from '../utils/moneyUtils';
@@ -112,7 +111,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPeriodSettlementOpen, setIsPeriodSettlementOpen] = useState(false);
-  const [isCustomerPeriodModalOpen, setIsCustomerPeriodModalOpen] = useState(false);
 
   // Tab switch between rounds table and consolidated vouchers list
   const [viewMode, setViewMode] = useState<'rounds' | 'vouchers'>('rounds');
@@ -413,15 +411,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsCustomerPeriodModalOpen(true)}
-              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              title="ထိုးသားအလိုက် ၅ ရက်စာ စာရင်းရှင်းတမ်း"
-            >
-              <Award className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">ထိုးသား ၅ ရက်ရှင်းတမ်း</span>
-            </button>
             <button
               type="button"
               onClick={() => setIsPeriodSettlementOpen(true)}
@@ -1444,11 +1433,6 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
       <PeriodSettlementModal
         isOpen={isPeriodSettlementOpen}
         onClose={() => setIsPeriodSettlementOpen(false)}
-      />
-
-      <CustomerPeriodStatementModal
-        isOpen={isCustomerPeriodModalOpen}
-        onClose={() => setIsCustomerPeriodModalOpen(false)}
       />
     </div>
   );

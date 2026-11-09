@@ -610,6 +610,59 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             </div>
           )}
 
+          {/* Traditional Paper Slip Ledger Preview Card (Matching EM_25284f9f.jpg) */}
+          <div className="bg-amber-50/70 border-2 border-amber-900/30 rounded-2xl p-5 shadow-sm max-w-xl mx-auto space-y-4 font-mono text-slate-900">
+            <div className="text-center border-b-2 border-dashed border-amber-900/30 pb-3 space-y-0.5">
+              <h4 className="text-sm font-black text-amber-950 uppercase">
+                {settlementType === 'downline' ? 'အောက်လက်ဒိုင်ငယ် ရှင်းတမ်း' : 'အထက်ဒိုင်ကြီး ရှင်းတမ်း'}
+              </h4>
+              <div className="text-xs font-bold text-slate-700">
+                အမည်: <span className="text-indigo-700 underline">{selectedTarget || '-'}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-sans">
+                ({startDate} မှ {endDate} အထိ)
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between font-bold">
+                <span>{settlementType === 'downline' ? 'စုစုပေါင်းထိုးကြေး (Turnover):' : 'စုစုပေါင်းတင်ကြေး (Forwarded):'}</span>
+                <span>{formatAmount(settlementType === 'downline' ? downlineSettlementData.totalSales : uplineSettlementData.totalForwarded, currency)}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-rose-700 font-bold border-b border-dashed border-slate-300 pb-2">
+                <span>နုတ် - ကော်မရှင် (Commission):</span>
+                <span>- {formatAmount(settlementType === 'downline' ? downlineSettlementData.totalCommission : uplineSettlementData.totalCommission, currency)}</span>
+              </div>
+
+              <div className="flex items-center justify-between font-black text-slate-900 pt-0.5">
+                <span>အမှန်ရောင်းငွေ / ကျန်ငွေ (Net Sales):</span>
+                <span>{formatAmount(settlementType === 'downline' ? (downlineSettlementData.totalSales - downlineSettlementData.totalCommission) : (uplineSettlementData.totalForwarded - uplineSettlementData.totalCommission), currency)}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-rose-700 font-bold border-b border-dashed border-slate-300 pb-2">
+                <span>နုတ် - ပေါက်ကြေး (Total Payout):</span>
+                <span>- {formatAmount(settlementType === 'downline' ? downlineSettlementData.totalPayout : uplineSettlementData.totalPayout, currency)}P</span>
+              </div>
+
+              {/* Final Net Balance */}
+              <div className={`p-3 rounded-xl border-2 flex items-center justify-between text-sm font-black ${
+                (settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance) >= 0
+                  ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
+                  : 'bg-rose-50 border-rose-500 text-rose-900'
+              }`}>
+                <span>
+                  {settlementType === 'downline'
+                    ? ((downlineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး ရရန်ငွေ (Receive):' : 'နောက်ဆုံး ပေးရန်ငွေ (Pay):')
+                    : ((uplineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး အထက်ဒိုင်သို့ ပေးရန်:' : 'နောက်ဆုံး အထက်ဒိုင်မှ ရရန်:')}
+                </span>
+                <span className="font-mono text-base font-black">
+                  {formatAmount(Math.abs(settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance), currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Detailed Table */}
           <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
             <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 text-xs font-black text-slate-700 flex items-center justify-between">
