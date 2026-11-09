@@ -11,7 +11,9 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
-  Wallet
+  Wallet,
+  Copy,
+  Check
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -46,6 +48,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
   const [selectedTarget, setSelectedTarget] = useState<string>('');
   const [customCommissionRate, setCustomCommissionRate] = useState<number>(defaultCommission);
+  const [copiedStatementText, setCopiedStatementText] = useState(false);
 
   // Load/save customer custom commission rates in localStorage
   const commissionStorageKey = 'shwe_customer_commissions_v1';
@@ -144,13 +147,25 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     let totalSales = 0;
     let totalPayout = 0;
-    const items: Array<{ date: string; mode: string; refNo: string; amount: number; payout: number; summary: string }> = [];
+    const dayGroupMap: Record<string, { date: string; mode: string; amount: number; payout: number; itemsCount: number; summaries: string[] }> = {};
+
+    const addRecord = (date: string, mode: string, amount: number, payout: number, summary: string) => {
+      const key = `${date}|${mode}`;
+      if (!dayGroupMap[key]) {
+        dayGroupMap[key] = { date, mode, amount: 0, payout: 0, itemsCount: 0, summaries: [] };
+      }
+      dayGroupMap[key].amount += amount;
+      dayGroupMap[key].payout += payout;
+      dayGroupMap[key].itemsCount += 1;
+      if (summary && summary !== '-') {
+        dayGroupMap[key].summaries.push(summary);
+      }
+    };
 
     // 3D Vouchers
     lottery3D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        // Use subtotal (original turnover) instead of netPayable to avoid double commission subtraction
         const amt = v.subtotal ?? v.netPayable ?? 0;
         let payout = v.winningPayout ?? 0;
         if (!payout && v.items) {
@@ -160,14 +175,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         }
         totalSales += amt;
         totalPayout += payout;
-        items.push({
-          date: vDate,
-          mode: 'အိုးစည်လေး (3D)',
-          refNo: v.voucherNo || v.id,
-          amount: amt,
-          payout,
-          summary: v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-'
-        });
+        const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
+        addRecord(vDate, 'အိုးစည်လေး (3D)', amt, payout, sumText);
       }
     });
 
@@ -175,7 +184,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     lottery2D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        // Use subtotal (original turnover) instead of netPayable
+        const round = lottery2D.rounds.find(r => r.id === v.roundId);
+        const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
         const amt = v.subtotal ?? v.netPayable ?? 0;
         let payout = v.winningPayout ?? 0;
         if (!payout && v.items) {
@@ -185,14 +195,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         }
         totalSales += amt;
         totalPayout += payout;
-        items.push({
-          date: vDate,
-          mode: 'ဇီးကွက် (2D)',
-          refNo: v.voucherNo || v.id,
-          amount: amt,
-          payout,
-          summary: v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-'
-        });
+        const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
+        addRecord(vDate, `ဇီးကွက် (${sessionLabel})`, amt, payout, sumText);
       }
     });
 
@@ -200,21 +204,23 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     football.slips.forEach((s: any) => {
       const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
       if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
-        // Use stakeAmount (original turnover) instead of netPayable
         const amt = s.stakeAmount || s.netPayable || 0;
         const payout = s.winningPayout || 0;
         totalSales += amt;
         totalPayout += payout;
-        items.push({
-          date: sDate,
-          mode: 'ပစ်တိုင်းထောင်',
-          refNo: s.slipNo || s.id,
-          amount: amt,
-          payout,
-          summary: s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-'
-        });
+        const sumText = s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-';
+        addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, payout, sumText);
       }
     });
+
+    const items = Object.values(dayGroupMap).map(g => ({
+      date: g.date,
+      mode: g.mode,
+      refNo: `${g.itemsCount} ဘောင်ချာ`,
+      amount: g.amount,
+      payout: g.payout,
+      summary: g.summaries.join(' | ') || '-'
+    }));
 
     const commissionRate = getCustomerCommission(selectedTarget, customCommissionRate);
     const totalCommission = Math.round((totalSales * commissionRate) / 100);
@@ -227,7 +233,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       netBalance,
       items: items.sort((a, b) => b.date.localeCompare(a.date))
     };
-  }, [selectedTarget, startDate, endDate, customCommissionRate, lottery3D.vouchers, lottery2D.vouchers, football.slips]);
+  }, [selectedTarget, startDate, endDate, customCommissionRate, lottery3D.vouchers, lottery2D.vouchers, lottery2D.rounds, football.slips]);
 
   // ---------------------------------------------------------------------------
   // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS via generateStatementRecords)
@@ -366,6 +372,40 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
   const handlePrint = () => {
     printStatementReport('printable-period-settlement', 'ကာလအလိုက် စာရင်းရှင်းတမ်း အစီရင်ခံစာ');
+  };
+
+  const handleCopyText = () => {
+    const isDownline = settlementType === 'downline';
+    const targetName = selectedTarget || '-';
+    const totalSalesOrForward = isDownline ? downlineSettlementData.totalSales : uplineSettlementData.totalForwarded;
+    const totalComm = isDownline ? downlineSettlementData.totalCommission : uplineSettlementData.totalCommission;
+    const netSales = isDownline ? (downlineSettlementData.totalSales - downlineSettlementData.totalCommission) : (uplineSettlementData.totalForwarded - uplineSettlementData.totalCommission);
+    const totalPayout = isDownline ? downlineSettlementData.totalPayout : uplineSettlementData.totalPayout;
+    const netBal = isDownline ? downlineSettlementData.netBalance : uplineSettlementData.netBalance;
+
+    let text = `${isDownline ? 'အောက်လက်ဒိုင်ငယ် ရှင်းတမ်း' : 'အထက်ဒိုင်ကြီး ရှင်းတမ်း'}\n`;
+    text += `အမည်: ${targetName}\n`;
+    text += `ကာလ: ${startDate} မှ ${endDate} အထိ\n`;
+    text += `------------------------------------\n`;
+
+    const items = isDownline ? downlineSettlementData.items : uplineSettlementData.items;
+    items.forEach((item: any) => {
+      text += `${item.date} (${item.mode}) - ထိုး/တင်: ${formatAmount(Number(item.amount), '')}`;
+      if (item.commission) text += `, ကော်: ${formatAmount(Number(item.commission), '')}`;
+      if (item.payout > 0) text += `, ပေါက်: ${formatAmount(Number(item.payout), '')}P`;
+      text += `\n`;
+    });
+
+    text += `------------------------------------\n`;
+    text += `စုစုပေါင်း ${isDownline ? 'ထိုးကြေး' : 'တင်ကြေး'}: ${formatAmount(totalSalesOrForward, currency)}\n`;
+    text += `နုတ် - ကော်မရှင်: - ${formatAmount(totalComm, currency)}\n`;
+    text += `အမှန်ရောင်းငွေ / ကျန်ငွေ: ${formatAmount(netSales, currency)}\n`;
+    text += `နုတ် - ပေါက်ကြေး: - ${formatAmount(totalPayout, currency)}P\n`;
+    text += `နောက်ဆုံး ${isDownline ? (netBal >= 0 ? 'ရရန်ငွေ (Receive)' : 'ပေးရန်ငွေ (Pay)') : (netBal >= 0 ? 'အထက်ဒိုင်သို့ ပေးရန်' : 'အထက်ဒိုင်မှ ရရန်')}: ${formatAmount(Math.abs(netBal), currency)}\n`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedStatementText(true);
+    setTimeout(() => setCopiedStatementText(false), 3000);
   };
 
   if (!isOpen) return null;
@@ -801,6 +841,14 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             >
               <Printer className="w-4 h-4" />
               <span>ပရင့်ထုတ်ရန်</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyText}
+              className="px-3 sm:px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            >
+              {copiedStatementText ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedStatementText ? 'ကူးယူပြီး ✓' : 'စာသားကူးရန်'}</span>
             </button>
             <button
               type="button"
