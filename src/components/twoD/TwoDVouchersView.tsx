@@ -59,13 +59,21 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
     threshold: 45
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [selectedVoucher, setSelectedVoucher] = useState<TwoDVoucher | null>(null);
   const [selectedForwardSlip, setSelectedForwardSlip] = useState<TwoDForwardSlip | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const availableCustomers = useMemo(() => {
+    return Array.from(new Set(activeRoundVouchers.map(v => v.customerName))).filter(Boolean).sort();
+  }, [activeRoundVouchers]);
+
   // Filter Customer Vouchers
   const filteredCustomerVouchers = useMemo(() => {
     let list = activeRoundVouchers;
+    if (customerFilter !== 'all') {
+      list = list.filter(v => v.customerName === customerFilter);
+    }
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
       list = list.filter(
@@ -77,7 +85,7 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
       );
     }
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [activeRoundVouchers, searchTerm]);
+  }, [activeRoundVouchers, searchTerm, customerFilter]);
 
   // Filter Forward Slips (ဒိုင်ကြီးဆီတင်သည့် ဘောင်ချာများ)
   const filteredForwardSlips = useMemo(() => {
@@ -164,7 +172,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-72">
+            <div className="relative flex-1 sm:w-64">
               <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
@@ -178,6 +186,19 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                 className="w-full h-10 pl-9 pr-3 text-xs rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-1 focus:ring-teal-200 bg-slate-50"
               />
             </div>
+
+            {availableCustomers.length > 0 && (
+              <select
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="h-10 px-3 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-700 shadow-2xs shrink-0"
+              >
+                <option value="all">ထိုးသူအားလုံး ({availableCustomers.length})</option>
+                {availableCustomers.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
 
             <button
               type="button"
@@ -477,6 +498,20 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 font-mono">
+                  <tr>
+                    <td colSpan={4} className="p-3.5 text-right font-black text-slate-900 font-sans">
+                      စုစုပေါင်း (Total):
+                    </td>
+                    <td className="p-3.5 text-right font-bold text-slate-900">
+                      {formatAmount(filteredCustomerVouchers.reduce((s, v) => s + v.subtotal, 0), settings.currency)}
+                    </td>
+                    <td className="p-3.5 text-right font-black text-emerald-700 text-sm">
+                      {formatAmount(filteredCustomerVouchers.reduce((s, v) => s + v.netPayable, 0), settings.currency)}
+                    </td>
+                    <td colSpan={2} className="p-3.5"></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
