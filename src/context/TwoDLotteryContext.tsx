@@ -536,9 +536,29 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [activeRound, addVoucher, settings.language]);
 
   const updateVoucher = useCallback((id: string, data: Partial<TwoDVoucher>) => {
-    setVouchers(prev =>
-      prev.map(v => (v.id === id ? { ...v, ...data } : v))
-    );
+    setVouchers(prev => {
+      const target = prev.find(v => v.id === id);
+      if (target && data.customerName && data.customerName !== target.customerName) {
+        try {
+          const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+          if (rawStored) {
+            const parsed = JSON.parse(rawStored);
+            if (Array.isArray(parsed)) {
+              const updatedClips = parsed.map((c: any) =>
+                (c.voucherNumber === target.voucherNo || c.voucherNumber === id)
+                  ? { ...c, customerName: data.customerName }
+                  : c
+              );
+              localStorage.setItem('shwe_mingalar_copied_raw_texts', JSON.stringify(updatedClips));
+              window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return prev.map(v => (v.id === id ? { ...v, ...data } : v));
+    });
   }, []);
 
   const deleteVoucher = useCallback((id: string, reason: string = 'user-deleted') => {
@@ -561,7 +581,11 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (rawStored) {
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
-          remainingRawClips = parsed.map((c: any) => (c.voucherNumber === target.voucherNo && !c.deletedAt) ? ({ ...c, deletedAt: nowIso, deletedReason: reason }) : c);
+          remainingRawClips = parsed.map((c: any) =>
+            ((c.voucherNumber === target.voucherNo || c.voucherNumber === target.id || c.voucherNumber === id) && !c.deletedAt)
+              ? ({ ...c, deletedAt: nowIso, deletedReason: reason })
+              : c
+          );
         }
       }
     } catch {
@@ -591,6 +615,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       'shwe_mingalar_copied_raw_texts': remainingRawClips,
       [TELEGRAM_STORAGE_KEYS.ORDERS]: updatedTelegramOrders
     });
+    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
 
     setVouchers(updatedVouchers);
   }, [vouchers, rawVouchers]);

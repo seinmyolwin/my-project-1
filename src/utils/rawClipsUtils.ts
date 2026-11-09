@@ -85,6 +85,22 @@ export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): Raw
   return newClip;
 }
 
+export function updateRawClipCustomerName(voucherNumberOrId: string, newCustomerName: string): void {
+  try {
+    const raw = readAllRawClips();
+    const updated = raw.map((c: any) => {
+      if (c && (c.voucherNumber === voucherNumberOrId || c.id === voucherNumberOrId)) {
+        return { ...c, customerName: newCustomerName };
+      }
+      return c;
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+  } catch (err) {
+    console.error('Failed to update raw clip customer name:', err);
+  }
+}
+
 export function deleteRawClipsByVoucherNumber(voucherNumber: string): void {
   tombstoneRawClips(c => c.voucherNumber === voucherNumber, 'voucher-deleted');
 }

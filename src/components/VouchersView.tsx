@@ -18,7 +18,8 @@ import {
   ShieldAlert,
   Phone,
   X,
-  Trophy
+  Trophy,
+  Edit2
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
@@ -49,6 +50,31 @@ export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher }
   const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid' | 'cancelled'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedForwardSlip, setSelectedForwardSlip] = useState<ForwardSlip | null>(null);
+
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
+  const [editingCustomerName, setEditingCustomerName] = useState<string>('');
+
+  const handleStartEditCustomer = (v: Voucher, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingVoucherId(v.id);
+    setEditingCustomerName(v.customerName);
+  };
+
+  const handleSaveEditCustomer = (v: Voucher, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const trimmed = editingCustomerName.trim();
+    if (!trimmed) {
+      alert('ထိုးသူအမည် ထည့်သွင်းပေးပါ');
+      return;
+    }
+    updateVoucher(v.id, { customerName: trimmed });
+    setEditingVoucherId(null);
+  };
+
+  const handleCancelEditCustomer = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingVoucherId(null);
+  };
 
   // Filtered Customer Vouchers
   const displayVouchers = useMemo(() => {
@@ -473,10 +499,48 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          {v.customerName}
-                        </span>
+                        {editingVoucherId === v.id ? (
+                          <div className="flex items-center gap-1 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={editingCustomerName}
+                              onChange={(e) => setEditingCustomerName(e.target.value)}
+                              className="px-2 py-0.5 text-xs border border-indigo-500 rounded focus:outline-none bg-white flex-1"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveEditCustomer(v);
+                                if (e.key === 'Escape') handleCancelEditCustomer();
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => handleSaveEditCustomer(v, e)}
+                              className="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelEditCustomer}
+                              className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5 group/name">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{v.customerName}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleStartEditCustomer(v, e)}
+                              className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-indigo-600 rounded transition-all cursor-pointer"
+                              title="ထိုးသူအမည် ပြင်ဆင်ရန်"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          </span>
+                        )}
                         <span className="text-xs text-slate-500">
                           {v.items.length} ကွက်
                         </span>

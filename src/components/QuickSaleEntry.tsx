@@ -785,22 +785,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     const allowedItems: BetItem[] = [];
     const blockedErrors: string[] = [];
 
-    // Save isolated raw copied text archive (Does not affect calculations)
-    saveRawClip({
-      category: '3d',
-      roundId: activeRound?.id || 'round-3d',
-      roundName: activeRound ? (activeRound.name || `${activeRound.drawDate} (3D)`) : '3D ပွဲစဉ်',
-      date: activeRound?.drawDate || new Date().toLocaleDateString('en-CA'),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      voucherNumber: `ဘောင်ချာ (${vouchers.length + 1})`,
-      customerName: customerName || 'အထွေထွေ',
-      customerPhone: customerPhone || undefined,
-      rawText: rawBatchText.trim(),
-      itemCount: items.length,
-      totalAmountPreview: items.reduce((sum, it) => sum + (it.amount || 0), 0),
-      source: 'batch_paste'
-    });
-
     items.forEach(it => {
       if (isNumberBlocked(it.number)) {
         blockedErrors.push(`⛔ ဂဏန်း [${it.number}] သည် ဒိုင်ကာဂဏန်း ဖြစ်သဖြင့် ထိုးကြေးတက်လာသော်လည်း လုံးဝလက်မခံပါ (ပယ်ဖျက်သည်)`);
@@ -870,8 +854,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       date: activeRound?.drawDate || new Date().toLocaleDateString('en-CA'),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       voucherNumber: newVoucher.voucherNo || `ဘောင်ချာ (${vouchers.length + 1})`,
-      customerName: customerName.trim() || 'အထွေထွေ',
-      customerPhone: customerPhone || undefined,
+      customerName: newVoucher.customerName || customerName.trim() || 'အထွေထွေ',
+      customerPhone: newVoucher.customerPhone || customerPhone || undefined,
       rawText: rawTextFromItems,
       itemCount: itemsToSave.length,
       totalAmountPreview: finalSubtotal,

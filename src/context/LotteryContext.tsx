@@ -387,9 +387,29 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [activeRound, addVoucher, settings.language]);
 
   const updateVoucher = useCallback((id: string, data: Partial<Voucher>) => {
-    setVouchers(prev =>
-      prev.map(v => (v.id === id ? { ...v, ...data } : v))
-    );
+    setVouchers(prev => {
+      const target = prev.find(v => v.id === id);
+      if (target && data.customerName && data.customerName !== target.customerName) {
+        try {
+          const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+          if (rawStored) {
+            const parsed = JSON.parse(rawStored);
+            if (Array.isArray(parsed)) {
+              const updatedClips = parsed.map((c: any) =>
+                (c.voucherNumber === target.voucherNo || c.voucherNumber === id)
+                  ? { ...c, customerName: data.customerName }
+                  : c
+              );
+              localStorage.setItem('shwe_mingalar_copied_raw_texts', JSON.stringify(updatedClips));
+              window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return prev.map(v => (v.id === id ? { ...v, ...data } : v));
+    });
   }, []);
 
   const deleteVoucher = useCallback((id: string, reason: string = 'user-deleted') => {
@@ -398,6 +418,25 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!target) return;
 
     const nowIso = new Date().toISOString();
+
+    // Tombstone associated raw bet text clip from Raw Texts Archive
+    try {
+      const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+      if (rawStored) {
+        const parsed = JSON.parse(rawStored);
+        if (Array.isArray(parsed)) {
+          const updatedRawClips = parsed.map((c: any) =>
+            ((c.voucherNumber === target.voucherNo || c.voucherNumber === id) && !c.deletedAt)
+              ? { ...c, deletedAt: nowIso, deletedReason: reason }
+              : c
+          );
+          localStorage.setItem('shwe_mingalar_copied_raw_texts', JSON.stringify(updatedRawClips));
+          window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+        }
+      }
+    } catch {
+      // ignore
+    }
 
     // If paid or settled -> status 'cancelled' (Rule 6B)
     if (target.isPaid || target.status === 'settled') {
@@ -409,7 +448,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Otherwise tombstone
     setVouchers(prev =>
-      prev.map(v => v.id === id ? { ...v, deletedAt: nowIso, deletedReason: reason } : v)
+        prev.map(v => v.id === id ? { ...v, deletedAt: nowIso, deletedReason: reason } : v)
     );
   }, [vouchers]);
 

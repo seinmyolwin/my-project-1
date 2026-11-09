@@ -1138,23 +1138,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const result = parseTwoDBatchInput(batchText, defAmt);
     const parsed = Array.isArray(result) ? result : (result as any).items;
     const warnings = (result as any).warnings || [];
-
-    // Save isolated raw copied text archive (Does not affect calculations)
-    saveRawClip({
-      category: '2d',
-      roundId: activeRound?.id || 'round-2d',
-      roundName: activeRound ? (activeRound.name || `${activeRound.drawDate} (${activeRound.session === 'morning' ? '12:01 PM' : '04:30 PM'})`) : '2D ပွဲစဉ်',
-      date: activeRound?.drawDate || new Date().toLocaleDateString('en-CA'),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      voucherNumber: `ဘောင်ချာ (${vouchers.length + 1})`,
-      customerName: customerName || 'အထွေထွေ',
-      customerPhone: customerPhone || undefined,
-      rawText: batchText.trim(),
-      itemCount: parsed.length,
-      totalAmountPreview: parsed.reduce((sum: number, it: any) => sum + (it.amount || 0), 0),
-      source: 'batch_paste'
-    });
-
     if (warnings && warnings.length > 0) {
       showToast(warnings.join(', '), 'warning');
     }
@@ -1307,7 +1290,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       date: activeRound.drawDate || new Date().toLocaleDateString('en-CA'),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       voucherNumber: voucher.voucherNo || `ဘောင်ချာ (2D)`,
-      customerName: customerName.trim() || 'အထွေထွေ',
+      customerName: voucher.customerName || customerName.trim() || 'အထွေထွေ',
+      customerPhone: voucher.customerPhone || customerPhone || undefined,
       rawText: rawTextFrom2DItems,
       itemCount: finalItems.length,
       totalAmountPreview: sub,

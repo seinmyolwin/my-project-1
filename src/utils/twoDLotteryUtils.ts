@@ -257,6 +257,9 @@ export function parseTwoDBatchInput(
   // 2. Strip thousands separators (e.g. 1,000 -> 1000, 10,000 -> 10000)
   cleanText = cleanText.replace(/(\b\d{1,3})(,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
 
+  // Normalize chained lines: e.g., lines ending with '=' followed by numbers on next line
+  cleanText = cleanText.replace(/=\s*[\r\n]+\s*/g, '=');
+
   // 3. Split lines by newlines, semicolons, or 2+ consecutive spaces (e.g. "3b300   45 67 78 65r500")
   const lines = cleanText.split(/[\r\n;]+/).flatMap(seg => {
     return seg.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
@@ -264,6 +267,137 @@ export function parseTwoDBatchInput(
 
   function processSingleLine(line: string) {
     if (!line || !line.trim()) return;
+
+    // Pattern 0A: Direct @ Reverse ratio pattern (e.g. "31-38=500@200", "86=400@200", "23 45 500@200")
+    // Extracts direct numbers for direct amount (before @) and their reversals (အာ) for reverse amount (after @)
+    const atRatioMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*@\s*(\d+)\s*$/) ||
+                         line.match(/^(.+?)\s+(\d+)\s*@\s*(\d+)\s*$/);
+    if (atRatioMatch) {
+      const numbersRaw = atRatioMatch[1].trim();
+      const directAmt = parseInt(atRatioMatch[2], 10);
+      const revAmt = parseInt(atRatioMatch[3], 10);
+
+      if (!isNaN(directAmt) && directAmt > 0 && !isNaN(revAmt) && revAmt > 0) {
+        const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
+        const validTokens: string[] = [];
+
+        for (const tok of numTokens) {
+          if (/^\d{1,2}$/.test(tok)) {
+            validTokens.push(tok.padStart(2, '0'));
+          } else {
+            warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+          }
+        }
+
+        if (validTokens.length > 0) {
+          validTokens.forEach((numStr) => {
+            // 1. Direct bet (ဒဲ့)
+            items.push({
+              id: `batch-${generateUUID()}`,
+              number: numStr,
+              amount: directAmt,
+              isRumble: false,
+              betType: 'straight',
+              originalInput: `${numStr} ဒဲ့ (${directAmt})`
+            });
+
+            // 2. Reverse bet (အာ)
+            const revs = getTwoDReversal(numStr);
+            const reverseNum = revs.length > 1 ? revs[1] : revs[0];
+            if (reverseNum !== numStr) {
+              items.push({
+                id: `batch-${generateUUID()}`,
+                number: reverseNum,
+                amount: revAmt,
+                isRumble: true,
+                betType: 'rumble',
+                originalInput: `${numStr} အာ (${reverseNum} = ${revAmt})`
+              });
+            } else {
+              items.push({
+                id: `batch-${generateUUID()}`,
+                number: numStr,
+                amount: revAmt,
+                isRumble: true,
+                betType: 'rumble',
+                originalInput: `${numStr} အာ (${revAmt})`
+              });
+            }
+          });
+          return;
+        }
+      }
+    }
+
+    // Pattern 0B: Single or Multi number with @ only (e.g. "20@1000", "20 @ 1000", "31-38@500") -> Rumble / R / အာ
+    const singleAtMatch = line.match(/^(.+?)\s*@\s*(\d+)\s*$/);
+    if (singleAtMatch) {
+      const numbersRaw = singleAtMatch[1].trim();
+      const rAmt = parseInt(singleAtMatch[2], 10);
+
+      if (!isNaN(rAmt) && rAmt > 0) {
+        const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
+        const validTokens: string[] = [];
+
+        for (const tok of numTokens) {
+          if (/^\d{1,2}$/.test(tok)) {
+            validTokens.push(tok.padStart(2, '0'));
+          } else {
+            warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+          }
+        }
+
+        if (validTokens.length > 0) {
+          const groupId = `r2d-batch-${generateUUID()}`;
+          validTokens.forEach((numStr) => {
+            const revs = getTwoDReversal(numStr);
+            revs.forEach(r => {
+              items.push({
+                id: `batch-${generateUUID()}`,
+                number: r,
+                amount: rAmt,
+                isRumble: true,
+                betType: 'rumble',
+                groupId,
+                originalNumber: numStr,
+                originalAmount: rAmt,
+                permutations: revs,
+                originalInput: `${numStr} R`
+              });
+            });
+          });
+          return;
+        }
+      }
+    }
+
+    // Pattern 0C: Chained equals (e.g. "12=13=02=03=92=91=82=83=52=53=500")
+    // Every number in the chain receives the final amount as straight (ဒဲ့) bets
+    if (line.includes('=')) {
+      const eqTokens = line.split('=').map(t => t.trim()).filter(Boolean);
+      if (eqTokens.length >= 2) {
+        const lastTok = eqTokens[eqTokens.length - 1];
+        const numPart = eqTokens.slice(0, eqTokens.length - 1);
+        const parsedAmt = parseInt(lastTok, 10);
+
+        // Verify if all elements before the last one are 1-2 digit numbers and the last is a valid positive amount
+        const allDigits = numPart.every(t => /^\d{1,2}$/.test(t));
+        if (allDigits && !isNaN(parsedAmt) && parsedAmt > 0) {
+          numPart.forEach(token => {
+            const numStr = token.padStart(2, '0');
+            items.push({
+              id: `batch-${generateUUID()}`,
+              number: numStr,
+              amount: parsedAmt,
+              isRumble: false,
+              betType: 'straight',
+              originalInput: `${numStr} ဒဲ့ (${parsedAmt})`
+            });
+          });
+          return;
+        }
+      }
+    }
 
     // Pattern 0: Direct / Reverse slash ratio pattern (e.g. "23 45 26 800/200" or "34 46 37 1000/500")
     // Extracts direct numbers for the 1st amount, and reversal (အာ) numbers for the 2nd amount
