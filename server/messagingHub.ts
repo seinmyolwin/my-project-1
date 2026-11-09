@@ -324,12 +324,11 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
 
   let senderName = message.from?.first_name || '';
   if (message.from?.last_name) senderName += ` ${message.from.last_name}`;
-  if (!senderName.trim()) senderName = message.from?.username || 'Telegram User';
+  if (!senderName.trim()) senderName = message.from?.username || '';
+  senderName = senderName.trim() || 'အထွေထွေ';
   
   if (isGroup && chatTitle) {
-    senderName = `${senderName.trim()} [${chatTitle}]`;
-  } else {
-    senderName = senderName.trim();
+    senderName = `${senderName} [${chatTitle}]`;
   }
 
   const text = message.text || message.caption || '';
@@ -359,11 +358,11 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
 
   const newOrder: TelegramIncomingOrder = {
     id: orderId,
-    senderName,
+    senderName: senderName || 'အထွေထွေ',
     chatId,
     orderType: photo && photo.length > 0 ? 'photo' : 'text',
     category: parsed.detectedCategory,
-    rawText: text || '[Photo Slip]',
+    rawText: cleanText, // Strictly original sent text only
     parsedItems: parsed.items,
     totalAmount: parsed.totalAmount,
     status: 'pending_review',

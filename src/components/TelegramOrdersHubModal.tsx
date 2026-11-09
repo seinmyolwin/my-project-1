@@ -64,6 +64,7 @@ import { preprocessCanvas, performOfflineOCR, parseSlipImageText } from '../util
 import { BetItem, VoucherItem, TwoDVoucherItem, FootballBetSelection, FootballBetType } from '../types';
 import { safeRound } from '../utils/moneyUtils';
 import { playSuccessSound, playAddSound, playWarningSound, playTapSound } from '../utils/audioUtils';
+import { saveRawClip } from '../utils/rawClipsUtils';
 
 interface TelegramOrdersHubModalProps {
   isOpen: boolean;
@@ -155,9 +156,26 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   const handleStartVoucherEntry = (order: TelegramIncomingOrder) => {
     setSelectedOrderId(order.id);
-    setVoucherCustomerName(order.senderName || 'Telegram User');
+    const sender = order.senderName?.trim();
+    const defaultName = (sender && sender !== 'Telegram User' && sender !== 'Telegram ဝယ်သူ') ? sender : 'အထွေထွေ';
+    setVoucherCustomerName(defaultName);
     setVoucherCategory(order.category);
-    setVoucherItems(order.parsedItems.map(pi => ({ ...pi })));
+
+    if (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]') {
+      const { items } = parseQuickBetText(order.rawText);
+      if (items.length > 0) {
+        setVoucherItems(items.map(it => ({
+          number: it.number,
+          amount: it.amount,
+          isRumble: it.isRumble,
+          originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
+        })));
+      } else {
+        setVoucherItems(order.parsedItems.map(pi => ({ ...pi })));
+      }
+    } else {
+      setVoucherItems(order.parsedItems.map(pi => ({ ...pi })));
+    }
     setVoucherDiscountPercent(0);
     setAddNumInput('');
     setAddAmtInput('');
@@ -206,12 +224,16 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const subtotal = validItems.reduce((acc, it) => acc + (it.amount || 0), 0);
     const discountAmount = safeRound((subtotal * (voucherDiscountPercent || 0)) / 100);
     const netPayable = Math.max(0, subtotal - discountAmount);
+    const finalCustomerName = voucherCustomerName.trim() || 'အထွေထွေ';
 
     const isAll2D = validItems.every(pi => pi.number && pi.number.trim().length === 2);
     const isAll3D = validItems.every(pi => pi.number && pi.number.trim().length === 3);
     let effectiveCategory = voucherCategory;
     if (isAll2D) effectiveCategory = '2d';
     else if (isAll3D) effectiveCategory = '3d';
+
+    let createdVoucherNo = '';
+    let activeRoundObj: any = null;
 
     if (effectiveCategory === '3d') {
       let open3DRound = lottery3D.rounds.find(r => r.id === lottery3D.activeRoundId && r.status === 'open') ||
@@ -227,6 +249,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         lottery3D.updateRound(open3DRound.id, { status: 'open' });
       }
 
+      activeRoundObj = open3DRound;
       const items: VoucherItem[] = validItems.map(pi => ({
         number: pi.number.trim(),
         amount: pi.amount,
@@ -236,7 +259,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       try {
         const created = lottery3D.addVoucher({
           roundId: open3DRound.id,
-          customerName: voucherCustomerName.trim() || order.senderName,
+          customerName: finalCustomerName,
           items,
           subtotal,
           discountPercent: voucherDiscountPercent || 0,
@@ -247,6 +270,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           notes: `[Telegram Bot] ${order.notes || ''}`
         });
 
+        createdVoucherNo = created.voucherNo;
         lottery3D.setActiveRoundId(open3DRound.id);
         playSuccessSound();
         alert(`✅ မင်္ဂလာပါ! အိုးစည်လေး (3D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
@@ -268,6 +292,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         lottery2D.updateRound(open2DRound.id, { status: 'open' });
       }
 
+      activeRoundObj = open2DRound;
       const items: TwoDVoucherItem[] = validItems.map(pi => ({
         number: pi.number.trim(),
         amount: pi.amount,
@@ -277,7 +302,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       try {
         const created = lottery2D.addVoucher({
           roundId: open2DRound.id,
-          customerName: voucherCustomerName.trim() || order.senderName,
+          customerName: finalCustomerName,
           items,
           subtotal,
           discountPercent: voucherDiscountPercent || 0,
@@ -288,6 +313,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           notes: `[Telegram Bot] ${order.notes || ''}`
         });
 
+        createdVoucherNo = created.voucherNo;
         lottery2D.setActiveRoundId(open2DRound.id);
         playSuccessSound();
         alert(`✅ မင်္ဂလာပါ! ဇီးကွက် (2D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
@@ -322,9 +348,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       const potentialPayout = safeRound(netPayable * combinedOdds);
 
       try {
-        football.addSlip({
+        const createdSlip = football.addSlip({
           roundDate: football.activeDate,
-          customerName: voucherCustomerName.trim() || order.senderName,
+          customerName: finalCustomerName,
           slipType: selections.length > 1 ? 'maung' : 'body_single',
           teamCount: selections.length,
           selections,
@@ -337,6 +363,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           status: 'active',
           notes: `[Telegram Bot] ${order.notes || ''}`
         });
+        createdVoucherNo = createdSlip.slipNo || `FB-${createdSlip.id}`;
         playSuccessSound();
         alert(`✅ မင်္ဂလာပါ! ဘောလုံး ဒိုင်စာရင်း သို့ Slip အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ! (အသားတင်: ${formatAmount(netPayable, 'Ks')})`);
       } catch (err: any) {
@@ -345,6 +372,26 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
     }
 
+    // Save exact original bet text to Raw Text Archive upon voucher confirmation
+    const rawTextToArchive = (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
+      ? order.rawText.trim()
+      : validItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+
+    saveRawClip({
+      category: effectiveCategory,
+      roundId: activeRoundObj?.id || `round-${effectiveCategory}`,
+      roundName: activeRoundObj ? (activeRoundObj.name || `${activeRoundObj.drawDate} (${effectiveCategory.toUpperCase()})`) : `${effectiveCategory.toUpperCase()} ပွဲစဉ်`,
+      date: activeRoundObj?.drawDate || new Date().toLocaleDateString('en-CA'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      voucherNumber: createdVoucherNo || `ဘောင်ချာ (${effectiveCategory})`,
+      customerName: finalCustomerName,
+      customerPhone: order.senderPhone || undefined,
+      rawText: rawTextToArchive,
+      itemCount: validItems.length,
+      totalAmountPreview: subtotal,
+      source: 'telegram'
+    });
+
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
     handleUpdateOrders(updated);
     updateTelegramOrderOnServer(order.id, { status: 'approved' });
@@ -352,7 +399,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (order.chatId) {
       sendTelegramMessage(
         order.chatId,
-        generateTelegramConfirmationMessage(voucherCustomerName.trim() || order.senderName, netPayable)
+        generateTelegramConfirmationMessage(finalCustomerName, netPayable)
       ).catch(() => {});
     }
 
@@ -539,7 +586,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     const newOrder: TelegramIncomingOrder = {
       id: `tg-${Date.now()}`,
-      senderName: newSenderName.trim() || 'Telegram ဝယ်သူ',
+      senderName: newSenderName.trim() || 'အထွေထွေ',
       senderPhone: undefined,
       orderType: newOrderType,
       category: newCategory,
@@ -572,6 +619,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return;
     }
 
+    const finalCustomerName = (order.senderName?.trim() && order.senderName !== 'Telegram User' && order.senderName !== 'Telegram ဝယ်သူ')
+      ? order.senderName.trim()
+      : 'အထွေထွေ';
+
     const betItems: BetItem[] = order.parsedItems.map((pi, idx) => ({
       id: `tg-bet-${Date.now()}-${idx}`,
       number: pi.number,
@@ -585,6 +636,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     let effectiveCategory = order.category;
     if (isAll2D) effectiveCategory = '2d';
     else if (isAll3D) effectiveCategory = '3d';
+
+    let createdVoucherNo = '';
+    let activeRoundObj: any = null;
+    let subtotal = 0;
 
     if (effectiveCategory === '3d') {
       let open3DRound = lottery3D.rounds.find(r => r.id === lottery3D.activeRoundId && r.status === 'open') ||
@@ -600,17 +655,18 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         lottery3D.updateRound(open3DRound.id, { status: 'open' });
       }
 
+      activeRoundObj = open3DRound;
       const voucherItems: VoucherItem[] = order.parsedItems.map(pi => ({
         number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
-      const subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
+      subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
 
       try {
         const created = lottery3D.addVoucher({
           roundId: open3DRound.id,
-          customerName: order.senderName,
+          customerName: finalCustomerName,
           items: voucherItems,
           subtotal,
           discountPercent: 0,
@@ -621,6 +677,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           notes: `[Telegram Bot] ${order.notes || ''}`
         });
 
+        createdVoucherNo = created.voucherNo;
         lottery3D.setActiveRoundId(open3DRound.id);
         playSuccessSound();
         alert(`✅ အိုးစည်လေး (3D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ!`);
@@ -642,17 +699,18 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         lottery2D.updateRound(open2DRound.id, { status: 'open' });
       }
 
+      activeRoundObj = open2DRound;
       const voucherItems: TwoDVoucherItem[] = order.parsedItems.map(pi => ({
         number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
-      const subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
+      subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
 
       try {
         const created = lottery2D.addVoucher({
           roundId: open2DRound.id,
-          customerName: order.senderName,
+          customerName: finalCustomerName,
           items: voucherItems,
           subtotal,
           discountPercent: 0,
@@ -663,6 +721,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           notes: `[Telegram Bot] ${order.notes || ''}`
         });
 
+        createdVoucherNo = created.voucherNo;
         lottery2D.setActiveRoundId(open2DRound.id);
         playSuccessSound();
         alert(`✅ ဇီးကွက် (2D) ဒိုင်စာရင်း သို့ ဘောင်ချာနံပါတ် (${created.voucherNo}) ဖြင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ!`);
@@ -712,13 +771,14 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
 
       const totalStake = betItems.reduce((sum, b) => sum + (b.amount || 0), 0) || order.totalAmount || 5000;
+      subtotal = totalStake;
       const combinedOdds = selections.reduce((acc, s) => acc * s.odds, 1.0);
       const potentialPayout = safeRound(totalStake * combinedOdds);
       const isMaung = selections.length > 1;
 
-      football.addSlip({
+      const createdSlip = football.addSlip({
         roundDate: football.activeDate,
-        customerName: order.senderName || 'Telegram User',
+        customerName: finalCustomerName,
         slipType: isMaung ? 'maung' : 'body_single',
         teamCount: selections.length,
         selections,
@@ -731,8 +791,29 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         status: 'active',
         notes: `[Telegram Bot] ${order.notes || ''}`
       });
+      createdVoucherNo = createdSlip.slipNo || `FB-${createdSlip.id}`;
       playSuccessSound();
     }
+
+    // Save exact original bet text to Raw Text Archive upon voucher approval
+    const rawTextToArchive = (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
+      ? order.rawText.trim()
+      : order.parsedItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+
+    saveRawClip({
+      category: effectiveCategory,
+      roundId: activeRoundObj?.id || `round-${effectiveCategory}`,
+      roundName: activeRoundObj ? (activeRoundObj.name || `${activeRoundObj.drawDate} (${effectiveCategory.toUpperCase()})`) : `${effectiveCategory.toUpperCase()} ပွဲစဉ်`,
+      date: activeRoundObj?.drawDate || new Date().toLocaleDateString('en-CA'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      voucherNumber: createdVoucherNo || `ဘောင်ချာ (${effectiveCategory})`,
+      customerName: finalCustomerName,
+      customerPhone: order.senderPhone || undefined,
+      rawText: rawTextToArchive,
+      itemCount: order.parsedItems.length,
+      totalAmountPreview: subtotal || order.totalAmount,
+      source: 'telegram'
+    });
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
     handleUpdateOrders(updated);
@@ -741,7 +822,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     if (order.chatId) {
       sendTelegramMessage(
         order.chatId,
-        generateTelegramConfirmationMessage(order.senderName, order.totalAmount)
+        generateTelegramConfirmationMessage(finalCustomerName, order.totalAmount)
       ).catch(() => {});
     }
   };
@@ -750,6 +831,12 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const updated = orders.map(o => o.id === orderId ? { ...o, status: 'rejected' as const } : o);
     handleUpdateOrders(updated);
     updateTelegramOrderOnServer(orderId, { status: 'rejected' });
+  };
+
+  const handleResetStatusToPending = (orderId: string) => {
+    const updated = orders.map(o => o.id === orderId ? { ...o, status: 'pending_review' as const } : o);
+    handleUpdateOrders(updated);
+    updateTelegramOrderOnServer(orderId, { status: 'pending_review' });
   };
 
   const handleDeleteOrder = (orderId: string) => {
@@ -1063,11 +1150,17 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                 <h3 className="text-base font-black tracking-tight">
                   Telegram Bot & အမှာစာ လက်ခံစနစ်
                 </h3>
-                {pendingCount > 0 && (
-                  <span className="bg-sky-500 text-white font-mono text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
-                    စောင့်ဆိုင်းဆဲ {pendingCount}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono text-[10px] font-black px-2 py-0.5 rounded-full">
+                    စောင့်ဆိုင်းဆဲ ({orders.filter(o => o.status === 'pending_review').length})
                   </span>
-                )}
+                  <span className="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-[10px] font-black px-2 py-0.5 rounded-full">
+                    အတည်ပြုပြီး ({orders.filter(o => o.status === 'approved').length})
+                  </span>
+                  <span className="bg-rose-500/20 border border-rose-400/40 text-rose-300 font-mono text-[10px] font-black px-2 py-0.5 rounded-full">
+                    ပယ်ဖျက်ပြီး ({orders.filter(o => o.status === 'rejected').length})
+                  </span>
+                </div>
               </div>
               <p className="text-xs text-slate-400">
                 Telegram မှ ဝင်ရောက်လာသော ထိုးကြေးအမှာစာများကို အလိုအလျောက်လက်ခံ၍ ဒိုင်စာရင်းသို့ ချိတ်ဆက်ပါ
@@ -1126,23 +1219,53 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           {activeTab === 'queue' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                <div className="flex items-center gap-2 text-xs font-bold">
+                <div className="flex items-center gap-2 text-xs font-bold flex-wrap">
                   <span className="text-slate-500">အခြေအနေ:</span>
-                  {(['all', 'pending', 'approved', 'rejected'] as const).map(f => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setStatusFilter(f)}
-                      className={`px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
-                        statusFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {f === 'all' && 'အားလုံး'}
-                      {f === 'pending' && `စောင့်ဆိုင်းဆဲ (${orders.filter(o => o.status === 'pending_review').length})`}
-                      {f === 'approved' && 'အတည်ပြုပြီး'}
-                      {f === 'rejected' && 'ပယ်ဖျက်ပြီး'}
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
+                      statusFilter === 'all' ? 'bg-slate-900 text-white font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    အားလုံး ({orders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('pending')}
+                    className={`px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      statusFilter === 'pending' ? 'bg-amber-600 text-white shadow-xs font-black' : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <span>⏳ စောင့်ဆိုင်းဆဲ</span>
+                    <span className="bg-white/30 text-current px-1.5 py-0.2 rounded-md text-[10px] font-mono">
+                      {orders.filter(o => o.status === 'pending_review').length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('approved')}
+                    className={`px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      statusFilter === 'approved' ? 'bg-emerald-600 text-white shadow-xs font-black' : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <span>✓ အတည်ပြုပြီး</span>
+                    <span className="bg-white/30 text-current px-1.5 py-0.2 rounded-md text-[10px] font-mono">
+                      {orders.filter(o => o.status === 'approved').length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('rejected')}
+                    className={`px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      statusFilter === 'rejected' ? 'bg-rose-600 text-white shadow-xs font-black' : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                    }`}
+                  >
+                    <span>✕ ပယ်ဖျက်ပြီး</span>
+                    <span className="bg-white/30 text-current px-1.5 py-0.2 rounded-md text-[10px] font-mono">
+                      {orders.filter(o => o.status === 'rejected').length}
+                    </span>
+                  </button>
                 </div>
 
                 <button
@@ -1161,7 +1284,11 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   {filteredOrders.length === 0 ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 space-y-2">
                       <MessageCircle className="w-10 h-10 mx-auto text-slate-300" />
-                      <p className="text-sm font-semibold">အမှာစာများ မရှိသေးပါ</p>
+                      <p className="text-sm font-semibold">
+                        {statusFilter === 'pending' ? 'စောင့်ဆိုင်းဆဲ အမှာစာများ မရှိသေးပါ' :
+                         statusFilter === 'approved' ? 'အတည်ပြုပြီး အမှာစာများ မရှိသေးပါ' :
+                         statusFilter === 'rejected' ? 'ပယ်ဖျက်ထားသော အမှာစာများ မရှိသေးပါ' : 'အမှာစာများ မရှိသေးပါ'}
+                      </p>
                     </div>
                   ) : (
                     filteredOrders.map(order => {
@@ -1188,11 +1315,11 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                             </div>
 
                             <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
-                              order.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
-                              order.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
-                              'bg-amber-100 text-amber-800 animate-pulse'
+                              order.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                              order.status === 'rejected' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                              'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
                             }`}>
-                              {order.status === 'approved' ? 'အတည်ပြုပြီး' : order.status === 'rejected' ? 'ပယ်ဖျက်ပြီး' : 'စောင့်ဆိုင်းဆဲ'}
+                              {order.status === 'approved' ? '✓ အတည်ပြုပြီး' : order.status === 'rejected' ? '✕ ပယ်ဖျက်ပြီး' : '⏳ စောင့်ဆိုင်းဆဲ'}
                             </span>
                           </div>
 
@@ -1222,12 +1349,43 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                                   >
                                     လက်ခံမည်
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectOrder(order.id)}
+                                    className="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-xs rounded-xl cursor-pointer"
+                                    title="ပယ်ဖျက်မည်"
+                                  >
+                                    ပယ်ဖျက်
+                                  </button>
                                 </>
                               )}
+
+                              {order.status === 'rejected' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetStatusToPending(order.id)}
+                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl cursor-pointer"
+                                >
+                                  ပြန်ဖွင့်မည်
+                                </button>
+                              )}
+
+                              {order.status === 'approved' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetStatusToPending(order.id)}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[11px] rounded-xl cursor-pointer"
+                                  title="စောင့်ဆိုင်းဆဲသို့ ပြန်ပြောင်းမည်"
+                                >
+                                  ပြန်ပြင်မည်
+                                </button>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => handleDeleteOrder(order.id)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                                title="အပြီးဖျက်မည်"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1243,8 +1401,17 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                   {selectedOrder ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs sticky top-4">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
-                        <span className="text-xs font-mono text-slate-500">ID: {selectedOrder.id}</span>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">{selectedOrder.senderName}</h4>
+                          <p className="text-[10px] text-slate-400 font-mono">{new Date(selectedOrder.timestamp).toLocaleString()}</p>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                          selectedOrder.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          selectedOrder.status === 'rejected' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                          'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}>
+                          {selectedOrder.status === 'approved' ? '✓ အတည်ပြုပြီး' : selectedOrder.status === 'rejected' ? '✕ ပယ်ဖျက်ပြီး' : '⏳ စောင့်ဆိုင်းဆဲ'}
+                        </span>
                       </div>
 
                       <div className="bg-slate-900 text-sky-300 p-3 rounded-xl text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto border border-slate-800">
@@ -1274,12 +1441,53 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                             <span>📝 ဘောင်ချာ စာရင်းသွင်း စစ်ဆေးမည် (Quick Entry)</span>
                           </button>
 
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleApproveOrder(selectedOrder)}
+                              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                            >
+                              ⚡ တိုက်ရိုက် အတည်ပြုမည်
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectOrder(selectedOrder.id)}
+                              className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                            >
+                              ✕ ပယ်ဖျက်မည်
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedOrder.status === 'approved' && (
+                        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
+                          <div className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>ဤအမှာစာအား ဒိုင်စာရင်းသို့ အတည်ပြုထည့်သွင်းပြီးဖြစ်ပါသည်</span>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => handleApproveOrder(selectedOrder)}
-                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                            onClick={() => handleResetStatusToPending(selectedOrder.id)}
+                            className="w-full py-2 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-900 font-bold text-xs rounded-xl cursor-pointer transition-colors"
                           >
-                            ⚡ တိုက်ရိုက် အတည်ပြုမည် (Quick Approve)
+                            🔄 စောင့်ဆိုင်းဆဲသို့ ပြန်လည်ပြောင်းမည် (Reset to Pending)
+                          </button>
+                        </div>
+                      )}
+
+                      {selectedOrder.status === 'rejected' && (
+                        <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl space-y-2">
+                          <div className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                            <XCircle className="w-4 h-4 text-rose-600" />
+                            <span>ဤအမှာစာအား ပယ်ဖျက်ထားပါသည်</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleResetStatusToPending(selectedOrder.id)}
+                            className="w-full py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                          >
+                            🔄 ပြန်လည်စစ်ဆေးမည် (Restore to Pending)
                           </button>
                         </div>
                       )}

@@ -374,7 +374,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return addVoucher({
       roundId: activeRound.id,
-      customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
+      customerName: customerName || 'အထွေထွေ',
       items,
       subtotal,
       discountPercent,

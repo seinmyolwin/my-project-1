@@ -283,7 +283,7 @@ export const FootballSlipEntryView: React.FC<FootballSlipEntryViewProps> = ({
 
     const slip = addSlip({
       roundDate: activeDate,
-      customerName: customerName.trim() || (isMyanmar ? 'အထွေထွေ' : 'Walk-in'),
+      customerName: customerName.trim() || 'အထွေထွေ',
       slipType: isMaung ? 'maung' : 'body_single',
       teamCount: selections.length,
       selections,

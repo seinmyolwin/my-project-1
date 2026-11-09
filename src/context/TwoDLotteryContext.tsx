@@ -523,7 +523,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const netPayable = safeRound(subtotal - discountAmount);
     return addVoucher({
       roundId: activeRound.id,
-      customerName: customerName || (settings.language === 'my' ? 'အထွေထွေ' : 'Walk-in'),
+      customerName: customerName || 'အထွေထွေ',
       items,
       subtotal,
       discountPercent,

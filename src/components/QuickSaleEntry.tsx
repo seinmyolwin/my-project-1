@@ -23,13 +23,17 @@ import {
   Edit3,
   Lock,
   ArrowLeft,
-  Printer
+  Printer,
+  Clock,
+  Send,
+  XCircle
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher, ThreeDQuickButtonItem } from '../types';
 import { DEFAULT_3D_CUSTOM_BUTTONS } from '../utils/storage';
 import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
 import { saveRawClip } from '../utils/rawClipsUtils';
+import { getTelegramOrders } from '../utils/telegramIntegration';
 import { ImageSlipScannerModal } from './ImageSlipScannerModal';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
 import {
@@ -49,6 +53,7 @@ interface QuickSaleEntryProps {
   onToggleFocusMode?: (active: boolean) => void;
   onOpenCommandRules?: () => void;
   onOpenRawClipsModal?: () => void;
+  onOpenTelegramHub?: () => void;
 }
 
 export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
@@ -58,7 +63,8 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   isFocusMode = false,
   onToggleFocusMode,
   onOpenCommandRules,
-  onOpenRawClipsModal
+  onOpenRawClipsModal,
+  onOpenTelegramHub
 }) => {
   const {
     activeRound,
@@ -76,7 +82,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   const isMyanmar = settings.language === 'my';
 
   // Form State
-  const [customerName, setCustomerName] = useState('အထွေထွေ (General)');
+  const [customerName, setCustomerName] = useState('အထွေထွေ');
   const [customerPhone, setCustomerPhone] = useState('');
   const [discountPercent, setDiscountPercent] = useState<number>(0) /* no discounts */;
   const [notes, setNotes] = useState('');
@@ -120,6 +126,30 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       // safe fallback for private browsing
     }
   }, [stagedItems, latestDraftIds]);
+
+  // Real-time Telegram Order status counts (Pending vs Approved vs Rejected)
+  const [telegramCounts, setTelegramCounts] = useState<{ pending: number; approved: number; rejected: number }>({
+    pending: 0,
+    approved: 0,
+    rejected: 0
+  });
+
+  useEffect(() => {
+    const updateTelegramStatus = () => {
+      try {
+        const orders = getTelegramOrders();
+        const pending = orders.filter(o => o.status === 'pending_review').length;
+        const approved = orders.filter(o => o.status === 'approved').length;
+        const rejected = orders.filter(o => o.status === 'rejected').length;
+        setTelegramCounts({ pending, approved, rejected });
+      } catch {
+        // ignore fallback
+      }
+    };
+    updateTelegramStatus();
+    const interval = setInterval(updateTelegramStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Batch / Quick text mode toggle
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -821,7 +851,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
     const newVoucher = addVoucher({
       roundId: activeRound?.id || 'default',
-      customerName: customerName.trim() || 'အထွေထွေ (General)',
+      customerName: customerName.trim() || 'အထွေထွေ',
       items: voucherItems,
       subtotal: finalSubtotal,
       discountPercent,
@@ -1677,6 +1707,68 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
           )}
         </div>
       )}
+
+      {/* Telegram Incoming Orders Status Indicators Bar */}
+      <div className="bg-slate-900 text-white rounded-2xl p-3.5 shadow-md border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold shrink-0">
+            <Send className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <h3 className="text-xs sm:text-sm font-black text-slate-100 flex items-center gap-1.5">
+              <span>{isMyanmar ? 'Telegram အမှာစာများ အခြေအနေ' : 'Telegram Orders Status'}</span>
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              {isMyanmar ? 'စောင့်ဆိုင်းဆဲ / အတည်ပြုပြီး အမှာစာ စာရင်းများ' : 'Live Telegram order monitoring'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Pending Orders Badge */}
+          <button
+            type="button"
+            onClick={() => onOpenTelegramHub?.()}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+              telegramCounts.pending > 0
+                ? 'bg-amber-500 hover:bg-amber-600 text-white ring-2 ring-amber-300/60 animate-pulse'
+                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+            }`}
+            title={isMyanmar ? 'စောင့်ဆိုင်းဆဲ အမှာစာများ ကြည့်ရန်' : 'View Pending Orders'}
+          >
+            <Clock className="w-3.5 h-3.5 text-amber-200" />
+            <span>{isMyanmar ? 'စောင့်ဆိုင်းဆဲ' : 'Pending'}: {telegramCounts.pending}</span>
+          </button>
+
+          {/* Approved Orders Badge */}
+          <button
+            type="button"
+            onClick={() => onOpenTelegramHub?.()}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+              telegramCounts.approved > 0
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500'
+                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+            }`}
+            title={isMyanmar ? 'အတည်ပြုပြီး အမှာစာများ ကြည့်ရန်' : 'View Approved Orders'}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+            <span>{isMyanmar ? 'အတည်ပြုပြီး' : 'Approved'}: {telegramCounts.approved}</span>
+          </button>
+
+          {/* Rejected Orders Badge */}
+          {telegramCounts.rejected > 0 && (
+            <button
+              type="button"
+              onClick={() => onOpenTelegramHub?.()}
+              className="px-3 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+              title={isMyanmar ? 'ပယ်ဖျက်ပြီး အမှာစာများ ကြည့်ရန်' : 'View Rejected Orders'}
+            >
+              <XCircle className="w-3.5 h-3.5 text-rose-200" />
+              <span>{isMyanmar ? 'ပယ်ဖျက်ပြီး' : 'Rejected'}: {telegramCounts.rejected}</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Main Grid: Left = Entry Controls, Right = Slip Preview / Items Cart (On Mobile/Tablet, Voucher Draft on Top) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

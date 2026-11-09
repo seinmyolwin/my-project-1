@@ -454,6 +454,7 @@ function AppContent() {
                 onToggleFocusMode={setIsFocusMode}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
                 onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
+                onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
               />
             )}
 
@@ -486,6 +487,7 @@ function AppContent() {
                 onToggleFocusMode={setIsFocusMode}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
                 onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
+                onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
               />
             )}
 
