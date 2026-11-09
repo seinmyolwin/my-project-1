@@ -862,6 +862,22 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       status: 'active'
     });
 
+    const rawTextFromItems = itemsToSave.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+    saveRawClip({
+      category: '3d',
+      roundId: activeRound?.id || 'round-3d',
+      roundName: activeRound ? (activeRound.name || `${activeRound.drawDate} (3D)`) : '3D ပွဲစဉ်',
+      date: activeRound?.drawDate || new Date().toLocaleDateString('en-CA'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      voucherNumber: newVoucher.voucherNo || `ဘောင်ချာ (${vouchers.length + 1})`,
+      customerName: customerName.trim() || 'အထွေထွေ',
+      customerPhone: customerPhone || undefined,
+      rawText: rawTextFromItems,
+      itemCount: itemsToSave.length,
+      totalAmountPreview: finalSubtotal,
+      source: 'direct_paste'
+    });
+
     // Clear Staging
     setStagedItems([]);
     setLatestDraftIds([]);

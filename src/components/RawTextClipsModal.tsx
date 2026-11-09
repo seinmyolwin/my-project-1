@@ -32,6 +32,7 @@ import {
   deleteRawClipsByRound,
   clearAllRawClips
 } from '../utils/rawClipsUtils';
+import { formatAmount } from '../utils/lotteryUtils';
 
 interface RawTextClipsModalProps {
   isOpen: boolean;
@@ -53,6 +54,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'all' | '3d' | '2d' | 'football'>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [roundFilter, setRoundFilter] = useState<string>('all');
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Manual Add New Raw Text Form State
@@ -80,15 +82,17 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Extract unique dates and rounds for filtering
+  // Extract unique dates, rounds, and customers for filtering
   const availableDates = Array.from(new Set(clips.map(c => c.date))).sort().reverse();
   const availableRounds = Array.from(new Set(clips.map(c => c.roundName))).filter(Boolean);
+  const availableCustomers = Array.from(new Set(clips.map(c => c.customerName))).filter(Boolean).sort();
 
   // Filtered clips
   const filteredClips = clips.filter(c => {
     if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
     if (dateFilter !== 'all' && c.date !== dateFilter) return false;
     if (roundFilter !== 'all' && c.roundName !== roundFilter) return false;
+    if (customerFilter !== 'all' && c.customerName !== customerFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const matchText = c.rawText.toLowerCase().includes(q);
@@ -99,6 +103,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     }
     return true;
   });
+
+  const totalFilteredAmount = filteredClips.reduce((sum, c) => sum + (c.totalAmountPreview || 0), 0);
 
   // Group clips by Date -> Round
   const groupedClips = filteredClips.reduce<Record<string, Record<string, RawBetClip[]>>>((acc, clip) => {
@@ -353,6 +359,20 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                 ))}
               </select>
             )}
+
+            {/* Customer Filter Dropdown */}
+            {availableCustomers.length > 0 && (
+              <select
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-2.5 py-1.5 shadow-2xs"
+              >
+                <option value="all">ဝယ်သူအားလုံး ({availableCustomers.length})</option>
+                {availableCustomers.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Search Box */}
@@ -365,6 +385,17 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
               placeholder="ရှာဖွေရန် (ဘောင်ချာ၊ ဝယ်သူ၊ ဂဏန်း)..."
               className="w-full bg-white border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 shadow-2xs"
             />
+          </div>
+        </div>
+
+        {/* Total Summary Bar */}
+        <div className="bg-amber-100/70 border-b border-amber-200 px-5 py-2 flex items-center justify-between text-xs font-bold text-amber-950 shrink-0">
+          <div className="flex items-center gap-2">
+            <span>စစ်ဆေးတွေ့ရှိသော ဘောင်ချာ: {filteredClips.length} စောင်</span>
+          </div>
+          <div className="flex items-center gap-2 font-mono">
+            <span>စုစုပေါင်း ထိုးကြေး (Total):</span>
+            <span className="text-emerald-800 text-sm font-black">{formatAmount(totalFilteredAmount, 'Ks')}</span>
           </div>
         </div>
 

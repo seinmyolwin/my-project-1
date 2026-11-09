@@ -1299,6 +1299,21 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       status: 'active'
     });
 
+    const rawTextFrom2DItems = finalItems.map(i => `${i.number}=${i.amount}${i.isRumble ? 'R' : ''}`).join('\n');
+    saveRawClip({
+      category: '2d',
+      roundId: activeRound.id,
+      roundName: activeRound.name || `${activeRound.drawDate || '2D'} (2D)`,
+      date: activeRound.drawDate || new Date().toLocaleDateString('en-CA'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      voucherNumber: voucher.voucherNo || `ဘောင်ချာ (2D)`,
+      customerName: customerName.trim() || 'အထွေထွေ',
+      rawText: rawTextFrom2DItems,
+      itemCount: finalItems.length,
+      totalAmountPreview: sub,
+      source: 'direct_paste'
+    });
+
     const isDup = (voucher as any)?.isDuplicate;
 
     // If there are forwarded items, create forward slip (only if not duplicate)
