@@ -147,18 +147,58 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     let totalSales = 0;
     let totalPayout = 0;
-    const dayGroupMap: Record<string, { date: string; mode: string; amount: number; payout: number; itemsCount: number; summaries: string[] }> = {};
+    const dayGroupMap: Record<string, {
+      date: string;
+      mode: string;
+      amount: number;
+      payout: number;
+      itemsCount: number;
+      summaries: string[];
+      winningNumbers: string[];
+      winningBets: Array<{ num: string; amt: number; wonAmt: number }>;
+    }> = {};
 
-    const addRecord = (date: string, mode: string, amount: number, payout: number, summary: string) => {
+    const addRecord = (
+      date: string,
+      mode: string,
+      amount: number,
+      payout: number,
+      summary: string,
+      winningNumber?: string,
+      wonBets?: Array<{ num: string; amt: number; wonAmt: number }>
+    ) => {
       const key = `${date}|${mode}`;
       if (!dayGroupMap[key]) {
-        dayGroupMap[key] = { date, mode, amount: 0, payout: 0, itemsCount: 0, summaries: [] };
+        dayGroupMap[key] = {
+          date,
+          mode,
+          amount: 0,
+          payout: 0,
+          itemsCount: 0,
+          summaries: [],
+          winningNumbers: [],
+          winningBets: []
+        };
       }
       dayGroupMap[key].amount += amount;
       dayGroupMap[key].payout += payout;
       dayGroupMap[key].itemsCount += 1;
       if (summary && summary !== '-') {
         dayGroupMap[key].summaries.push(summary);
+      }
+      if (winningNumber && !dayGroupMap[key].winningNumbers.includes(winningNumber)) {
+        dayGroupMap[key].winningNumbers.push(winningNumber);
+      }
+      if (wonBets && wonBets.length > 0) {
+        wonBets.forEach(wb => {
+          const existing = dayGroupMap[key].winningBets.find(x => x.num === wb.num);
+          if (existing) {
+            existing.amt += wb.amt;
+            existing.wonAmt += wb.wonAmt;
+          } else {
+            dayGroupMap[key].winningBets.push({ ...wb });
+          }
+        });
       }
     };
 
@@ -167,16 +207,27 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
         const amt = v.subtotal ?? v.netPayable ?? 0;
+        const round = lottery3D.rounds.find(r => r.id === v.roundId);
+        const winningNum = round?.winningNumber;
+        const mult = round?.multiplier || lottery3D.settings.defaultMultiplier || 600;
+
         let payout = v.winningPayout ?? 0;
-        if (!payout && v.items) {
+        const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+
+        if (v.items) {
           v.items.forEach((it: any) => {
-            if (it.isWon) payout += (it.wonAmount || 0);
+            const isHit = it.isWon || (winningNum && it.number === winningNum);
+            if (isHit) {
+              const won = it.wonAmount || (it.amount * mult);
+              payout += won;
+              wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
+            }
           });
         }
         totalSales += amt;
         totalPayout += payout;
         const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-        addRecord(vDate, 'အိုးစည်လေး (3D)', amt, payout, sumText);
+        addRecord(vDate, 'အိုးစည်လေး (3D)', amt, payout, sumText, winningNum, wonBets);
       }
     });
 
@@ -187,16 +238,26 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         const round = lottery2D.rounds.find(r => r.id === v.roundId);
         const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
         const amt = v.subtotal ?? v.netPayable ?? 0;
+        const winningNum = round?.winningNumber;
+        const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
+
         let payout = v.winningPayout ?? 0;
-        if (!payout && v.items) {
+        const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+
+        if (v.items) {
           v.items.forEach((it: any) => {
-            if (it.isWon) payout += (it.wonAmount || 0);
+            const isHit = it.isWon || (winningNum && it.number === winningNum);
+            if (isHit) {
+              const won = it.wonAmount || (it.amount * mult);
+              payout += won;
+              wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
+            }
           });
         }
         totalSales += amt;
         totalPayout += payout;
         const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-        addRecord(vDate, `ဇီးကွက် (${sessionLabel})`, amt, payout, sumText);
+        addRecord(vDate, `ဇီးကွက် (${sessionLabel})`, amt, payout, sumText, winningNum, wonBets);
       }
     });
 
@@ -219,6 +280,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       refNo: `${g.itemsCount} ဘောင်ချာ`,
       amount: g.amount,
       payout: g.payout,
+      winningNumbers: g.winningNumbers,
+      winningBets: g.winningBets,
       summary: g.summaries.join(' | ') || '-'
     }));
 
@@ -391,8 +454,17 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     const items = isDownline ? downlineSettlementData.items : uplineSettlementData.items;
     items.forEach((item: any) => {
       text += `${item.date} (${item.mode}) - ထိုး/တင်: ${formatAmount(Number(item.amount), '')}`;
+      if (item.winningNumbers && item.winningNumbers.length > 0) {
+        text += ` [ထွက်ဂဏန်း: ${item.winningNumbers.join(', ')}]`;
+      }
       if (item.commission) text += `, ကော်: ${formatAmount(Number(item.commission), '')}`;
-      if (item.payout > 0) text += `, ပေါက်: ${formatAmount(Number(item.payout), '')}P`;
+      if (item.payout > 0) {
+        text += `, ပေါက်: ${formatAmount(Number(item.payout), '')}P`;
+        if (item.winningBets && item.winningBets.length > 0) {
+          const wDetail = item.winningBets.map((wb: any) => `${wb.num}(${formatAmount(wb.amt, '')}ထိုး)`).join(', ');
+          text += ` (${wDetail})`;
+        }
+      }
       text += `\n`;
     });
 
@@ -675,15 +747,53 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                   <div className="text-xs text-slate-400 py-1">စာရင်းများ မရှိသေးပါ</div>
                 ) : (
                   downlineSettlementData.items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
-                      <div>
-                        <span className="font-bold text-slate-800">{item.date}</span>
-                        <span className="text-slate-500 text-[10px] ml-1">({item.mode})</span>
-                        <div className="text-[10px] text-slate-600 truncate max-w-[220px]">{item.summary}</div>
+                    <div key={i} className="py-2 border-b border-slate-200/80 last:border-0 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900">{item.date}</span>
+                          <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                          {item.winningNumbers && item.winningNumbers.length > 0 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                              ထွက်ဂဏန်း: {item.winningNumbers.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-800">ထိုးကြေး: {formatAmount(item.amount, '')}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold">ထိုးကြေး: {formatAmount(item.amount, '')}</div>
-                        {item.payout > 0 && <div className="text-rose-600 font-bold">ပေါက်ကြေး: {formatAmount(item.payout, '')}P</div>}
+
+                      {/* Winning details: numbers, bets, and payout */}
+                      {item.payout > 0 && (
+                        <div className="flex items-center justify-between text-xs bg-rose-50/70 border border-rose-200 rounded-lg px-2 py-1">
+                          <div className="text-[11px] text-rose-800 flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold">ပေါက်မည့်အကွက်:</span>
+                            {item.winningBets && item.winningBets.length > 0 ? (
+                              item.winningBets.map((wb, wIdx) => (
+                                <span key={wIdx} className="font-mono font-bold inline-flex items-center gap-1">
+                                  <span className="inline-block px-1.5 py-0.2 bg-white border border-rose-400 text-rose-700 rounded-full font-black">
+                                    {wb.num}
+                                  </span>
+                                  <span>({formatAmount(wb.amt, '')} ထိုး)</span>
+                                </span>
+                              ))
+                            ) : (
+                              item.winningNumbers && item.winningNumbers.map((wn, wnIdx) => (
+                                <span key={wnIdx} className="inline-block px-1.5 py-0.2 bg-white border border-rose-400 text-rose-700 rounded-full font-black">
+                                  {wn}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                          <div className="text-rose-700 font-black text-right shrink-0">
+                            ပေါက်ကြေး: {formatAmount(item.payout, '')}P
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Betting summary line */}
+                      <div className="text-[10px] text-slate-500 truncate max-w-full font-sans">
+                        {item.summary}
                       </div>
                     </div>
                   ))
@@ -693,16 +803,27 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                   <div className="text-xs text-slate-400 py-1">လွှဲစာရင်းများ မရှိသေးပါ</div>
                 ) : (
                   uplineSettlementData.items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
-                      <div>
-                        <span className="font-bold text-slate-800">{item.date}</span>
-                        <span className="text-slate-500 text-[10px] ml-1">({item.mode})</span>
-                        <div className="text-[10px] text-slate-600 truncate max-w-[220px]">{item.summary}</div>
+                    <div key={i} className="py-2 border-b border-slate-200/80 last:border-0 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900">{item.date}</span>
+                          <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="font-bold text-slate-800">တင်ကြေး: {formatAmount(item.amount, '')}</span>
+                          <span className="text-sky-700 font-bold text-[11px]">ကော်: {formatAmount(item.commission, '')}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold">တင်ကြေး: {formatAmount(item.amount, '')}</div>
-                        <div className="text-sky-600">ကော်: {formatAmount(item.commission, '')}</div>
-                        {item.payout > 0 && <div className="text-rose-600 font-bold">ပေါက်ကြေး: {formatAmount(item.payout, '')}P</div>}
+
+                      {item.payout > 0 && (
+                        <div className="flex items-center justify-between text-xs bg-rose-50/70 border border-rose-200 rounded-lg px-2 py-1">
+                          <span className="text-[11px] text-rose-800 font-bold">အထက်ပေါက်ကြေး ပြန်ရငွေ</span>
+                          <span className="text-rose-700 font-black">ပေါက်ကြေး: {formatAmount(item.payout, '')}P</span>
+                        </div>
+                      )}
+
+                      <div className="text-[10px] text-slate-500 truncate max-w-full font-sans">
+                        {item.summary}
                       </div>
                     </div>
                   ))
