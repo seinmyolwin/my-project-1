@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   Send,
@@ -206,10 +206,21 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
     }
 
+    // Check explicit command prefixes
+    if (/^\/2d\b|\b2d\b/i.test(clean) && enabledModes['2d']) return '2d';
+    if (/^\/3d\b|\b3d\b/i.test(clean) && enabledModes['3d']) return '3d';
+    if (/^\/(?:football|fb)\b|\bfootball\b|\bfb\b/i.test(clean) && enabledModes['football']) return 'football';
+
+    // Strip rumble/slash/equal bet amounts so amounts (e.g., 300) are not counted as 3D bet numbers
+    const cleanWithoutBetAmounts = clean
+      .replace(/(?:r|R|အာ|ပတ်လည်|ပတ်)\s*\d+/gi, ' ')
+      .replace(/\/\s*\d+/g, ' ')
+      .replace(/=\s*\d+/g, ' ');
+
     // Also inspect tokens in raw text
-    const cleanTokens = clean
+    const cleanTokens = cleanWithoutBetAmounts
       .replace(/[,;:=_\-/*+]/g, ' ')
-      .replace(/ကျပ်|ks|k|စီ|r|အာ|ပတ်လည်|ပတ်/gi, ' ')
+      .replace(/ကျပ်|ks|k|စီ/gi, ' ')
       .split(/\s+/)
       .map(t => t.replace(/\D/g, ''))
       .filter(Boolean);
@@ -255,18 +266,26 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return { items: [], detectedCategory: initialCat };
     }
 
-    // First attempt 2D parsing
+    // First attempt 2D parsing (unified with Quick Sale Entry Batch Paste)
     const parsed2D = parseTwoDBatchInput(clean, 1000);
-    const itemList2D = Array.isArray(parsed2D) ? parsed2D : parsed2D.items;
+    const itemList2D = Array.isArray(parsed2D) ? parsed2D : ((parsed2D as any)?.items || []);
 
-    // Second attempt 3D parsing
+    // Second attempt 3D parsing (unified with Quick Sale Entry Batch Paste)
     const { items: items3D } = parseQuickBetText(clean);
 
     let detectedCat: '3d' | '2d' | 'football';
 
-    // If both 2D and 3D produced items, let resolveAutoCategory pick based on enabled settings and number lengths
-    if (preferredCategory) {
-      detectedCat = preferredCategory;
+    // If preferredCategory is specified and produces items, use it. If it produces 0 items, pick the one that succeeded!
+    if (preferredCategory === '2d' && itemList2D && itemList2D.length > 0) {
+      detectedCat = '2d';
+    } else if (preferredCategory === '3d' && items3D && items3D.length > 0) {
+      detectedCat = '3d';
+    } else if (preferredCategory === 'football') {
+      detectedCat = 'football';
+    } else if (itemList2D && itemList2D.length > 0 && (!items3D || items3D.length === 0)) {
+      detectedCat = '2d';
+    } else if (items3D && items3D.length > 0 && (!itemList2D || itemList2D.length === 0)) {
+      detectedCat = '3d';
     } else {
       const candidateItems = (itemList2D && itemList2D.length > 0)
         ? itemList2D
@@ -306,9 +325,24 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       detectedCat = '3d';
     }
 
-    // Validate against enabled modes
-    const finalCat = resolveAutoCategory(clean, detectedCat, resultItems);
-    return { items: resultItems, detectedCategory: finalCat };
+    return { items: resultItems, detectedCategory: detectedCat };
+  };
+
+  const ensureOrderParsed = (ord: TelegramIncomingOrder): TelegramIncomingOrder => {
+    if (!ord.rawText || ord.rawText === '[Photo Slip]') return ord;
+    if (ord.parsedItems && ord.parsedItems.length > 0 && ord.totalAmount > 0) return ord;
+    const autoCat = resolveAutoCategory(ord.rawText, ord.category);
+    const { items, detectedCategory } = handleParseTextToItems(ord.rawText, autoCat);
+    if (items.length > 0) {
+      const totalAmount = items.reduce((s, it) => s + (it.amount || 0), 0);
+      return {
+        ...ord,
+        category: detectedCategory || ord.category,
+        parsedItems: items,
+        totalAmount
+      };
+    }
+    return ord;
   };
 
   const handleStartVoucherEntry = (order: TelegramIncomingOrder) => {
@@ -600,6 +634,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   };
 
   useEffect(() => {
+    setOrders(prev => prev.map(ensureOrderParsed));
+  }, []);
+
+  useEffect(() => {
     const pollData = async () => {
       const cfg = await syncTelegramConfig();
       if (cfg) {
@@ -634,7 +672,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
               }
             }
           });
-          const merged = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+          const merged = Array.from(map.values()).map(ensureOrderParsed).sort((a, b) => b.timestamp - a.timestamp);
           saveTelegramOrders(merged);
           return merged;
         });
@@ -664,12 +702,12 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
               }
             }
           });
-          const merged = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+          const merged = Array.from(map.values()).map(ensureOrderParsed).sort((a, b) => b.timestamp - a.timestamp);
           saveTelegramOrders(merged);
           return merged;
         });
       } else {
-        setOrders(getTelegramOrders());
+        setOrders(getTelegramOrders().map(ensureOrderParsed));
       }
       const cfg = await syncTelegramConfig();
       if (cfg) {
@@ -682,7 +720,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
     } catch (err) {
       console.error('Failed to refresh orders from server:', err);
-      setOrders(getTelegramOrders());
+      setOrders(getTelegramOrders().map(ensureOrderParsed));
     } finally {
       setTimeout(() => setIsRefreshing(false), 300);
     }
@@ -699,7 +737,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     return true;
   });
 
-  const selectedOrder = orders.find(o => o.id === selectedOrderId) || null;
+  const selectedOrder = useMemo(() => {
+    const found = orders.find(o => o.id === selectedOrderId);
+    return found ? ensureOrderParsed(found) : null;
+  }, [orders, selectedOrderId]);
 
   const handleUpdateOrders = (newOrders: TelegramIncomingOrder[]) => {
     setOrders(newOrders);
@@ -767,12 +808,12 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     e.preventDefault();
     if (!newRawText.trim() && !newPhotoPreview) return;
 
-    const { items } = parseQuickBetText(newRawText);
+    const { items, detectedCategory } = handleParseTextToItems(newRawText, newCategory);
     const parsedItems = items.map(it => ({
       number: it.number,
       amount: it.amount,
       isRumble: it.isRumble,
-      originalRaw: it.originalInput || `${it.number}=${it.amount}`
+      originalRaw: it.originalRaw || `${it.number}=${it.amount}`
     }));
 
     const totalAmount = parsedItems.reduce((acc, it) => acc + it.amount, 0);
@@ -782,7 +823,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       senderName: newSenderName.trim() || 'အထွေထွေ',
       senderPhone: undefined,
       orderType: newOrderType,
-      category: newCategory,
+      category: detectedCategory || newCategory,
       rawText: newRawText,
       photoUrl: newPhotoPreview || undefined,
       parsedItems,
@@ -816,15 +857,21 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       ? order.senderName.trim()
       : 'အထွေထွေ';
 
-    const betItems: BetItem[] = order.parsedItems.map((pi, idx) => ({
+    const effectiveCategory = resolveAutoCategory(order.rawText, order.category, order.parsedItems);
+    const { items: freshlyParsed } = handleParseTextToItems(order.rawText, effectiveCategory);
+    const effectiveParsedItems = (freshlyParsed && freshlyParsed.length > 0)
+      ? freshlyParsed
+      : (order.parsedItems && order.parsedItems.length > 0 ? order.parsedItems : []);
+
+    const effectiveTotal = effectiveParsedItems.reduce((s, it) => s + (it.amount || 0), 0);
+
+    const betItems: BetItem[] = effectiveParsedItems.map((pi, idx) => ({
       id: `tg-bet-${Date.now()}-${idx}`,
       number: pi.number,
       amount: pi.amount,
       isRumble: pi.isRumble,
       originalInput: pi.originalRaw
     }));
-
-    const effectiveCategory = resolveAutoCategory(order.rawText, order.category, order.parsedItems);
 
     let createdVoucherNo = '';
     let activeRoundObj: any = null;
@@ -845,7 +892,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
 
       activeRoundObj = open3DRound;
-      const voucherItems: VoucherItem[] = order.parsedItems.map(pi => ({
+      const voucherItems: VoucherItem[] = effectiveParsedItems.map(pi => ({
         number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
@@ -889,7 +936,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
 
       activeRoundObj = open2DRound;
-      const voucherItems: TwoDVoucherItem[] = order.parsedItems.map(pi => ({
+      const voucherItems: TwoDVoucherItem[] = effectiveParsedItems.map(pi => ({
         number: pi.number.trim(),
         amount: pi.amount,
         betType: pi.isRumble ? 'rumble' : 'straight'
@@ -987,7 +1034,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     // Save exact original bet text to Raw Text Archive upon voucher approval
     const rawTextToArchive = (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
       ? order.rawText.trim()
-      : order.parsedItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+      : effectiveParsedItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+
+    const approvedTotal = subtotal || effectiveTotal || order.totalAmount;
 
     saveRawClip({
       category: effectiveCategory,
@@ -999,19 +1048,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       customerName: finalCustomerName,
       customerPhone: order.senderPhone || undefined,
       rawText: rawTextToArchive,
-      itemCount: order.parsedItems.length,
-      totalAmountPreview: subtotal || order.totalAmount,
+      itemCount: effectiveParsedItems.length,
+      totalAmountPreview: approvedTotal,
       source: 'telegram'
     });
 
-    const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
+    const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const, parsedItems: effectiveParsedItems, totalAmount: approvedTotal } : o);
     handleUpdateOrders(updated);
-    updateTelegramOrderOnServer(order.id, { status: 'approved' });
+    updateTelegramOrderOnServer(order.id, { status: 'approved', parsedItems: effectiveParsedItems, totalAmount: approvedTotal });
 
     if (order.chatId) {
       sendTelegramMessage(
         order.chatId,
-        generateTelegramConfirmationMessage(finalCustomerName, order.totalAmount)
+        generateTelegramConfirmationMessage(finalCustomerName, approvedTotal)
       ).catch(() => {});
     }
   };

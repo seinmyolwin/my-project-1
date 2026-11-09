@@ -2,6 +2,8 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import { loadShopStore, saveShopStore, getAllShopStores, ShopStoreData } from './firestoreService.js';
+import { parseTwoDBatchInput } from '../src/utils/twoDLotteryUtils.js';
+import { parseQuickBetText, convertMyanmarToEnglishDigits } from '../src/utils/lotteryUtils.js';
 
 export interface TelegramIncomingOrder {
   id: string;
@@ -133,34 +135,7 @@ function maskToken(token: string): string {
   return `${token.slice(0, 4)}****${token.slice(-4)}`;
 }
 
-function convertMyanmarNumerals(text: string): string {
-  const mmNumerals: Record<string, string> = {
-    '၀': '0', '၁': '1', '၂': '2', '၃': '3', '၄': '4',
-    '၅': '5', '၆': '6', '၇': '7', '၈': '8', '၉': '9'
-  };
-  return text.replace(/[၀-၉]/g, (ch) => mmNumerals[ch] || ch);
-}
-
-function get2DReversal(num: string): string[] {
-  if (num.length !== 2) return [num];
-  const rev = num[1] + num[0];
-  return rev === num ? [num] : [num, rev];
-}
-
-function get3DPerms(num: string): string[] {
-  if (num.length !== 3) return [num];
-  const set = new Set<string>();
-  const a = num.split('');
-  set.add(a[0] + a[1] + a[2]);
-  set.add(a[0] + a[2] + a[1]);
-  set.add(a[1] + a[0] + a[2]);
-  set.add(a[1] + a[2] + a[0]);
-  set.add(a[2] + a[0] + a[1]);
-  set.add(a[2] + a[1] + a[0]);
-  return Array.from(set);
-}
-
-export function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'football' = '3d') {
+export function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'football' = '2d') {
   if (!rawText || !rawText.trim()) {
     return { items: [], totalAmount: 0, detectedCategory: defaultCategory };
   }
@@ -170,95 +145,72 @@ export function parseBetText(rawText: string, defaultCategory: '3d' | '2d' | 'fo
     .replace(/^\/(?:2d|3d|football|fb|bet|play|order)\b/i, ' ')
     .trim();
 
-  cleanInput = convertMyanmarNumerals(cleanInput);
-  cleanInput = cleanInput.replace(/(\b\d{1,3})(,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
+  cleanInput = convertMyanmarToEnglishDigits(cleanInput);
 
-  const lines = cleanInput.split(/[\r\n]+/);
-  const items: { number: string; amount: number; isRumble: boolean; originalRaw: string }[] = [];
-  let totalAmount = 0;
-  let detectedCategory = defaultCategory;
+  const isExplicit2D = /^\/2d\b|\b2d\b/i.test(rawText);
+  const isExplicit3D = /^\/3d\b|\b3d\b/i.test(rawText);
+  const isExplicitFb = /^\/football\b|\bfb\b/i.test(rawText);
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
+  // Run 2D batch parser (exact same engine as Quick Sale Entry Batch Paste)
+  const res2D = parseTwoDBatchInput(cleanInput, 1000);
+  const items2D = Array.isArray(res2D) ? res2D : (res2D as any).items || [];
 
-    const slashMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
-                      line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
-    if (slashMatch) {
-      const numbersRaw = slashMatch[1].trim();
-      const directAmt = parseInt(slashMatch[2], 10);
-      const revAmt = parseInt(slashMatch[3], 10);
+  // Run 3D batch parser (exact same engine as Quick Sale Entry Batch Paste)
+  const res3D = parseQuickBetText(cleanInput);
+  const items3D = res3D.items || [];
 
-      if (!isNaN(directAmt) && directAmt > 0 && !isNaN(revAmt) && revAmt > 0) {
-        const tokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
-        for (const tok of tokens) {
-          const num = tok.replace(/\D/g, '');
-          if (num.length === 2) {
-            detectedCategory = '2d';
-            items.push({ number: num, amount: directAmt, isRumble: false, originalRaw: `${num}=${directAmt}` });
-            totalAmount += directAmt;
-            const revs = get2DReversal(num);
-            const revNum = revs.length > 1 ? revs[1] : revs[0];
-            items.push({ number: revNum, amount: revAmt, isRumble: true, originalRaw: `${revNum}=${revAmt}R` });
-            totalAmount += revAmt;
-          } else if (num.length === 3) {
-            detectedCategory = '3d';
-            items.push({ number: num, amount: directAmt, isRumble: false, originalRaw: `${num}=${directAmt}` });
-            totalAmount += directAmt;
-            const perms = get3DPerms(num);
-            for (const p of perms) {
-              items.push({ number: p, amount: revAmt, isRumble: true, originalRaw: `${p}=${revAmt}R` });
-              totalAmount += revAmt;
-            }
-          }
-        }
-        continue;
-      }
-    }
-
-    const cleanedLine = line.replace(/ကျပ်|ks|k|စီ/gi, ' ').replace(/\s+/g, ' ').trim();
-    const match = cleanedLine.match(/^(.+?)\s*(?:=|:|-|\s+)\s*(\d+)$/);
-    if (match) {
-      const numbersPart = match[1].trim();
-      const amount = parseInt(match[2], 10);
-      if (isNaN(amount) || amount <= 0) continue;
-
-      const isR = /\b(r|အာ|ပတ်)\b/i.test(numbersPart);
-      const numTokens = numbersPart.replace(/\b(r|အာ|ပတ်)\b/gi, '').replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
-
-      for (const tok of numTokens) {
-        const num = tok.replace(/\D/g, '');
-        if (!num) continue;
-        if (num.length === 2) {
-          detectedCategory = '2d';
-          if (isR) {
-            const revs = get2DReversal(num);
-            for (const rNum of revs) {
-              items.push({ number: rNum, amount, isRumble: true, originalRaw: `${num}R=${amount}` });
-              totalAmount += amount;
-            }
-          } else {
-            items.push({ number: num, amount, isRumble: false, originalRaw: `${num}=${amount}` });
-            totalAmount += amount;
-          }
-        } else if (num.length === 3) {
-          detectedCategory = '3d';
-          if (isR) {
-            const perms = get3DPerms(num);
-            for (const p of perms) {
-              items.push({ number: p, amount, isRumble: true, originalRaw: `${num}R=${amount}` });
-              totalAmount += amount;
-            }
-          } else {
-            items.push({ number: num, amount, isRumble: false, originalRaw: `${num}=${amount}` });
-            totalAmount += amount;
-          }
-        }
-      }
-    }
+  let detectedCategory: '3d' | '2d' | 'football' = defaultCategory;
+  if (isExplicitFb) {
+    detectedCategory = 'football';
+  } else if (isExplicit2D) {
+    detectedCategory = '2d';
+  } else if (isExplicit3D) {
+    detectedCategory = '3d';
+  } else if (items2D.length > 0 && items3D.length === 0) {
+    detectedCategory = '2d';
+  } else if (items3D.length > 0 && items2D.length === 0) {
+    detectedCategory = '3d';
+  } else if (items2D.length > 0 && items3D.length > 0) {
+    const count2D = items2D.filter(it => it.number && it.number.length === 2).length;
+    const count3D = items3D.filter(it => it.number && it.number.length === 3).length;
+    detectedCategory = count2D >= count3D ? '2d' : '3d';
   }
 
-  return { items, totalAmount, detectedCategory };
+  let finalItems: { number: string; amount: number; isRumble: boolean; originalRaw: string }[] = [];
+  if (detectedCategory === '2d' && items2D.length > 0) {
+    finalItems = items2D.map(it => ({
+      number: it.number,
+      amount: it.amount,
+      isRumble: it.isRumble || false,
+      originalRaw: it.originalInput || it.number
+    }));
+  } else if (detectedCategory === '3d' && items3D.length > 0) {
+    finalItems = items3D.map(it => ({
+      number: it.number,
+      amount: it.amount,
+      isRumble: it.isRumble || false,
+      originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
+    }));
+  } else if (items2D.length > 0) {
+    finalItems = items2D.map(it => ({
+      number: it.number,
+      amount: it.amount,
+      isRumble: it.isRumble || false,
+      originalRaw: it.originalInput || it.number
+    }));
+    detectedCategory = '2d';
+  } else if (items3D.length > 0) {
+    finalItems = items3D.map(it => ({
+      number: it.number,
+      amount: it.amount,
+      isRumble: it.isRumble || false,
+      originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
+    }));
+    detectedCategory = '3d';
+  }
+
+  const totalAmount = finalItems.reduce((s, it) => s + (it.amount || 0), 0);
+  return { items: finalItems, totalAmount, detectedCategory };
 }
 
 function getTelegramTokenForShop(shopStore: ShopStoreData): string {
@@ -339,11 +291,12 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
   const cleanText = text.trim();
   if (cleanText.startsWith('/start') || cleanText.startsWith('/help') || cleanText.startsWith('/ping')) return;
 
-  let category: '3d' | '2d' | 'football' = '3d';
-  if (text.startsWith('/2d') || /2d/i.test(text)) category = '2d';
-  else if (text.startsWith('/football') || /football|fb/i.test(text)) category = 'football';
+  let category: '3d' | '2d' | 'football' = '2d';
+  if (text.startsWith('/2d') || /\b2d\b/i.test(text)) category = '2d';
+  else if (text.startsWith('/3d') || /\b3d\b/i.test(text)) category = '3d';
+  else if (text.startsWith('/football') || /\bfootball\b|\bfb\b/i.test(text)) category = 'football';
 
-  const parsed = parseBetText(text, category);
+  const parsed = parseBetText(cleanText, category);
   const shopStore = await getOrCreateShopStore(shopId);
 
   if (!Array.isArray(shopStore.telegramOrders)) {

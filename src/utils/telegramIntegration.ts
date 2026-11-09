@@ -536,7 +536,7 @@ export async function sendTelegramMessage(
 
 export async function updateTelegramOrderOnServer(
   id: string,
-  updates: { status?: 'pending_review' | 'approved' | 'rejected'; notes?: string }
+  updates: { status?: 'pending_review' | 'approved' | 'rejected'; notes?: string; parsedItems?: any[]; totalAmount?: number }
 ): Promise<boolean> {
   try {
     const headers = await getAuthHeaders();
