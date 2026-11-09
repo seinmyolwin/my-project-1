@@ -68,6 +68,7 @@ import { BetItem, VoucherItem, TwoDVoucherItem, FootballBetSelection, FootballBe
 import { safeRound } from '../utils/moneyUtils';
 import { playSuccessSound, playAddSound, playWarningSound, playTapSound, playDeleteSound } from '../utils/audioUtils';
 import { saveRawClip } from '../utils/rawClipsUtils';
+import { getStoredEnabledModes, EnabledModes } from '../utils/securityUtils';
 
 interface TelegramOrdersHubModalProps {
   isOpen: boolean;
@@ -160,43 +161,154 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleParseTextToItems = (text: string, category: '3d' | '2d' | 'football') => {
+  const resolveAutoCategory = (
+    text: string,
+    fallbackOrderCategory?: '3d' | '2d' | 'football',
+    items?: { number: string }[]
+  ): '3d' | '2d' | 'football' => {
+    let enabledModes: EnabledModes;
+    try {
+      enabledModes = getStoredEnabledModes();
+    } catch {
+      enabledModes = { '3d': true, '2d': true, 'football': true };
+    }
+
+    const enabledList: ('3d' | '2d' | 'football')[] = [];
+    if (enabledModes['3d']) enabledList.push('3d');
+    if (enabledModes['2d']) enabledList.push('2d');
+    if (enabledModes['football']) enabledList.push('football');
+
+    // Rule 1: If only 1 mode is enabled in Settings, automatically assign that mode!
+    if (enabledList.length === 1) {
+      return enabledList[0];
+    }
+
+    // Rule 2: If multiple modes (2 or 3) are enabled in Settings, inspect the numbers!
+    const clean = convertMyanmarToEnglishDigits(text || '').trim();
+
+    // Check football keywords first if football is enabled
+    if (enabledModes['football']) {
+      const fbPattern = /body|over|under|အပေါ်|အောက်|မောင်း|ဂိုးပေါင်း|ဂိုး|vs|ခွက်|ဘောလုံး|မနက်ဖြန်ပွဲ/i;
+      if (fbPattern.test(clean) || fbPattern.test(text || '')) {
+        return 'football';
+      }
+    }
+
+    // Check numbers in parsed items or raw text
+    let num2DCount = 0;
+    let num3DCount = 0;
+
+    if (items && items.length > 0) {
+      for (const it of items) {
+        const cleanNum = (it.number || '').replace(/\D/g, '');
+        if (cleanNum.length === 2) num2DCount++;
+        else if (cleanNum.length === 3) num3DCount++;
+      }
+    }
+
+    // Also inspect tokens in raw text
+    const cleanTokens = clean
+      .replace(/[,;:=_\-/*+]/g, ' ')
+      .replace(/ကျပ်|ks|k|စီ|r|အာ|ပတ်လည်|ပတ်/gi, ' ')
+      .split(/\s+/)
+      .map(t => t.replace(/\D/g, ''))
+      .filter(Boolean);
+
+    for (const t of cleanTokens) {
+      if (t.length === 2) num2DCount++;
+      else if (t.length === 3) num3DCount++;
+    }
+
+    // Check 2D specific syntax (Break, Head, Tail, Khway)
+    const has2DSyntax = /[bB]|ဘရိတ်|ထိပ်|ပိတ်|ခွေ/.test(clean);
+    if (has2DSyntax && enabledModes['2d']) {
+      return '2d';
+    }
+
+    if (num2DCount > 0 && num3DCount === 0 && enabledModes['2d']) {
+      return '2d';
+    }
+    if (num3DCount > 0 && num2DCount === 0 && enabledModes['3d']) {
+      return '3d';
+    }
+    if (num2DCount > num3DCount && enabledModes['2d']) {
+      return '2d';
+    }
+    if (num3DCount > num2DCount && enabledModes['3d']) {
+      return '3d';
+    }
+
+    // If order already has a category and it is enabled in settings, keep it
+    if (fallbackOrderCategory && enabledModes[fallbackOrderCategory]) {
+      return fallbackOrderCategory;
+    }
+
+    // Fallback to first enabled mode in settings
+    return enabledList[0] || '2d';
+  };
+
+  const handleParseTextToItems = (text: string, preferredCategory?: '3d' | '2d' | 'football') => {
     let resultItems: { number: string; amount: number; isRumble: boolean; originalRaw: string }[] = [];
     const clean = convertMyanmarToEnglishDigits(text || '').trim();
-    if (!clean || clean === '[Photo Slip]') return { items: [], detectedCategory: category };
-
-    let effectiveCategory = category;
-
-    // 1. If category is 2d OR if clean text has 2D syntax / 2-digit numbers
-    if (category === '2d' || /\b\d{2}\b/.test(clean) || /[bB]|ဘရိတ်|ထိပ်|ပိတ်|ခွေ/.test(clean)) {
-      const parsed2D = parseTwoDBatchInput(clean, 1000);
-      const itemList2D = Array.isArray(parsed2D) ? parsed2D : parsed2D.items;
-      if (itemList2D && itemList2D.length > 0) {
-        resultItems = itemList2D.map(it => ({
-          number: it.number,
-          amount: it.amount,
-          isRumble: it.isRumble || false,
-          originalRaw: it.originalInput || it.number
-        }));
-        effectiveCategory = '2d';
-      }
+    if (!clean || clean === '[Photo Slip]') {
+      const initialCat = resolveAutoCategory('', preferredCategory);
+      return { items: [], detectedCategory: initialCat };
     }
 
-    // 2. If 0 items or category is 3d, try 3D parsing
-    if (resultItems.length === 0) {
-      const { items: items3D } = parseQuickBetText(clean);
-      if (items3D && items3D.length > 0) {
-        resultItems = items3D.map(it => ({
-          number: it.number,
-          amount: it.amount,
-          isRumble: it.isRumble || false,
-          originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
-        }));
-        effectiveCategory = '3d';
-      }
+    // First attempt 2D parsing
+    const parsed2D = parseTwoDBatchInput(clean, 1000);
+    const itemList2D = Array.isArray(parsed2D) ? parsed2D : parsed2D.items;
+
+    // Second attempt 3D parsing
+    const { items: items3D } = parseQuickBetText(clean);
+
+    let detectedCat: '3d' | '2d' | 'football';
+
+    // If both 2D and 3D produced items, let resolveAutoCategory pick based on enabled settings and number lengths
+    if (preferredCategory) {
+      detectedCat = preferredCategory;
+    } else {
+      const candidateItems = (itemList2D && itemList2D.length > 0)
+        ? itemList2D
+        : (items3D && items3D.length > 0 ? items3D : []);
+      detectedCat = resolveAutoCategory(clean, preferredCategory, candidateItems);
     }
 
-    return { items: resultItems, detectedCategory: effectiveCategory };
+    if (detectedCat === '2d' && itemList2D && itemList2D.length > 0) {
+      resultItems = itemList2D.map(it => ({
+        number: it.number,
+        amount: it.amount,
+        isRumble: it.isRumble || false,
+        originalRaw: it.originalInput || it.number
+      }));
+    } else if (detectedCat === '3d' && items3D && items3D.length > 0) {
+      resultItems = items3D.map(it => ({
+        number: it.number,
+        amount: it.amount,
+        isRumble: it.isRumble || false,
+        originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
+      }));
+    } else if (itemList2D && itemList2D.length > 0) {
+      resultItems = itemList2D.map(it => ({
+        number: it.number,
+        amount: it.amount,
+        isRumble: it.isRumble || false,
+        originalRaw: it.originalInput || it.number
+      }));
+      detectedCat = '2d';
+    } else if (items3D && items3D.length > 0) {
+      resultItems = items3D.map(it => ({
+        number: it.number,
+        amount: it.amount,
+        isRumble: it.isRumble || false,
+        originalRaw: it.originalInput || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`
+      }));
+      detectedCat = '3d';
+    }
+
+    // Validate against enabled modes
+    const finalCat = resolveAutoCategory(clean, detectedCat, resultItems);
+    return { items: resultItems, detectedCategory: finalCat };
   };
 
   const handleStartVoucherEntry = (order: TelegramIncomingOrder) => {
@@ -209,8 +321,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     setRawBatchInputText(rawText);
     setIsEditingRawText(false);
 
-    const { items: parsedList, detectedCategory } = handleParseTextToItems(rawText, order.category);
-    setVoucherCategory(detectedCategory);
+    // Auto-resolve business type using settings enabledModes and order numbers
+    const autoCat = resolveAutoCategory(rawText, order.category, order.parsedItems);
+    const { items: parsedList, detectedCategory } = handleParseTextToItems(rawText, autoCat);
+    setVoucherCategory(detectedCategory || autoCat);
 
     if (parsedList.length > 0) {
       setVoucherItems(parsedList);
@@ -710,11 +824,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       originalInput: pi.originalRaw
     }));
 
-    const isAll2D = order.parsedItems.every(pi => pi.number && pi.number.trim().length === 2);
-    const isAll3D = order.parsedItems.every(pi => pi.number && pi.number.trim().length === 3);
-    let effectiveCategory = order.category;
-    if (isAll2D) effectiveCategory = '2d';
-    else if (isAll3D) effectiveCategory = '3d';
+    const effectiveCategory = resolveAutoCategory(order.rawText, order.category, order.parsedItems);
 
     let createdVoucherNo = '';
     let activeRoundObj: any = null;
@@ -1623,7 +1733,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] sm:text-xs font-bold text-slate-600 mb-1">အမျိုးအစား</label>
+                      <label className="block text-[10px] sm:text-xs font-bold text-slate-600 mb-1">အမျိုးအစား (လုပ်ငန်းအမျိုးအစား)</label>
                       <select
                         value={voucherCategory}
                         onChange={(e) => {
@@ -1637,9 +1747,21 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                         }}
                         className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 cursor-pointer focus:bg-white focus:border-sky-500"
                       >
-                        <option value="2d">ဇီးကွက် (2D)</option>
-                        <option value="3d">အိုးစည်လေး (3D)</option>
-                        <option value="football">ဘောလုံး (Football)</option>
+                        {(() => {
+                          let modes: EnabledModes;
+                          try {
+                            modes = getStoredEnabledModes();
+                          } catch {
+                            modes = { '3d': true, '2d': true, 'football': true };
+                          }
+                          return (
+                            <>
+                              {modes['2d'] && <option value="2d">ဇီးကွက် (2D)</option>}
+                              {modes['3d'] && <option value="3d">အိုးစည်လေး (3D)</option>}
+                              {modes['football'] && <option value="football">ဘောလုံး (Football)</option>}
+                            </>
+                          );
+                        })()}
                       </select>
                     </div>
                   </div>
