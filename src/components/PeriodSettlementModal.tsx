@@ -20,6 +20,7 @@ import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
 import { getLocalDateStr, getDaysAgoStr, generateStatementRecords } from '../utils/statementUtils';
 import { getCustomerCommission } from '../utils/commissionUtils';
+import { printStatementReport } from '../utils/printUtils';
 
 interface PeriodSettlementModalProps {
   isOpen: boolean;
@@ -364,7 +365,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   };
 
   const handlePrint = () => {
-    window.print();
+    printStatementReport('printable-period-settlement', 'ကာလအလိုက် စာရင်းရှင်းတမ်း အစီရင်ခံစာ');
   };
 
   if (!isOpen) return null;
@@ -610,8 +611,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             </div>
           )}
 
-          {/* Traditional Paper Slip Ledger Preview Card (Matching EM_25284f9f.jpg) */}
-          <div className="bg-amber-50/70 border-2 border-amber-900/30 rounded-2xl p-5 shadow-sm max-w-xl mx-auto space-y-4 font-mono text-slate-900">
+          {/* Traditional Paper Slip Ledger Preview Card (Matching EM_25284f9f.jpg & image_0b84c059.png) */}
+          <div id="printable-period-settlement" className="bg-amber-50/90 border-2 border-amber-900/30 rounded-2xl p-5 shadow-sm max-w-xl mx-auto space-y-4 font-mono text-slate-900">
             <div className="text-center border-b-2 border-dashed border-amber-900/30 pb-3 space-y-0.5">
               <h4 className="text-sm font-black text-amber-950 uppercase">
                 {settlementType === 'downline' ? 'အောက်လက်ဒိုင်ငယ် ရှင်းတမ်း' : 'အထက်ဒိုင်ကြီး ရှင်းတမ်း'}
@@ -624,7 +625,53 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
               </div>
             </div>
 
-            <div className="space-y-2 text-xs">
+            {/* Day-by-Day / Session-by-Session Breakdown Items (တနေ့စာချင်း အသေးစိတ်) */}
+            <div className="border-b border-dashed border-slate-300 pb-3 space-y-2">
+              <div className="text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                ရက်အလိုက် / ပွဲစဉ်အလိုက် အသေးစိတ် (Day-by-Day Breakdown)
+              </div>
+              {settlementType === 'downline' ? (
+                downlineSettlementData.items.length === 0 ? (
+                  <div className="text-xs text-slate-400 py-1">စာရင်းများ မရှိသေးပါ</div>
+                ) : (
+                  downlineSettlementData.items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                      <div>
+                        <span className="font-bold text-slate-800">{item.date}</span>
+                        <span className="text-slate-500 text-[10px] ml-1">({item.mode})</span>
+                        <div className="text-[10px] text-slate-600 truncate max-w-[220px]">{item.summary}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">ထိုးကြေး: {formatAmount(item.amount, '')}</div>
+                        {item.payout > 0 && <div className="text-rose-600 font-bold">ပေါက်ကြေး: {formatAmount(item.payout, '')}P</div>}
+                      </div>
+                    </div>
+                  ))
+                )
+              ) : (
+                uplineSettlementData.items.length === 0 ? (
+                  <div className="text-xs text-slate-400 py-1">လွှဲစာရင်းများ မရှိသေးပါ</div>
+                ) : (
+                  uplineSettlementData.items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                      <div>
+                        <span className="font-bold text-slate-800">{item.date}</span>
+                        <span className="text-slate-500 text-[10px] ml-1">({item.mode})</span>
+                        <div className="text-[10px] text-slate-600 truncate max-w-[220px]">{item.summary}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">တင်ကြေး: {formatAmount(item.amount, '')}</div>
+                        <div className="text-sky-600">ကော်: {formatAmount(item.commission, '')}</div>
+                        {item.payout > 0 && <div className="text-rose-600 font-bold">ပေါက်ကြေး: {formatAmount(item.payout, '')}P</div>}
+                      </div>
+                    </div>
+                  ))
+                )
+              )}
+            </div>
+
+            {/* Grand Totals Summary (Matching image_0b84c059.png) */}
+            <div className="space-y-2 text-xs pt-1">
               <div className="flex items-center justify-between font-bold">
                 <span>{settlementType === 'downline' ? 'စုစုပေါင်းထိုးကြေး (Turnover):' : 'စုစုပေါင်းတင်ကြေး (Forwarded):'}</span>
                 <span>{formatAmount(settlementType === 'downline' ? downlineSettlementData.totalSales : uplineSettlementData.totalForwarded, currency)}</span>
@@ -646,7 +693,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
               </div>
 
               {/* Final Net Balance */}
-              <div className={`p-3 rounded-xl border-2 flex items-center justify-between text-sm font-black ${
+              <div className={`p-3.5 rounded-xl border-2 flex items-center justify-between text-sm font-black ${
                 (settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance) >= 0
                   ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
                   : 'bg-rose-50 border-rose-500 text-rose-900'
