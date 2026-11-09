@@ -459,10 +459,10 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       }
       if (item.commission) text += `, ကော်: ${formatAmount(Number(item.commission), '')}`;
       if (item.payout > 0) {
-        text += `, ပေါက်: ${formatAmount(Number(item.payout), '')}P`;
+        text += `, ပေါက်ကြေး: ${formatAmount(Number(item.payout), '')} Ks`;
         if (item.winningBets && item.winningBets.length > 0) {
-          const wDetail = item.winningBets.map((wb: any) => `${wb.num}(${formatAmount(wb.amt, '')}ထိုး)`).join(', ');
-          text += ` (${wDetail})`;
+          const wDetail = item.winningBets.map((wb: any) => `${wb.num} ${formatAmount(wb.amt, '')}P`).join(', ');
+          text += ` [${wDetail}]`;
         }
       }
       text += `\n`;
@@ -763,30 +763,29 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                         </div>
                       </div>
 
-                      {/* Winning details: numbers, bets, and payout */}
+                      {/* Winning details: numbers and bet P like paper ledger */}
                       {item.payout > 0 && (
-                        <div className="flex items-center justify-between text-xs bg-rose-50/70 border border-rose-200 rounded-lg px-2 py-1">
-                          <div className="text-[11px] text-rose-800 flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold">ပေါက်မည့်အကွက်:</span>
+                        <div className="flex items-center justify-between text-xs bg-rose-50/70 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                          <div className="text-[12px] text-rose-800 flex items-center gap-2 flex-wrap">
                             {item.winningBets && item.winningBets.length > 0 ? (
                               item.winningBets.map((wb, wIdx) => (
-                                <span key={wIdx} className="font-mono font-bold inline-flex items-center gap-1">
-                                  <span className="inline-block px-1.5 py-0.2 bg-white border border-rose-400 text-rose-700 rounded-full font-black">
+                                <span key={wIdx} className="font-mono font-bold inline-flex items-center gap-1.5">
+                                  <span className="inline-block px-2 py-0.5 bg-white border border-rose-400 text-rose-700 rounded-full font-black text-xs shadow-2xs">
                                     {wb.num}
                                   </span>
-                                  <span>({formatAmount(wb.amt, '')} ထိုး)</span>
+                                  <span className="font-black text-rose-700">{formatAmount(wb.amt, '')} P</span>
                                 </span>
                               ))
                             ) : (
                               item.winningNumbers && item.winningNumbers.map((wn, wnIdx) => (
-                                <span key={wnIdx} className="inline-block px-1.5 py-0.2 bg-white border border-rose-400 text-rose-700 rounded-full font-black">
+                                <span key={wnIdx} className="inline-block px-2 py-0.5 bg-white border border-rose-400 text-rose-700 rounded-full font-black text-xs shadow-2xs">
                                   {wn}
                                 </span>
                               ))
                             )}
                           </div>
                           <div className="text-rose-700 font-black text-right shrink-0">
-                            ပေါက်ကြေး: {formatAmount(item.payout, '')}P
+                            ပေါက်ကြေး: {formatAmount(item.payout, '')} Ks
                           </div>
                         </div>
                       )}
