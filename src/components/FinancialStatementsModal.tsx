@@ -44,7 +44,8 @@ import {
   getStatementDateRange,
   getStatementPeriodLabel,
   generateStatementRecords,
-  computeStatementGrandTotals
+  computeStatementGrandTotals,
+  getVoucherGrossTurnover
 } from '../utils/statementUtils';
 
 interface FinancialStatementsModalProps {
@@ -1356,7 +1357,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 <div className="flex justify-between items-center text-slate-600">
                   <span>၁။ မူလထိုးကြေး စုစုပေါင်း:</span>
                   <span className="font-bold font-mono text-slate-900">
-                    {formatAmount(inspectingVoucher.subtotal || inspectingVoucher.stakeAmount || 0, currency)}
+                    {formatAmount(getVoucherGrossTurnover(inspectingVoucher), currency)}
                   </span>
                 </div>
                 {inspectingVoucher.discountAmount > 0 && (
@@ -1370,7 +1371,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 <div className="flex justify-between items-center pt-1 border-t border-slate-100 text-slate-900 font-bold">
                   <span>၃။ အသားတင် ကျသင့်ငွေ (ပေးငွေ):</span>
                   <span className="text-sm font-black font-mono text-indigo-900">
-                    {formatAmount(inspectingVoucher.netPayable || inspectingVoucher.subtotal || inspectingVoucher.stakeAmount || 0, currency)}
+                    {formatAmount(inspectingVoucher.netPayable || getVoucherGrossTurnover(inspectingVoucher), currency)}
                   </span>
                 </div>
                 {inspectingVoucher.totalPayout > 0 && (
@@ -1396,8 +1397,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 --------------------------------
 ${Array.isArray(inspectingVoucher.items) ? inspectingVoucher.items.map((it: any) => `${it.number}=${it.amount}`).join('\n') : inspectingVoucher.matchesSummary || ''}
 --------------------------------
-မူလထိုးကြေး: ${formatAmount(inspectingVoucher.subtotal || inspectingVoucher.stakeAmount || 0, currency)}
-${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: -${formatAmount(inspectingVoucher.discountAmount, currency)}\n` : ''}အမှန်ပေးငွေ: ${formatAmount(inspectingVoucher.netPayable || inspectingVoucher.subtotal || inspectingVoucher.stakeAmount || 0, currency)}`;
+မူလထိုးကြေး: ${formatAmount(getVoucherGrossTurnover(inspectingVoucher), currency)}
+${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: -${formatAmount(inspectingVoucher.discountAmount, currency)}\n` : ''}အမှန်ပေးငွေ: ${formatAmount(inspectingVoucher.netPayable || getVoucherGrossTurnover(inspectingVoucher), currency)}`;
                   navigator.clipboard.writeText(text);
                   setCopiedVoucherText(true);
                   setTimeout(() => setCopiedVoucherText(false), 2000);
