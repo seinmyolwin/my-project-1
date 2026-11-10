@@ -177,39 +177,39 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
     };
   });
 
-  // Decision Logic for Option (C) Smart Exposure Cap:
-  const allowedBudget = -Math.abs(maxRiskBudget);
+  // Decision Logic: Loop through all candidate caps and pick the cap with MAXIMUM expected profit & MINIMUM downside risk
+  const scoredEvaluations = evaluations.map(e => {
+    // Expected Profit across 100 outcomes
+    const expected = e.expectedNetValue;
+    // Downside penalty if worstCaseNet is negative
+    const downsideRisk = e.worstCaseNet < 0 ? Math.abs(e.worstCaseNet) : 0;
 
-  // Tier 1: Guaranteed Zero-Risk candidates (worstCaseNet >= allowedBudget)
-  const zeroRiskCandidates = evaluations.filter(e => e.worstCaseNet >= allowedBudget && e.cap > 0);
+    // Composite score balancing maximum expected profit with downside protection:
+    // Score = Expected Profit - (downsideRisk * 0.12)
+    // If worstCaseNet >= 0 (zero-risk), penalty is 0.
+    const score = expected - (downsideRisk * 0.12);
 
-  let best: CandidateEvaluation;
+    return {
+      ...e,
+      score
+    };
+  });
 
-  if (zeroRiskCandidates.length > 0) {
-    // Pick highest cap that guarantees no loss
-    best = zeroRiskCandidates.reduce((max, e) => e.cap > max.cap ? e : max, zeroRiskCandidates[0]);
-  } else {
-    // Tier 2: Positive Expected Value (+EV) Smart Exposure candidates (expectedNetValue >= 0)
-    const positiveEVCandidates = evaluations.filter(e => e.expectedNetValue >= 0 && e.cap > 0);
+  // Pick the candidate cap with highest score
+  let best: CandidateEvaluation = scoredEvaluations.reduce(
+    (max, e) => (e.score > max.score ? e : max),
+    scoredEvaluations[0]
+  );
 
-    if (positiveEVCandidates.length > 0) {
-      // Pick candidate that gives a healthy balance of retention and positive expected value
-      const reasonableEV = positiveEVCandidates.filter(e => e.worstPayout <= Math.max(e.netCash * 15, 20000));
-      const pool = reasonableEV.length > 0 ? reasonableEV : positiveEVCandidates;
-      
-      best = pool.reduce((chosen, e) => {
-        if (e.expectedNetValue > chosen.expectedNetValue) return e;
-        if (Math.abs(e.expectedNetValue - chosen.expectedNetValue) < 10 && e.cap > chosen.cap) return e;
-        return chosen;
-      }, pool[0]);
-    } else {
-      // Tier 3: Fallback - pick candidate that maximizes expectedNetValue
-      best = evaluations.reduce((chosen, e) => e.expectedNetValue > chosen.expectedNetValue ? e : chosen, evaluations[0]);
-    }
+  // If candidate cap is 0 or undefined, fallback to zeroRiskCap or default cap
+  if (!best || best.cap <= 0) {
+    best = evaluations.find(e => e.cap === zeroRiskCap) || evaluations[0];
   }
 
-  if (!best) {
-    best = evaluations[0];
+  // Round optimalCap to clean practical number if close to round numbers
+  let roundedCap = best.cap;
+  if (roundedCap > 100 && roundedCap % 50 !== 0) {
+    roundedCap = Math.round(roundedCap / 50) * 50;
   }
 
   const breakdown: NumberCapBreakdown[] = betsList.map(item => {
@@ -225,7 +225,7 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
 
   return {
     totalSales,
-    optimalCap: best.cap,
+    optimalCap: roundedCap > 0 ? roundedCap : best.cap,
     zeroRiskCap,
     totalRetained: best.retained,
     totalForwarded: best.forwarded,
