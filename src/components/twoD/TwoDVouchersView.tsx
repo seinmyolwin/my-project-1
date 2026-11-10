@@ -411,6 +411,30 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-indigo-950 text-white font-mono border-t-2 border-indigo-700">
+                  <tr>
+                    <td colSpan={3} className="p-3.5 font-black font-sans text-xs text-indigo-100">
+                      {isMyanmar ? 'စုစုပေါင်း အထက်တင်ကြေး (TOTAL FORWARDED):' : 'TOTAL FORWARDED:'}
+                    </td>
+                    <td className="p-3.5 text-center font-bold font-mono">
+                      <span className="px-2 py-0.5 bg-indigo-800 text-amber-300 rounded-md text-xs font-black">
+                        {filteredForwardSlips.reduce((acc, s) => acc + s.items.length, 0)} လုံး
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right font-black text-amber-300 text-sm">
+                      {formatAmount(filteredForwardSlips.reduce((acc, s) => acc + s.totalAmount, 0), settings.currency)}
+                    </td>
+                    <td className="p-3.5 text-right font-bold text-emerald-300 text-xs">
+                      +{formatAmount(filteredForwardSlips.reduce((acc, s) => acc + s.commissionAmount, 0), settings.currency)}
+                    </td>
+                    <td className="p-3.5 text-right font-black text-white text-sm">
+                      {formatAmount(filteredForwardSlips.reduce((acc, s) => acc + s.netPaid, 0), settings.currency)}
+                    </td>
+                    <td colSpan={2} className="p-3.5 text-right font-sans text-[11px] text-indigo-200">
+                      ({filteredForwardSlips.length} {isMyanmar ? 'စောင် စုစုပေါင်း' : 'slips total'})
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}

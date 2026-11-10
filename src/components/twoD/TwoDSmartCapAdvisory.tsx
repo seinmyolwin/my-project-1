@@ -13,7 +13,9 @@ import {
   Info,
   RotateCcw,
   Sparkles,
-  Calculator
+  Calculator,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDNumberAggregate } from '../../types';
@@ -41,6 +43,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
   // Custom Cap Testing State
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [customCapInput, setCustomCapInput] = useState<string>('2000');
+  const [isCardsCollapsed, setIsCardsCollapsed] = useState<boolean>(false);
 
   // Pull settings directly as explicitly required:
   // 1. ပေါက်ဆ/ပေါက်ကြေး: Taken strictly from settings.defaultMultiplier
@@ -125,11 +128,11 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
   return (
     <div className="space-y-3">
       {/* Interactive Cap Simulator Bar (ပိုင်ရှင် စိတ်ကြိုက် စမ်းသပ်တွက်ချက်နိုင်သည့် Control Bar) */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 mr-1">
-            <Calculator className="w-4 h-4 text-teal-700" />
-            <span className="text-xs font-black text-slate-800">
+      <div className="bg-white rounded-xl p-2 sm:p-2.5 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 mr-1">
+            <Calculator className="w-3.5 h-3.5 text-teal-700" />
+            <span className="text-[11px] sm:text-xs font-black text-slate-800">
               {isMyanmar ? 'ဘရိတ် စမ်းသပ်တွက်ချက်မှု:' : 'Cap Simulator:'}
             </span>
           </div>
@@ -138,15 +141,15 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
           <button
             type="button"
             onClick={handleResetToAuto}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
               !isCustomMode
-                ? 'bg-teal-700 text-white shadow-xs ring-2 ring-teal-200'
+                ? 'bg-teal-700 text-white shadow-2xs ring-1 ring-teal-200'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{isMyanmar ? 'Auto အကြံပြုချက်' : 'Auto Suggested'}</span>
-            <span className="text-[10px] font-mono bg-teal-800 text-teal-100 px-1 rounded">
+            <Sparkles className="w-3 h-3" />
+            <span>{isMyanmar ? 'Auto အကြံပြု' : 'Auto'}</span>
+            <span className="text-[9px] font-mono bg-teal-800 text-teal-100 px-1 rounded">
               {formatAmount(autoResult.optimalCap, settings.currency)}
             </span>
           </button>
@@ -154,29 +157,29 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
           <button
             type="button"
             onClick={() => setIsCustomMode(true)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
               isCustomMode
-                ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-200'
+                ? 'bg-indigo-600 text-white shadow-2xs ring-1 ring-indigo-200'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>{isMyanmar ? 'စိတ်ကြိုက် စမ်းသပ်မည်' : 'Custom Test'}</span>
+            <Sliders className="w-3 h-3" />
+            <span>{isMyanmar ? 'စိတ်ကြိုက်စမ်းမည်' : 'Custom'}</span>
             {isCustomMode && (
-              <span className="text-[10px] font-mono bg-indigo-700 text-indigo-100 px-1 rounded">
+              <span className="text-[9px] font-mono bg-indigo-700 text-indigo-100 px-1 rounded">
                 {formatAmount(customCapNumber, settings.currency)}
               </span>
             )}
           </button>
 
           {/* Quick Presets */}
-          <div className="flex items-center gap-1 pl-1 border-l border-slate-200">
+          <div className="hidden sm:flex items-center gap-1 pl-1 border-l border-slate-200">
             {[1000, 2000, 2500, 3000, 5000].map(amt => (
               <button
                 key={amt}
                 type="button"
                 onClick={() => handleSelectPreset(amt)}
-                className={`px-2 py-1 text-xs font-mono font-bold rounded-lg transition-colors cursor-pointer ${
+                className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded transition-colors cursor-pointer ${
                   isCustomMode && customCapNumber === amt
                     ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
@@ -189,13 +192,13 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
           </div>
         </div>
 
-        {/* Custom Input Field with Disclaimer Badge */}
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-slate-500 font-medium shrink-0">
+        {/* Custom Input Field & Collapse Toggle */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-slate-500 font-medium shrink-0">
               {isMyanmar ? 'စမ်းသပ်ဘရိတ်:' : 'Test Cap:'}
             </span>
-            <div className="relative w-28">
+            <div className="relative w-20 sm:w-24">
               <input
                 type="number"
                 step="100"
@@ -206,199 +209,178 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                   setCustomCapInput(e.target.value);
                   setIsCustomMode(true);
                 }}
-                className="w-full h-8 px-2 text-xs font-mono font-bold rounded-xl border border-indigo-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-200 bg-indigo-50/40 text-indigo-900"
+                className="w-full h-7 px-1.5 text-xs font-mono font-bold rounded-lg border border-indigo-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-200 bg-indigo-50/40 text-indigo-900"
               />
             </div>
-            <span className="text-[11px] text-slate-400 font-mono">Ks</span>
+            <span className="text-[10px] text-slate-400 font-mono">Ks</span>
           </div>
 
-          <span
-            className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg shrink-0 font-medium"
-            title="ဒီနေရာမှာထည့်သည့်ဘရိတ်သည် စမ်းခြင်းသာဖြစ်သည်။ ဆက်တင်ထဲကဘရိတ်သည်သာအတည်ဖြစ်သည်။"
+          <button
+            type="button"
+            onClick={() => setIsCardsCollapsed(!isCardsCollapsed)}
+            className="p-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 cursor-pointer transition-colors"
+            title={isCardsCollapsed ? (isMyanmar ? 'ကတ်များကို ဖြန့်ပြရန်' : 'Expand Cards') : (isMyanmar ? 'ကတ်များကို ခေါက်ထားရန်' : 'Collapse Cards')}
           >
-            {isMyanmar ? '⚠️ စမ်းသပ်ချက်သာ (ဆက်တင်အတည်)' : 'Test Only'}
-          </span>
+            {isCardsCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 
-      {/* Top 4 Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Card 1: Total Sales */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-slate-500 font-bold block">
-                {isMyanmar ? 'စုစုပေါင်း အရောင်းရငွေ' : 'Total 2D Sales'}
-              </span>
-              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold" title="ဆက်တင်ထဲက အောက်လက်ကော်မရှင် / လျှော့ငွေ (%)">
-                {isMyanmar ? 'အောက်လက်' : 'Downline'} @{downlineCommRate}%
-              </span>
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
-              {formatAmount(roundSummary.totalSales, settings.currency)}
-            </div>
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>{roundSummary.totalVouchers} {isMyanmar ? 'စောင် ရောင်းပြီး' : 'vouchers'}</span>
-            <span className="font-mono text-slate-500">{betsList.length} {isMyanmar ? 'ကွက် ဝင်ထား' : 'active'}</span>
-          </div>
-        </div>
-
-        {/* Card 2: Safe Cap / Smart Exposure Cap / Tested Cap */}
-        <div className={`rounded-2xl p-4 border shadow-2xs flex flex-col justify-between relative overflow-hidden transition-all ${
-          isCustomMode
-            ? 'bg-gradient-to-br from-indigo-50 to-blue-50/60 border-indigo-200'
-            : 'bg-gradient-to-br from-teal-50 to-emerald-50/60 border-teal-200'
-        }`}>
-          <div className="absolute top-2 right-2 opacity-10 pointer-events-none">
-            <ShieldCheck className="w-16 h-16 text-slate-800" />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className={`text-xs font-bold flex items-center gap-1 ${
-                isCustomMode ? 'text-indigo-900' : 'text-teal-900'
-              }`}>
-                <ShieldCheck className={`w-3.5 h-3.5 ${isCustomMode ? 'text-indigo-700' : 'text-teal-700'}`} />
-                <span>
-                  {isCustomMode
-                    ? (isMyanmar ? 'စမ်းသပ်ထားသော ဘရိတ်' : 'Simulated Cap')
-                    : (isMyanmar ? 'Smart Exposure Cap (အကွက်ဖြန့်ကျက်မှု အကြံပြုချက်)' : 'Smart Exposure Cap')}
+      {/* Top 4 Stat Cards - Ultra Compact Row */}
+      {!isCardsCollapsed && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {/* Card 1: Total Sales */}
+          <div className="bg-white rounded-xl p-2.5 sm:p-3 border border-slate-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[11px] text-slate-600 font-bold truncate">
+                  {isMyanmar ? 'စုစုပေါင်း အရောင်းရငွေ' : 'Total 2D Sales'}
                 </span>
-              </span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                isCustomMode
-                  ? 'bg-indigo-600 text-white'
-                  : activeResult.isGuaranteedProfit
-                  ? 'bg-teal-600 text-white'
-                  : activeResult.expectedNetValue >= 0
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-amber-100 text-amber-800'
-              }`}>
-                {isCustomMode
-                  ? (isMyanmar ? 'စမ်းသပ်ချက်' : 'Simulation')
-                  : activeResult.isGuaranteedProfit
-                  ? (isMyanmar ? 'အာမခံအမြတ် (Zero-Risk)' : 'Zero-Risk')
-                  : activeResult.expectedNetValue >= 0
-                  ? (isMyanmar ? 'အမြတ်မျှော်မှန်း (+EV)' : '+EV Cap')
-                  : (isMyanmar ? 'အရှုံးအနည်းဆုံး' : 'Min-Risk')}
-              </span>
+                <span className="text-[9px] bg-slate-100 text-slate-700 px-1 py-0.25 rounded font-mono font-bold shrink-0">
+                  {isMyanmar ? 'အောက်လက်' : 'Downline'} @{downlineCommRate}%
+                </span>
+              </div>
+              <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
+                {formatAmount(roundSummary.totalSales, settings.currency)}
+              </div>
             </div>
-            <div className={`text-xl sm:text-2xl font-black font-mono ${
-              isCustomMode ? 'text-indigo-900' : 'text-teal-800'
-            }`}>
-              {formatAmount(activeResult.optimalCap, settings.currency)}
-              <span className="text-xs font-normal text-slate-500 ml-1">/ {isMyanmar ? 'ကွက်' : 'num'}</span>
-            </div>
-            
-            <div className="mt-1 text-[10px] text-slate-500 font-mono">
-              {isMyanmar
-                ? `စစ်မှန်သော အရှုံးမရှိဘရိတ်: ${formatAmount(activeResult.zeroRiskCap, settings.currency)} Ks`
-                : `Zero-risk cap: ${formatAmount(activeResult.zeroRiskCap, settings.currency)} Ks`}
+            <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+              <span>{roundSummary.totalVouchers} {isMyanmar ? 'စောင်' : 'vouchers'}</span>
+              <span className="font-mono text-slate-500">{betsList.length} {isMyanmar ? 'ကွက်' : 'active'}</span>
             </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-            {isCustomMode ? (
+
+          {/* Card 2: Safe Cap / Auto Suggested Cap */}
+          <div className={`rounded-xl p-2.5 sm:p-3 border shadow-2xs flex flex-col justify-between transition-all ${
+            isCustomMode
+              ? 'bg-gradient-to-br from-indigo-50 to-blue-50/60 border-indigo-200'
+              : 'bg-gradient-to-br from-teal-50/60 to-emerald-50/60 border-teal-200'
+          }`}>
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className={`text-[11px] font-bold flex items-center gap-1 truncate ${
+                  isCustomMode ? 'text-indigo-900' : 'text-teal-900'
+                }`}>
+                  <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${isCustomMode ? 'text-indigo-700' : 'text-teal-700'}`} />
+                  <span className="truncate">
+                    {isCustomMode
+                      ? (isMyanmar ? 'စမ်းသပ်ထားသော ဘရိတ်' : 'Simulated Cap')
+                      : (isMyanmar ? 'Auto အကြံပြု ဘရိတ်' : 'Auto Suggested Cap')}
+                  </span>
+                </span>
+                {isCustomMode && (
+                  <span className="text-[9px] px-1 py-0.25 rounded font-bold bg-indigo-600 text-white shrink-0">
+                    {isMyanmar ? 'စမ်းသပ်ချက်' : 'Sim'}
+                  </span>
+                )}
+              </div>
+              <div className={`text-base sm:text-lg font-black font-mono ${
+                isCustomMode ? 'text-indigo-900' : 'text-teal-800'
+              }`}>
+                {formatAmount(activeResult.optimalCap, settings.currency)}
+                <span className="text-[10px] font-normal text-slate-500 ml-0.5">/ {isMyanmar ? 'ကွက်' : 'num'}</span>
+              </div>
+            </div>
+            <div className="mt-1.5 pt-1.5 border-t border-teal-200/60 flex items-center justify-between text-[10px]">
+              {isCustomMode ? (
+                <button
+                  type="button"
+                  onClick={handleResetToAuto}
+                  className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 underline flex items-center gap-0.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  <span>{isMyanmar ? 'Auto သို့ ပြန်ထားမည်' : 'Reset'}</span>
+                </button>
+              ) : (
+                <span className="text-teal-800 font-medium truncate">
+                  {isMyanmar ? `${activeResult.coveredNumbersCount} ကွက်ဝင် (${activeResult.emptyWinProbability}% မဝင်)` : `${activeResult.coveredNumbersCount} active`}
+                </span>
+              )}
               <button
                 type="button"
-                onClick={handleResetToAuto}
-                className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline flex items-center gap-1 cursor-pointer"
+                onClick={() => setIsDetailModalOpen(true)}
+                className="text-[10px] font-bold text-teal-800 hover:text-teal-900 underline flex items-center gap-0.5 cursor-pointer ml-auto shrink-0"
               >
-                <RotateCcw className="w-3 h-3" />
-                <span>{isMyanmar ? 'Auto သို့ ပြန်ထားမည်' : 'Reset to Auto'}</span>
+                <span>{isMyanmar ? 'အသေးစိတ်' : 'Details'}</span>
+                <ArrowRight className="w-2.5 h-2.5" />
               </button>
-            ) : (
-              <span className="text-teal-800 font-medium">
-                {isMyanmar ? `အကွက်ဖြန့်ကျက်မှု: ${activeResult.coveredNumbersCount} ကွက်ဝင် (${activeResult.emptyWinProbability}% မဝင်သေး)` : `${activeResult.coveredNumbersCount} active numbers`}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsDetailModalOpen(true)}
-              className="text-[11px] font-bold text-teal-800 hover:text-teal-900 underline flex items-center gap-0.5 cursor-pointer ml-auto"
-            >
-              <span>{isMyanmar ? 'အသေးစိတ်' : 'Details'}</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Card 3: Suggested / Simulated Retained vs Forwarded */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-indigo-700 font-bold block">
-                {isCustomMode
-                  ? (isMyanmar ? 'စမ်းသပ် ကိုယ်တိုင်စား / လွှဲငွေ' : 'Simulated Retain / Fwd')
-                  : (isMyanmar ? 'အကြံပြု ကိုယ်တိုင်စား / လွှဲငွေ' : 'Suggested Retain / Fwd')}
-              </span>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold" title="ဆက်တင်ထဲက ဒိုင်ကြီးအထက်ကော်မရှင် (%)">
-                {isMyanmar ? 'ဒိုင်ကြီးအထက်' : 'Upline'} @{uplineCommRate}%
-              </span>
             </div>
-            <div className="flex items-baseline justify-between font-mono">
-              <div>
-                <span className="text-[10px] text-slate-400 block font-sans">{isMyanmar ? 'စားငွေ' : 'Retain'}</span>
-                <span className="text-base sm:text-lg font-black text-teal-700">
-                  {formatAmount(activeResult.totalRetained, settings.currency)}
+          </div>
+
+          {/* Card 3: Suggested / Simulated Retained vs Forwarded */}
+          <div className="bg-white rounded-xl p-2.5 sm:p-3 border border-slate-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[11px] text-indigo-700 font-bold block truncate">
+                  {isCustomMode
+                    ? (isMyanmar ? 'စမ်းသပ် စား / လွှဲငွေ' : 'Sim Retain/Fwd')
+                    : (isMyanmar ? 'အကြံပြု စား / လွှဲငွေ' : 'Suggested Retain/Fwd')}
+                </span>
+                <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1 py-0.25 rounded font-mono font-bold shrink-0" title="ဆက်တင်ထဲက ဒိုင်ကြီးအထက်ကော်မရှင် (%)">
+                  {isMyanmar ? 'ဒိုင်ကြီး' : 'Upline'} @{uplineCommRate}%
                 </span>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 block font-sans">{isMyanmar ? 'လွှဲငွေ' : 'Forward'}</span>
-                <span className="text-base sm:text-lg font-black text-indigo-700">
-                  {formatAmount(activeResult.totalForwarded, settings.currency)}
-                </span>
+              <div className="flex items-baseline justify-between font-mono">
+                <div>
+                  <span className="text-[9px] text-slate-400 block font-sans leading-none mb-0.5">{isMyanmar ? 'စားငွေ' : 'Retain'}</span>
+                  <span className="text-xs sm:text-sm font-black text-teal-700">
+                    {formatAmount(activeResult.totalRetained, settings.currency)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] text-slate-400 block font-sans leading-none mb-0.5">{isMyanmar ? 'လွှဲငွေ' : 'Forward'}</span>
+                  <span className="text-xs sm:text-sm font-black text-indigo-700">
+                    {formatAmount(activeResult.totalForwarded, settings.currency)}
+                  </span>
+                </div>
               </div>
             </div>
+            <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+              <span className="truncate">{isMyanmar ? 'ကျန်အသားတင်:' : 'Net:'} {formatAmount(activeResult.netCashOnHand, settings.currency)}</span>
+              <span className="text-indigo-600 font-medium shrink-0 ml-1">@{multiplier}x</span>
+            </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>{isMyanmar ? 'ကျန်အသားတင်ငွေ:' : 'Net cash:'} {formatAmount(activeResult.netCashOnHand, settings.currency)}</span>
-            <span className="text-indigo-600 font-medium">@{multiplier}x {isMyanmar ? 'ပေါက်ကြေး' : 'multiplier'}</span>
-          </div>
-        </div>
 
-        {/* Card 4: Worst-Case Net Profit / Loss & Expected Value */}
-        <div className={`rounded-2xl p-4 border shadow-2xs flex flex-col justify-between ${
-          activeResult.worstCaseNet >= 0
-            ? 'bg-emerald-50/40 border-emerald-200'
-            : 'bg-rose-50/40 border-rose-200'
-        }`}>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className={`text-xs font-bold block ${
-                activeResult.worstCaseNet >= 0 ? 'text-emerald-800' : 'text-rose-800'
+          {/* Card 4: Worst-Case Net Profit / Loss & Expected Value */}
+          <div className={`rounded-xl p-2.5 sm:p-3 border shadow-2xs flex flex-col justify-between ${
+            activeResult.worstCaseNet >= 0
+              ? 'bg-emerald-50/40 border-emerald-200'
+              : 'bg-rose-50/40 border-rose-200'
+          }`}>
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className={`text-[11px] font-bold block truncate ${
+                  activeResult.worstCaseNet >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                }`}>
+                  {isMyanmar ? 'အဆိုးဆုံး အမြတ်/အရှုံး' : 'Worst Result'}
+                </span>
+                <span className={`text-[9px] font-bold px-1 py-0.25 rounded shrink-0 ${
+                  activeResult.worstCaseNet >= 0
+                    ? 'bg-emerald-200 text-emerald-900'
+                    : 'bg-rose-200 text-rose-900'
+                }`}>
+                  {activeResult.worstCaseNet >= 0 ? (isMyanmar ? 'အမြတ်ကျန်' : 'Profit') : (isMyanmar ? 'အရှုံးဖြစ်နိုင်' : 'Risk')}
+                </span>
+              </div>
+              <div className={`text-base sm:text-lg font-black font-mono ${
+                activeResult.worstCaseNet >= 0 ? 'text-emerald-700' : 'text-rose-700'
               }`}>
-                {isMyanmar ? 'အဆိုးဆုံး အမြတ်/အရှုံး' : 'Worst-Case Net Result'}
-              </span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                activeResult.worstCaseNet >= 0
-                  ? 'bg-emerald-200 text-emerald-900'
-                  : 'bg-rose-200 text-rose-900'
-              }`}>
-                {activeResult.worstCaseNet >= 0 ? (isMyanmar ? 'အမြတ်ကျန်' : 'Profit') : (isMyanmar ? 'အရှုံးဖြစ်နိုင်' : 'Risk')}
-              </span>
+                {activeResult.worstCaseNet >= 0 ? '+' : ''}{formatAmount(activeResult.worstCaseNet, settings.currency)}
+              </div>
             </div>
-            <div className={`text-xl sm:text-2xl font-black font-mono ${
-              activeResult.worstCaseNet >= 0 ? 'text-emerald-700' : 'text-rose-700'
-            }`}>
-              {activeResult.worstCaseNet >= 0 ? '+' : ''}{formatAmount(activeResult.worstCaseNet, settings.currency)}
-            </div>
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-0.5 text-[11px]">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 font-medium">
-                {isMyanmar ? 'ပျမ်းမျှ မျှော်မှန်းအမြတ် (+EV):' : 'Expected Profit:'}
+            <div className="mt-1.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+              <span className="truncate">
+                EV: <strong className={activeResult.expectedNetValue >= 0 ? 'text-emerald-700' : 'text-rose-600'}>
+                  {activeResult.expectedNetValue >= 0 ? '+' : ''}{formatAmount(activeResult.expectedNetValue, settings.currency)}
+                </strong>
               </span>
-              <span className={`font-mono font-bold ${activeResult.expectedNetValue >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                {activeResult.expectedNetValue >= 0 ? '+' : ''}{formatAmount(activeResult.expectedNetValue, settings.currency)}
+              <span className="shrink-0 text-slate-400">
+                {isMyanmar ? 'လျော်:' : 'Worst:'} {formatAmount(activeResult.worstCasePayout, settings.currency)}
               </span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-              <span>{isMyanmar ? 'အဆိုးဆုံး လျော်ကြေး:' : 'Worst Payout:'}</span>
-              <span>{formatAmount(activeResult.worstCasePayout, settings.currency)}</span>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Advisory Breakdown & Analysis Modal */}
       {isDetailModalOpen && (
