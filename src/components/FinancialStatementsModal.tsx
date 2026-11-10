@@ -22,7 +22,8 @@ import {
   Wallet,
   Search,
   Send,
-  Users
+  Users,
+  Edit2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -35,6 +36,11 @@ import { PeriodSettlementModal } from './PeriodSettlementModal';
 import { usePeriod } from '../context/PeriodContext';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { getLocalDateString } from '../utils/moneyUtils';
+import {
+  updateRawClipCustomerName,
+  deleteRawClipsByVoucherNumber,
+  deleteRawClip
+} from '../utils/rawClipsUtils';
 import {
   StatementRecord,
   StatementGrandTotals,
@@ -112,6 +118,107 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPeriodSettlementOpen, setIsPeriodSettlementOpen] = useState(false);
+
+  // Per-Voucher Edit / Delete Action Modal State & Handlers
+  const [selectedCustomerFilter, setSelectedCustomerFilter] = useState<string>('all');
+  const [voucherActionModal, setVoucherActionModal] = useState<{ type: 'edit' | 'delete'; voucher: any } | null>(null);
+  const [voucherActionPassword, setVoucherActionPassword] = useState('');
+  const [voucherActionError, setVoucherActionError] = useState<string | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+
+  // Reset customer filter when selectedRecord changes
+  React.useEffect(() => {
+    setSelectedCustomerFilter('all');
+  }, [selectedRecord?.id]);
+
+  const customerListForRecord = useMemo(() => {
+    if (!selectedRecord || !selectedRecord.vouchersList) return [];
+    const names = selectedRecord.vouchersList
+      .map((v: any) => (v.customerName || 'အထွေထွေ').trim())
+      .filter(Boolean);
+    return Array.from(new Set(names));
+  }, [selectedRecord]);
+
+  const handleOpenVoucherAction = (type: 'edit' | 'delete', voucher: any) => {
+    setVoucherActionModal({ type, voucher });
+    setVoucherActionPassword('');
+    setVoucherActionError(null);
+    setEditCustomerName(voucher.customerName || '');
+  };
+
+  const handleConfirmVoucherAction = () => {
+    if (!voucherActionModal) return;
+    if (!verifyOwnerPassword(voucherActionPassword)) {
+      setVoucherActionError('လျှို့ဝှက်နံပါတ် (Password) မှားယွင်းနေပါသည်!');
+      return;
+    }
+
+    const { type, voucher } = voucherActionModal;
+    const vId = voucher.id;
+    const vNo = voucher.voucherNo || voucher.slipNo;
+
+    if (type === 'delete') {
+      if (selectedRecord?.mode === '2d') {
+        lottery2D.deleteVoucher(vId);
+      } else if (selectedRecord?.mode === '3d') {
+        lottery3D.deleteVoucher(vId);
+      } else if (selectedRecord?.mode === 'football') {
+        football.deleteSlip(vId);
+      }
+
+      if (vNo) {
+        deleteRawClipsByVoucherNumber(vNo);
+      }
+      deleteRawClip(vId);
+
+      if (selectedRecord) {
+        const updatedList = (selectedRecord.vouchersList || []).filter((item: any) => item.id !== vId);
+        const updatedTurnover = updatedList.reduce((sum: number, item: any) => sum + getVoucherGrossTurnover(item), 0);
+        const updatedPayout = updatedList.reduce((sum: number, item: any) => sum + (item.totalPayout || item.actualPayout || 0), 0);
+        const updatedCommission = updatedList.reduce((sum: number, item: any) => sum + (item.discountAmount || 0), 0);
+        const updatedNetSales = updatedTurnover - selectedRecord.totalForwarded - updatedCommission;
+        const updatedNetProfit = updatedNetSales + selectedRecord.masterPayout + selectedRecord.forwardCommission - updatedPayout;
+
+        setSelectedRecord({
+          ...selectedRecord,
+          vouchersList: updatedList,
+          vouchersCount: updatedList.length,
+          turnover: updatedTurnover,
+          agentCommission: updatedCommission,
+          netSales: updatedNetSales,
+          totalPayout: updatedPayout,
+          netProfit: updatedNetProfit,
+          isProfit: updatedNetProfit >= 0
+        });
+      }
+    } else if (type === 'edit') {
+      const newName = editCustomerName.trim() || 'အထွေထွေ';
+      if (selectedRecord?.mode === '2d') {
+        lottery2D.updateVoucher(vId, { customerName: newName });
+      } else if (selectedRecord?.mode === '3d') {
+        lottery3D.updateVoucher(vId, { customerName: newName });
+      }
+
+      if (vNo) {
+        updateRawClipCustomerName(vNo, newName);
+      }
+      updateRawClipCustomerName(vId, newName);
+
+      if (selectedRecord) {
+        const updatedList = (selectedRecord.vouchersList || []).map((item: any) =>
+          item.id === vId ? { ...item, customerName: newName } : item
+        );
+        setSelectedRecord({
+          ...selectedRecord,
+          vouchersList: updatedList
+        });
+      }
+    }
+
+    setVoucherActionModal(null);
+    setVoucherActionPassword('');
+    setVoucherActionError(null);
+  };
 
   // Tab switch between rounds table and consolidated vouchers list
   const [viewMode, setViewMode] = useState<'rounds' | 'vouchers'>('rounds');
@@ -1048,9 +1155,9 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 </div>
               </div>
 
-              {/* Vouchers lists */}
+              {/* Customer Filter & Vouchers list */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-indigo-600" />
                     <span>အရောင်းဘောင်ချာများ စာရင်း ({selectedRecord.vouchersCount} စောင်)</span>
@@ -1060,12 +1167,59 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                   </span>
                 </div>
 
+                {/* Customer Filter Pills / Dropdown */}
+                {customerListForRecord.length > 0 && (
+                  <div className="bg-slate-100 p-2 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                      <Users className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>ထိုးသားအလိုက် Filter:</span>
+                    </div>
+                    <div className="flex items-center gap-1 overflow-x-auto max-w-full">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomerFilter('all')}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                          selectedCustomerFilter === 'all'
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        အားလုံး (All) ({selectedRecord.vouchersList?.length || 0})
+                      </button>
+                      {customerListForRecord.map((cName) => {
+                        const count = (selectedRecord.vouchersList || []).filter(
+                          (v: any) => (v.customerName || 'အထွေထွေ').trim() === cName
+                        ).length;
+                        return (
+                          <button
+                            key={cName}
+                            type="button"
+                            onClick={() => setSelectedCustomerFilter(cName)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                              selectedCustomerFilter === cName
+                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                            }`}
+                          >
+                            {cName} ({count} စောင်)
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="border border-slate-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto divide-y divide-slate-100">
                   {(() => {
-                    const vouchersToDisplay = selectedRecord.vouchersList || [];
+                    const allVouchers = selectedRecord.vouchersList || [];
+                    const vouchersToDisplay = allVouchers.filter((v: any) =>
+                      selectedCustomerFilter === 'all'
+                        ? true
+                        : (v.customerName || 'အထွေထွေ').trim() === selectedCustomerFilter
+                    );
 
                     if (vouchersToDisplay.length === 0) {
-                      return <p className="p-4 text-center text-slate-400">ဤပွဲစဉ်အတွက် ဘောင်ချာမှတ်တမ်း မရှိပါ</p>;
+                      return <p className="p-4 text-center text-slate-400">ဤ filter အတွက် ဘောင်ချာမှတ်တမ်း မရှိပါ</p>;
                     }
 
                     return vouchersToDisplay.map((v: any, index: number) => {
@@ -1075,7 +1229,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       
                       return (
                         <div 
-                          key={index} 
+                          key={v.id || index} 
                           onClick={() => setInspectingVoucher(v)}
                           className="p-2.5 hover:bg-indigo-50/50 transition-colors flex items-center justify-between text-[11px] cursor-pointer group"
                           title="ဤဘောင်ချာအား အပြည့်အစုံ ဖွင့်ကြည့်ရန် နှိပ်ပါ"
@@ -1096,7 +1250,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                               {itemsStr}
                             </div>
                           </div>
-                          <div className="text-right shrink-0 flex items-center gap-2">
+                          <div className="text-right shrink-0 flex items-center gap-1.5">
                             <div>
                               <span className="font-bold font-mono text-slate-900 block">
                                 {formatAmount(v.netPayable || v.subtotal || v.stakeAmount, currency)}
@@ -1112,23 +1266,72 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                                 </span>
                               </div>
                             </div>
+
+                            {/* Actions: View, Edit, Delete */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setInspectingVoucher(v);
                               }}
-                              className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-xs transition-transform active:scale-95"
-                              title="ဘောင်ချာအပြည့်အစုံ ကြည့်မည်"
+                              className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                              title="ကြည့်မည်"
                             >
                               <Eye className="w-3 h-3" />
                               <span className="hidden sm:inline">ကြည့်မည်</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenVoucherAction('edit', v);
+                              }}
+                              className="px-2 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                              title="ပြင်မည်"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span className="hidden sm:inline">ပြင်မည်</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenVoucherAction('delete', v);
+                              }}
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                              title="ဖျက်မည်"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span className="hidden sm:inline">ဖျက်မည်</span>
                             </button>
                           </div>
                         </div>
                       );
                     });
                   })()}
+                </div>
+
+                {/* Total filtered customer stake bottom summary bar */}
+                <div className="bg-slate-900 text-white px-3 py-2 rounded-xl flex items-center justify-between text-xs font-bold shadow-xs">
+                  <span>
+                    {selectedCustomerFilter === 'all'
+                      ? 'စုစုပေါင်း မူလထိုးကြေး (Total Turnover):'
+                      : `${selectedCustomerFilter} ၏ စုစုပေါင်းထိုးကြေး:`}
+                  </span>
+                  <span className="text-amber-300 font-mono text-sm font-black">
+                    {formatAmount(
+                      (selectedRecord.vouchersList || [])
+                        .filter((v: any) =>
+                          selectedCustomerFilter === 'all'
+                            ? true
+                            : (v.customerName || 'အထွေထွေ').trim() === selectedCustomerFilter
+                        )
+                        .reduce((sum: number, v: any) => sum + getVoucherGrossTurnover(v), 0),
+                      currency
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -1426,6 +1629,100 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
                   ပိတ်မည်
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Individual Voucher Action (Edit / Delete) Password Prompt Modal */}
+      {voucherActionModal && (
+        <div className="fixed inset-0 z-[80] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className={`px-4 py-3 flex items-center justify-between text-white ${
+              voucherActionModal.type === 'delete' ? 'bg-rose-900' : 'bg-slate-900'
+            }`}>
+              <div className="flex items-center gap-2 font-black text-sm">
+                {voucherActionModal.type === 'delete' ? (
+                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                ) : (
+                  <Edit2 className="w-4 h-4 text-amber-400" />
+                )}
+                <span>
+                  {voucherActionModal.type === 'delete'
+                    ? `ဘောင်ချာ (${voucherActionModal.voucher.voucherNo || voucherActionModal.voucher.slipNo || ''}) ဖျက်မည်`
+                    : `ဘောင်ချာ (${voucherActionModal.voucher.voucherNo || voucherActionModal.voucher.slipNo || ''}) ပြင်မည်`}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setVoucherActionModal(null); setVoucherActionPassword(''); setVoucherActionError(null); }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 text-xs">
+              {voucherActionModal.type === 'edit' && (
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 block">ဝယ်သူအမည် ပြင်ဆင်ရန်:</label>
+                  <input
+                    type="text"
+                    value={editCustomerName}
+                    onChange={(e) => setEditCustomerName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-indigo-500 rounded-xl px-3 py-1.5 outline-none font-bold text-slate-900"
+                    placeholder="ဝယ်သူအမည် ရိုက်ထည့်ပါ"
+                  />
+                </div>
+              )}
+
+              {voucherActionModal.type === 'delete' && (
+                <p className="text-rose-700 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                  ⚠️ ဤဘောင်ချာအား ဖျက်သိမ်းလိုက်ပါက သက်ဆိုင်ရာ စာရင်းများနှင့် စာသားမှတ်တမ်း (Raw text clips) အားလုံးမှ ပျက်သွားပါမည်။
+                </p>
+              )}
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">
+                  အတည်ပြုရန် လျှို့ဝှက်နံပါတ် (Owner PIN / Password) ရိုက်ထည့်ပါ:
+                </label>
+                <input
+                  type="password"
+                  value={voucherActionPassword}
+                  onChange={(e) => { setVoucherActionPassword(e.target.value); setVoucherActionError(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmVoucherAction(); }}
+                  autoFocus
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-rose-500 rounded-xl px-3 py-1.5 outline-none font-mono font-bold text-slate-900"
+                  placeholder="Password / PIN ရိုက်ထည့်ပါ"
+                />
+              </div>
+
+              {voucherActionError && (
+                <p className="text-xs text-rose-600 font-bold flex items-center gap-1">
+                  ⚠️ {voucherActionError}
+                </p>
+              )}
+            </div>
+
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setVoucherActionModal(null); setVoucherActionPassword(''); setVoucherActionError(null); }}
+                className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl cursor-pointer text-xs"
+              >
+                မလုပ်တော့ပါ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmVoucherAction}
+                className={`px-4 py-1.5 font-bold text-white rounded-xl cursor-pointer text-xs shadow-xs ${
+                  voucherActionModal.type === 'delete'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
+              >
+                {voucherActionModal.type === 'delete' ? 'အတည်ပြုဖျက်မည်' : 'အတည်ပြုပြင်မည်'}
+              </button>
             </div>
           </div>
         </div>
