@@ -20,7 +20,7 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount } from '../utils/lotteryUtils';
-import { getLocalDateStr, getDaysAgoStr, generateStatementRecords } from '../utils/statementUtils';
+import { getLocalDateStr, getDaysAgoStr, generateStatementRecords, getVoucherGrossTurnover } from '../utils/statementUtils';
 import { getCustomerCommission } from '../utils/commissionUtils';
 import { printStatementReport } from '../utils/printUtils';
 
@@ -206,7 +206,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     lottery3D.vouchers.forEach((v: any) => {
       const vDate = (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const amt = v.subtotal ?? v.netPayable ?? 0;
+        const amt = getVoucherGrossTurnover(v);
         const round = lottery3D.rounds.find(r => r.id === v.roundId);
         const winningNum = round?.winningNumber;
         const mult = round?.multiplier || lottery3D.settings.defaultMultiplier || 600;
@@ -237,7 +237,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
         const round = lottery2D.rounds.find(r => r.id === v.roundId);
         const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
-        const amt = v.subtotal ?? v.netPayable ?? 0;
+        const amt = getVoucherGrossTurnover(v);
         const winningNum = round?.winningNumber;
         const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
 

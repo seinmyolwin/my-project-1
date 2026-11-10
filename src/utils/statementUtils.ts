@@ -48,6 +48,26 @@ export interface StatementGrandTotals {
 
 export type StatementPeriodPreset = 'all' | 'today' | 'two_days' | 'three_days' | 'five_days' | 'week' | 'month' | 'custom';
 
+/**
+ * Safely calculates the true gross turnover (မူလထိုးကြေး စုစုပေါင်း) for a 2D or 3D voucher.
+ * Prioritizes summing the individual items array (which contains whole integer bet amounts)
+ * to avoid fractional kyat values or 1-kyat offsets from discount rounding.
+ */
+export function getVoucherGrossTurnover(v: any): number {
+  if (!v) return 0;
+  if (v.items && Array.isArray(v.items) && v.items.length > 0) {
+    const itemsSum = v.items.reduce((sum: number, it: any) => sum + (Number(it?.amount) || 0), 0);
+    if (itemsSum > 0) return Math.round(itemsSum);
+  }
+  const sub = Number(v.subtotal);
+  if (!isNaN(sub) && sub > 0) return Math.round(sub);
+  const stake = Number(v.stakeAmount);
+  if (!isNaN(stake) && stake > 0) return Math.round(stake);
+  const net = Number(v.netPayable);
+  if (!isNaN(net) && net > 0) return Math.round(net);
+  return 0;
+}
+
 // Local date string helper (YYYY-MM-DD) based on user's timezone
 export function getLocalDateStr(d: Date = new Date()): string {
   const year = d.getFullYear();
@@ -182,7 +202,7 @@ export function generateStatementRecords(
         let totalAgentCommission = 0;
 
         roundVouchers.forEach((v) => {
-          const voucherSubtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const voucherSubtotal = getVoucherGrossTurnover(v);
           
           let voucherDiscount = 0;
           const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
@@ -311,7 +331,7 @@ export function generateStatementRecords(
         let winnersCount = 0;
 
         vList.forEach(v => {
-          const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const sub = getVoucherGrossTurnover(v);
           const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
             ? v.discountPercent
             : (data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0);
@@ -393,7 +413,7 @@ export function generateStatementRecords(
         let totalAgentCommission = 0;
 
         roundVouchers.forEach((v) => {
-          const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const sub = getVoucherGrossTurnover(v);
           const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
             ? v.discountPercent
             : (data.lottery3D.settings.defaultCustomerDiscount ?? data.lottery3D.settings.defaultCommissionRate ?? 0);
@@ -528,7 +548,7 @@ export function generateStatementRecords(
         let winnersCount = 0;
 
         vList.forEach(v => {
-          const sub = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+          const sub = getVoucherGrossTurnover(v);
           const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
             ? v.discountPercent
             : (data.lottery3D.settings.defaultCustomerDiscount ?? data.lottery3D.settings.defaultCommissionRate ?? 0);
@@ -778,7 +798,7 @@ export function calculateTwoDSingleRoundStatement(
   const validVouchers = vouchers.filter((v) => v.status !== 'cancelled');
 
   validVouchers.forEach((v) => {
-    const subtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+    const subtotal = getVoucherGrossTurnover(v);
     let disc = 0;
     const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
       ? v.discountPercent
@@ -897,7 +917,7 @@ export function calculateThreeDSingleRoundStatement(
   const validVouchers = vouchers.filter((v) => v.status !== 'cancelled');
 
   validVouchers.forEach((v) => {
-    const subtotal = v.subtotal ?? v.items.reduce((s, it) => s + (it.amount || 0), 0);
+    const subtotal = getVoucherGrossTurnover(v);
     let disc = 0;
     const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
       ? v.discountPercent
