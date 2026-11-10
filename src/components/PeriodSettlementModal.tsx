@@ -85,13 +85,13 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const downlineNames = useMemo(() => {
     const set = new Set<string>();
     lottery3D.vouchers.forEach((v) => {
-      if (v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
+      if (!v.deletedAt && v.status !== 'cancelled' && v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
     });
     lottery2D.vouchers.forEach((v) => {
-      if (v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
+      if (!v.deletedAt && v.status !== 'cancelled' && v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
     });
     football.slips.forEach((s) => {
-      if (s.customerName && s.customerName.trim()) set.add(s.customerName.trim());
+      if (!s.deletedAt && s.status !== 'cancelled' && s.customerName && s.customerName.trim()) set.add(s.customerName.trim());
     });
     return Array.from(set).sort();
   }, [lottery3D.vouchers, lottery2D.vouchers, football.slips]);
@@ -204,17 +204,18 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     // 3D Vouchers
     lottery3D.vouchers.forEach((v: any) => {
-      const vDate = (v.createdAt || '').slice(0, 10);
+      if (v.status === 'cancelled' || v.deletedAt) return;
+      const round = lottery3D.rounds.find(r => r.id === v.roundId);
+      const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
         const amt = getVoucherGrossTurnover(v);
-        const round = lottery3D.rounds.find(r => r.id === v.roundId);
         const winningNum = round?.winningNumber;
         const mult = round?.multiplier || lottery3D.settings.defaultMultiplier || 600;
 
-        let payout = v.winningPayout ?? 0;
+        let payout = 0;
         const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
-        if (v.items) {
+        if (v.items && Array.isArray(v.items)) {
           v.items.forEach((it: any) => {
             const isHit = it.isWon || (winningNum && it.number === winningNum);
             if (isHit) {
@@ -224,6 +225,10 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             }
           });
         }
+        if (payout === 0 && v.winningPayout) {
+          payout = v.winningPayout;
+        }
+
         totalSales += amt;
         totalPayout += payout;
         const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
@@ -233,18 +238,19 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     // 2D Vouchers
     lottery2D.vouchers.forEach((v: any) => {
-      const vDate = (v.createdAt || '').slice(0, 10);
+      if (v.status === 'cancelled' || v.deletedAt) return;
+      const round = lottery2D.rounds.find(r => r.id === v.roundId);
+      const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const round = lottery2D.rounds.find(r => r.id === v.roundId);
         const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
         const amt = getVoucherGrossTurnover(v);
         const winningNum = round?.winningNumber;
         const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
 
-        let payout = v.winningPayout ?? 0;
+        let payout = 0;
         const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
-        if (v.items) {
+        if (v.items && Array.isArray(v.items)) {
           v.items.forEach((it: any) => {
             const isHit = it.isWon || (winningNum && it.number === winningNum);
             if (isHit) {
@@ -254,6 +260,10 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             }
           });
         }
+        if (payout === 0 && v.winningPayout) {
+          payout = v.winningPayout;
+        }
+
         totalSales += amt;
         totalPayout += payout;
         const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
@@ -263,6 +273,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     // Football Slips
     football.slips.forEach((s: any) => {
+      if (s.status === 'cancelled' || s.deletedAt) return;
       const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
       if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
         const amt = s.stakeAmount || s.netPayable || 0;
