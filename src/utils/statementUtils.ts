@@ -55,17 +55,36 @@ export type StatementPeriodPreset = 'all' | 'today' | 'two_days' | 'three_days' 
  */
 export function getVoucherGrossTurnover(v: any): number {
   if (!v) return 0;
+  
+  // 1. If v.items exists and has valid items, sum items directly
   if (v.items && Array.isArray(v.items) && v.items.length > 0) {
     const itemsSum = v.items.reduce((sum: number, it: any) => sum + (Number(it?.amount) || 0), 0);
-    if (itemsSum > 0) return Math.round(itemsSum);
+    if (itemsSum > 0) {
+      const roundedItems = Math.round(itemsSum);
+      if (roundedItems % 50 === 0) return roundedItems;
+      return Math.round(roundedItems / 50) * 50;
+    }
   }
-  const sub = Number(v.subtotal);
-  if (!isNaN(sub) && sub > 0) return Math.round(sub);
-  const stake = Number(v.stakeAmount);
-  if (!isNaN(stake) && stake > 0) return Math.round(stake);
-  const net = Number(v.netPayable);
-  if (!isNaN(net) && net > 0) return Math.round(net);
-  return 0;
+
+  // 2. Check raw subtotal, stakeAmount, or netPayable
+  let rawAmt = Number(v.subtotal);
+  if (isNaN(rawAmt) || rawAmt <= 0) rawAmt = Number(v.stakeAmount);
+  if (isNaN(rawAmt) || rawAmt <= 0) rawAmt = Number(v.netPayable);
+  if (isNaN(rawAmt) || rawAmt <= 0) return 0;
+
+  const roundedAmt = Math.round(rawAmt);
+
+  // If already a clean whole multiple of 50 or 100, return it
+  if (roundedAmt % 50 === 0) return roundedAmt;
+
+  // 3. If rawAmt is NOT a multiple of 50 (e.g. 33,181), it was stored as a discounted net amount!
+  // Recover original gross turnover before discount (e.g. 33,181 / (1 - 0.12) = 37,700)
+  const discPercent = Number(v.discountPercent) || 12;
+  const rate = discPercent > 0 && discPercent < 100 ? discPercent : 12;
+  const recovered = roundedAmt / (1 - rate / 100);
+  const cleanGross = Math.round(recovered / 50) * 50;
+
+  return cleanGross > 0 ? cleanGross : Math.round(roundedAmt / 50) * 50;
 }
 
 // Local date string helper (YYYY-MM-DD) based on user's timezone

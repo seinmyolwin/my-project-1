@@ -33,6 +33,7 @@ import { triggerRibbonsCelebration } from '../utils/audioUtils';
 import { runIdMigration } from '../utils/idMigration';
 import { runPhonePurgeMigration } from '../utils/migrationUtils';
 import { generateUUID } from '../utils/restorePoints';
+import { getVoucherGrossTurnover } from '../utils/statementUtils';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
 
@@ -183,8 +184,21 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   const [rawVouchers, setVouchers] = useState<Voucher[]>(() => {
-    const raw = loadStoredData<Voucher[]>(STORAGE_KEYS.VOUCHERS, []);
-    return raw || [];
+    const loaded = loadStoredData<Voucher[]>(STORAGE_KEYS.VOUCHERS, []);
+    if (!loaded || !Array.isArray(loaded)) return [];
+    return loaded.map(v => {
+      const gross = getVoucherGrossTurnover(v);
+      if (gross > 0 && (v.subtotal !== gross || (v.subtotal % 50 !== 0))) {
+        const disc = v.discountPercent ? Math.round((gross * v.discountPercent) / 100) : (v.discountAmount || 0);
+        return {
+          ...v,
+          subtotal: gross,
+          discountAmount: disc,
+          netPayable: gross - disc
+        };
+      }
+      return v;
+    });
   });
   const vouchers = useMemo(() => rawVouchers.filter(v => !v.deletedAt), [rawVouchers]);
 

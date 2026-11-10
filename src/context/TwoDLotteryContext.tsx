@@ -35,6 +35,7 @@ import { generateUUID } from '../utils/restorePoints';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { createTombstone } from '../utils/tombstoneUtils';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
+import { getVoucherGrossTurnover } from '../utils/statementUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -241,7 +242,20 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rawVouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
     const loaded = loadStoredData<TwoDVoucher[]>(STORAGE_KEYS.VOUCHERS_2D, []);
-    return loaded || [];
+    if (!loaded || !Array.isArray(loaded)) return [];
+    return loaded.map(v => {
+      const gross = getVoucherGrossTurnover(v);
+      if (gross > 0 && (v.subtotal !== gross || (v.subtotal % 50 !== 0))) {
+        const disc = v.discountPercent ? Math.round((gross * v.discountPercent) / 100) : (v.discountAmount || 0);
+        return {
+          ...v,
+          subtotal: gross,
+          discountAmount: disc,
+          netPayable: gross - disc
+        };
+      }
+      return v;
+    });
   });
   const vouchers = useMemo(() => rawVouchers.filter(v => !(v as any).deletedAt), [rawVouchers]);
 
