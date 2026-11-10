@@ -257,7 +257,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return v;
     });
   });
-  const vouchers = useMemo(() => rawVouchers.filter(v => !(v as any).deletedAt), [rawVouchers]);
+  const vouchers = useMemo(() => rawVouchers.filter(v => !(v as any).deletedAt && v.status !== 'cancelled'), [rawVouchers]);
 
   const [rawForwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
     const loaded = loadStoredData<TwoDForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_2D, []);
@@ -582,12 +582,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const nowIso = new Date().toISOString();
 
-    let updatedVouchers: TwoDVoucher[];
-    if (target.isPaid || target.status === 'settled') {
-      updatedVouchers = rawVouchers.map(v => v.id === id ? { ...v, status: 'cancelled', deletedReason: reason } : v);
-    } else {
-      updatedVouchers = rawVouchers.map(v => v.id === id ? { ...v, deletedAt: nowIso, deletedReason: reason } as any : v);
-    }
+    const updatedVouchers = rawVouchers.map(v => v.id === id ? { ...v, status: 'cancelled', deletedAt: nowIso, deletedReason: reason } as any : v);
 
     let remainingRawClips: any[] = [];
     try {

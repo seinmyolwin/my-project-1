@@ -95,7 +95,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const raw = loadStoredData<FootballSlip[]>(STORAGE_KEYS.SLIPS_FOOTBALL, []);
     return raw || [];
   });
-  const slips = useMemo(() => rawSlips.filter(x => !(x as any).deletedAt), [rawSlips]);
+  const slips = useMemo(() => rawSlips.filter(x => !(x as any).deletedAt && x.status !== 'cancelled'), [rawSlips]);
 
   const [rawForwardSlips, setForwardSlips] = useState<FootballForwardSlip[]>(() =>
     loadStoredData<FootballForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, [])
@@ -533,12 +533,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const nowIso = new Date().toISOString();
 
-    let updatedSlips: FootballSlip[];
-    if (target.status === 'settled' || target.status === 'active') {
-      updatedSlips = rawSlips.map(s => s.id === id ? { ...s, status: 'cancelled', deletedReason: reason } : s);
-    } else {
-      updatedSlips = rawSlips.map(s => s.id === id ? { ...s, deletedAt: nowIso, deletedReason: reason } as any : s);
-    }
+    const updatedSlips = rawSlips.map(s => s.id === id ? { ...s, status: 'cancelled', deletedAt: nowIso, deletedReason: reason } as any : s);
 
     let remainingRawClips: any[] = [];
     try {

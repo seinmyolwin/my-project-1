@@ -200,7 +200,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return v;
     });
   });
-  const vouchers = useMemo(() => rawVouchers.filter(v => !v.deletedAt), [rawVouchers]);
+  const vouchers = useMemo(() => rawVouchers.filter(v => !v.deletedAt && v.status !== 'cancelled'), [rawVouchers]);
 
   const [rawForwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() =>
     loadStoredData<ForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS, [])
@@ -452,17 +452,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // ignore
     }
 
-    // If paid or settled -> status 'cancelled' (Rule 6B)
-    if (target.isPaid || target.status === 'settled') {
-      setVouchers(prev =>
-        prev.map(v => v.id === id ? { ...v, status: 'cancelled', deletedReason: reason } : v)
-      );
-      return;
-    }
-
-    // Otherwise tombstone
     setVouchers(prev =>
-        prev.map(v => v.id === id ? { ...v, deletedAt: nowIso, deletedReason: reason } : v)
+      prev.map(v => v.id === id ? { ...v, status: 'cancelled', deletedAt: nowIso, deletedReason: reason } : v)
     );
   }, [vouchers]);
 

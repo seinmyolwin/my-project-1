@@ -814,7 +814,7 @@ export function calculateTwoDSingleRoundStatement(
   let totalTurnover = 0;
   let totalAgentCommission = 0;
 
-  const validVouchers = vouchers.filter((v) => v.status !== 'cancelled');
+  const validVouchers = vouchers.filter((v) => v.status !== 'cancelled' && !v.deletedAt);
 
   validVouchers.forEach((v) => {
     const subtotal = getVoucherGrossTurnover(v);
@@ -933,7 +933,7 @@ export function calculateThreeDSingleRoundStatement(
   let totalTurnover = 0;
   let totalAgentCommission = 0;
 
-  const validVouchers = vouchers.filter((v) => v.status !== 'cancelled');
+  const validVouchers = vouchers.filter((v) => v.status !== 'cancelled' && !v.deletedAt);
 
   validVouchers.forEach((v) => {
     const subtotal = getVoucherGrossTurnover(v);
