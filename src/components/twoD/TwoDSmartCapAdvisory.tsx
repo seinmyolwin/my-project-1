@@ -244,7 +244,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
           </div>
         </div>
 
-        {/* Card 2: Safe Cap / Tested Cap */}
+        {/* Card 2: Safe Cap / Smart Exposure Cap / Tested Cap */}
         <div className={`rounded-2xl p-4 border shadow-2xs flex flex-col justify-between relative overflow-hidden transition-all ${
           isCustomMode
             ? 'bg-gradient-to-br from-indigo-50 to-blue-50/60 border-indigo-200'
@@ -262,7 +262,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                 <span>
                   {isCustomMode
                     ? (isMyanmar ? 'စမ်းသပ်ထားသော ဘရိတ်' : 'Simulated Cap')
-                    : (isMyanmar ? 'အန္တရာယ်ကင်း ဘရိတ် (Safe Cap)' : 'Optimal Safe Cap')}
+                    : (isMyanmar ? 'Smart Exposure Cap (အကွက်ဖြန့်ကျက်မှု အကြံပြုချက်)' : 'Smart Exposure Cap')}
                 </span>
               </span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
@@ -270,12 +270,16 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                   ? 'bg-indigo-600 text-white'
                   : activeResult.isGuaranteedProfit
                   ? 'bg-teal-600 text-white'
+                  : activeResult.expectedNetValue >= 0
+                  ? 'bg-emerald-600 text-white'
                   : 'bg-amber-100 text-amber-800'
               }`}>
                 {isCustomMode
                   ? (isMyanmar ? 'စမ်းသပ်ချက်' : 'Simulation')
                   : activeResult.isGuaranteedProfit
-                  ? (isMyanmar ? 'အာမခံအမြတ်' : 'Zero-Risk')
+                  ? (isMyanmar ? 'အာမခံအမြတ် (Zero-Risk)' : 'Zero-Risk')
+                  : activeResult.expectedNetValue >= 0
+                  ? (isMyanmar ? 'အမြတ်မျှော်မှန်း (+EV)' : '+EV Cap')
                   : (isMyanmar ? 'အရှုံးအနည်းဆုံး' : 'Min-Risk')}
               </span>
             </div>
@@ -284,6 +288,12 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
             }`}>
               {formatAmount(activeResult.optimalCap, settings.currency)}
               <span className="text-xs font-normal text-slate-500 ml-1">/ {isMyanmar ? 'ကွက်' : 'num'}</span>
+            </div>
+            
+            <div className="mt-1 text-[10px] text-slate-500 font-mono">
+              {isMyanmar
+                ? `စစ်မှန်သော အရှုံးမရှိဘရိတ်: ${formatAmount(activeResult.zeroRiskCap, settings.currency)} Ks`
+                : `Zero-risk cap: ${formatAmount(activeResult.zeroRiskCap, settings.currency)} Ks`}
             </div>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
@@ -298,7 +308,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
               </button>
             ) : (
               <span className="text-teal-800 font-medium">
-                {isMyanmar ? 'အရှုံးမရှိ စားနိုင်သောဘရိတ်' : 'Safe retention limit'}
+                {isMyanmar ? `အကွက်ဖြန့်ကျက်မှု: ${activeResult.coveredNumbersCount} ကွက်ဝင် (${activeResult.emptyWinProbability}% မဝင်သေး)` : `${activeResult.coveredNumbersCount} active numbers`}
               </span>
             )}
             <button
@@ -346,7 +356,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
           </div>
         </div>
 
-        {/* Card 4: Worst-Case Net Profit / Loss */}
+        {/* Card 4: Worst-Case Net Profit / Loss & Expected Value */}
         <div className={`rounded-2xl p-4 border shadow-2xs flex flex-col justify-between ${
           activeResult.worstCaseNet >= 0
             ? 'bg-emerald-50/40 border-emerald-200'
@@ -373,18 +383,24 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
               {activeResult.worstCaseNet >= 0 ? '+' : ''}{formatAmount(activeResult.worstCaseNet, settings.currency)}
             </div>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500 truncate max-w-[170px]" title="မည်သည့်ဂဏန်းပေါက်ပေါက် အဆိုးဆုံးအခြေအနေ">
-              {isMyanmar ? 'မည်သည့်ဂဏန်းပေါက်ပေါက်' : 'Any number hits'}
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">
-              {isMyanmar ? 'လျော်ကြေး:' : 'Payout:'} {formatAmount(activeResult.worstCasePayout, settings.currency)}
-            </span>
+          <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-0.5 text-[11px]">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 font-medium">
+                {isMyanmar ? 'ပျမ်းမျှ မျှော်မှန်းအမြတ် (+EV):' : 'Expected Profit:'}
+              </span>
+              <span className={`font-mono font-bold ${activeResult.expectedNetValue >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                {activeResult.expectedNetValue >= 0 ? '+' : ''}{formatAmount(activeResult.expectedNetValue, settings.currency)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <span>{isMyanmar ? 'အဆိုးဆုံး လျော်ကြေး:' : 'Worst Payout:'}</span>
+              <span>{formatAmount(activeResult.worstCasePayout, settings.currency)}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Advisory Breakdown & Analysis Modal (Pure Advisory - No Forward Button as requested) */}
+      {/* Advisory Breakdown & Analysis Modal */}
       {isDetailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden">
@@ -396,10 +412,10 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900">
-                    {isMyanmar ? 'အန္တရာယ်အကင်းဆုံး ဖြတ်စားရမည့် ဘရိတ် အကြံပြုချက်' : 'Optimal Safe Cap Advisory'}
+                    {isMyanmar ? 'အကွက်ဖြန့်ကျက်မှုအလိုက် Smart Exposure Cap အသေးစိတ် တွက်ချက်ချက်' : 'Distribution Smart Exposure Cap Analytics'}
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    {isMyanmar ? 'ဒိုင်ပိုင်ရှင် ဆုံးဖြတ်ချက်အတွက် တွက်ချက်မှု အသေးစိတ် အကြံပေးချက်' : 'Analytical safe retention suggestion based on current sales'}
+                    {isMyanmar ? 'အကွက် ၁၀၀ အနက် ထိုးထားသောအကွက် နှင့် မဝင်သေးသောအကွက်များ၏ မျှော်မှန်းရလဒ် အကြံပေးချက်' : 'Analytical distribution suggestion based on active vs empty numbers'}
                   </p>
                 </div>
               </div>
@@ -412,7 +428,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
               </button>
             </div>
 
-            {/* Advisory Info Note (Explicit disclaimer that this is simulation/advice only) */}
+            {/* Advisory Info Note */}
             <div className="px-5 py-3 bg-amber-50/80 border-b border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
               <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div className="space-y-0.5 leading-relaxed">
@@ -429,6 +445,45 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
 
             {/* Modal Body: Metrics Summary & Parameters */}
             <div className="p-5 overflow-y-auto space-y-4 text-slate-700 text-xs">
+              {/* Distribution & Smart Cap Summary Banner */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-bold block">
+                    {isMyanmar ? 'စစ်မှန်သော အရှုံးမရှိ ဘရိတ် (Zero-Risk Cap)' : 'Zero-Risk Cap'}
+                  </span>
+                  <div className="text-lg font-black text-teal-800 font-mono">
+                    {formatAmount(activeResult.zeroRiskCap, settings.currency)} Ks
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    {isMyanmar ? 'အိတ်စိုက် ၁ ကျပ်မျှ အရှုံးမရှိဘဲ စားနိုင်သော ပမာဏ' : 'Zero loss guaranteed limit'}
+                  </p>
+                </div>
+
+                <div className="bg-teal-50 p-3 rounded-2xl border border-teal-200 space-y-1">
+                  <span className="text-[10px] text-teal-800 font-bold block">
+                    {isMyanmar ? 'Smart Exposure Cap (အကြံပြု)' : 'Smart Exposure Cap'}
+                  </span>
+                  <div className="text-lg font-black text-teal-900 font-mono">
+                    {formatAmount(activeResult.optimalCap, settings.currency)} Ks
+                  </div>
+                  <p className="text-[10px] text-teal-700">
+                    {isMyanmar ? 'အကွက်ဖြန့်ကျက်မှုအရ တွက်ချက်ထားသော ဘရိတ်' : 'Distribution-adjusted smart cap'}
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 space-y-1">
+                  <span className="text-[10px] text-emerald-800 font-bold block">
+                    {isMyanmar ? 'ပျမ်းမျှ မျှော်မှန်းအမြတ် (Expected Profit)' : 'Expected Net Profit'}
+                  </span>
+                  <div className={`text-lg font-black font-mono ${activeResult.expectedNetValue >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+                    {activeResult.expectedNetValue >= 0 ? '+' : ''}{formatAmount(activeResult.expectedNetValue, settings.currency)} Ks
+                  </div>
+                  <p className="text-[10px] text-emerald-700">
+                    {isMyanmar ? 'အကွက် ၁၀၀ စလုံး၏ ပျမ်းမျှ ရလဒ်ရလဒ်' : 'Average net result across 100 outcomes'}
+                  </p>
+                </div>
+              </div>
+
               {/* Parameter Settings Row */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div>
@@ -441,18 +496,18 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-medium block">
-                    {isMyanmar ? 'အောက်လက် ကော်မရှင်:' : 'Downline Comm:'}
+                    {isMyanmar ? 'ဝင်ထားသော အကွက်:' : 'Active Numbers:'}
                   </span>
                   <span className="font-black text-slate-900 font-mono text-sm">
-                    {downlineCommRate}%
+                    {activeResult.coveredNumbersCount} {isMyanmar ? 'ကွက်' : 'nums'}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-medium block">
-                    {isMyanmar ? 'အထက်ဒိုင် ကော်မရှင်:' : 'Upline Comm:'}
+                    {isMyanmar ? 'မဝင်သေးသော အကွက်:' : 'Empty Numbers:'}
                   </span>
-                  <span className="font-black text-slate-900 font-mono text-sm">
-                    {uplineCommRate}%
+                  <span className="font-black text-emerald-700 font-mono text-sm">
+                    {activeResult.emptyNumbersCount} {isMyanmar ? 'ကွက်' : 'nums'} ({activeResult.emptyWinProbability}%)
                   </span>
                 </div>
                 <div>
@@ -475,7 +530,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                   <span className="text-white/80 text-[11px] font-bold block">
                     {isCustomMode
                       ? (isMyanmar ? 'စမ်းသပ်ထားသော ဘရိတ် (Simulated Cap)' : 'Simulated Cap')
-                      : (isMyanmar ? 'အကြံပြု အန္တရာယ်ကင်း ဘရိတ် (Suggested Safe Cap)' : 'Recommended Safe Cap')}
+                      : (isMyanmar ? 'အကြံပြု Smart Exposure Cap' : 'Recommended Smart Cap')}
                   </span>
                   <div className="text-2xl sm:text-3xl font-black font-mono">
                     {formatAmount(activeResult.optimalCap, settings.currency)}{' '}
@@ -484,7 +539,7 @@ export const TwoDSmartCapAdvisory: React.FC<TwoDSmartCapAdvisoryProps> = ({
                 </div>
                 <div className="text-right">
                   <span className="text-white/80 text-[11px] font-bold block">
-                    {isMyanmar ? 'မည်သည့်ဂဏန်းပေါက်ပေါက် အဆိုးဆုံးရလဒ်' : 'Guaranteed Worst-Case'}
+                    {isMyanmar ? 'အဆိုးဆုံး အမြတ်/အရှုံး ရလဒ်' : 'Worst-Case Result'}
                   </span>
                   <div className="text-xl sm:text-2xl font-black font-mono">
                     {activeResult.worstCaseNet >= 0 ? '+' : ''}{formatAmount(activeResult.worstCaseNet, settings.currency)}

@@ -262,6 +262,10 @@ export function parseTwoDBatchInput(
 
   // 3. Split lines by newlines, semicolons, or 2+ consecutive spaces (e.g. "3b300   45 67 78 65r500")
   const lines = cleanText.split(/[\r\n;]+/).flatMap(seg => {
+    // If a segment contains multiple items like "52@200 43@300" or "52@200, 43@300", split them
+    if (/@\d+/.test(seg)) {
+      return seg.split(/(?<=\d)\s*,\s*|(?<=@\d+)\s+/).map(s => s.trim()).filter(Boolean);
+    }
     return seg.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
   });
 

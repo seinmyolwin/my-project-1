@@ -55,6 +55,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [roundFilter, setRoundFilter] = useState<string>('all');
   const [customerFilter, setCustomerFilter] = useState<string>('all');
+  const [groupBy, setGroupBy] = useState<'customer' | 'round'>('customer');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Manual Add New Raw Text Form State
@@ -104,21 +105,39 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
   const totalFilteredAmount = filteredClips.reduce((sum, c) => sum + (c.totalAmountPreview || 0), 0);
 
-  // Group clips by Customer Name, sorted chronologically by timestamp within each customer
-  const groupedByCustomer = useMemo(() => {
-    const groups: Record<string, RawBetClip[]> = {};
-    // Sort all filtered clips chronologically by timestamp (oldest to newest or newest to oldest as requested)
-    const sorted = [...filteredClips].sort((a, b) => a.timestamp - b.timestamp);
-    
+  // Group clips by Customer or Round, with newest vouchers always first (b.timestamp - a.timestamp)
+  const groupedSections = useMemo(() => {
+    const groups: Record<string, { label: string; subLabel?: string; clips: RawBetClip[] }> = {};
+    // Sort all filtered clips: newest bet vouchers on top
+    const sorted = [...filteredClips].sort((a, b) => b.timestamp - a.timestamp);
+
     sorted.forEach(clip => {
-      const cust = (clip.customerName && clip.customerName.trim() !== '') ? clip.customerName.trim() : 'အထွေထွေဝယ်သူ (General)';
-      if (!groups[cust]) groups[cust] = [];
-      groups[cust].push(clip);
+      let key = '';
+      let label = '';
+      let subLabel = '';
+
+      if (groupBy === 'round') {
+        key = clip.roundName || clip.roundId || 'အခြားပွဲစဉ်';
+        label = key;
+        subLabel = clip.date;
+      } else {
+        key = (clip.customerName && clip.customerName.trim() !== '') ? clip.customerName.trim() : 'အထွေထွေဝယ်သူ';
+        label = key;
+      }
+
+      if (!groups[key]) {
+        groups[key] = { label, subLabel, clips: [] };
+      }
+      groups[key].clips.push(clip);
     });
-    
-    // Sort customer keys alphabetically
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, 'my'));
-  }, [filteredClips]);
+
+    // Sort groups so the group with the most recent voucher appears at the top
+    return Object.entries(groups).sort(([, aData], [, bData]) => {
+      const timeA = aData.clips[0]?.timestamp || 0;
+      const timeB = bData.clips[0]?.timestamp || 0;
+      return timeB - timeA;
+    });
+  }, [filteredClips, groupBy]);
 
   if (!isOpen) return null;
 
@@ -217,7 +236,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           </div>
         </div>
 
-        {/* Notice Info & Filters Bar */}
+        {/* Filters Bar: Category, Group By, Search, Date, Round, Customer */}
         <div className="bg-slate-100/90 border-b border-slate-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
             {/* Category Filter */}
@@ -241,6 +260,48 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
               ))}
             </div>
 
+            {/* Group By Toggle: Customer vs Round */}
+            <div className="flex items-center bg-white p-0.5 rounded-xl border border-amber-300/80 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setGroupBy('customer')}
+                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer ${
+                  groupBy === 'customer'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-700 hover:bg-amber-50'
+                }`}
+                title="ထိုးသားအမည်အလိုက် စုစည်းကြည့်ရှုမည်"
+              >
+                <User className="w-3 h-3" />
+                <span>ထိုးသားအလိုက်</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupBy('round')}
+                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer ${
+                  groupBy === 'round'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-700 hover:bg-amber-50'
+                }`}
+                title="ပွဲစဉ်အလိုက် စုစည်းကြည့်ရှုမည်"
+              >
+                <Layers className="w-3 h-3" />
+                <span>ပွဲစဉ်အလိုက်</span>
+              </button>
+            </div>
+
+            {/* Quick Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ရှာဖွေမည်..."
+                className="bg-white border border-slate-200 text-slate-800 text-[11px] font-bold rounded-xl pl-7 pr-2 py-1 w-28 sm:w-36 focus:w-44 transition-all shadow-2xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
             {/* Date Filter */}
             {availableDates.length > 0 && (
               <select
@@ -251,6 +312,20 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                 <option value="all">ရက်စွဲအားလုံး ({availableDates.length})</option>
                 {availableDates.map(d => (
                   <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Round Filter */}
+            {availableRounds.length > 0 && (
+              <select
+                value={roundFilter}
+                onChange={(e) => setRoundFilter(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-xl px-2 py-1 shadow-2xs"
+              >
+                <option value="all">ပွဲစဉ်အားလုံး ({availableRounds.length})</option>
+                {availableRounds.map(r => (
+                  <option key={r} value={r}>{r}</option>
                 ))}
               </select>
             )}
@@ -356,62 +431,79 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           </form>
         )}
 
-        {/* Compact Content Body: Grouped by Customer Name & Sorted Chronologically */}
-        <div className="p-3 sm:p-4 overflow-y-auto flex-1 bg-slate-50/50 space-y-3">
+        {/* Compact Content Body: Grouped by Customer or Round & Sorted Chronologically (Newest first) */}
+        <div className="p-2 sm:p-3 overflow-y-auto flex-1 bg-slate-100/60 space-y-3">
           {filteredClips.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400 space-y-2 max-w-sm mx-auto shadow-2xs">
               <FileText className="w-10 h-10 mx-auto text-slate-300" />
               <h4 className="text-xs font-bold text-slate-700">မူရင်းစာသားမှတ်တမ်းများ မရှိသေးပါ</h4>
               <p className="text-[11px] text-slate-500">
-                ထိုးသားအမည်အလိုက် အလိုအလျောက် ခွဲခြားသိမ်းဆည်းပေးမည် ဖြစ်ပါသည်။
+                ဘောင်ချာများ အတည်ပြုပြီးပါက ဤနေရာတွင် အလိုအလျောက် သပ်သပ်ရပ်ရပ် စုစည်းသိမ်းဆည်းပေးမည် ဖြစ်ပါသည်။
               </p>
             </div>
           ) : (
-            groupedByCustomer.map(([customerName, customerClips]) => (
-              <div key={customerName} className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-2xs space-y-2.5">
-                {/* Customer Header */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            groupedSections.map(([groupKey, section]) => (
+              <div key={groupKey} className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs space-y-2">
+                {/* Section Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 px-0.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs border border-indigo-200">
-                      <User className="w-3.5 h-3.5" />
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs border ${
+                      groupBy === 'round'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    }`}>
+                      {groupBy === 'round' ? (
+                        <Layers className="w-3.5 h-3.5" />
+                      ) : (
+                        <User className="w-3.5 h-3.5" />
+                      )}
                     </div>
-                    <h4 className="text-xs font-black text-slate-900">
-                      {customerName}
-                    </h4>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                        <span>{section.label}</span>
+                        {section.subLabel && groupBy === 'round' && (
+                          <span className="text-[10px] text-slate-400 font-normal font-mono">
+                            ({section.subLabel})
+                          </span>
+                        )}
+                      </h4>
+                    </div>
                     <span className="bg-slate-100 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full font-mono">
-                      {customerClips.length} စောင်
+                      {section.clips.length} စောင်
                     </span>
                   </div>
 
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    အချိန်အလိုက် ရှေ့နောက်စီစဉ်ပြီး
+                  <div className="text-[10px] text-emerald-700 font-mono font-bold flex items-center gap-1">
+                    <span>နောက်ဆုံးထိုးထားသော ဘောင်ချာများ အပေါ်ဆုံးတွင်ရှိပါသည်</span>
                   </div>
                 </div>
 
-                {/* Vouchers Grid (Compact, Screen-fitting, No giant gaps) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-                  {customerClips.map((clip, idx) => (
+                {/* Vouchers Grid: Compact, Auto-Height (No huge empty black spaces), Items-Start */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+                  {section.clips.map((clip, idx) => (
                     <div
                       key={clip.id}
-                      className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-2.5 space-y-2 hover:border-amber-400/80 transition-all flex flex-col justify-between"
+                      className="bg-slate-50 border border-slate-200/90 rounded-xl p-2 space-y-1.5 hover:border-amber-400/90 hover:shadow-xs transition-all"
                     >
-                      {/* Top Row: Voucher Badge, Time, Category */}
-                      <div className="flex items-center justify-between text-[11px]">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-900 border border-amber-300/60 rounded-lg text-[10px] font-black font-mono">
+                      {/* Top Row: Voucher Badge, Customer/Round, Time, Category */}
+                      <div className="flex items-center justify-between text-[11px] gap-1">
+                        <div className="flex items-center gap-1.5 font-bold shrink-0">
+                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-900 border border-amber-300/70 rounded-md text-[10px] font-black font-mono">
                             {clip.voucherNumber || `ဘောင်ချာ #${idx + 1}`}
                           </span>
-                          <span className="text-slate-500 font-mono text-[10px] flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" />
-                            {clip.date} • {clip.time || new Date(clip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                          {groupBy === 'round' && clip.customerName && (
+                            <span className="text-slate-800 font-bold text-[11px] truncate max-w-[100px]">
+                              {clip.customerName}
+                            </span>
+                          )}
                         </div>
 
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            ({clip.roundName})
-                          </span>
-                          <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase ${
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 shrink-0">
+                          <Clock className="w-2.5 h-2.5 text-slate-400" />
+                          <span>{clip.date}</span>
+                          <span>•</span>
+                          <span>{clip.time || new Date(clip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
                             clip.category === '3d' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
                             clip.category === '2d' ? 'bg-teal-50 text-teal-700 border border-teal-200' :
                             'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -421,17 +513,25 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Raw Text Pre Box (Compact height) */}
-                      <pre className="bg-slate-900 text-emerald-300 font-mono text-[11px] p-2 rounded-lg max-h-24 overflow-y-auto whitespace-pre-wrap leading-tight shadow-inner select-all border border-slate-800">
+                      {/* Round indicator if grouped by customer */}
+                      {groupBy === 'customer' && clip.roundName && (
+                        <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 px-0.5">
+                          <Layers className="w-2.5 h-2.5 text-slate-400" />
+                          <span className="truncate">{clip.roundName}</span>
+                        </div>
+                      )}
+
+                      {/* Raw Text Box: SNUG, COMPACT, NATURAL HEIGHT (NO BLACK BLANK) */}
+                      <pre className="bg-slate-900 text-emerald-300 font-mono text-[11px] px-2.5 py-1.5 rounded-lg whitespace-pre-wrap leading-snug select-all border border-slate-800 break-words max-h-40 overflow-y-auto">
                         {clip.rawText}
                       </pre>
 
-                      {/* Footer Actions */}
-                      <div className="flex items-center justify-between pt-1">
+                      {/* Footer: Copy Button & Trash */}
+                      <div className="flex items-center justify-between pt-0.5">
                         <button
                           type="button"
                           onClick={() => handleCopy(clip)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                             copiedId === clip.id
                               ? 'bg-emerald-600 text-white'
                               : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs'
@@ -444,20 +544,27 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                             </>
                           ) : (
                             <>
-                              <Copy className="w-3 h-3" />
+                              <Copy className="w-3 h-3 text-slate-500" />
                               <span>စာသားကူးမည်</span>
                             </>
                           )}
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(clip.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="ဖျက်မည်"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {clip.totalAmountPreview !== undefined && clip.totalAmountPreview > 0 && (
+                            <span className="text-[10px] font-mono font-bold text-slate-600">
+                              {formatAmount(clip.totalAmountPreview, 'K')}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(clip.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="ဖျက်မည်"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
