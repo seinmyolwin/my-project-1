@@ -1,19 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
+  Trophy,
   Sparkles,
-  Award,
   CheckCircle2,
-  XCircle,
   TrendingUp,
-  TrendingDown,
   FileSpreadsheet,
   RotateCcw,
   Copy,
   Check,
-  Phone,
   User,
-  Share2,
-  DollarSign,
   AlertCircle,
   Receipt
 } from 'lucide-react';
@@ -285,28 +280,27 @@ ${settings.shopName} (${settings.shopPhone})`;
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
       
-      {/* Top Winning Number Input & Settle Box */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
-        
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-              <Award className="w-5 h-5" />
+      {/* Top Winning Number Input & Settle Box (Matching 2D Design) */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
+              <Trophy className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                {isMyanmar ? 'ပေါက်ဂဏန်း ထည့်သွင်းခြင်းနှင့် လျော်ကြေးတွက်ချက်ခြင်း' : 'Winning Number & Payout Settlement'}
+              <h2 className="text-lg font-black text-slate-900">
+                {isMyanmar ? 'အိုးစည်လေး ပေါက်ဂဏန်း ထည့်သွင်းခြင်းနှင့် လျော်ကြေးရှင်းတမ်း' : 'Winning Result & Payout Settlement'}
               </h2>
-              <p className="text-xs text-slate-500">
-                {isMyanmar
-                  ? 'ပေါက်ဂဏန်းထည့်လိုက်သည်နှင့် လျော်ကြေး၊ အမြတ်/အရှုံးကို အလိုအလျောက် ချက်ချင်းတွက်ချက်ပေးပါမည်'
-                  : 'Enter 3D winning number to instantly compute total payouts, commission, and net profit/loss'}
-              </p>
+              <span className="text-xs text-slate-500 font-medium">
+                {activeRound?.name} {activeRound?.drawDate ? `(${activeRound.drawDate})` : ''}
+              </span>
             </div>
           </div>
 
           {isSettled && (
             <button
+              type="button"
               onClick={() => {
                 if (confirm(isMyanmar ? 'အတည်ပြုထားသော ပေါက်ဂဏန်းအား ပြန်လည်ဖျက်သိမ်းပြီး ပွဲစဉ်အား ပြန်လည်ဖွင့်လှစ်လိုပါသလား?' : 'Are you sure you want to reset this settled round?')) {
                   clearWinningSettlement();
@@ -315,7 +309,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                   setTestedWinningNumber('');
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>{isMyanmar ? 'ပေါက်ဂဏန်း ပြန်လည်ပြင်ဆင်မည်' : 'Reset Result'}</span>
@@ -326,12 +320,12 @@ ${settings.shopName} (${settings.shopPhone})`;
         {/* Input Form */}
         <form onSubmit={handleTryWinning} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
-            
+
             {/* 3-Digit Winning Number */}
-            <div className="sm:col-span-4 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  {isMyanmar ? 'ပေါက်ဂဏန်း' : 'Winning Number'}
+            <div className="sm:col-span-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  {isMyanmar ? 'ပေါက်ဂဏန်း (၀၀၀ မှ ၉၉၉)' : 'Winning Number (000-999)'}
                 </label>
                 {isTestingMode && (
                   <span className="text-[11px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
@@ -363,15 +357,17 @@ ${settings.shopName} (${settings.shopPhone})`;
                   setTimeout(() => target.select(), 20);
                 }}
                 placeholder="000 - 999"
-                className="w-full bg-slate-50 focus:bg-white border-2 border-amber-300 focus:border-amber-500 rounded-xl px-4 py-3 text-3xl font-black text-amber-900 font-mono tracking-widest text-center outline-none shadow-2xs transition-colors"
+                className="w-full h-14 px-4 text-center font-mono text-3xl font-black rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all text-amber-950 tracking-widest"
               />
             </div>
 
             {/* Straight Multiplier */}
-            <div className="sm:col-span-3 space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                {isMyanmar ? 'တည့်ပေါက် အဆ (ဆ)' : 'Straight Multiplier'}
-              </label>
+            <div className="sm:col-span-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  {isMyanmar ? 'တည့်ပေါက် အဆ' : 'Straight Multiplier'}
+                </label>
+              </div>
               <input
                 type="text"
                 inputMode="numeric"
@@ -389,15 +385,17 @@ ${settings.shopName} (${settings.shopPhone})`;
                   setTimeout(() => target.select(), 20);
                 }}
                 placeholder="600"
-                className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-3 text-xl font-bold text-slate-900 font-mono text-center outline-none transition-colors shadow-2xs"
+                className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
               />
             </div>
 
             {/* Todd/Rumble Multiplier */}
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                {isMyanmar ? 'ပတ်လည်ပေါက် (ဆ)' : 'Todd Mult.'}
-              </label>
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  {isMyanmar ? 'ပတ်လည် (ဆ)' : 'Todd Mult.'}
+                </label>
+              </div>
               <input
                 type="text"
                 inputMode="numeric"
@@ -415,17 +413,17 @@ ${settings.shopName} (${settings.shopPhone})`;
                   setTimeout(() => target.select(), 20);
                 }}
                 placeholder="100"
-                className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-3 text-xl font-bold text-slate-900 font-mono text-center outline-none transition-colors shadow-2xs"
+                className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
               />
             </div>
 
             {/* Calculate / Settle Button */}
-            <div className="sm:col-span-3 flex flex-col gap-1.5">
+            <div className="sm:col-span-4 flex flex-col gap-1.5">
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleTryWinning}
-                  className={`flex-1 h-[50px] ${isTestingMode ? 'bg-sky-700 ring-2 ring-sky-400 shadow-md' : 'bg-sky-600 hover:bg-sky-700'} text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer`}
+                  className={`flex-1 h-14 ${isTestingMode ? 'bg-sky-700 ring-2 ring-sky-400 shadow-md' : 'bg-sky-600 hover:bg-sky-700'} text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer`}
                   title="ပေါက်မဲဂဏန်းကို အစမ်းတွက်ချက်ကြည့်မည် (ဒေတာမသိမ်းပါ)"
                 >
                   <Sparkles className="w-4 h-4 text-sky-200" />
@@ -434,7 +432,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                 <button
                   type="button"
                   onClick={handleOpenConfirm}
-                  className="flex-1 h-[50px] bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
                   title="ပေါက်မဲဂဏန်းကို လျှို့ဝှက်နံပါတ်ဖြင့် အတည်ပြုသိမ်းဆည်းမည်"
                 >
                   <CheckCircle2 className="w-4 h-4 text-amber-200" />
@@ -566,6 +564,33 @@ ${settings.shopName} (${settings.shopPhone})`;
                 <span>အတည်ပြုမည် (Password ဖြင့်)</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Stage 1 Confirmed Banner (Awaiting Final Close) */}
+        {isWinningConfirmed && !isSettled && (
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-200 mt-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                ✓
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-emerald-950">
+                  ပေါက်မဲဂဏန်း [{confirmedWinningNumber}] အား စစ်ဆေးအတည်ပြုပြီးပါပြီ
+                </h4>
+                <p className="text-xs text-emerald-800">
+                  ပွဲစဉ်ချုပ်အား အပြီးသတ်ပိတ်သိမ်းပြီး စာရင်းအတည်ပြုရန် အောက်ပါခလုတ်ကို နှိပ်ပါ။
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseRound}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0 animate-bounce"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>ပွဲစဉ်ပိတ်သိမ်းပြီး အပြီးသတ်အတည်ပြုမည်</span>
+            </button>
           </div>
         )}
 
@@ -707,14 +732,9 @@ ${settings.shopName} (${settings.shopPhone})`;
         </div>
       )}
 
-      {/* Real-time Settlement Summary Banner */}
+      {/* Settlement Result Cards (Matching 2D Statement Design) */}
       {(isTestingMode || isWinningConfirmed || isSettled) && activeEvalNumber.length === 3 && (
-        <div className="space-y-4 animate-in fade-in duration-300">
-          <h3 className="text-sm font-black text-slate-800 uppercase flex items-center gap-2 mt-4">
-            <TrendingUp className="w-4 h-4 text-indigo-600" />
-            {isMyanmar ? 'ဘဏ္ဍာရေး ရလဒ်များ' : 'Financial Outcomes'}
-          </h3>
-          
+        <div className="space-y-6 animate-in fade-in duration-300">
           {/* Prominent Next Round Launcher Banner */}
           {activeRound?.status === 'settled' && !isTestingMode && (
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border border-indigo-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -740,7 +760,54 @@ ${settings.shopName} (${settings.shopPhone})`;
             </div>
           )}
 
-          {/* Comprehensive 8-Step Formula Cards matching 2D Financial Statement style */}
+          {/* Active Round Isolated Financial Statement Banner (Matching 2D) */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-indigo-500/30 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300 shrink-0">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-black text-white">
+                    {activeRound?.name || 'လက်ရှိ ၃D ပွဲစဉ်'}
+                  </h3>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${
+                    isTestingMode
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-400/40'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                  }`}>
+                    {isTestingMode ? '🧪 အစမ်းတွက်ချက် စစ်ဆေးမှု (Preview)' : '✓ အတည်ပြုပြီး ရှင်းတမ်း'}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
+                    ပေါက်ဂဏန်း: {activeEvalNumber || '---'} ({multiplierInput || activeRound?.multiplier || settings.defaultMultiplier}/{toddMultiplierInput || activeRound?.toddMultiplier || settings.defaultToddMultiplier} ဆ)
+                  </span>
+                </div>
+                <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-indigo-300 font-bold">
+                    📌 ဤရှင်းတမ်းသည် ဤပွဲစဉ် ({activeRound?.drawDate || getLocalDateString()}) အတွက်သာ ဖြစ်ပြီး အခြားပွဲစဉ်များနှင့် ရောနှောခြင်းမရှိပါ။
+                  </span>
+                  <span className="text-slate-400">
+                    • ဘောင်ချာ {singleRoundStatement.vouchersCount} စောင် • ပေါက်သူ {singleRoundStatement.winnersCount} ဦး
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <span className="text-[10px] text-slate-300 font-bold block uppercase tracking-wider">ဒိုင် အသားတင် ရလဒ်</span>
+                <span className={`text-base sm:text-lg font-black font-mono px-3 py-1 rounded-xl border block ${
+                  singleRoundStatement.isProfit
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                }`}>
+                  {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Comprehensive 8-Step Formula Cards matching Header Financial Statement tab & 2D */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
             {/* 1. မူလထိုးကြေး */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-2xs hover:bg-white transition-all">
@@ -808,65 +875,144 @@ ${settings.shopName} (${settings.shopPhone})`;
             </div>
 
             {/* 6. အထက်ကော်မရှင် */}
-            <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3 shadow-2xs hover:bg-violet-50/80 transition-all">
-              <span className="text-[10px] font-black text-violet-900 block mb-0.5 uppercase tracking-wide">
+            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 shadow-2xs hover:bg-purple-50/80 transition-all">
+              <span className="text-[10px] font-black text-purple-900 block mb-0.5 uppercase tracking-wide">
                 ၆။ အထက်ကော်မရှင်
               </span>
-              <div className="text-sm font-black text-violet-950 font-mono">
+              <div className="text-sm font-black text-purple-900 font-mono">
                 +{formatAmount(singleRoundStatement.forwardCommission, settings.currency)}
               </div>
-              <span className="text-[9px] text-violet-700 block font-medium mt-0.5">
+              <span className="text-[9px] text-purple-700 block font-medium mt-0.5">
                 ကိုယ်ရမည့် ကော်မရှင်ခ
               </span>
             </div>
 
-            {/* 7. ပေးလျော်ငွေ */}
+            {/* 7. ပေးလျှော်ငွေ */}
             <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 shadow-2xs hover:bg-rose-50/80 transition-all">
-              <span className="text-[10px] font-black text-rose-900 block mb-0.5 uppercase tracking-wide">
-                ၇။ ပေးလျော်ငွေ
+              <span className="text-[10px] font-black text-rose-800 block mb-0.5 uppercase tracking-wide">
+                ၇။ ပေးလျှော်ငွေ
               </span>
-              <div className="text-sm font-black text-rose-950 font-mono">
+              <div className="text-sm font-black text-rose-800 font-mono">
                 -{formatAmount(singleRoundStatement.totalPayout, settings.currency)}
               </div>
-              <span className="text-[9px] text-rose-700 block font-medium mt-0.5">
-                ဖောက်သည် ပေးလျော်ငွေ
+              <span className="text-[9px] text-rose-600 block font-medium mt-0.5">
+                အောက်လက်ပေါက်ကြေး
               </span>
             </div>
 
-            {/* 8. အသားတင် အမြတ် */}
-            <div className={`border-2 rounded-2xl p-3 shadow-2xs transition-all ${
-              singleRoundStatement.isProfit
-                ? 'bg-emerald-50 border-emerald-300'
-                : 'bg-rose-50 border-rose-300'
+            {/* 8. ဒိုင်အသားတင် အမြတ်/အရှုံး */}
+            <div className={`rounded-2xl p-3 border shadow-2xs transition-all ${
+              singleRoundStatement.isProfit ? 'bg-teal-50 border-teal-300' : 'bg-rose-100 border-rose-300'
             }`}>
               <span className={`text-[10px] font-black block mb-0.5 uppercase tracking-wide ${
-                singleRoundStatement.isProfit ? 'text-emerald-900' : 'text-rose-900'
+                singleRoundStatement.isProfit ? 'text-teal-900' : 'text-rose-900'
               }`}>
-                ၈။ အသားတင်အမြတ်
+                ၈။ အသားတင် {singleRoundStatement.isProfit ? 'အမြတ်' : 'အရှုံး'}
               </span>
               <div className={`text-sm font-black font-mono ${
-                singleRoundStatement.isProfit ? 'text-emerald-950' : 'text-rose-950'
+                singleRoundStatement.isProfit ? 'text-teal-800' : 'text-rose-800'
               }`}>
                 {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
               </div>
-              <span className={`text-[9px] block font-medium mt-0.5 ${
-                singleRoundStatement.isProfit ? 'text-emerald-700' : 'text-rose-700'
+              <span className={`text-[9px] font-black block mt-0.5 ${
+                singleRoundStatement.isProfit ? 'text-teal-700' : 'text-rose-700'
               }`}>
-                {singleRoundStatement.isProfit ? `အမြတ် (${singleRoundStatement.profitMargin}%)` : `အရှုံး (${singleRoundStatement.profitMargin}%)`}
+                {singleRoundStatement.isProfit ? 'အမြတ်' : 'အရှုံး'} ({singleRoundStatement.profitMargin}%)
               </span>
             </div>
           </div>
 
-          {/* Winners List Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden space-y-3">
-            
-            <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
+          {/* Single-Round Financial Statement Table Row (Matching Header tab & 2D format) */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+            <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+              <span className="font-black text-xs flex items-center gap-2">
+                <Receipt className="w-3.5 h-3.5 text-indigo-400" />
+                <span>
+                  ဤပွဲစဉ် စာရင်းရှင်းတမ်းဇယား (Header Tab ရှင်းတမ်း စံနှုန်းအတိုင်း)
+                </span>
+              </span>
+              <span className="text-[10px] text-slate-300 font-bold">
+                {activeRound?.drawDate || getLocalDateString()} • အိုးစည်လေး (3D)
+              </span>
+            </div>
+            <div className="overflow-x-auto whitespace-nowrap text-xs">
+              <table className="w-full text-left">
+                <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">ရက်စွဲ</th>
+                    <th className="py-2.5 px-3">ပွဲစဉ်</th>
+                    <th className="py-2.5 px-3 text-center">ပေါက်ဂဏန်း</th>
+                    <th className="py-2.5 px-3 text-right">၁။ မူလထိုးကြေး</th>
+                    <th className="py-2.5 px-3 text-right text-indigo-900">၂။ အထက်တင်ကြေး</th>
+                    <th className="py-2.5 px-3 text-right text-amber-800">၃။ အောက်လက်ကော်</th>
+                    <th className="py-2.5 px-3 text-right text-sky-900">၄။ အမှန်ရောင်းငွေ</th>
+                    <th className="py-2.5 px-3 text-right text-emerald-800">၅။ အထက်ပေါက်ကြေး</th>
+                    <th className="py-2.5 px-3 text-right text-purple-800">၆။ အထက်ကော်</th>
+                    <th className="py-2.5 px-3 text-right text-rose-700">၇။ ပေးလျှော်ငွေ</th>
+                    <th className="py-2.5 px-3 text-right font-black">၈။ ဒိုင်အသားတင်</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="hover:bg-slate-50 transition-colors">
+                    <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
+                      {activeRound?.drawDate || getLocalDateString()}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">
+                      <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-indigo-100 text-indigo-900 border border-indigo-200 mr-1.5">
+                        အိုးစည်လေး
+                      </span>
+                      {activeRound?.name || '၃D ပွဲစဉ်'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-mono font-black text-amber-950 bg-amber-50">
+                      <span className="bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md text-xs">
+                        {activeEvalNumber || '---'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                      {formatAmount(singleRoundStatement.turnover, settings.currency)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-900">
+                      {singleRoundStatement.totalForwarded > 0 ? formatAmount(singleRoundStatement.totalForwarded, settings.currency) : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-800">
+                      {singleRoundStatement.agentCommission > 0 ? `-${formatAmount(singleRoundStatement.agentCommission, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-sky-950 bg-sky-50/50">
+                      {formatAmount(singleRoundStatement.netSales, settings.currency)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800 bg-emerald-50/40">
+                      {singleRoundStatement.masterPayout > 0 ? `+${formatAmount(singleRoundStatement.masterPayout, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-800 bg-purple-50/40">
+                      {singleRoundStatement.forwardCommission > 0 ? `+${formatAmount(singleRoundStatement.forwardCommission, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 bg-rose-50/40">
+                      {singleRoundStatement.totalPayout > 0 ? `-${formatAmount(singleRoundStatement.totalPayout, settings.currency)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black">
+                      <span className={`px-2 py-0.5 rounded-md font-mono text-xs ${
+                        singleRoundStatement.isProfit
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}>
+                        {singleRoundStatement.isProfit ? '+' : '-'}{formatAmount(Math.abs(singleRoundStatement.netProfit), settings.currency)}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Winning Tickets Table (Matching 2D Card Layout while preserving 3D Straight/Todd & Claim controls) */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-amber-500" />
-                  <span>{isMyanmar ? 'ပေါက်သူများ စာရင်း' : 'Winning Customers List'}</span>
-                  <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full text-xs font-mono border border-amber-200">
-                    {winningResults.winners.length} ဦး
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  <span>{isMyanmar ? 'ပေါက်မဲရရှိသော ဘောင်ချာများ စာရင်း' : 'Winning Customers List'}</span>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
+                    {winningResults.winners.length}
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -877,56 +1023,58 @@ ${settings.shopName} (${settings.shopPhone})`;
               </div>
 
               <button
+                type="button"
                 onClick={exportToExcel}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-2xs transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>{isMyanmar ? 'ပေါက်သူစာရင်း Excel ထုတ်မည်' : 'Export Winners Excel'}</span>
+                <span>{isMyanmar ? 'Excel စာရင်းထုတ်' : 'Export Excel'}</span>
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-4">#</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'ဘောင်ချာအမှတ်' : 'Voucher No'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'ဝယ်သူအမည်' : 'Customer'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'ပေါက်ဂဏန်း' : 'Won Number'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'အမျိုးအစား' : 'Type'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'ထိုးကြေး' : 'Bet Amt'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'အဆ' : 'Multiplier'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'လျော်ကြေးငွေ' : 'Won Payout'}</th>
-                    <th className="py-3 px-4">{isMyanmar ? 'ငွေရှင်းမှု' : 'Claim Status'}</th>
-                    <th className="py-3 px-4 text-right">{isMyanmar ? 'အကြောင်းကြားစာ' : 'Notify'}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
-                  {winningResults.winners.length === 0 ? (
+            {winningResults.winners.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-2">
+                <Trophy className="w-10 h-10 mx-auto stroke-1 text-slate-300" />
+                <p className="text-sm font-medium">
+                  {isMyanmar
+                    ? `ပေါက်ဂဏန်း [${activeEvalNumber}] ကို ထိုးထားသူ မရှိပါ (ဒိုင်အပြည့်အဝ မြတ်ပါသည်)`
+                    : `No customers bet on winning number [${activeEvalNumber}]. Full dealer retention.`}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-500 font-sans">
-                        {isMyanmar
-                          ? `ပေါက်ဂဏန်း [${activeEvalNumber}] ကို ထိုးထားသော ဝယ်သူမရှိပါ (ဒိုင် အမြတ်ငွေ အပြည့်ရရှိ)`
-                          : `No customers bet on winning number [${activeEvalNumber}]. Full dealer retention.`}
-                      </td>
+                      <th className="p-3">#</th>
+                      <th className="p-3">{isMyanmar ? 'ဘောင်ချာအမှတ်' : 'Voucher No'}</th>
+                      <th className="p-3">{isMyanmar ? 'ထိုးသူအမည်' : 'Customer'}</th>
+                      <th className="p-3 text-center">{isMyanmar ? 'ပေါက်ဂဏန်း' : 'Won Number'}</th>
+                      <th className="p-3">{isMyanmar ? 'အမျိုးအစား' : 'Type'}</th>
+                      <th className="p-3 text-right">{isMyanmar ? 'ထိုးကြေး' : 'Bet Amt'}</th>
+                      <th className="p-3 text-right">{isMyanmar ? 'အဆ' : 'Multiplier'}</th>
+                      <th className="p-3 text-right">{isMyanmar ? 'အလျော်ငွေ' : 'Won Payout'}</th>
+                      <th className="p-3 text-center">{isMyanmar ? 'ငွေရှင်းမှု' : 'Claim Status'}</th>
+                      <th className="p-3 text-right">{isMyanmar ? 'အကြောင်းကြားစာ' : 'Notify'}</th>
                     </tr>
-                  ) : (
-                    winningResults.winners.map((winner, idx) => (
-                      <tr key={`${winner.voucherId}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 text-slate-400">{idx + 1}</td>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {winningResults.winners.map((winner, idx) => (
+                      <tr key={`${winner.voucherId}-${idx}`} className="hover:bg-amber-50/40 transition-colors">
+                        <td className="p-3 text-slate-400">{idx + 1}</td>
 
                         {/* Voucher No */}
-                        <td className="py-3 px-4 font-bold text-indigo-700">
+                        <td className="p-3 font-bold text-slate-900">
                           {winner.voucherNo}
                         </td>
 
                         {/* Customer */}
-                        <td className="py-3 px-4 font-sans font-medium text-slate-900">
+                        <td className="p-3 font-sans font-bold text-slate-800">
                           <div className="flex items-center gap-1.5">
                             <User className="w-3.5 h-3.5 text-slate-400" />
                             <span>{winner.customerName}</span>
                             {winner.customerPhone && (
-                              <span className="text-[11px] text-slate-500 font-mono">
+                              <span className="text-[11px] text-slate-500 font-mono font-normal">
                                 ({winner.customerPhone})
                               </span>
                             )}
@@ -934,14 +1082,14 @@ ${settings.shopName} (${settings.shopPhone})`;
                         </td>
 
                         {/* Won Number */}
-                        <td className="py-3 px-4">
-                          <span className="bg-amber-100 text-amber-950 font-black px-2 py-0.5 rounded tracking-widest text-sm border border-amber-300">
+                        <td className="p-3 text-center">
+                          <span className="px-2.5 py-1 bg-amber-100 text-amber-900 font-black rounded-lg text-sm">
                             {winner.betNumber}
                           </span>
                         </td>
 
                         {/* Type */}
-                        <td className="py-3 px-4 font-sans">
+                        <td className="p-3 font-sans">
                           {winner.winType === 'straight' ? (
                             <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
                               တည့်ပေါက်
@@ -954,25 +1102,26 @@ ${settings.shopName} (${settings.shopPhone})`;
                         </td>
 
                         {/* Bet Amt */}
-                        <td className="py-3 px-4 text-slate-700 font-medium">
+                        <td className="p-3 text-right font-bold text-slate-800">
                           {formatAmount(winner.betAmount, settings.currency)}
                         </td>
 
                         {/* Multiplier */}
-                        <td className="py-3 px-4 text-slate-500">
+                        <td className="p-3 text-right text-slate-500">
                           {winner.multiplier}x
                         </td>
 
                         {/* Payout */}
-                        <td className="py-3 px-4 font-black text-rose-600 text-sm">
+                        <td className="p-3 text-right font-black text-rose-700 text-sm">
                           {formatAmount(winner.wonPayout, settings.currency)}
                         </td>
 
                         {/* Claim Status */}
-                        <td className="py-3 px-4 font-sans">
+                        <td className="p-3 text-center font-sans">
                           <button
+                            type="button"
                             onClick={() => handleToggleVoucherPaid(winner.voucherId, winner.isPaid)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer ${
                               winner.isPaid
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                                 : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
@@ -993,8 +1142,9 @@ ${settings.shopName} (${settings.shopPhone})`;
                         </td>
 
                         {/* Copy SMS / Chat action */}
-                        <td className="py-3 px-4 text-right font-sans">
+                        <td className="p-3 text-right font-sans">
                           <button
+                            type="button"
                             onClick={() => handleCopyWinningMessage(winner)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-medium transition-colors cursor-pointer"
                             title="ပေါက်ဂဏန်း အကြောင်းကြားစာ ကူးယူမည်"
@@ -1014,12 +1164,11 @@ ${settings.shopName} (${settings.shopPhone})`;
                         </td>
 
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
         </div>

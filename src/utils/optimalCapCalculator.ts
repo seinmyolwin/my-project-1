@@ -9,11 +9,12 @@ export interface NumberBetItem {
 
 export interface CapCalculationInput {
   betsList: NumberBetItem[];
-  multiplier: number;       // default e.g. 80 or 85
+  multiplier: number;       // default e.g. 80 or 85 (2D) / 500-700 (3D)
   downlineCommRate: number; // e.g. 12 or 0.12 (အောက်လက် ကော်မရှင်)
   uplineCommRate: number;   // e.g. 10 or 0.10 (အထက်ဒိုင် ကော်မရှင်)
   maxRiskBudget?: number;   // default 0 (အများဆုံး အရှုံးခံနိုင်သည့် ပမာဏ)
   globalLimit?: number;     // e.g. 200,000 Ks or shop default cap
+  totalOutcomes?: number;   // 100 for 2D (00-99), 1000 for 3D (000-999)
 }
 
 export interface NumberCapBreakdown {
@@ -34,10 +35,10 @@ export interface OptimalCapResult {
   worstCaseNet: number;       // > 0 is guaranteed profit, < 0 is potential risk
   isGuaranteedProfit: boolean;
   maxSingleStake: number;
-  coveredNumbersCount: number;// Number of 2D numbers with bets (out of 100)
-  emptyNumbersCount: number;  // Number of 2D numbers without bets (100 - covered)
+  coveredNumbersCount: number;// Number of numbers with bets
+  emptyNumbersCount: number;  // Number of numbers without bets (totalOutcomes - covered)
   emptyWinProbability: number;// Probability of drawing an empty number (%)
-  expectedNetValue: number;   // Average net profit across all 100 numbers (+EV)
+  expectedNetValue: number;   // Average net profit across all outcomes (+EV)
   breakdown: NumberCapBreakdown[];
   downlineCommPercent: number;
   uplineCommPercent: number;
@@ -48,9 +49,12 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
     betsList = [],
     multiplier = 80,
     maxRiskBudget = 0,
-    globalLimit
+    globalLimit,
+    totalOutcomes = 100
   } = input;
 
+  const outcomesCount = totalOutcomes > 0 ? totalOutcomes : 100;
+  const padLength = outcomesCount >= 1000 ? 3 : 2;
   const downlineComm = input.downlineCommRate > 1 ? input.downlineCommRate / 100 : (input.downlineCommRate || 0);
   const uplineComm = input.uplineCommRate > 1 ? input.uplineCommRate / 100 : (input.uplineCommRate || 0);
 
@@ -64,7 +68,6 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
   const zeroRiskCap = Math.max(0, Math.floor(inflowCash / Math.max(1, multiplier)));
 
   // Distribution statistics
-  // Group bets by 2D number (00 to 99)
   const betsByNumber: Record<string, number> = {};
   betsList.forEach(item => {
     if (item.number) {
@@ -74,8 +77,10 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
 
   const coveredNumbers = Object.keys(betsByNumber).filter(n => betsByNumber[n] > 0);
   const coveredNumbersCount = coveredNumbers.length;
-  const emptyNumbersCount = Math.max(0, 100 - coveredNumbersCount);
-  const emptyWinProbability = emptyNumbersCount; // since 100 numbers total (1% each)
+  const emptyNumbersCount = Math.max(0, outcomesCount - coveredNumbersCount);
+  const emptyWinProbability = outcomesCount === 100
+    ? emptyNumbersCount
+    : Number(((emptyNumbersCount / outcomesCount) * 100).toFixed(1));
 
   if (totalSales <= 0 || betsList.length === 0) {
     const defaultBaseline = (typeof globalLimit === 'number' && globalLimit > 0) ? Math.min(globalLimit, 50000) : 2000;
@@ -91,7 +96,7 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
       isGuaranteedProfit: true,
       maxSingleStake: 0,
       coveredNumbersCount: 0,
-      emptyNumbersCount: 100,
+      emptyNumbersCount: outcomesCount,
       emptyWinProbability: 100,
       expectedNetValue: 0,
       breakdown: [],
@@ -147,13 +152,13 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
     const outflowCash = forwardedTotal * (1 - uplineComm);
     const netCash = inflowCash - outflowCash;
 
-    // Calculate outcomes across all 100 numbers (00..99)
+    // Calculate outcomes across all possible numbers (00..99 or 000..999)
     let totalOutcomesNetSum = 0;
     let worstPayout = 0;
     let worstCaseNet = Infinity;
 
-    for (let numIdx = 0; numIdx < 100; numIdx++) {
-      const numStr = numIdx.toString().padStart(2, '0');
+    for (let numIdx = 0; numIdx < outcomesCount; numIdx++) {
+      const numStr = numIdx.toString().padStart(padLength, '0');
       const stakeOnNum = betsByNumber[numStr] || 0;
       const retainedOnNum = Math.min(stakeOnNum, c);
       const payoutOnNum = retainedOnNum * multiplier;
@@ -164,7 +169,7 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
       if (netOutcomeOnNum < worstCaseNet) worstCaseNet = netOutcomeOnNum;
     }
 
-    const expectedNetValue = totalOutcomesNetSum / 100;
+    const expectedNetValue = totalOutcomesNetSum / outcomesCount;
 
     return {
       cap: c,
@@ -179,14 +184,8 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
 
   // Decision Logic: Loop through all candidate caps and pick the cap with MAXIMUM expected profit & MINIMUM downside risk
   const scoredEvaluations = evaluations.map(e => {
-    // Expected Profit across 100 outcomes
     const expected = e.expectedNetValue;
-    // Downside penalty if worstCaseNet is negative
     const downsideRisk = e.worstCaseNet < 0 ? Math.abs(e.worstCaseNet) : 0;
-
-    // Composite score balancing maximum expected profit with downside protection:
-    // Score = Expected Profit - (downsideRisk * 0.12)
-    // If worstCaseNet >= 0 (zero-risk), penalty is 0.
     const score = expected - (downsideRisk * 0.12);
 
     return {
@@ -195,18 +194,15 @@ export function calculateOptimalSafeCap(input: CapCalculationInput): OptimalCapR
     };
   });
 
-  // Pick the candidate cap with highest score
   let best: CandidateEvaluation = scoredEvaluations.reduce(
     (max, e) => (e.score > max.score ? e : max),
     scoredEvaluations[0]
   );
 
-  // If candidate cap is 0 or undefined, fallback to zeroRiskCap or default cap
   if (!best || best.cap <= 0) {
     best = evaluations.find(e => e.cap === zeroRiskCap) || evaluations[0];
   }
 
-  // Round optimalCap to clean practical number if close to round numbers
   let roundedCap = best.cap;
   if (roundedCap > 100 && roundedCap % 50 !== 0) {
     roundedCap = Math.round(roundedCap / 50) * 50;
@@ -248,8 +244,11 @@ export function evaluateCustomCap(customCap: number, input: CapCalculationInput)
   const {
     betsList = [],
     multiplier = 80,
+    totalOutcomes = 100
   } = input;
 
+  const outcomesCount = totalOutcomes > 0 ? totalOutcomes : 100;
+  const padLength = outcomesCount >= 1000 ? 3 : 2;
   const downlineComm = input.downlineCommRate > 1 ? input.downlineCommRate / 100 : (input.downlineCommRate || 0);
   const uplineComm = input.uplineCommRate > 1 ? input.uplineCommRate / 100 : (input.uplineCommRate || 0);
 
@@ -268,8 +267,10 @@ export function evaluateCustomCap(customCap: number, input: CapCalculationInput)
 
   const coveredNumbers = Object.keys(betsByNumber).filter(n => betsByNumber[n] > 0);
   const coveredNumbersCount = coveredNumbers.length;
-  const emptyNumbersCount = Math.max(0, 100 - coveredNumbersCount);
-  const emptyWinProbability = emptyNumbersCount;
+  const emptyNumbersCount = Math.max(0, outcomesCount - coveredNumbersCount);
+  const emptyWinProbability = outcomesCount === 100
+    ? emptyNumbersCount
+    : Number(((emptyNumbersCount / outcomesCount) * 100).toFixed(1));
 
   const cap = Math.max(0, customCap);
   const retainedTotal = betsList.reduce((sum, b) => sum + Math.min(b.stake, cap), 0);
@@ -282,8 +283,8 @@ export function evaluateCustomCap(customCap: number, input: CapCalculationInput)
   let worstPayout = 0;
   let worstCaseNet = Infinity;
 
-  for (let numIdx = 0; numIdx < 100; numIdx++) {
-    const numStr = numIdx.toString().padStart(2, '0');
+  for (let numIdx = 0; numIdx < outcomesCount; numIdx++) {
+    const numStr = numIdx.toString().padStart(padLength, '0');
     const stakeOnNum = betsByNumber[numStr] || 0;
     const retainedOnNum = Math.min(stakeOnNum, cap);
     const payoutOnNum = retainedOnNum * multiplier;
@@ -294,7 +295,7 @@ export function evaluateCustomCap(customCap: number, input: CapCalculationInput)
     if (netOutcomeOnNum < worstCaseNet) worstCaseNet = netOutcomeOnNum;
   }
 
-  const expectedNetValue = totalOutcomesNetSum / 100;
+  const expectedNetValue = totalOutcomesNetSum / outcomesCount;
 
   const breakdown: NumberCapBreakdown[] = betsList.map(item => {
     const retained = Math.min(item.stake, cap);

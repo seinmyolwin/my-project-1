@@ -25,6 +25,7 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { formatAmount } from '../utils/lotteryUtils';
 import { NumberAggregate } from '../types';
+import { ThreeDSmartCapAdvisory } from './ThreeDSmartCapAdvisory';
 
 interface LiveLedgerViewProps {
   onOpenForwardModal: (initialNumber?: string, initialAmount?: number) => void;
@@ -197,7 +198,9 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
-      
+      {/* Top Smart Safe Cap & Financial Advisory Section (Matching 2D Smart Cap Advisory) */}
+      <ThreeDSmartCapAdvisory onOpenLimitsManager={onOpenLimitsManager} />
+
       {/* Top Controls & Metrics Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
         
