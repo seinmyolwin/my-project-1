@@ -471,9 +471,11 @@ export function exportLotteryDataToExcel(
   forwardSlips: ForwardSlip[],
   aggregates: { [num: string]: { totalSold: number; forwarded: number; retained: number } },
   winningNumber?: string,
-  multiplier: number = 600
+  multiplier: number = 600,
+  toddMultiplier?: number
 ) {
   const wb = XLSX.utils.book_new();
+  const effectiveToddMult = typeof toddMultiplier === 'number' ? toddMultiplier : (round.toddMultiplier ?? 0);
 
   // 0. Metadata Sheet (ပွဲစဉ်အချက်အလက်)
   const metaRows = [
@@ -483,7 +485,7 @@ export function exportLotteryDataToExcel(
     { 'Property': 'ClosingTime', 'Value': round.closingTime ?? '' },
     { 'Property': 'WinningNumber', 'Value': winningNumber || round.winningNumber || '' },
     { 'Property': 'Multiplier', 'Value': multiplier },
-    { 'Property': 'ToddMultiplier', 'Value': round.toddMultiplier ?? '' },
+    { 'Property': 'ToddMultiplier', 'Value': effectiveToddMult },
     { 'Property': 'CommissionRate', 'Value': round.commissionRate ?? '' },
     { 'Property': 'ExportTimestamp', 'Value': new Date().toISOString() }
   ];
@@ -556,7 +558,7 @@ export function exportLotteryDataToExcel(
 
   // 3. Winning Settlement Sheet if winning number exists
   if (winningNumber) {
-    const winEval = evaluateWinnings(vouchers, winningNumber, multiplier, round.toddMultiplier || 0);
+    const winEval = evaluateWinnings(vouchers, winningNumber, multiplier, effectiveToddMult);
     const winData: any[] = [];
     winEval.winners.forEach(w => {
       winData.push({
@@ -769,4 +771,51 @@ export function masterShareOf3D(
     master += byNumber[k] * share;
   });
   return safeRound(master);
+}
+
+/**
+ * Calculates Master Bookie Payout (အထက်ဒိုင်ရဲ့ပေါက်ကြေး) strictly from
+ * confirmed/submitted forward slips (ForwardSlip[]).
+ * Never infers payouts from customer vouchers or aggregates, and only treats
+ * forwarded items as Todd wins when explicitly marked betType === 'rumble'.
+ */
+export function calculate3DForwardMasterPayout(
+  forwardSlips: ForwardSlip[],
+  winningNumber: string,
+  straightMultiplier: number,
+  toddMultiplier: number
+): number {
+  if (!winningNumber) return 0;
+  const winNum = winningNumber.trim().padStart(3, '0');
+  if (winNum.length !== 3) return 0;
+
+  const toddSet = new Set(getPermutations(winNum));
+  let totalMasterPayout = 0;
+
+  forwardSlips.forEach((f) => {
+    if ((f as any).deletedAt) return;
+    const wonGroupIds = new Set<string>();
+
+    (f.items || []).forEach((it) => {
+      const num = String(it.number || '').trim().padStart(3, '0');
+      const amt = Number(it.amount) || 0;
+      if (amt <= 0) return;
+
+      if (it.betType === 'rumble') {
+        if (toddMultiplier > 0 && toddSet.has(num)) {
+          if (it.groupId) {
+            if (wonGroupIds.has(it.groupId)) return;
+            wonGroupIds.add(it.groupId);
+          }
+          totalMasterPayout += calculatePayout(amt, toddMultiplier);
+        }
+      } else {
+        if (num === winNum && straightMultiplier > 0) {
+          totalMasterPayout += calculatePayout(amt, straightMultiplier);
+        }
+      }
+    });
+  });
+
+  return safeRound(totalMasterPayout);
 }

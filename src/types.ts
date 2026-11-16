@@ -51,6 +51,8 @@ export interface Voucher {
 export interface ForwardSlipItem {
   number: string;
   amount: number;
+  betType?: BetType;
+  groupId?: string;
 }
 
 export interface ForwardSlip {

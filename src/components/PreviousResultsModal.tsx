@@ -123,9 +123,9 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
         'ပွဲစဉ်အမည် (Round Name)': r.name,
         'တည့်ပေါက်ဂဏန်း (Winning Straight)': r.winningNumber || 'မထွက်သေး',
         'ပတ်လည်ဂဏန်းများ (Todd/Rumble)': perms,
-        'တည့်ပေါက်ဆ (Multiplier)': `${r.multiplier || lottery3D.settings.defaultMultiplier || 0}x`,
-        'ပတ်လည်ပေါက်ဆ (Todd Mult)': `${r.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0}x`,
-        'ကော်မရှင် (Commission)': `${r.commissionRate || lottery3D.settings.defaultCommissionRate || 0}%`,
+        'တည့်ပေါက်ဆ (Multiplier)': `${typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0}x`,
+        'ပတ်လည်ပေါက်ဆ (Todd Mult)': `${typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0}x`,
+        'ကော်မရှင် (Commission)': `${typeof lottery3D.settings.defaultCommissionRate === 'number' ? lottery3D.settings.defaultCommissionRate : 0}%`,
         'အခြေအနေ (Status)': r.status === 'settled' ? 'ပြီးဆုံး' : 'ဖွင့်လှစ်ဆဲ'
       };
     });
@@ -634,8 +634,8 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                           {/* Multipliers info & Actions */}
                           <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                             <div className="text-slate-600">
-                              ပေါက်ဆ: တည့် <strong className="text-slate-900">{round.multiplier || lottery3D.settings.defaultMultiplier || 0}x</strong> | ပတ်{' '}
-                              <strong className="text-slate-900">{round.toddMultiplier || lottery3D.settings.defaultToddMultiplier || 0}x</strong>
+                              ပေါက်ဆ: တည့် <strong className="text-slate-900">{typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0}x</strong> | ပတ်{' '}
+                              <strong className="text-slate-900">{typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0}x</strong>
                             </div>
 
                             <div className="flex items-center gap-2">

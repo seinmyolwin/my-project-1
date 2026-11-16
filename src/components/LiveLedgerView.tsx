@@ -63,7 +63,7 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
   // Master 000-999 list generation
   const all1000Numbers = useMemo(() => {
     const list: NumberAggregate[] = [];
-    const multiplier = activeRound?.multiplier || settings.defaultMultiplier;
+    const multiplier = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
 
     for (let i = 0; i <= 999; i++) {
       const num = String(i).padStart(3, '0');

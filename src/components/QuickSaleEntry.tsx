@@ -84,7 +84,9 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   // Form State
   const [customerName, setCustomerName] = useState('အထွေထွေ');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [discountPercent, setDiscountPercent] = useState<number>(0) /* no discounts */;
+  const discountPercent = typeof settings.defaultCustomerDiscount === 'number'
+    ? settings.defaultCustomerDiscount
+    : 0;
   const [notes, setNotes] = useState('');
 
   // Single Item Input
@@ -1016,8 +1018,10 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     let forwardNotes = '';
     if (forwardItems.length > 0) {
       const fwdTotal = forwardItems.reduce((acc, i) => acc + i.amount, 0);
-      const commRate = commissionRate || settings.defaultCommissionRate || 0;
-      const commAmt = Math.round((fwdTotal * commRate) / 100);
+      const commRate = typeof settings.defaultCommissionRate === 'number'
+        ? settings.defaultCommissionRate
+        : (typeof commissionRate === 'number' ? commissionRate : 0);
+      const commAmt = commRate > 0 ? Math.round((fwdTotal * commRate) / 100) : 0;
       const netPaid = fwdTotal - commAmt;
 
       const resolvedAgent = (masterAgentName || settings.defaultMasterAgentName || '').trim();
@@ -2496,6 +2500,14 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                     {formatAmount(subtotal, settings.currency)}
                   </span>
                 </div>
+                {discountPercent > 0 && (
+                  <div className="flex justify-between text-amber-700">
+                    <span>{isMyanmar ? `အောက်လက်ကော် (${discountPercent}%)` : `Downline Comm (${discountPercent}%)`}:</span>
+                    <span className="font-mono font-bold">
+                      -{formatAmount(discountAmount, settings.currency)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
                   <span>{isMyanmar ? 'အသားတင် ပေးချေငွေ' : 'Net Total'}:</span>
                   <span className="font-mono text-base text-emerald-700">

@@ -89,7 +89,11 @@ export function generateUpToDate2DRounds(
 /**
  * Generates an up-to-date list of 3D draw rounds matching TODAY's date and official 1st/16th draw dates
  */
-export function generateUpToDate3DRounds(): DrawRound[] {
+export function generateUpToDate3DRounds(
+  defaultMultiplier: number = 600,
+  defaultToddMultiplier: number = 100,
+  defaultCommissionRate: number = 0
+): DrawRound[] {
   const today = new Date();
   const rounds: DrawRound[] = [];
 
@@ -113,9 +117,9 @@ export function generateUpToDate3DRounds(): DrawRound[] {
       closingTime: '15:00',
       status: 'open',
       winningNumber: undefined,
-      multiplier: 600,
-      toddMultiplier: 100,
-      commissionRate: 10,
+      multiplier: defaultMultiplier,
+      toddMultiplier: defaultToddMultiplier,
+      commissionRate: defaultCommissionRate,
       settledAt: undefined
     });
 
@@ -131,9 +135,9 @@ export function generateUpToDate3DRounds(): DrawRound[] {
       closingTime: '15:00',
       status: 'open',
       winningNumber: undefined,
-      multiplier: 600,
-      toddMultiplier: 100,
-      commissionRate: 10,
+      multiplier: defaultMultiplier,
+      toddMultiplier: defaultToddMultiplier,
+      commissionRate: defaultCommissionRate,
       settledAt: undefined
     });
   }

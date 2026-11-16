@@ -19,7 +19,7 @@ import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, evaluateWinnings, calculate3DForwardMasterPayout } from '../utils/lotteryUtils';
 import { getLocalDateStr, getDaysAgoStr, generateStatementRecords, getVoucherGrossTurnover } from '../utils/statementUtils';
 import { getCustomerCommission } from '../utils/commissionUtils';
 import { printStatementReport } from '../utils/printUtils';
@@ -35,7 +35,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const football = useFootball();
 
   const currency = lottery2D.settings.currency || lottery3D.settings.currency || 'Ks';
-  const defaultCommission = lottery3D.settings.defaultCommissionRate;
+  const defaultCommission = lottery3D.settings.defaultCustomerDiscount ?? 0;
 
   // Mode: downline (အောက်လက်ဒိုင်ငယ်/ဖောက်သည်) or upline (အထက်ဒိုင်/မာစတာဒိုင်)
   const [settlementType, setSettlementType] = useState<'downline' | 'upline'>('downline');
@@ -203,30 +203,34 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     };
 
     // 3D Vouchers
+    const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
+    const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
     lottery3D.vouchers.forEach((v: any) => {
       if (v.status === 'cancelled' || v.deletedAt) return;
       const round = lottery3D.rounds.find(r => r.id === v.roundId);
       const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
       if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
         const amt = getVoucherGrossTurnover(v);
-        const winningNum = round?.winningNumber;
-        const mult = round?.multiplier || lottery3D.settings.defaultMultiplier || 600;
+        const winningNum = round?.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
 
         let payout = 0;
         const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
-        if (v.items && Array.isArray(v.items)) {
+        if (winningNum && winningNum.length === 3) {
+          const evalRes = evaluateWinnings([v], winningNum, straightMult3D, toddMult3D);
+          evalRes.winners.forEach((w) => {
+            payout += w.wonPayout;
+            wonBets.push({ num: w.betNumber, amt: w.betAmount, wonAmt: w.wonPayout });
+          });
+        } else if (v.items && Array.isArray(v.items)) {
           v.items.forEach((it: any) => {
-            const isHit = it.isWon || (winningNum && it.number === winningNum);
-            if (isHit) {
-              const won = it.wonAmount || (it.amount * mult);
+            if (it.isWon) {
+              const itemMult = it.betType === 'rumble' ? toddMult3D : straightMult3D;
+              const won = it.wonAmount || (it.amount * itemMult);
               payout += won;
               wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
             }
           });
-        }
-        if (payout === 0 && v.winningPayout) {
-          payout = v.winningPayout;
         }
 
         totalSales += amt;
@@ -342,21 +346,33 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     let totalPayout = 0;
     const items: Array<{ date: string; mode: string; refNo: string; amount: number; commission: number; payout: number; summary: string }> = [];
 
+    const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
+    const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
+    const uplineRate3D = typeof lottery3D.settings.defaultCommissionRate === 'number' ? lottery3D.settings.defaultCommissionRate : 0;
+
     records.forEach((rec) => {
       const forwards = rec.forwardList || [];
-      const targetForwards = forwards.filter((f: any) => f.masterAgentName?.trim() === selectedTarget);
+      const targetForwards = forwards.filter((f: any) => !(f as any).deletedAt && f.masterAgentName?.trim() === selectedTarget);
 
       if (targetForwards.length > 0) {
         let recAgentForwarded = 0;
         let recAgentCommission = 0;
         targetForwards.forEach((f: any) => {
-          recAgentForwarded += f.totalAmount || 0;
-          recAgentCommission += f.commissionAmount || 0;
+          const amt = f.totalAmount || 0;
+          recAgentForwarded += amt;
+          if (rec.mode === '3d') {
+            recAgentCommission += uplineRate3D > 0 ? Math.round((amt * uplineRate3D) / 100) : 0;
+          } else {
+            recAgentCommission += f.commissionAmount || 0;
+          }
         });
 
-        // Proportionate master payout (အထက်ပေါက်ကြေး) for this agent in this record
         let recAgentPayout = 0;
-        if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
+        if (rec.mode === '3d') {
+          if (rec.winningResult && /^\d{3}$/.test(rec.winningResult.trim())) {
+            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, rec.winningResult, straightMult3D, toddMult3D);
+          }
+        } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
           recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
         }
 

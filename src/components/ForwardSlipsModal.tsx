@@ -78,15 +78,13 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   // Form State
   const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || '');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '');
-  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate || 0);
+  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
   const [notes, setNotes] = useState('');
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
 
   useEffect(() => {
-    if (typeof settings.defaultCommissionRate === 'number') {
-      setCommissionRate(settings.defaultCommissionRate);
-    }
-  }, [settings.defaultCommissionRate]);
+    setCommissionRate(settings.defaultCommissionRate ?? 0);
+  }, [settings.defaultCommissionRate, isOpen]);
 
   // Draft items
   const [draftItems, setDraftItems] = useState<DraftForwardItem[]>([]);
@@ -209,7 +207,7 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   const handleSelectSavedAgent = (agent: { name: string; phone?: string; commissionRate?: number }) => {
     setMasterAgentName(agent.name);
     if (agent.phone) setMasterAgentPhone(agent.phone);
-    if (typeof agent.commissionRate === 'number') setCommissionRate(agent.commissionRate);
+    setCommissionRate(settings.defaultCommissionRate ?? 0);
   };
 
   // Toggle selection
@@ -553,13 +551,13 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ကော်မရှင် ရာခိုင်နှုန်း (%)</label>
+                  <label className="block font-bold text-slate-700 mb-1">အထက်ကော်မရှင် (%) (ဆက်တင်မှ)</label>
                   <div className="relative">
                     <input
                       type="number"
+                      readOnly
                       value={commissionRate}
-                      onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
-                      className="w-full h-9 px-3 pr-7 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
+                      className="w-full h-9 px-3 pr-7 bg-slate-100 rounded-xl border border-slate-300 font-mono font-bold text-slate-700 outline-none cursor-not-allowed shadow-2xs"
                     />
                     <Percent className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
                   </div>

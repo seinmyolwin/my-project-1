@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Calendar,
@@ -41,8 +41,17 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
   const [name, setName] = useState('');
   const [drawDate, setDrawDate] = useState(getLocalDateString());
   const [closingTime, setClosingTime] = useState('15:00');
-  const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier || ''));
-  const [toddMultiplier, setToddMultiplier] = useState(String(settings.defaultToddMultiplier || ''));
+  const [multiplier, setMultiplier] = useState(
+    String(typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0)
+  );
+  const [toddMultiplier, setToddMultiplier] = useState(
+    String(typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0)
+  );
+
+  useEffect(() => {
+    setMultiplier(String(typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0));
+    setToddMultiplier(String(typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0));
+  }, [isOpen, settings.defaultMultiplier, settings.defaultToddMultiplier]);
 
   if (!isOpen) return null;
 
@@ -77,9 +86,9 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
       drawDate,
       closingTime,
       status: 'open',
-      multiplier: parseInt(multiplier, 10) || settings.defaultMultiplier || 0,
-      toddMultiplier: parseInt(toddMultiplier, 10) || settings.defaultToddMultiplier || 0,
-      commissionRate: settings.defaultCommissionRate || 0
+      multiplier: typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0,
+      toddMultiplier: typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0,
+      commissionRate: typeof settings.defaultCommissionRate === 'number' ? settings.defaultCommissionRate : 0
     });
 
     setName('');
@@ -166,7 +175,7 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                   <div className="flex items-center gap-3 text-[11px] font-mono text-slate-600 pt-0.5">
                     <span>ရက်စွဲ: {activeRound.drawDate}</span>
                     <span>ပိတ်ချိန်: {activeRound.closingTime}</span>
-                    <span>ပေါက်ဆ: {activeRound.multiplier}x / {activeRound.toddMultiplier}x</span>
+                    <span>ပေါက်ဆ: {typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0}x / {typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0}x</span>
                   </div>
                 </div>
 
@@ -283,51 +292,27 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
 
               <div className="sm:col-span-6 space-y-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  {isMyanmar ? 'တည့်ပေါက် ပေါက်ကြေး (ဆ)' : 'Straight Multiplier'}
+                  {isMyanmar ? 'တည့်ပေါက် ပေါက်ကြေး (ဆက်တင်မှ)' : 'Straight Multiplier (Settings)'}
                 </label>
                 <input
                   type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
                   value={multiplier}
-                  onChange={(e) => setMultiplier(e.target.value)}
-                  onFocus={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  onClick={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  placeholder="600"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
+                  readOnly
+                  title={isMyanmar ? 'ဆက်တင်ထဲမှ သတ်မှတ်ထားသော တည့်ပေါက်ဆအတိုင်း တွက်ချက်ပါသည်' : 'Calculated from Settings'}
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-600 outline-none cursor-not-allowed shadow-2xs"
                 />
               </div>
 
               <div className="sm:col-span-6 space-y-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  {isMyanmar ? 'ပတ်လည်ပေါက် ပေါက်ကြေး (ဆ)' : 'Todd Multiplier'}
+                  {isMyanmar ? 'ပတ်လည်ပေါက် ပေါက်ကြေး (ဆက်တင်မှ)' : 'Todd Multiplier (Settings)'}
                 </label>
                 <input
                   type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
                   value={toddMultiplier}
-                  onChange={(e) => setToddMultiplier(e.target.value)}
-                  onFocus={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  onClick={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                    setTimeout(() => target.select(), 20);
-                  }}
-                  placeholder="100"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
+                  readOnly
+                  title={isMyanmar ? 'ဆက်တင်ထဲမှ သတ်မှတ်ထားသော ပတ်လည်ပေါက်ဆအတိုင်း တွက်ချက်ပါသည်' : 'Calculated from Settings'}
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-600 outline-none cursor-not-allowed shadow-2xs"
                 />
               </div>
             </div>
@@ -394,7 +379,7 @@ export const RoundManagerModal: React.FC<RoundManagerModalProps> = ({ isOpen, on
                       <div className="flex items-center gap-3 text-slate-500 font-mono text-[11px]">
                         <span>ရက်စွဲ: {round.drawDate}</span>
                         <span>ပိတ်ချိန်: {round.closingTime}</span>
-                        <span>ပေါက်ကြေး: {round.multiplier}x / {round.toddMultiplier}x</span>
+                        <span>ပေါက်ကြေး: {typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0}x / {typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0}x</span>
                       </div>
                     </div>
 

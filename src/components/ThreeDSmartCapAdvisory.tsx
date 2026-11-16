@@ -40,11 +40,11 @@ export const ThreeDSmartCapAdvisory: React.FC<ThreeDSmartCapAdvisoryProps> = ({
   const [customCapInput, setCustomCapInput] = useState<string>('1000');
   const [isCardsCollapsed, setIsCardsCollapsed] = useState<boolean>(false);
 
-  // Pull settings directly:
-  // 1. ပေါက်ဆ/ပေါက်ကြေး: settings.defaultMultiplier (fallback to activeRound?.multiplier)
-  const multiplier = (typeof settings.defaultMultiplier === 'number' && settings.defaultMultiplier > 0)
+  // Pull settings directly (strictly from 3D Settings):
+  // 1. ပေါက်ဆ/ပေါက်ကြေး: settings.defaultMultiplier
+  const multiplier = typeof settings.defaultMultiplier === 'number'
     ? Number(settings.defaultMultiplier)
-    : (Number(activeRound?.multiplier) || 0);
+    : 0;
 
   // 2. အောက်လက်ကော်မရှင် (ကိုယ်က ပေးရမှာ / customer discount): settings.defaultCustomerDiscount
   const downlineCommRate = typeof settings.defaultCustomerDiscount === 'number'
@@ -54,7 +54,7 @@ export const ThreeDSmartCapAdvisory: React.FC<ThreeDSmartCapAdvisoryProps> = ({
   // 3. အထက်ကော်မရှင် (ကိုယ်ရမှာ / master bookie commission): settings.defaultCommissionRate
   const uplineCommRate = typeof settings.defaultCommissionRate === 'number'
     ? Number(settings.defaultCommissionRate)
-    : (Number(activeRound?.commissionRate) || 0);
+    : 0;
 
   // Convert aggregates to betsList for calculator
   const betsList = useMemo(() => {

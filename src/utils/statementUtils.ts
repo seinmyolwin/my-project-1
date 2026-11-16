@@ -1,5 +1,5 @@
 import { evaluateTwoDWinnings, normalizeTwoDMultiplier } from './twoDLotteryUtils';
-import { evaluateWinnings, getPermutations } from './lotteryUtils';
+import { evaluateWinnings, calculate3DForwardMasterPayout } from './lotteryUtils';
 import { TwoDVoucher, TwoDDrawRound, Voucher, DrawRound, FootballSlip, ForwardSlip } from '../types';
 
 
@@ -425,26 +425,29 @@ export function generateStatementRecords(
 
         // 3D Forward slips must strictly belong to this specific round only (no cross-round leakage)
         const roundForwards = data.lottery3D.forwardSlips.filter(
-          (f) => f.roundId === round.id
+          (f) => f.roundId === round.id && !(f as any).deletedAt
         );
+
+        // Strictly use Settings rates for 3D (no auto/round fallbacks)
+        const downlineRate = typeof data.lottery3D.settings?.defaultCustomerDiscount === 'number'
+          ? data.lottery3D.settings.defaultCustomerDiscount
+          : 0;
+        const uplineRate = typeof data.lottery3D.settings?.defaultCommissionRate === 'number'
+          ? data.lottery3D.settings.defaultCommissionRate
+          : 0;
+        const straightMult = typeof data.lottery3D.settings?.defaultMultiplier === 'number'
+          ? data.lottery3D.settings.defaultMultiplier
+          : 0;
+        const toddMult = typeof data.lottery3D.settings?.defaultToddMultiplier === 'number'
+          ? data.lottery3D.settings.defaultToddMultiplier
+          : 0;
 
         let totalTurnover = 0;
         let totalAgentCommission = 0;
 
         roundVouchers.forEach((v) => {
           const sub = getVoucherGrossTurnover(v);
-          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-            ? v.discountPercent
-            : (data.lottery3D.settings.defaultCustomerDiscount ?? data.lottery3D.settings.defaultCommissionRate ?? 0);
-
-          let disc = 0;
-          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-            disc = v.discountAmount;
-          } else if (agentRate > 0) {
-            disc = Math.round(sub * (agentRate / 100));
-          } else if (round.commissionRate && round.commissionRate > 0) {
-            disc = Math.round(sub * (round.commissionRate / 100));
-          }
+          const disc = downlineRate > 0 ? Math.round(sub * (downlineRate / 100)) : 0;
 
           totalTurnover += sub;
           totalAgentCommission += disc;
@@ -454,8 +457,9 @@ export function generateStatementRecords(
         let totalForwarded = 0;
         let forwardCommission = 0;
         roundForwards.forEach((f) => {
-          totalForwarded += f.totalAmount || 0;
-          forwardCommission += f.commissionAmount || 0;
+          const amt = f.totalAmount || 0;
+          totalForwarded += amt;
+          forwardCommission += uplineRate > 0 ? Math.round((amt * uplineRate) / 100) : 0;
         });
         const netPaid = totalForwarded - forwardCommission;
 
@@ -464,42 +468,14 @@ export function generateStatementRecords(
         let retainedPayout = 0;
         let winnersCount = 0;
         const winningNum = round.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
-        const straightMult = round.multiplier || data.lottery3D.settings.defaultMultiplier || 0;
-        const toddMult = round.toddMultiplier || data.lottery3D.settings.defaultToddMultiplier || 0;
 
         if (winningNum) {
           const evalResult = evaluateWinnings(roundVouchers, winningNum, straightMult, toddMult);
           winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
 
-          const toddPerms = new Set(getPermutations(winningNum));
-
-          let straightSold = 0;
-          let toddSold = 0;
-          evalResult.winners.forEach(w => {
-            if (w.winType === 'straight') {
-              straightSold += w.betAmount;
-            } else if (w.winType === 'todd') {
-              toddSold += w.betAmount;
-            }
-          });
-
-          let straightForwarded = 0;
-          let toddForwarded = 0;
-          roundForwards.forEach((f) => {
-            f.items.forEach((it) => {
-              if (it.number === winningNum) {
-                straightForwarded += it.amount;
-              } else if (toddPerms.has(it.number)) {
-                toddForwarded += it.amount;
-              }
-            });
-          });
-
           totalPayout = evalResult.totalPayout;
-          masterPayout = (straightForwarded * straightMult) + (toddForwarded * toddMult);
-          const retainedStraight = Math.max(0, straightSold - straightForwarded);
-          const retainedTodd = Math.max(0, toddSold - toddForwarded);
-          retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
+          masterPayout = calculate3DForwardMasterPayout(roundForwards, winningNum, straightMult, toddMult);
+          retainedPayout = Math.max(0, totalPayout - masterPayout);
         } else {
           roundVouchers.forEach((v) => {
             v.items.forEach((it) => {
@@ -566,24 +542,22 @@ export function generateStatementRecords(
         let payout = 0;
         let winnersCount = 0;
 
+        const downlineRate = typeof data.lottery3D.settings?.defaultCustomerDiscount === 'number'
+          ? data.lottery3D.settings.defaultCustomerDiscount
+          : 0;
+        const straightMult = typeof data.lottery3D.settings?.defaultMultiplier === 'number'
+          ? data.lottery3D.settings.defaultMultiplier
+          : 0;
+
         vList.forEach(v => {
           const sub = getVoucherGrossTurnover(v);
-          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-            ? v.discountPercent
-            : (data.lottery3D.settings.defaultCustomerDiscount ?? data.lottery3D.settings.defaultCommissionRate ?? 0);
-
-          let disc = 0;
-          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-            disc = v.discountAmount;
-          } else if (agentRate > 0) {
-            disc = Math.round(sub * (agentRate / 100));
-          }
+          const disc = downlineRate > 0 ? Math.round(sub * (downlineRate / 100)) : 0;
 
           turnover += sub;
           agentCommission += disc;
           v.items.forEach(it => {
             if (it.isWon) {
-              payout += (it.wonAmount || (it.amount * (data.lottery3D.settings.defaultMultiplier || 0)));
+              payout += (it.wonAmount || (it.amount * straightMult));
               winnersCount += 1;
             }
           });
@@ -930,6 +904,19 @@ export function calculateThreeDSingleRoundStatement(
 ): SingleRoundFinancialBreakdown {
   const { round, vouchers, forwardSlips, winningNumber, multiplier, toddMultiplier, settings } = params;
 
+  const downlineRate = typeof settings?.defaultCustomerDiscount === 'number'
+    ? settings.defaultCustomerDiscount
+    : 0;
+  const uplineRate = typeof settings?.defaultCommissionRate === 'number'
+    ? settings.defaultCommissionRate
+    : 0;
+  const straightMult = typeof settings?.defaultMultiplier === 'number'
+    ? settings.defaultMultiplier
+    : (typeof multiplier === 'number' ? multiplier : 0);
+  const toddMult = typeof settings?.defaultToddMultiplier === 'number'
+    ? settings.defaultToddMultiplier
+    : (typeof toddMultiplier === 'number' ? toddMultiplier : 0);
+
   let totalTurnover = 0;
   let totalAgentCommission = 0;
 
@@ -937,33 +924,22 @@ export function calculateThreeDSingleRoundStatement(
 
   validVouchers.forEach((v) => {
     const subtotal = getVoucherGrossTurnover(v);
-    let disc = 0;
-    const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-      ? v.discountPercent
-      : (settings?.defaultCustomerDiscount ?? settings?.defaultCommissionRate ?? 0);
-
-    if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-      disc = v.discountAmount;
-    } else if (agentRate > 0) {
-      disc = Math.round(subtotal * (agentRate / 100));
-    } else if (round?.commissionRate && round.commissionRate > 0) {
-      disc = Math.round(subtotal * (round.commissionRate / 100));
-    }
+    const disc = downlineRate > 0 ? Math.round(subtotal * (downlineRate / 100)) : 0;
 
     totalTurnover += subtotal;
     totalAgentCommission += disc;
   });
 
+  const activeForwards = forwardSlips.filter((f) => !(f as any).deletedAt);
   let totalForwarded = 0;
   let forwardCommission = 0;
-  forwardSlips.forEach((f) => {
-    totalForwarded += f.totalAmount || 0;
-    forwardCommission += f.commissionAmount || 0;
+  activeForwards.forEach((f) => {
+    const amt = f.totalAmount || 0;
+    totalForwarded += amt;
+    forwardCommission += uplineRate > 0 ? Math.round((amt * uplineRate) / 100) : 0;
   });
   const netPaid = totalForwarded - forwardCommission;
 
-  const straightMult = multiplier || round?.multiplier || settings?.defaultMultiplier;
-  const toddMult = toddMultiplier || round?.toddMultiplier || settings?.defaultToddMultiplier;
   const winNum = winningNumber ? winningNumber.trim().padStart(3, '0') : (round?.winningNumber ? round.winningNumber.trim().padStart(3, '0') : undefined);
 
   let totalPayout = 0;
@@ -975,31 +951,9 @@ export function calculateThreeDSingleRoundStatement(
     const evalResult = evaluateWinnings(validVouchers, winNum, straightMult, toddMult);
     winnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
 
-    const toddPerms = new Set(getPermutations(winNum).filter((p) => p !== winNum));
-
-    let straightSold = 0;
-    let toddSold = 0;
-    validVouchers.forEach((v) => {
-      v.items.forEach((it) => {
-        if (it.number === winNum) straightSold += it.amount;
-        else if (it.betType === 'rumble' && toddPerms.has(it.number)) toddSold += it.amount;
-      });
-    });
-
-    let straightForwarded = 0;
-    let toddForwarded = 0;
-    forwardSlips.forEach((f) => {
-      f.items.forEach((it) => {
-        if (it.number === winNum) straightForwarded += it.amount;
-        else if (toddPerms.has(it.number)) toddForwarded += it.amount;
-      });
-    });
-
     totalPayout = evalResult.totalPayout;
-    masterPayout = (straightForwarded * straightMult) + (toddForwarded * toddMult);
-    const retainedStraight = Math.max(0, straightSold - straightForwarded);
-    const retainedTodd = Math.max(0, toddSold - toddForwarded);
-    retainedPayout = (retainedStraight * straightMult) + (retainedTodd * toddMult);
+    masterPayout = calculate3DForwardMasterPayout(activeForwards, winNum, straightMult, toddMult);
+    retainedPayout = Math.max(0, totalPayout - masterPayout);
   } else {
     validVouchers.forEach((v) => {
       v.items.forEach((it) => {

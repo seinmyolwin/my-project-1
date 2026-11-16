@@ -24,7 +24,7 @@ import {
   saveStoredData,
   saveMultipleAtomic
 } from '../utils/storage';
-import { evaluateWinnings, exportLotteryDataToExcel, masterShareOf3D } from '../utils/lotteryUtils';
+import { evaluateWinnings, exportLotteryDataToExcel, calculate3DForwardMasterPayout } from '../utils/lotteryUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
@@ -258,6 +258,23 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     setSettingsState(prev => ({ ...prev, ...newSettings }));
+    setRounds(prev => prev.map(r => {
+      if (r.status === 'open') {
+        return {
+          ...r,
+          multiplier: typeof newSettings.defaultMultiplier === 'number'
+            ? newSettings.defaultMultiplier
+            : r.multiplier,
+          toddMultiplier: typeof newSettings.defaultToddMultiplier === 'number'
+            ? newSettings.defaultToddMultiplier
+            : r.toddMultiplier,
+          commissionRate: typeof newSettings.defaultCommissionRate === 'number'
+            ? newSettings.defaultCommissionRate
+            : r.commissionRate
+        };
+      }
+      return r;
+    }));
   }, []);
 
   const setActiveRoundId = useCallback((id: string) => {
@@ -267,8 +284,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const createRound = useCallback((roundData: Omit<DrawRound, 'id'>) => {
     const newRound: DrawRound = {
       ...roundData,
-      multiplier: roundData.multiplier || settings.defaultMultiplier,
-      toddMultiplier: roundData.toddMultiplier || settings.defaultToddMultiplier,
+      multiplier: roundData.multiplier ?? settings.defaultMultiplier,
+      toddMultiplier: roundData.toddMultiplier ?? settings.defaultToddMultiplier,
       commissionRate: roundData.commissionRate ?? settings.defaultCommissionRate,
       id: generateUUID()
     };
@@ -362,7 +379,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: generateUUID(),
       voucherNo: `${shortCode}-V-${pad}`,
       createdAt: new Date().toISOString(),
-      lowerCommissionRate: settings.defaultCommissionRate,
+      lowerCommissionRate: settings.defaultCustomerDiscount ?? 0,
       payoutMultiplier: settings.defaultMultiplier,
       snapshotSource: 'created'
     };
@@ -375,15 +392,17 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     items: VoucherItem[],
     customerName?: string,
     customerPhone?: string,
-    discountPercent: number = 0,
+    _discountPercent: number = 0,
     notes?: string
   ): Voucher => {
     if (!activeRound || activeRound.status !== 'open') {
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
     }
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    // Discounts are not used by the owner: always 0 (input is ignored)
-    const discountAmount = 0;
+    const effectiveDiscountPct = typeof settings.defaultCustomerDiscount === 'number'
+      ? settings.defaultCustomerDiscount
+      : 0;
+    const discountAmount = effectiveDiscountPct > 0 ? safeRound((subtotal * effectiveDiscountPct) / 100) : 0;
     const netPayable = safeRound(subtotal - discountAmount);
 
     return addVoucher({
@@ -391,14 +410,14 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       customerName: customerName || 'အထွေထွေ',
       items,
       subtotal,
-      discountPercent,
+      discountPercent: effectiveDiscountPct,
       discountAmount,
       netPayable,
       notes,
       isPaid: true,
       status: 'active'
     });
-  }, [activeRound, addVoucher, settings.language]);
+  }, [activeRound, addVoucher, settings.defaultCustomerDiscount]);
 
   const updateVoucher = useCallback((id: string, data: Partial<Voucher>) => {
     setVouchers(prev => {
@@ -476,9 +495,11 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem('forward_counter_v1', String(counter));
     const pad = String(counter).padStart(6, '0');
 
-    const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
+    const commRate = typeof settings.defaultCommissionRate === 'number'
+      ? settings.defaultCommissionRate
+      : (slipData.commissionRate ?? 0);
     if (!Number.isFinite(commRate)) throw new Error('ကော်မရှင်နှုန်း သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
-    const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
+    const commAmt = commRate > 0 ? safeRound((slipData.totalAmount * commRate) / 100) : 0;
     const netPaid = safeRound(slipData.totalAmount - commAmt);
 
     const newSlip: ForwardSlip = {
@@ -570,7 +591,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Aggregates calculation
   const aggregates = useMemo(() => {
-    const mult = activeRound?.multiplier || settings.defaultMultiplier;
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
     const agg: { [num: string]: NumberAggregate } = {};
 
     activeRoundVouchers.forEach(v => {
@@ -689,21 +710,28 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [aggregates, settings.lowStockAlertPercentage]);
 
   const roundSummary = useMemo<RoundSummary>(() => {
+    const downlineRate = typeof settings.defaultCustomerDiscount === 'number' ? settings.defaultCustomerDiscount : 0;
+    const uplineRate = typeof settings.defaultCommissionRate === 'number' ? settings.defaultCommissionRate : 0;
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
+
     let totalSales = 0;
     let totalDiscount = 0;
-    let netRevenue = 0;
 
     activeRoundVouchers.forEach(v => {
-      totalSales += v.subtotal;
-      totalDiscount += v.discountAmount;
-      netRevenue += v.netPayable;
+      const gross = getVoucherGrossTurnover(v);
+      const disc = downlineRate > 0 ? safeRound((gross * downlineRate) / 100) : 0;
+      totalSales += gross;
+      totalDiscount += disc;
     });
+    const netRevenue = safeRound(totalSales - totalDiscount);
 
     let totalForwarded = 0;
     let forwardedCommission = 0;
     activeRoundForwardSlips.forEach(f => {
-      totalForwarded += f.totalAmount;
-      forwardedCommission += f.commissionAmount;
+      const amt = f.totalAmount || 0;
+      totalForwarded += amt;
+      forwardedCommission += uplineRate > 0 ? safeRound((amt * uplineRate) / 100) : 0;
     });
 
     let totalPayout = 0;
@@ -711,14 +739,12 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let totalWinnersCount = 0;
 
     if (activeRound?.winningNumber) {
-      const mult = activeRound.multiplier || settings.defaultMultiplier;
-      const toddMult = activeRound.toddMultiplier || settings.defaultToddMultiplier;
       const formattedNum = activeRound.winningNumber.padStart(3, '0');
       const evalResult = evaluateWinnings(activeRoundVouchers, formattedNum, mult, toddMult);
       totalWinnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
       totalPayout = evalResult.totalPayout;
 
-      masterPayout = masterShareOf3D(evalResult.winners, aggregates);
+      masterPayout = calculate3DForwardMasterPayout(activeRoundForwardSlips, formattedNum, mult, toddMult);
     }
 
     const netPaid = safeRound(totalForwarded - forwardedCommission);
@@ -737,23 +763,31 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       netProfit,
       isProfit: netProfit >= 0
     };
-  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier, settings.defaultToddMultiplier, aggregates]);
+  }, [
+    activeRound,
+    activeRoundVouchers,
+    activeRoundForwardSlips,
+    settings.defaultMultiplier,
+    settings.defaultToddMultiplier,
+    settings.defaultCommissionRate,
+    settings.defaultCustomerDiscount
+  ]);
 
-  const settleWinningNumber = useCallback((winningNum: string, multiplier?: number, toddMultiplier?: number) => {
+  const settleWinningNumber = useCallback((winningNum: string, _multiplier?: number, _toddMultiplier?: number) => {
     assertDateOpen('3D', dateOfRound('3D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
     if (!activeRound) return;
-    const effTodd = toddMultiplier ?? activeRound.toddMultiplier ?? settings.defaultToddMultiplier;
-    if (!(Number(effTodd) > 0)) {
+
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
+    if (!Number.isFinite(toddMult) || toddMult < 0) {
       throw new Error('Todd ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     }
 
-    const fp = generateSubmissionFingerprint('3D_SETTLE_ROUND', { activeRoundId: activeRound.id, winningNum, multiplier });
+    const fp = generateSubmissionFingerprint('3D_SETTLE_ROUND', { activeRoundId: activeRound.id, winningNum, mult, toddMult });
     if (isDuplicateSubmission(fp, 5000)) {
       return;
     }
 
-    const mult = multiplier || activeRound.multiplier || settings.defaultMultiplier;
-    const toddMult = toddMultiplier || activeRound.toddMultiplier || settings.defaultToddMultiplier;
     if (!mult || mult <= 0) {
       alert('Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ');
       return;
@@ -781,11 +815,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setForwardSlips(prev =>
       prev.map(f => {
-        if (f.roundId === activeRound.id) {
-          let payout = 0;
-          f.items.forEach(it => {
-            if (it.number === formattedNum) payout += it.amount * mult;
-          });
+        if (f.roundId === activeRound.id && !(f as any).deletedAt) {
+          const payout = calculate3DForwardMasterPayout([f], formattedNum, mult, toddMult);
           return { ...f, actualPayout: payout };
         }
         return f;
@@ -801,6 +832,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               winningNumber: formattedNum,
               multiplier: mult,
               toddMultiplier: toddMult,
+              commissionRate: settings.defaultCommissionRate ?? 0,
               settledAt: new Date().toISOString()
             }
           : r
@@ -812,7 +844,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {
       // Safe fail
     }
-  }, [activeRound, activeRoundVouchers, settings.defaultMultiplier, settings.defaultToddMultiplier]);
+  }, [activeRound, activeRoundId, activeRoundVouchers, settings.defaultMultiplier, settings.defaultToddMultiplier, settings.defaultCommissionRate]);
 
   const clearWinningSettlement = useCallback(() => {
     if (!activeRound) return;
@@ -862,13 +894,18 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       activeRoundForwardSlips,
       aggregates as any,
       activeRound.winningNumber,
-      activeRound.multiplier || settings.defaultMultiplier
+      settings.defaultMultiplier ?? 0,
+      settings.defaultToddMultiplier ?? 0
     );
-  }, [activeRound, aggregates, activeRoundVouchers, activeRoundForwardSlips, roundSummary, settings.shopName, settings.defaultMultiplier]);
+  }, [activeRound, aggregates, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier, settings.defaultToddMultiplier]);
 
   const resetToSampleData = useCallback(() => {
     setSettingsState(DEFAULT_SETTINGS);
-    const freshRounds = generateUpToDate3DRounds();
+    const freshRounds = generateUpToDate3DRounds(
+      DEFAULT_SETTINGS.defaultMultiplier,
+      DEFAULT_SETTINGS.defaultToddMultiplier,
+      DEFAULT_SETTINGS.defaultCommissionRate
+    );
     setRounds(freshRounds);
     if (freshRounds.length > 0) setActiveRoundIdState(freshRounds[0].id);
     setVouchers([]);

@@ -377,7 +377,12 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       setLatestDraftIndices([]);
     }
 
-    setVoucherDiscountPercent(0);
+    const resolvedStartCategory = detectedCategory || autoCat;
+    setVoucherDiscountPercent(
+      resolvedStartCategory === '3d' && typeof lottery3D.settings.defaultCustomerDiscount === 'number'
+        ? lottery3D.settings.defaultCustomerDiscount
+        : 0
+    );
     setAddNumInput('');
     setAddAmtInput('');
     setAddRumbleInput(false);
@@ -448,16 +453,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       return;
     }
 
-    const subtotal = validItems.reduce((acc, it) => acc + (it.amount || 0), 0);
-    const discountAmount = safeRound((subtotal * (voucherDiscountPercent || 0)) / 100);
-    const netPayable = Math.max(0, subtotal - discountAmount);
-    const finalCustomerName = voucherCustomerName.trim() || 'အထွေထွေ';
-
     const isAll2D = validItems.every(pi => pi.number && pi.number.trim().length === 2);
     const isAll3D = validItems.every(pi => pi.number && pi.number.trim().length === 3);
     let effectiveCategory = voucherCategory;
     if (isAll2D) effectiveCategory = '2d';
     else if (isAll3D) effectiveCategory = '3d';
+
+    const subtotal = validItems.reduce((acc, it) => acc + (it.amount || 0), 0);
+    const appliedDiscountPercent = effectiveCategory === '3d'
+      ? (typeof lottery3D.settings.defaultCustomerDiscount === 'number' ? lottery3D.settings.defaultCustomerDiscount : 0)
+      : (voucherDiscountPercent || 0);
+    const discountAmount = safeRound((subtotal * appliedDiscountPercent) / 100);
+    const netPayable = Math.max(0, subtotal - discountAmount);
+    const finalCustomerName = voucherCustomerName.trim() || 'အထွေထွေ';
 
     let createdVoucherNo = '';
     let activeRoundObj: any = null;
@@ -489,7 +497,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           customerName: finalCustomerName,
           items,
           subtotal,
-          discountPercent: voucherDiscountPercent || 0,
+          discountPercent: appliedDiscountPercent,
           discountAmount,
           netPayable,
           isPaid: true,
@@ -898,6 +906,11 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
         betType: pi.isRumble ? 'rumble' : 'straight'
       }));
       subtotal = voucherItems.reduce((s, it) => s + it.amount, 0);
+      const discPct3D = typeof lottery3D.settings.defaultCustomerDiscount === 'number'
+        ? lottery3D.settings.defaultCustomerDiscount
+        : 0;
+      const discAmt3D = discPct3D > 0 ? safeRound((subtotal * discPct3D) / 100) : 0;
+      const netPayable3D = Math.max(0, subtotal - discAmt3D);
 
       try {
         const created = lottery3D.addVoucher({
@@ -905,9 +918,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
           customerName: finalCustomerName,
           items: voucherItems,
           subtotal,
-          discountPercent: 0,
-          discountAmount: 0,
-          netPayable: subtotal,
+          discountPercent: discPct3D,
+          discountAmount: discAmt3D,
+          netPayable: netPayable3D,
           isPaid: true,
           status: 'active',
           notes: `[Telegram Bot] ${order.notes || ''}`

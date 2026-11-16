@@ -56,6 +56,10 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
   );
 
   useEffect(() => {
+    setCommissionRate(settings.defaultCommissionRate ?? 0);
+  }, [settings.defaultCommissionRate, isOpen]);
+
+  useEffect(() => {
     if (effectiveItems && effectiveItems.length > 0) {
       // Default action is 'forward_excess' (safest dealer hedging)
       setDecisions(
@@ -211,27 +215,13 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    {isMyanmar ? 'ရရှိမည့် ကော်မရှင် (%)' : 'Commission Rate (%)'}
+                    {isMyanmar ? 'ရရှိမည့် ကော်မရှင် (%) (ဆက်တင်မှ)' : 'Commission Rate (%) (Settings)'}
                   </label>
                   <input
                     type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    min="0"
-                    max="30"
+                    readOnly
                     value={commissionRate}
-                    onChange={(e) => setCommissionRate(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    onFocus={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    onClick={(e) => {
-                      const target = e.currentTarget;
-                      target.select();
-                      setTimeout(() => target.select(), 20);
-                    }}
-                    className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-bold font-mono outline-none focus:border-indigo-500 shadow-2xs"
+                    className="w-full bg-slate-100 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-bold font-mono outline-none cursor-not-allowed shadow-2xs"
                   />
                 </div>
               </div>

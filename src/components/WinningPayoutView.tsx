@@ -46,23 +46,19 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
   const isMyanmar = settings.language === 'my';
 
   const [winningInput, setWinningInput] = useState(activeRound?.winningNumber || '');
-  const [multiplierInput, setMultiplierInput] = useState(
-    String(activeRound?.multiplier || settings.defaultMultiplier)
-  );
-  const [toddMultiplierInput, setToddMultiplierInput] = useState(
-    String(activeRound?.toddMultiplier || settings.defaultToddMultiplier)
-  );
+  const settingsStraightMult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+  const settingsToddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
+  const [multiplierInput, setMultiplierInput] = useState(String(settingsStraightMult));
+  const [toddMultiplierInput, setToddMultiplierInput] = useState(String(settingsToddMult));
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
-    setMultiplierInput(String(activeRound?.multiplier || settings.defaultMultiplier));
-    setToddMultiplierInput(String(activeRound?.toddMultiplier || settings.defaultToddMultiplier));
+    setMultiplierInput(String(typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0));
+    setToddMultiplierInput(String(typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0));
   }, [
     activeRound?.id,
     activeRound?.winningNumber,
-    activeRound?.multiplier,
-    activeRound?.toddMultiplier,
     settings.defaultMultiplier,
     settings.defaultToddMultiplier
   ]);
@@ -78,9 +74,9 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
       drawDate: dateStr,
       closingTime: '15:30',
       status: 'open',
-      multiplier: settings.defaultMultiplier || 0,
-      toddMultiplier: settings.defaultToddMultiplier || 0,
-      commissionRate: settings.defaultCommissionRate || 0
+      multiplier: settings.defaultMultiplier ?? 0,
+      toddMultiplier: settings.defaultToddMultiplier ?? 0,
+      commissionRate: settings.defaultCommissionRate ?? 0
     });
 
     setActiveRoundId(newRound.id);
@@ -162,8 +158,8 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
       return;
     }
 
-    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
-    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
 
     // Settle directly in state and dispatch settled event
     settleWinningNumber(cleanNum, mult, toddMult);
@@ -192,8 +188,8 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
   const handleCloseRound = () => {
     const targetNum = confirmedWinningNumber || convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 3);
     if (!targetNum || targetNum.length !== 3) return;
-    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
-    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
 
     // 1. Officially settle round status to 'settled' in context & localStorage (No auto Excel download)
     settleWinningNumber(targetNum, mult, toddMult);
@@ -220,10 +216,10 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     return winningInput.trim();
   }, [isTestingMode, testedWinningNumber, isWinningConfirmed, confirmedWinningNumber, winningInput, isSettled, activeRound?.winningNumber]);
 
-  // Evaluate winners based on winning number & multipliers
+  // Evaluate winners based on Settings winning multipliers strictly
   const winningResults = useMemo(() => {
-    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
-    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
     const num = activeEvalNumber.trim();
 
     if (!num || num.length !== 3) {
@@ -231,7 +227,7 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     }
 
     return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
-  }, [activeRoundVouchers, activeEvalNumber, multiplierInput, toddMultiplierInput, activeRound, settings]);
+  }, [activeRoundVouchers, activeEvalNumber, settings.defaultMultiplier, settings.defaultToddMultiplier]);
 
   // Copy Winning Message for Customer
   const handleCopyWinningMessage = (winner: any) => {
@@ -253,19 +249,16 @@ ${settings.shopName} (${settings.shopPhone})`;
     updateVoucher(voucherId, { isPaid: !currentPaid });
   };
 
-  // Quick Multiplier Presets
-  const multipliersList = [500, 550, 600, 650, 700, 800];
-
   // Permutations of current winning number for Todd
   const toddPerms = useMemo(() => {
     if (!winningInput || winningInput.length !== 3) return [];
     return getPermutations(winningInput).filter(p => p !== winningInput);
   }, [winningInput]);
 
-  // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round)
+  // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round & Settings rates)
   const singleRoundStatement: SingleRoundFinancialBreakdown = useMemo(() => {
-    const mult = parseInt(multiplierInput, 10) || activeRound?.multiplier || settings.defaultMultiplier;
-    const toddMult = parseInt(toddMultiplierInput, 10) || activeRound?.toddMultiplier || settings.defaultToddMultiplier;
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
     return calculateThreeDSingleRoundStatement({
       round: activeRound,
       vouchers: activeRoundVouchers,
@@ -275,7 +268,7 @@ ${settings.shopName} (${settings.shopPhone})`;
       toddMultiplier: toddMult,
       settings
     });
-  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, multiplierInput, toddMultiplierInput, settings]);
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, settings]);
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
@@ -361,59 +354,33 @@ ${settings.shopName} (${settings.shopPhone})`;
               />
             </div>
 
-            {/* Straight Multiplier */}
+            {/* Straight Multiplier (Strictly from Settings) */}
             <div className="sm:col-span-3">
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-bold text-slate-700">
-                  {isMyanmar ? 'တည့်ပေါက် အဆ' : 'Straight Multiplier'}
+                  {isMyanmar ? 'တည့်ပေါက် အဆ (ဆက်တင်မှ)' : 'Straight Multiplier (Settings)'}
                 </label>
               </div>
               <input
                 type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
+                readOnly
                 value={multiplierInput}
-                onChange={(e) => setMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                onFocus={(e) => {
-                  const target = e.currentTarget;
-                  target.select();
-                  setTimeout(() => target.select(), 20);
-                }}
-                onClick={(e) => {
-                  const target = e.currentTarget;
-                  target.select();
-                  setTimeout(() => target.select(), 20);
-                }}
-                placeholder="600"
-                className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
+                className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-200 bg-slate-100 text-slate-700 cursor-not-allowed transition-all"
               />
             </div>
 
-            {/* Todd/Rumble Multiplier */}
+            {/* Todd/Rumble Multiplier (Strictly from Settings) */}
             <div className="sm:col-span-2">
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-bold text-slate-700">
-                  {isMyanmar ? 'ပတ်လည် (ဆ)' : 'Todd Mult.'}
+                  {isMyanmar ? 'ပတ်လည် (ဆက်တင်မှ)' : 'Todd Mult. (Settings)'}
                 </label>
               </div>
               <input
                 type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
+                readOnly
                 value={toddMultiplierInput}
-                onChange={(e) => setToddMultiplierInput(convertMyanmarToEnglishDigits(e.target.value).replace(/\D/g, ''))}
-                onFocus={(e) => {
-                  const target = e.currentTarget;
-                  target.select();
-                  setTimeout(() => target.select(), 20);
-                }}
-                onClick={(e) => {
-                  const target = e.currentTarget;
-                  target.select();
-                  setTimeout(() => target.select(), 20);
-                }}
-                placeholder="100"
-                className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-slate-50 focus:bg-white transition-all"
+                className="w-full h-14 px-4 text-right font-mono text-xl font-bold rounded-2xl border border-slate-200 bg-slate-100 text-slate-700 cursor-not-allowed transition-all"
               />
             </div>
 
@@ -495,23 +462,21 @@ ${settings.shopName} (${settings.shopPhone})`;
             </div>
           )}
 
-          {/* Quick Multiplier presets */}
+          {/* Settings Rates Info Badge */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 pt-1">
-            <span>{isMyanmar ? 'အသုံးများသော ပေါက်ကြေးအဆများ:' : 'Standard Multipliers:'}</span>
-            {multipliersList.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMultiplierInput(String(m))}
-                className={`px-2.5 py-1 rounded-lg font-mono font-bold border transition-colors cursor-pointer ${
-                  multiplierInput === String(m)
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-white hover:border-slate-300'
-                }`}
-              >
-                {m}x
-              </button>
-            ))}
+            <span>{isMyanmar ? 'ဆက်တင်မှ သတ်မှတ်ထားသော ပေါက်ကြေးနှင့် ကော်မရှင်နှုန်း:' : 'Configured Rates (from Settings):'}</span>
+            <span className="px-2.5 py-1 rounded-lg font-mono font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+              ဒဲ့ {settingsStraightMult}x
+            </span>
+            <span className="px-2.5 py-1 rounded-lg font-mono font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+              ပတ်လည် {settingsToddMult}x
+            </span>
+            <span className="px-2.5 py-1 rounded-lg font-mono font-bold bg-purple-50 text-purple-800 border border-purple-200">
+              အထက်ကော် {settings.defaultCommissionRate ?? 0}%
+            </span>
+            <span className="px-2.5 py-1 rounded-lg font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+              အောက်ကော် {settings.defaultCustomerDiscount ?? 0}%
+            </span>
           </div>
         </form>
 
@@ -779,7 +744,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                     {isTestingMode ? '🧪 အစမ်းတွက်ချက် စစ်ဆေးမှု (Preview)' : '✓ အတည်ပြုပြီး ရှင်းတမ်း'}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
-                    ပေါက်ဂဏန်း: {activeEvalNumber || '---'} ({multiplierInput || activeRound?.multiplier || settings.defaultMultiplier}/{toddMultiplierInput || activeRound?.toddMultiplier || settings.defaultToddMultiplier} ဆ)
+                    ပေါက်ဂဏန်း: {activeEvalNumber || '---'} ({settingsStraightMult}/{settingsToddMult} ဆ)
                   </span>
                 </div>
                 <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
