@@ -65,8 +65,9 @@ async function runFullTestSuite() {
     }
   ];
   const eval3D = evaluateWinnings(testVouchers3D, '123', 700, 100);
-  assert(eval3D.winningBetsCount === 1, '3D winning evaluation count match');
-  assert(eval3D.totalPayout === 700000, '3D winning payout calculation (1000 * 700 = 700000)');
+  assert(eval3D.winningBetsCount === 1, '3D winning evaluation straight count match');
+  assert(eval3D.toddWinningBetsCount === 1, '3D winning evaluation todd permutation count match');
+  assert(eval3D.totalPayout === 750000, '3D winning payout calculation (1000 * 700 + 500 * 100 = 750000)');
 
   const testVouchers2D: any[] = [
     {

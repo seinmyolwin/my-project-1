@@ -138,6 +138,7 @@ Analyze this image.
 4. Extract all betting numbers and amounts accurately:
    ${modeInstruction}
    - Convert all Myanmar numerals into English digits (0-9).
+   - IMPORTANT: Preserve the EXACT top-to-bottom / left-to-right appearance order as written in the image. NEVER sort bet numbers ascending or descending.
 5. Return ONLY a valid JSON object with this exact structure (no markdown fences, no explanatory comments):
 {
   "customerName": "string",
@@ -212,14 +213,15 @@ Instructions:
 1. Identify customer name and phone number if present.
 2. Extract all bet items and amounts according to ${modeInstruction}.
 3. Convert all Myanmar numerals to English digits (0-9).
-4. Return ONLY a valid JSON object matching:
+4. IMPORTANT: Preserve the EXACT chronological/line-by-line appearance order from the input text. NEVER sort bet numbers ascending or descending.
+5. Return ONLY a valid JSON object matching:
 {
   "customerName": "string",
   "customerPhone": "string",
   "items": [
     { "number": "string", "amount": 1000, "isRumble": false, "originalRaw": "string" }
   ],
-  "rawText": "clean summary"
+  "rawText": "clean summary preserving exact original order"
 }`;
 
       const response = await ai.models.generateContent({

@@ -753,6 +753,11 @@ ${settings.shopName} (${settings.shopPhone})`;
                   </span>
                   <span className="text-slate-400">
                     • ဘောင်ချာ {singleRoundStatement.vouchersCount} စောင် • ပေါက်သူ {singleRoundStatement.winnersCount} ဦး
+                    {singleRoundStatement.winnersCount > 0 && (
+                      <span className="ml-1 text-amber-300 font-bold">
+                        (တည့် {winningResults.winningBetsCount} / ပတ်လည် {winningResults.toddWinningBetsCount})
+                      </span>
+                    )}
                   </span>
                 </p>
               </div>
@@ -1061,7 +1066,7 @@ ${settings.shopName} (${settings.shopPhone})`;
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
-                              ပတ်လည် (R)
+                              ပတ်လည် (တွဒ်)
                             </span>
                           )}
                         </td>

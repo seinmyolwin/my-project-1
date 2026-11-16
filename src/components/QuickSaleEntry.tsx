@@ -907,15 +907,15 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
 
     // 2. Over-Limit Check across cart items (Recorded separately for batch forwarding)
-    const cartTotals: { [num: string]: number } = {};
+    const cartTotals = new Map<string, number>();
     stagedItems.forEach(item => {
-      cartTotals[item.number] = (cartTotals[item.number] || 0) + item.amount;
+      cartTotals.set(item.number, (cartTotals.get(item.number) || 0) + item.amount);
     });
 
     let hasOverLimit = false;
     const overLimitItemsInfo: OverLimitItemInfo[] = [];
 
-    Object.entries(cartTotals).forEach(([num, totalInCart]) => {
+    cartTotals.forEach((totalInCart, num) => {
       const limit = getNumberLimit(num);
       const existingSold = aggregates[num]?.totalSold || 0;
       if (limit > 0 && (existingSold + totalInCart > limit)) {
@@ -967,46 +967,48 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     decisions.forEach(d => decisionMap.set(d.number, d));
 
     const finalItems: BetItem[] = [];
+    const forwardedNumbers = new Set<string>();
+    const capQuotaMap = new Map<string, number>();
 
-    // Group staged items by number
-    const itemsByNumber: { [num: string]: BetItem[] } = {};
+    // Iterate stagedItems directly in exact chronological entry order (never auto-sort via plain object keys)
     stagedItems.forEach(item => {
-      if (!itemsByNumber[item.number]) itemsByNumber[item.number] = [];
-      itemsByNumber[item.number].push(item);
-    });
-
-    Object.entries(itemsByNumber).forEach(([num, numItems]) => {
+      const num = item.number;
       const decision = decisionMap.get(num);
 
       if (!decision) {
         // Not an over-limit number, keep as is
-        finalItems.push(...numItems);
+        finalItems.push(item);
         return;
       }
 
       if (decision.action === 'forward_excess') {
-        // Retain customer's full bet on slip, forward the excess portion to Master Agent
-        finalItems.push(...numItems);
-        if (decision.excessAmount > 0) {
+        // Retain customer's full bet on slip in original entry order, forward excess once per number
+        finalItems.push(item);
+        if (!forwardedNumbers.has(num) && decision.excessAmount > 0) {
+          forwardedNumbers.add(num);
           forwardItems.push({ number: num, amount: decision.excessAmount });
           forwardNotesList.push(`${num} (+${formatAmount(decision.excessAmount, settings.currency)})`);
         }
       } else if (decision.action === 'forward_all') {
-        // Retain on customer slip, forward all to Master Agent
-        finalItems.push(...numItems);
-        if (decision.originalAmount > 0) {
+        // Retain on customer slip in original entry order, forward all once per number
+        finalItems.push(item);
+        if (!forwardedNumbers.has(num) && decision.originalAmount > 0) {
+          forwardedNumbers.add(num);
           forwardItems.push({ number: num, amount: decision.originalAmount });
           forwardNotesList.push(`${num} (အားလုံး ${formatAmount(decision.originalAmount, settings.currency)})`);
         }
       } else if (decision.action === 'accept_locally') {
         // Dealer retains 100% locally
-        finalItems.push(...numItems);
+        finalItems.push(item);
       } else if (decision.action === 'cap_at_limit') {
-        // Only accept up to remaining quota on the customer slip
-        if (decision.remainingQuota > 0) {
+        // Only accept up to remaining quota on the customer slip in original entry order
+        const rem = capQuotaMap.has(num) ? capQuotaMap.get(num)! : decision.remainingQuota;
+        const retainAmt = Math.min(item.amount, rem);
+        capQuotaMap.set(num, rem - retainAmt);
+        if (retainAmt > 0) {
           finalItems.push({
-            ...numItems[0],
-            amount: decision.remainingQuota
+            ...item,
+            amount: retainAmt
           });
         }
       } else if (decision.action === 'reject') {

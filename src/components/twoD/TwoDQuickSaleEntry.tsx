@@ -1219,14 +1219,13 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     // Check if any numbers in this voucher exceed limits (tracked for batch forwarding)
-    const itemSums: { [num: string]: number } = {};
+    const itemSums = new Map<string, number>();
     items.forEach(i => {
-      itemSums[i.number] = (itemSums[i.number] || 0) + i.amount;
+      itemSums.set(i.number, (itemSums.get(i.number) || 0) + i.amount);
     });
 
     let hasOverLimit = false;
-    Object.keys(itemSums).forEach(num => {
-      const addedAmt = itemSums[num];
+    itemSums.forEach((addedAmt, num) => {
       const currentSold = aggregates[num]?.totalSold || 0;
       const lmt = getNumberLimit(num);
       if (lmt > 0 && currentSold + addedAmt > lmt) {
@@ -1366,52 +1365,43 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const keptItems: TwoDBetItem[] = [];
     const forwardList: { number: string; amount: number }[] = [];
 
-    // Group items by number to apply decision per number across items
-    const itemsByNumber: { [num: string]: TwoDBetItem[] } = {};
-    items.forEach(item => {
-      if (!itemsByNumber[item.number]) itemsByNumber[item.number] = [];
-      itemsByNumber[item.number].push(item);
-    });
+    // Iterate items directly in exact chronological entry order (never auto-sort via plain object keys)
+    const decisionMap = new Map<string, OverLimitItemInfo>();
+    decisions.forEach(d => decisionMap.set(d.number, d));
+    const remQuotaMap = new Map<string, number>();
 
-    Object.keys(itemsByNumber).forEach(num => {
-      const numberItems = itemsByNumber[num];
-      const dec = decisions.find(d => d.number === num);
+    items.forEach(it => {
+      const dec = decisionMap.get(it.number);
 
       if (!dec) {
-        keptItems.push(...numberItems);
+        keptItems.push(it);
         return;
       }
 
       if (dec.action === 'reject') {
         return;
       } else if (dec.action === 'accept_locally') {
-        keptItems.push(...numberItems);
+        keptItems.push(it);
       } else if (dec.action === 'forward_all') {
-        numberItems.forEach(it => {
-          forwardList.push({ number: it.number, amount: it.amount });
-        });
+        forwardList.push({ number: it.number, amount: it.amount });
       } else if (dec.action === 'cap_at_limit') {
-        let remQuota = dec.remainingQuota;
-        numberItems.forEach(it => {
-          const retainAmt = Math.min(it.amount, remQuota);
-          remQuota -= retainAmt;
-          if (retainAmt > 0) {
-            keptItems.push({ ...it, amount: retainAmt });
-          }
-        });
+        const remQuota = remQuotaMap.has(it.number) ? remQuotaMap.get(it.number)! : dec.remainingQuota;
+        const retainAmt = Math.min(it.amount, remQuota);
+        remQuotaMap.set(it.number, remQuota - retainAmt);
+        if (retainAmt > 0) {
+          keptItems.push({ ...it, amount: retainAmt });
+        }
       } else if (dec.action === 'forward_excess') {
-        let remQuota = dec.remainingQuota;
-        numberItems.forEach(it => {
-          const retainAmt = Math.min(it.amount, remQuota);
-          const forwardAmt = it.amount - retainAmt;
-          remQuota -= retainAmt;
-          if (retainAmt > 0) {
-            keptItems.push({ ...it, amount: retainAmt });
-          }
-          if (forwardAmt > 0) {
-            forwardList.push({ number: it.number, amount: forwardAmt });
-          }
-        });
+        const remQuota = remQuotaMap.has(it.number) ? remQuotaMap.get(it.number)! : dec.remainingQuota;
+        const retainAmt = Math.min(it.amount, remQuota);
+        const forwardAmt = it.amount - retainAmt;
+        remQuotaMap.set(it.number, remQuota - retainAmt);
+        if (retainAmt > 0) {
+          keptItems.push({ ...it, amount: retainAmt });
+        }
+        if (forwardAmt > 0) {
+          forwardList.push({ number: it.number, amount: forwardAmt });
+        }
       }
     });
 

@@ -24,7 +24,7 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
 import { cleanMasterAgentName } from '../utils/storage';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, getPermutations } from '../utils/lotteryUtils';
 
 interface VouchersViewProps {
   onOpenPrintVoucher: (voucher: Voucher) => void;
@@ -474,8 +474,12 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
               </div>
             ) : (
               displayVouchers.map((v) => {
+                const winNum = activeRound?.winningNumber?.trim().padStart(3, '0') || '';
+                const toddSet = winNum.length === 3 && (settings.defaultToddMultiplier ?? 0) > 0
+                  ? new Set(getPermutations(winNum))
+                  : null;
                 const isWinningVoucher =
-                  activeRound?.winningNumber && v.items.some((i) => i.number === activeRound.winningNumber);
+                  !!winNum && v.items.some((i) => i.number === winNum || (toddSet?.has(i.number) ?? false));
 
                 return (
                   <div
@@ -567,16 +571,22 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     {/* Items List Preview */}
                     <div className="bg-slate-50 rounded-xl p-2.5 max-h-24 overflow-y-auto space-y-1 border border-slate-100 font-mono text-xs">
                       {v.items.map((item, idx) => {
-                        const isWin = activeRound?.winningNumber === item.number;
+                        const isStraightWin = !!winNum && winNum === item.number;
+                        const isToddWin = !isStraightWin && (toddSet?.has(item.number) ?? false);
                         return (
                           <div
                             key={idx}
                             className={`flex justify-between items-center px-1.5 py-0.5 rounded ${
-                              isWin ? 'bg-amber-200 font-black text-slate-950' : 'text-slate-700'
+                              isStraightWin
+                                ? 'bg-amber-200 font-black text-slate-950'
+                                : isToddWin
+                                ? 'bg-indigo-100 font-black text-indigo-950'
+                                : 'text-slate-700'
                             }`}
                           >
                             <span className="font-bold">
                               {item.number} {item.betType === 'rumble' && <span className="text-[10px] text-teal-600">R</span>}
+                              {isToddWin && <span className="ml-1 text-[9px] text-indigo-700 font-sans">ပတ်လည်</span>}
                             </span>
                             <span>{formatAmount(item.amount, settings.currency)}</span>
                           </div>
@@ -712,19 +722,25 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
                   <div className="grid grid-cols-2 gap-2">
                     {selectedForwardSlip.items.map((item, idx) => {
-                      const isHit = activeRound?.winningNumber === item.number;
+                      const winNum = activeRound?.winningNumber?.trim().padStart(3, '0') || '';
+                      const isStraightHit = !!winNum && winNum === item.number;
+                      const isToddHit = !isStraightHit && !!winNum && (settings.defaultToddMultiplier ?? 0) > 0 && getPermutations(winNum).includes(item.number);
+                      const isHit = isStraightHit || isToddHit;
                       return (
                         <div
                           key={idx}
                           className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
-                            isHit
+                            isStraightHit
                               ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
+                              : isToddHit
+                              ? 'bg-indigo-100 border-indigo-300 text-indigo-950 font-black ring-2 ring-indigo-300 shadow-xs'
                               : 'bg-white border-slate-200 text-slate-800'
                           }`}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span className="font-black text-base text-amber-900">{item.number}</span>
-                            {isHit && <Trophy className="w-3 h-3 text-amber-600" />}
+                            <span className={`font-black text-base ${isToddHit ? 'text-indigo-900' : 'text-amber-900'}`}>{item.number}</span>
+                            {isHit && <Trophy className={`w-3 h-3 ${isToddHit ? 'text-indigo-600' : 'text-amber-600'}`} />}
+                            {isToddHit && <span className="text-[9px] font-sans font-bold text-indigo-700">ပတ်လည်</span>}
                           </div>
                           <span className="font-bold text-slate-700">
                             {formatAmount(item.amount, settings.currency)}

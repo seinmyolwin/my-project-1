@@ -33,7 +33,7 @@ export function getPermutations(numStr: string): string[] {
   };
 
   permute(digits);
-  return Array.from(results).sort();
+  return Array.from(results);
 }
 
 /**
@@ -358,100 +358,58 @@ export function evaluateWinnings(
   let winningBetsCount = 0;
   let toddWinningBetsCount = 0;
 
-  if (!winningNumber || winningNumber.length !== 3) {
+  const winNum = (winningNumber || '').trim().padStart(3, '0');
+  if (!winNum || winNum.length !== 3 || !/^\d{3}$/.test(winningNumber.trim())) {
     return { winners, totalPayout, winningBetsCount, toddWinningBetsCount };
   }
 
-  // All permutations of winning number for Todd/Rumble evaluation
-  const allPermutations = getPermutations(winningNumber);
-  const toddSet = new Set(allPermutations);
+  // All permutations of winning number for Todd/ပတ်လည် evaluation
+  const toddSet = new Set(getPermutations(winNum));
 
   vouchers.forEach((v) => {
-    if (v.status === 'cancelled') return;
+    if (v.status === 'cancelled' || (v as any).deletedAt) return;
 
-    // Track which rumble groups in this voucher have already been awarded a win
-    const wonGroupIdsInVoucher = new Set<string>();
+    (v.items || []).forEach((item) => {
+      const itemNum = String(item.number || '').trim().padStart(3, '0');
+      const amt = Number(item.amount) || 0;
+      if (amt <= 0) return;
 
-    // Pass 1: exact straight bets (ONLY applies to straight bets)
-    v.items.forEach((item) => {
-      const isRumbleBet = item.betType === 'rumble';
-      if (item.number === winningNumber && !isRumbleBet) {
-        const payout = calculatePayout(item.amount, straightMultiplier);
+      if (itemNum === winNum) {
+        const payout = straightMultiplier > 0 ? calculatePayout(amt, straightMultiplier) : 0;
+        if (payout > 0 || straightMultiplier > 0) {
+          totalPayout += payout;
+          winningBetsCount++;
+          winners.push({
+            voucherId: v.id,
+            voucherNo: v.voucherNo,
+            customerName: v.customerName,
+            customerPhone: ((v) as { customerPhone?: string }).customerPhone,
+            betNumber: itemNum,
+            betAmount: amt,
+            winType: 'straight',
+            multiplier: straightMultiplier,
+            wonPayout: payout,
+            isPaid: v.isPaid
+          });
+        }
+      } else if (toddMultiplier > 0 && toddSet.has(itemNum)) {
+        const payout = calculatePayout(amt, toddMultiplier);
         totalPayout += payout;
-        winningBetsCount++;
+        toddWinningBetsCount++;
         winners.push({
           voucherId: v.id,
           voucherNo: v.voucherNo,
           customerName: v.customerName,
           customerPhone: ((v) as { customerPhone?: string }).customerPhone,
-          betNumber: item.number,
-          betAmount: item.amount,
-          winType: 'straight',
-          multiplier: straightMultiplier,
+          betNumber: itemNum,
+          betAmount: amt,
+          winType: 'todd',
+          multiplier: toddMultiplier,
           wonPayout: payout,
           isPaid: v.isPaid
         });
       }
     });
-
-    // Pass 2: Todd / Rumble bets (ONLY applies to rumble bets matching any permutation)
-    if (toddMultiplier > 0) {
-      v.items.forEach((item) => {
-        const isRumbleBet = item.betType === 'rumble';
-        if (!isRumbleBet) return;
-
-        if (item.groupId) {
-          if (wonGroupIdsInVoucher.has(item.groupId)) return;
-
-          // If the group contains the exact winningNumber, prioritize that item as winner
-          const hasExactMatchInGroup = v.items.some(
-            i => i.groupId === item.groupId && i.number === winningNumber
-          );
-
-          const isWinningItem = hasExactMatchInGroup
-            ? item.number === winningNumber
-            : (item.permutations ? item.permutations.includes(winningNumber) : toddSet.has(item.number));
-
-          if (isWinningItem) {
-            wonGroupIdsInVoucher.add(item.groupId);
-            const payout = calculatePayout(item.amount, toddMultiplier);
-            totalPayout += payout;
-            toddWinningBetsCount++;
-            winners.push({
-              voucherId: v.id,
-              voucherNo: v.voucherNo,
-              customerName: v.customerName,
-              customerPhone: ((v) as { customerPhone?: string }).customerPhone,
-              betNumber: item.number,
-              betAmount: item.amount,
-              winType: 'todd',
-              multiplier: toddMultiplier,
-              wonPayout: payout,
-              isPaid: v.isPaid
-            });
-          }
-        } else {
-          // Standalone rumble bet without groupId
-          if (toddSet.has(item.number)) {
-            const payout = calculatePayout(item.amount, toddMultiplier);
-            totalPayout += payout;
-            toddWinningBetsCount++;
-            winners.push({
-              voucherId: v.id,
-              voucherNo: v.voucherNo,
-              customerName: v.customerName,
-              customerPhone: ((v) as { customerPhone?: string }).customerPhone,
-              betNumber: item.number,
-              betAmount: item.amount,
-              winType: 'todd',
-              multiplier: toddMultiplier,
-              wonPayout: payout,
-              isPaid: v.isPaid
-            });
-          }
-        }
-      });
-    }
   });
 
   return {
@@ -794,25 +752,18 @@ export function calculate3DForwardMasterPayout(
 
   forwardSlips.forEach((f) => {
     if ((f as any).deletedAt) return;
-    const wonGroupIds = new Set<string>();
 
     (f.items || []).forEach((it) => {
       const num = String(it.number || '').trim().padStart(3, '0');
       const amt = Number(it.amount) || 0;
       if (amt <= 0) return;
 
-      if (it.betType === 'rumble') {
-        if (toddMultiplier > 0 && toddSet.has(num)) {
-          if (it.groupId) {
-            if (wonGroupIds.has(it.groupId)) return;
-            wonGroupIds.add(it.groupId);
-          }
-          totalMasterPayout += calculatePayout(amt, toddMultiplier);
-        }
-      } else {
-        if (num === winNum && straightMultiplier > 0) {
+      if (num === winNum) {
+        if (straightMultiplier > 0) {
           totalMasterPayout += calculatePayout(amt, straightMultiplier);
         }
+      } else if (toddMultiplier > 0 && toddSet.has(num)) {
+        totalMasterPayout += calculatePayout(amt, toddMultiplier);
       }
     });
   });

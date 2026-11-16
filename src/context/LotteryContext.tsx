@@ -24,8 +24,8 @@ import {
   saveStoredData,
   saveMultipleAtomic
 } from '../utils/storage';
-import { evaluateWinnings, exportLotteryDataToExcel, calculate3DForwardMasterPayout } from '../utils/lotteryUtils';
-import { getLocalDateString, safeRound } from '../utils/moneyUtils';
+import { evaluateWinnings, exportLotteryDataToExcel, calculate3DForwardMasterPayout, getPermutations } from '../utils/lotteryUtils';
+import { getLocalDateString, safeRound, calculatePayout } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
@@ -795,17 +795,24 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const formattedNum = winningNum.padStart(3, '0');
 
     const evalResult = evaluateWinnings(activeRoundVouchers, formattedNum, mult, toddMult);
+    const toddSet = new Set(getPermutations(formattedNum));
 
     setVouchers(prev =>
       prev.map(v => {
+        if (v.roundId !== activeRound.id || v.status === 'cancelled' || (v as any).deletedAt) {
+          return v;
+        }
         const winningItems = evalResult.winners.filter(w => w.voucherId === v.id);
         if (winningItems.length > 0) {
           const updatedItems = v.items.map(item => {
-            const match = winningItems.find(w => w.betNumber === item.number);
-            if (match) {
-              return { ...item, isWon: true, wonAmount: match.wonPayout };
+            const itemNum = String(item.number || '').trim().padStart(3, '0');
+            if (itemNum === formattedNum) {
+              return { ...item, isWon: true, wonAmount: calculatePayout(item.amount, mult) };
             }
-            return item;
+            if (toddMult > 0 && toddSet.has(itemNum)) {
+              return { ...item, isWon: true, wonAmount: calculatePayout(item.amount, toddMult) };
+            }
+            return { ...item, isWon: false, wonAmount: 0 };
           });
           return { ...v, status: 'settled', items: updatedItems };
         }

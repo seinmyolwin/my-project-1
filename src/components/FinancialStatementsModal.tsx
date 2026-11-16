@@ -29,7 +29,7 @@ import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, getPermutations } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
 import { PeriodSettlementModal } from './PeriodSettlementModal';
@@ -1224,7 +1224,14 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
                     return vouchersToDisplay.map((v: any, index: number) => {
                       const itemsStr = v.items ? v.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : (v.matchesSummary || v.description || '-');
-                      const hasWonItem = v.items ? v.items.some((it: any) => it.isWon || it.number === selectedRecord.winningResult) : (v.status === 'settled' && (v.outcome === 'won' || v.outcome === 'half_won'));
+                      const is3DRec = selectedRecord.mode === '3d';
+                      const winNum = selectedRecord.winningResult ? String(selectedRecord.winningResult).trim() : '';
+                      const toddSet = is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0
+                        ? new Set(getPermutations(winNum))
+                        : null;
+                      const hasWonItem = v.items
+                        ? v.items.some((it: any) => it.isWon || it.number === winNum || (toddSet?.has(String(it.number || '').trim()) ?? false))
+                        : (v.status === 'settled' && (v.outcome === 'won' || v.outcome === 'half_won'));
                       const voucherDisc = v.discountAmount > 0 ? v.discountAmount : 0;
                       
                       return (
@@ -1512,9 +1519,14 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {inspectingVoucher.items.map((it: any, idx: number) => {
-                        const isWin = it.isWon || it.number === selectedRecord?.winningResult;
+                        const winNum = selectedRecord?.winningResult ? String(selectedRecord.winningResult).trim() : '';
+                        const is3DRec = selectedRecord?.mode === '3d';
+                        const itNum = String(it.number || '').trim();
+                        const isStraightWin = !!winNum && itNum === winNum;
+                        const isToddWin = !isStraightWin && is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0 && getPermutations(winNum).includes(itNum);
+                        const isWin = it.isWon || isStraightWin || isToddWin;
                         return (
-                          <tr key={idx} className={isWin ? 'bg-amber-50/80 font-bold' : ''}>
+                          <tr key={idx} className={isWin ? (isToddWin ? 'bg-indigo-50/80 font-bold' : 'bg-amber-50/80 font-bold') : ''}>
                             <td className="py-1.5 px-2.5 text-slate-400 font-mono">{idx + 1}</td>
                             <td className="py-1.5 px-2.5 font-black font-mono text-slate-900 text-sm">
                               {it.number}
@@ -1527,8 +1539,8 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                             </td>
                             <td className="py-1.5 px-2.5 text-center">
                               {isWin ? (
-                                <span className="px-1.5 py-0.2 bg-rose-600 text-white font-black text-[9px] rounded">
-                                  ပေါက် ✓
+                                <span className={`px-1.5 py-0.2 text-white font-black text-[9px] rounded ${isToddWin ? 'bg-indigo-600' : 'bg-rose-600'}`}>
+                                  {isToddWin ? 'ပတ်လည် ✓' : 'ပေါက် ✓'}
                                 </span>
                               ) : (
                                 <span className="text-slate-300">-</span>
