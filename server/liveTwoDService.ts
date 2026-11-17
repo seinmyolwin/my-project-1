@@ -138,7 +138,7 @@ function normalizeSlot(raw: any, label: string): LiveTwoDSlot | null {
 let cachedPayload: LiveTwoDPayload | null = null;
 let cachedAt = 0;
 let inFlightFetch: Promise<LiveTwoDPayload> | null = null;
-const CACHE_TTL_MS = 1800;
+const CACHE_TTL_MS = 900;
 
 export async function fetchLiveTwoDData(forceRefresh: boolean = false): Promise<LiveTwoDPayload> {
   const now = Date.now();
@@ -292,7 +292,7 @@ export function createLiveTwoDRouter() {
         }
         stopStreamLoopIfIdle();
       }
-    }, 2000);
+    }, 1000);
   };
 
   router.get('/2d/live', async (_req: Request, res: Response) => {

@@ -255,6 +255,11 @@ export const LiveTwoDTicker: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
+  const [setFlashing, setSetFlashing] = useState<boolean>(false);
+  const [valFlashing, setValFlashing] = useState<boolean>(false);
+  const [setTickKey, setSetTickKey] = useState<number>(0);
+  const [valTickKey, setValTickKey] = useState<number>(0);
+  const [heartbeatTickKey, setHeartbeatTickKey] = useState<number>(0);
   const [inspectedKey, setInspectedKey] = useState<InspectedKey>('live');
 
   const [slotViewMode, setSlotViewMode] = useState<SlotViewMode>(() => {
@@ -266,8 +271,10 @@ export const LiveTwoDTicker: React.FC = () => {
     }
   });
 
-  const prevLiveFingerprintRef = useRef<string>('');
+  const prevLiveRef = useRef<{ set: string; value: string; twod: string; time: string } | null>(null);
   const flashTimerRef = useRef<number | null>(null);
+  const setFlashTimerRef = useRef<number | null>(null);
+  const valFlashTimerRef = useRef<number | null>(null);
   const marketStatusRef = useRef<LiveTwoDPayload['marketStatus'] | undefined>(undefined);
 
   const toggleSlotViewMode = () => {
@@ -285,25 +292,54 @@ export const LiveTwoDTicker: React.FC = () => {
     });
   };
 
-  const applyPayload = useCallback((payload: LiveTwoDPayload) => {
-    const fp = `${payload.live.set}|${payload.live.value}|${payload.live.twod}`;
-    if (prevLiveFingerprintRef.current && prevLiveFingerprintRef.current !== fp) {
+  const applyPayload = useCallback((payload: LiveTwoDPayload, fromManualRefresh: boolean = false) => {
+    const prev = prevLiveRef.current;
+    const setChanged = (!!prev && prev.set !== payload.live.set) || fromManualRefresh;
+    const valChanged = (!!prev && prev.value !== payload.live.value) || fromManualRefresh;
+    const twodChanged = (!!prev && prev.twod !== payload.live.twod) || fromManualRefresh;
+    const timeChanged = !prev || prev.time !== payload.live.time || fromManualRefresh;
+
+    if (twodChanged) {
       setIsFlashing(true);
       if (flashTimerRef.current) window.clearTimeout(flashTimerRef.current);
-      flashTimerRef.current = window.setTimeout(() => setIsFlashing(false), 750);
+      flashTimerRef.current = window.setTimeout(() => setIsFlashing(false), 650);
     }
-    prevLiveFingerprintRef.current = fp;
+
+    if (setChanged) {
+      setSetFlashing(true);
+      setSetTickKey((k) => k + 1);
+      if (setFlashTimerRef.current) window.clearTimeout(setFlashTimerRef.current);
+      setFlashTimerRef.current = window.setTimeout(() => setSetFlashing(false), 550);
+    }
+
+    if (valChanged) {
+      setValFlashing(true);
+      setValTickKey((k) => k + 1);
+      if (valFlashTimerRef.current) window.clearTimeout(valFlashTimerRef.current);
+      valFlashTimerRef.current = window.setTimeout(() => setValFlashing(false), 550);
+    }
+
+    if (timeChanged || payload.marketStatus === 'live') {
+      setHeartbeatTickKey((k) => k + 1);
+    }
+
+    prevLiveRef.current = {
+      set: payload.live.set,
+      value: payload.live.value,
+      twod: payload.live.twod,
+      time: payload.live.time
+    };
     marketStatusRef.current = payload.marketStatus;
     setData(payload);
     setIsLoading(false);
   }, []);
 
-  const fetchOnce = useCallback(async () => {
+  const fetchOnce = useCallback(async (fromManualRefresh: boolean = false) => {
     // 1. Try local/backend API proxy first
     try {
       const json: LiveTwoDPayload = await fetchJsonWithTimeout('/api/2d/live', 3500);
       if (json && json.success && json.live) {
-        applyPayload(json);
+        applyPayload(json, fromManualRefresh);
         return;
       }
     } catch {
@@ -314,7 +350,7 @@ export const LiveTwoDTicker: React.FC = () => {
     try {
       const raw = await fetchJsonWithTimeout(DIRECT_UPSTREAM_URL, 4500);
       if (raw && (raw.live || Array.isArray(raw.result))) {
-        applyPayload(normalizeUpstreamPayload(raw));
+        applyPayload(normalizeUpstreamPayload(raw), fromManualRefresh);
         return;
       }
     } catch {
@@ -381,10 +417,10 @@ export const LiveTwoDTicker: React.FC = () => {
           }
           const closed =
             marketStatusRef.current === 'closed' || marketStatusRef.current === 'holiday';
-          startPolling(closed ? 60000 : 2500);
+          startPolling(closed ? 60000 : 1100);
         };
 
-        // If SSE doesn't deliver within 4s (e.g. proxy buffering), start polling seamlessly
+        // If SSE doesn't deliver within 3s (e.g. proxy buffering), start real-time 1.1s polling seamlessly
         sseWatchdog = window.setTimeout(() => {
           if (disposed || sseReceiving) return;
           if (es) {
@@ -393,13 +429,13 @@ export const LiveTwoDTicker: React.FC = () => {
           }
           const closed =
             marketStatusRef.current === 'closed' || marketStatusRef.current === 'holiday';
-          startPolling(closed ? 60000 : 2500);
-        }, 4000);
+          startPolling(closed ? 60000 : 1100);
+        }, 3000);
       } catch {
-        startPolling(2500);
+        startPolling(1100);
       }
     } else {
-      startPolling(2500);
+      startPolling(1100);
     }
 
     return () => {
@@ -413,6 +449,8 @@ export const LiveTwoDTicker: React.FC = () => {
   useEffect(() => {
     return () => {
       if (flashTimerRef.current) window.clearTimeout(flashTimerRef.current);
+      if (setFlashTimerRef.current) window.clearTimeout(setFlashTimerRef.current);
+      if (valFlashTimerRef.current) window.clearTimeout(valFlashTimerRef.current);
     };
   }, []);
 
@@ -540,8 +578,14 @@ export const LiveTwoDTicker: React.FC = () => {
           </span>
 
           {liveClockText && (
-            <span className="hidden sm:inline font-mono text-[10px] text-slate-400 tabular-nums">
-              {liveClockText}
+            <span
+              key={`clk-${heartbeatTickKey}`}
+              className="hidden sm:inline-flex items-center gap-1 font-mono text-[10px] text-slate-300 tabular-nums animate-live-tick"
+            >
+              {isMarketLive && !isPaused && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              )}
+              <span>{liveClockText}</span>
             </span>
           )}
         </div>
@@ -583,7 +627,7 @@ export const LiveTwoDTicker: React.FC = () => {
             type="button"
             onClick={() => {
               setIsLoading(true);
-              void fetchOnce();
+              void fetchOnce(true);
             }}
             className="p-1 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors cursor-pointer"
             title="ယခုချက်ချင်း ပြန်စစ်ရန်"
@@ -599,9 +643,10 @@ export const LiveTwoDTicker: React.FC = () => {
         <div className="flex items-center gap-2.5">
           {/* Glowing 2D Number Box */}
           <div
+            key={activeStage.isLiveView ? `twod-${setTickKey}-${valTickKey}` : activeStage.tag}
             className={`flex flex-col items-center justify-center min-w-[62px] px-2.5 py-1 rounded-xl border transition-all duration-300 ${
               isFlashing && activeStage.isLiveView
-                ? 'bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 scale-105'
+                ? 'bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 animate-live-quiver'
                 : activeStage.isLiveView
                   ? 'bg-slate-900/95 border-teal-600/60 shadow-[inset_0_0_12px_rgba(20,184,166,0.18)]'
                   : 'bg-indigo-950/80 border-indigo-500/60'
@@ -617,21 +662,40 @@ export const LiveTwoDTicker: React.FC = () => {
             </span>
           </div>
 
-          {/* SET & VALUE stack */}
+          {/* SET & VALUE stack with real-live quiver & tick feedback */}
           <div className="flex flex-col justify-center gap-1 font-mono text-xs tabular-nums">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-sans font-bold uppercase tracking-wide text-amber-300/90 w-7">
+            <div
+              key={activeStage.isLiveView ? `set-${setTickKey}-${isMarketLive && !isPaused ? heartbeatTickKey : 0}` : `slot-set-${activeStage.tag}`}
+              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border transition-colors ${
+                activeStage.isLiveView && setFlashing
+                  ? 'bg-amber-500/20 border-amber-400/70 animate-live-quiver'
+                  : activeStage.isLiveView && isMarketLive && !isPaused
+                    ? 'bg-slate-900/60 border-slate-800/80 animate-live-tick'
+                    : 'border-transparent'
+              }`}
+            >
+              <span className="text-[10px] font-sans font-bold uppercase tracking-wide text-amber-300/90 w-7 flex items-center gap-1">
                 SET
               </span>
-              <span className="font-bold text-xs sm:text-sm tracking-tight">
+              <span className="font-bold text-xs sm:text-sm tracking-tight inline-block">
                 {renderHighlightedSet(activeStage.set, activeStage.setDigit)}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-sans font-bold uppercase tracking-wide text-emerald-300/90 w-7">
+
+            <div
+              key={activeStage.isLiveView ? `val-${valTickKey}-${isMarketLive && !isPaused ? heartbeatTickKey : 0}` : `slot-val-${activeStage.tag}`}
+              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border transition-colors ${
+                activeStage.isLiveView && valFlashing
+                  ? 'bg-emerald-500/20 border-emerald-400/70 animate-live-quiver'
+                  : activeStage.isLiveView && isMarketLive && !isPaused
+                    ? 'bg-slate-900/60 border-slate-800/80 animate-live-tick'
+                    : 'border-transparent'
+              }`}
+            >
+              <span className="text-[10px] font-sans font-bold uppercase tracking-wide text-emerald-300/90 w-7 flex items-center gap-1">
                 VAL
               </span>
-              <span className="font-bold text-xs sm:text-sm tracking-tight">
+              <span className="font-bold text-xs sm:text-sm tracking-tight inline-block">
                 {renderHighlightedVal(activeStage.value, activeStage.valDigit)}
               </span>
             </div>
