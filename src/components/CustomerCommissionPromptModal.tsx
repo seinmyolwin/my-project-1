@@ -65,6 +65,11 @@ export const CustomerCommissionPromptModal: React.FC<CustomerCommissionPromptMod
 
   const [draftRates, setDraftRates] = useState<Record<string, string>>({});
 
+  const stableScopeKey = useMemo(
+    () => `${records.map((r) => r.id).join('|')}::${customers.map((c) => c.name).join('|')}`,
+    [records, customers]
+  );
+
   useEffect(() => {
     if (!isOpen) return;
     const globalRates = getCustomerCommissionRates();
@@ -87,7 +92,8 @@ export const CustomerCommissionPromptModal: React.FC<CustomerCommissionPromptMod
     });
 
     setDraftRates(initial);
-  }, [isOpen, customers, records]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, stableScopeKey]);
 
   const parseRate = (name: string): number => {
     const raw = draftRates[name];
