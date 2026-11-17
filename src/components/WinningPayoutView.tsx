@@ -10,7 +10,8 @@ import {
   Check,
   User,
   AlertCircle,
-  Receipt
+  Receipt,
+  Percent
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { evaluateWinnings, formatAmount, getToddWinningNumbers, convertMyanmarToEnglishDigits, parseExcelToRoundData3D } from '../utils/lotteryUtils';
@@ -20,6 +21,12 @@ import {
   SingleRoundFinancialBreakdown,
   calculateThreeDSingleRoundStatement
 } from '../utils/statementUtils';
+import {
+  COMMISSION_UPDATED_EVENT,
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions
+} from '../utils/commissionUtils';
+import { CustomerCommissionPromptModal } from './CustomerCommissionPromptModal';
 import { triggerRibbonsCelebration } from '../utils/audioUtils';
 
 interface WinningPayoutViewProps {
@@ -51,6 +58,14 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
   const [multiplierInput, setMultiplierInput] = useState(String(settingsStraightMult));
   const [toddMultiplierInput, setToddMultiplierInput] = useState(String(settingsToddMult));
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [commissionRevision, setCommissionRevision] = useState(0);
+  const [isCommissionPromptOpen, setIsCommissionPromptOpen] = useState(false);
+
+  useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+  }, []);
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
@@ -255,7 +270,7 @@ ${settings.shopName} (${settings.shopPhone})`;
     return getToddWinningNumbers(winningInput);
   }, [winningInput]);
 
-  // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round & Settings rates)
+  // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round & per-customer rates)
   const singleRoundStatement: SingleRoundFinancialBreakdown = useMemo(() => {
     const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
     const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
@@ -266,9 +281,11 @@ ${settings.shopName} (${settings.shopPhone})`;
       winningNumber: activeEvalNumber,
       multiplier: mult,
       toddMultiplier: toddMult,
-      settings
+      settings,
+      globalRates: getCustomerCommissionRates(),
+      roundRates: getAllRoundCustomerCommissions()
     });
-  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, settings]);
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, settings, commissionRevision]);
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
@@ -763,7 +780,15 @@ ${settings.shopName} (${settings.shopPhone})`;
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsCommissionPromptOpen(true)}
+                className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+              >
+                <Percent className="w-3.5 h-3.5" />
+                <span>ထိုးသားကော် သတ်မှတ်ရန်</span>
+              </button>
               <div className="text-right">
                 <span className="text-[10px] text-slate-300 font-bold block uppercase tracking-wider">ဒိုင် အသားတင် ရလဒ်</span>
                 <span className={`text-base sm:text-lg font-black font-mono px-3 py-1 rounded-xl border block ${
@@ -1143,6 +1168,23 @@ ${settings.shopName} (${settings.shopPhone})`;
 
         </div>
       )}
+
+      <CustomerCommissionPromptModal
+        isOpen={isCommissionPromptOpen}
+        records={
+          activeRound
+            ? [{ id: `3d-${activeRound.id}`, name: activeRound.name, date: activeRound.drawDate, vouchersList: activeRoundVouchers }]
+            : []
+        }
+        currency={settings.currency}
+        defaultFallbackRate={settings.defaultCustomerDiscount ?? 0}
+        title={`${activeRound?.name || '3D ပွဲစဉ်'} - ထိုးသား ကော်မရှင် သတ်မှတ်ရန်`}
+        onConfirm={() => {
+          setCommissionRevision((r) => r + 1);
+          setIsCommissionPromptOpen(false);
+        }}
+        onClose={() => setIsCommissionPromptOpen(false)}
+      />
 
     </div>
   );

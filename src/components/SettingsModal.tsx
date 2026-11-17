@@ -49,6 +49,11 @@ import {
   getStatementDateRange,
   StatementPeriodPreset
 } from '../utils/statementUtils';
+import {
+  COMMISSION_UPDATED_EVENT,
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions
+} from '../utils/commissionUtils';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig, ThreeDQuickActionButtonsConfig, ThreeDQuickButtonItem, TwoDQuickButtonItem } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS, DEFAULT_3D_CUSTOM_BUTTONS, DEFAULT_2D_CUSTOM_BUTTONS } from '../utils/storage';
 import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
@@ -398,6 +403,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return getStatementDateRange(statementPeriod as any, stmtCustomStart, stmtCustomEnd);
   }, [statementPeriod, stmtCustomStart, stmtCustomEnd]);
 
+  const [commissionRevision, setCommissionRevision] = useState(0);
+  React.useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+  }, []);
+
   // Aggregate Statement Records using Single Source of Truth
   const stmtRecords: StatementRecord[] = React.useMemo(() => {
     return generateStatementRecords(
@@ -422,12 +434,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       },
       statementMode,
       stmtStartDate,
-      stmtEndDate
+      stmtEndDate,
+      {
+        globalRates: getCustomerCommissionRates(),
+        roundRates: getAllRoundCustomerCommissions()
+      }
     );
   }, [
     statementMode,
     stmtStartDate,
     stmtEndDate,
+    commissionRevision,
+    isOpen,
     lottery2D.rounds,
     lottery2D.vouchers,
     lottery2D.forwardSlips,

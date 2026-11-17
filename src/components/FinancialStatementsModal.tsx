@@ -53,6 +53,13 @@ import {
   computeStatementGrandTotals,
   getVoucherGrossTurnover
 } from '../utils/statementUtils';
+import {
+  COMMISSION_UPDATED_EVENT,
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions,
+  resolveCustomerCommissionRate
+} from '../utils/commissionUtils';
+import { CustomerCommissionPromptModal } from './CustomerCommissionPromptModal';
 
 interface FinancialStatementsModalProps {
   isOpen: boolean;
@@ -118,6 +125,18 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPeriodSettlementOpen, setIsPeriodSettlementOpen] = useState(false);
+
+  // Per-customer commission prompt state
+  const [commissionRevision, setCommissionRevision] = useState(0);
+  const [isCommissionPromptOpen, setIsCommissionPromptOpen] = useState(false);
+  const [commissionPromptTarget, setCommissionPromptTarget] = useState<'period' | 'record'>('period');
+  const prevIsOpenRef = React.useRef(false);
+
+  React.useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+  }, []);
 
   // Per-Voucher Edit / Delete Action Modal State & Handlers
   const [selectedCustomerFilter, setSelectedCustomerFilter] = useState<string>('all');
@@ -283,6 +302,14 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       ? 'ပစ်တိုင်းထောင် (ဘောလုံး) သီးသန့် ကာလအလိုက် စာရင်းရှင်းတမ်းနှင့် အမြတ်/အရှုံး အစီရင်ခံစာ'
       : 'အောက်လက်ကော်မရှင် ပေးငွေ၊ ဒိုင်ကြီးလွှဲကော်မရှင်၊ ထိုးကြေးနှင့် ပေးလျော်ငွေ အတိအကျ ရှင်းတမ်း';
 
+  // Live customer & per-round commission overrides
+  const { globalRates, roundRates } = useMemo(() => {
+    return {
+      globalRates: getCustomerCommissionRates(),
+      roundRates: getAllRoundCustomerCommissions()
+    };
+  }, [commissionRevision, isOpen]);
+
   // Aggregate statement records from 2D, 3D, and Football using Single Source of Truth
   const statementRecords: StatementRecord[] = useMemo(() => {
     return generateStatementRecords(
@@ -307,12 +334,15 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       },
       effectiveMode,
       startDate,
-      endDate
+      endDate,
+      { globalRates, roundRates }
     );
   }, [
     effectiveMode,
     startDate,
     endDate,
+    globalRates,
+    roundRates,
     lottery2D.rounds,
     lottery2D.vouchers,
     lottery2D.forwardSlips,
@@ -325,6 +355,28 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     football.forwardSlips,
     football.settings
   ]);
+
+  // Automatically ask for per-customer commission rates before showing calculated statement when modal opens
+  React.useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      const hasVouchers = statementRecords.some((r) => (r.vouchersList?.length || 0) > 0);
+      if (hasVouchers) {
+        setCommissionPromptTarget('period');
+        setIsCommissionPromptOpen(true);
+      }
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, statementRecords]);
+
+  // Keep selectedRecord in sync whenever statementRecords recalculates after commission updates
+  React.useEffect(() => {
+    if (selectedRecord) {
+      const updated = statementRecords.find((r) => r.id === selectedRecord.id);
+      if (updated && updated !== selectedRecord) {
+        setSelectedRecord(updated);
+      }
+    }
+  }, [statementRecords, selectedRecord]);
 
   // Grand Totals across all statement records in the filtered period
   const grandTotals = useMemo(() => {
@@ -541,6 +593,18 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCommissionPromptTarget('period');
+                setIsCommissionPromptOpen(true);
+              }}
+              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="ထိုးသား / အောက်လက်ဒိုင် တစ်ဦးချင်းစီ၏ ကော်မရှင် % သတ်မှတ်ရန်"
+            >
+              <Percent className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">ထိုးသားကော် သတ်မှတ်ရန်</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsPeriodSettlementOpen(true)}
@@ -841,6 +905,34 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               </div>
             </div>
           </div>
+
+          {(() => {
+            const unconfirmedCount = statementRecords.filter(
+              (rec) => (rec.vouchersList?.length || 0) > 0 && !roundRates[rec.id]
+            ).length;
+            if (unconfirmedCount === 0) return null;
+            return (
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 text-amber-950 font-bold">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    ပွဲစဉ် {unconfirmedCount} ခုအတွက် ထိုးသားတစ်ဦးချင်းစီ၏ ကော်မရှင် (%) သတ်မှတ်ရန် ကျန်ရှိနေပါသည် (လက်ရှိ Settings နှုန်းဖြင့် တွက်ထားသည်)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommissionPromptTarget('period');
+                    setIsCommissionPromptOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors shrink-0"
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  <span>ထိုးသားကော် သတ်မှတ်ပြီး တွက်မည်</span>
+                </button>
+              </div>
+            );
+          })()}
 
           {/* 3-Business Per-Line Breakdown (Master All mode from Settings only) */}
           {effectiveMode === 'all' && (
@@ -1215,9 +1307,22 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                     <Layers className="w-3.5 h-3.5 text-indigo-600" />
                     <span>အရောင်းဘောင်ချာများ စာရင်း ({selectedRecord.vouchersCount} စောင်)</span>
                   </h4>
-                  <span className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md font-bold">
-                    ပေါက်ဂဏန်း: {selectedRecord.winningResult}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCommissionPromptTarget('record');
+                        setIsCommissionPromptOpen(true);
+                      }}
+                      className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Percent className="w-3 h-3" />
+                      <span>ဤပွဲစဉ် ထိုးသားကော် ပြင်မည်</span>
+                    </button>
+                    <span className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md font-bold">
+                      ပေါက်ဂဏန်း: {selectedRecord.winningResult}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Customer Filter Pills / Dropdown */}
@@ -1285,7 +1390,24 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       const hasWonItem = v.items
                         ? v.items.some((it: any) => it.isWon || it.number === winNum || (toddSet?.has(String(it.number || '').trim()) ?? false))
                         : (v.status === 'settled' && (v.outcome === 'won' || v.outcome === 'half_won'));
-                      const voucherDisc = v.discountAmount > 0 ? v.discountAmount : 0;
+                      const fallbackRate = selectedRecord.mode === '3d'
+                        ? (lottery3D.settings.defaultCustomerDiscount ?? 0)
+                        : selectedRecord.mode === '2d'
+                        ? (lottery2D.settings.defaultCustomerDiscount ?? 0)
+                        : (football.settings?.defaultCustomerDiscount ?? 0);
+                      const resolvedComm = resolveCustomerCommissionRate({
+                        roundKey: selectedRecord.id,
+                        customerName: v.customerName,
+                        defaultRate: fallbackRate,
+                        globalRates,
+                        roundRates
+                      });
+                      const grossAmt = Array.isArray(v.items) || v.subtotal !== undefined
+                        ? getVoucherGrossTurnover(v)
+                        : (Number(v.stakeAmount) || Number(v.netPayable) || 0);
+                      const voucherDisc = resolvedComm.isExplicit || selectedRecord.mode === '3d'
+                        ? (resolvedComm.rate > 0 ? Math.round((grossAmt * resolvedComm.rate) / 100) : 0)
+                        : (v.discountAmount > 0 ? v.discountAmount : 0);
                       
                       return (
                         <div 
@@ -1797,6 +1919,33 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
         isOpen={isPeriodSettlementOpen}
         onClose={() => setIsPeriodSettlementOpen(false)}
         modeFilter={effectiveMode}
+      />
+
+      <CustomerCommissionPromptModal
+        isOpen={isCommissionPromptOpen}
+        records={
+          commissionPromptTarget === 'record' && selectedRecord
+            ? [selectedRecord]
+            : statementRecords
+        }
+        currency={currency}
+        defaultFallbackRate={
+          effectiveMode === '2d'
+            ? (lottery2D.settings.defaultCustomerDiscount ?? 0)
+            : effectiveMode === 'football'
+            ? (football.settings?.defaultCustomerDiscount ?? 0)
+            : (lottery3D.settings.defaultCustomerDiscount ?? 0)
+        }
+        title={
+          commissionPromptTarget === 'record' && selectedRecord
+            ? `${selectedRecord.name} - ထိုးသား ကော်မရှင် သတ်မှတ်ရန်`
+            : 'ထိုးသား / အောက်လက်ဒိုင် ကော်မရှင် သတ်မှတ်ရန်'
+        }
+        onConfirm={() => {
+          setCommissionRevision((r) => r + 1);
+          setIsCommissionPromptOpen(false);
+        }}
+        onClose={() => setIsCommissionPromptOpen(false)}
       />
     </div>
   );

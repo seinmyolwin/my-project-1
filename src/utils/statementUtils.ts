@@ -1,6 +1,11 @@
 import { evaluateTwoDWinnings, normalizeTwoDMultiplier } from './twoDLotteryUtils';
 import { evaluateWinnings, calculate3DForwardMasterPayout } from './lotteryUtils';
 import { TwoDVoucher, TwoDDrawRound, Voucher, DrawRound, FootballSlip, ForwardSlip } from '../types';
+import {
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions,
+  resolveCustomerCommissionRate
+} from './commissionUtils';
 
 
 export interface StatementRecord {
@@ -188,10 +193,16 @@ export function generateStatementRecords(
   data: StatementDataSources,
   mode: 'all' | '3d' | '2d' | 'football',
   startDate: string,
-  endDate: string
+  endDate: string,
+  commissionOverrides?: {
+    globalRates?: Record<string, number>;
+    roundRates?: Record<string, Record<string, number>>;
+  }
 ): StatementRecord[] {
   const list: StatementRecord[] = [];
   const todayStr = getLocalDateStr();
+  const globalRates = commissionOverrides?.globalRates ?? getCustomerCommissionRates();
+  const roundRates = commissionOverrides?.roundRates ?? getAllRoundCustomerCommissions();
 
   // ====================================================
   // 1. Process 2D (ဇီးကွက်)
@@ -220,20 +231,33 @@ export function generateStatementRecords(
         let totalTurnover = 0;
         let totalAgentCommission = 0;
 
+        const roundKey2D = `2d-${round.id}`;
         roundVouchers.forEach((v) => {
           const voucherSubtotal = getVoucherGrossTurnover(v);
-          
-          let voucherDiscount = 0;
-          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-            ? v.discountPercent
-            : (data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0);
+          const fallback2D = data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0;
+          const resolved = resolveCustomerCommissionRate({
+            roundKey: roundKey2D,
+            customerName: v.customerName,
+            defaultRate: fallback2D,
+            globalRates,
+            roundRates
+          });
 
-          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-            voucherDiscount = v.discountAmount;
-          } else if (agentRate > 0) {
-            voucherDiscount = Math.round(voucherSubtotal * (agentRate / 100));
-          } else if (round.commissionRate && round.commissionRate > 0) {
-            voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
+          let voucherDiscount = 0;
+          if (resolved.isExplicit) {
+            voucherDiscount = resolved.rate > 0 ? Math.round(voucherSubtotal * (resolved.rate / 100)) : 0;
+          } else {
+            const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+              ? v.discountPercent
+              : fallback2D;
+
+            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+              voucherDiscount = v.discountAmount;
+            } else if (agentRate > 0) {
+              voucherDiscount = Math.round(voucherSubtotal * (agentRate / 100));
+            } else if (round.commissionRate && round.commissionRate > 0) {
+              voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
+            }
           }
 
           totalTurnover += voucherSubtotal;
@@ -349,17 +373,31 @@ export function generateStatementRecords(
         let payout = 0;
         let winnersCount = 0;
 
+        const orphanKey2D = `2d-orphaned-${d}`;
         vList.forEach(v => {
           const sub = getVoucherGrossTurnover(v);
-          const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-            ? v.discountPercent
-            : (data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0);
+          const fallback2D = data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0;
+          const resolved = resolveCustomerCommissionRate({
+            roundKey: orphanKey2D,
+            customerName: v.customerName,
+            defaultRate: fallback2D,
+            globalRates,
+            roundRates
+          });
 
           let disc = 0;
-          if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-            disc = v.discountAmount;
-          } else if (agentRate > 0) {
-            disc = Math.round(sub * (agentRate / 100));
+          if (resolved.isExplicit) {
+            disc = resolved.rate > 0 ? Math.round(sub * (resolved.rate / 100)) : 0;
+          } else {
+            const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+              ? v.discountPercent
+              : fallback2D;
+
+            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+              disc = v.discountAmount;
+            } else if (agentRate > 0) {
+              disc = Math.round(sub * (agentRate / 100));
+            }
           }
 
           turnover += sub;
@@ -428,7 +466,7 @@ export function generateStatementRecords(
           (f) => f.roundId === round.id && !(f as any).deletedAt
         );
 
-        // Strictly use Settings rates for 3D (no auto/round fallbacks)
+        // Per-round / per-customer commission rate with Settings defaultCustomerDiscount as fallback
         const downlineRate = typeof data.lottery3D.settings?.defaultCustomerDiscount === 'number'
           ? data.lottery3D.settings.defaultCustomerDiscount
           : 0;
@@ -444,10 +482,18 @@ export function generateStatementRecords(
 
         let totalTurnover = 0;
         let totalAgentCommission = 0;
+        const roundKey3D = `3d-${round.id}`;
 
         roundVouchers.forEach((v) => {
           const sub = getVoucherGrossTurnover(v);
-          const disc = downlineRate > 0 ? Math.round(sub * (downlineRate / 100)) : 0;
+          const resolved = resolveCustomerCommissionRate({
+            roundKey: roundKey3D,
+            customerName: v.customerName,
+            defaultRate: downlineRate,
+            globalRates,
+            roundRates
+          });
+          const disc = resolved.rate > 0 ? Math.round(sub * (resolved.rate / 100)) : 0;
 
           totalTurnover += sub;
           totalAgentCommission += disc;
@@ -549,9 +595,17 @@ export function generateStatementRecords(
           ? data.lottery3D.settings.defaultMultiplier
           : 0;
 
+        const orphanKey3D = `3d-orphaned-${d}`;
         vList.forEach(v => {
           const sub = getVoucherGrossTurnover(v);
-          const disc = downlineRate > 0 ? Math.round(sub * (downlineRate / 100)) : 0;
+          const resolved = resolveCustomerCommissionRate({
+            roundKey: orphanKey3D,
+            customerName: v.customerName,
+            defaultRate: downlineRate,
+            globalRates,
+            roundRates
+          });
+          const disc = resolved.rate > 0 ? Math.round(sub * (resolved.rate / 100)) : 0;
 
           turnover += sub;
           agentCommission += disc;
@@ -626,15 +680,30 @@ export function generateStatementRecords(
         let retainedPayout = 0;
         let winnersCount = 0;
 
+        const roundKeyFB = `football-${d}`;
         daySlips.forEach((s) => {
           const stake = s.stakeAmount || s.netPayable || 0;
-          const agentRate = (typeof s.discountPercent === 'number' && s.discountPercent > 0)
-            ? s.discountPercent
-            : (data.football.settings?.defaultCustomerDiscount ?? data.football.settings?.defaultCommissionRate ?? 0);
+          const fallbackFB = data.football.settings?.defaultCustomerDiscount ?? data.football.settings?.defaultCommissionRate ?? 0;
+          const resolved = resolveCustomerCommissionRate({
+            roundKey: roundKeyFB,
+            customerName: s.customerName,
+            defaultRate: fallbackFB,
+            globalRates,
+            roundRates
+          });
 
-          const disc = s.discountAmount > 0
-            ? s.discountAmount
-            : agentRate > 0 ? Math.round(stake * (agentRate / 100)) : 0;
+          let disc = 0;
+          if (resolved.isExplicit) {
+            disc = resolved.rate > 0 ? Math.round(stake * (resolved.rate / 100)) : 0;
+          } else {
+            const agentRate = (typeof s.discountPercent === 'number' && s.discountPercent > 0)
+              ? s.discountPercent
+              : fallbackFB;
+
+            disc = s.discountAmount > 0
+              ? s.discountAmount
+              : agentRate > 0 ? Math.round(stake * (agentRate / 100)) : 0;
+          }
 
           turnover += stake;
           agentCommission += disc;
@@ -777,12 +846,17 @@ export interface TwoDSingleRoundStatementParams {
   winningNumber?: string;
   multiplier?: number;
   settings: any;
+  globalRates?: Record<string, number>;
+  roundRates?: Record<string, Record<string, number>>;
 }
 
 export function calculateTwoDSingleRoundStatement(
   params: TwoDSingleRoundStatementParams
 ): SingleRoundFinancialBreakdown {
   const { round, vouchers, forwardSlips, winningNumber, multiplier, settings } = params;
+  const globalRates = params.globalRates ?? getCustomerCommissionRates();
+  const roundRates = params.roundRates ?? getAllRoundCustomerCommissions();
+  const roundKey2D = round ? `2d-${round.id}` : undefined;
 
   // 1. Turnover & Agent Commission (Vouchers for this round only, active/not cancelled)
   let totalTurnover = 0;
@@ -792,17 +866,30 @@ export function calculateTwoDSingleRoundStatement(
 
   validVouchers.forEach((v) => {
     const subtotal = getVoucherGrossTurnover(v);
-    let disc = 0;
-    const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-      ? v.discountPercent
-      : (settings?.defaultCustomerDiscount ?? settings?.defaultCommissionRate ?? 0);
+    const fallback2D = settings?.defaultCustomerDiscount ?? settings?.defaultCommissionRate ?? 0;
+    const resolved = resolveCustomerCommissionRate({
+      roundKey: roundKey2D,
+      customerName: v.customerName,
+      defaultRate: fallback2D,
+      globalRates,
+      roundRates
+    });
 
-    if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-      disc = v.discountAmount;
-    } else if (agentRate > 0) {
-      disc = Math.round(subtotal * (agentRate / 100));
-    } else if (round?.commissionRate && round.commissionRate > 0) {
-      disc = Math.round(subtotal * (round.commissionRate / 100));
+    let disc = 0;
+    if (resolved.isExplicit) {
+      disc = resolved.rate > 0 ? Math.round(subtotal * (resolved.rate / 100)) : 0;
+    } else {
+      const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
+        ? v.discountPercent
+        : fallback2D;
+
+      if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+        disc = v.discountAmount;
+      } else if (agentRate > 0) {
+        disc = Math.round(subtotal * (agentRate / 100));
+      } else if (round?.commissionRate && round.commissionRate > 0) {
+        disc = Math.round(subtotal * (round.commissionRate / 100));
+      }
     }
 
     totalTurnover += subtotal;
@@ -897,12 +984,17 @@ export interface ThreeDSingleRoundStatementParams {
   multiplier?: number;
   toddMultiplier?: number;
   settings: any;
+  globalRates?: Record<string, number>;
+  roundRates?: Record<string, Record<string, number>>;
 }
 
 export function calculateThreeDSingleRoundStatement(
   params: ThreeDSingleRoundStatementParams
 ): SingleRoundFinancialBreakdown {
   const { round, vouchers, forwardSlips, winningNumber, multiplier, toddMultiplier, settings } = params;
+  const globalRates = params.globalRates ?? getCustomerCommissionRates();
+  const roundRates = params.roundRates ?? getAllRoundCustomerCommissions();
+  const roundKey3D = round ? `3d-${round.id}` : undefined;
 
   const downlineRate = typeof settings?.defaultCustomerDiscount === 'number'
     ? settings.defaultCustomerDiscount
@@ -924,7 +1016,14 @@ export function calculateThreeDSingleRoundStatement(
 
   validVouchers.forEach((v) => {
     const subtotal = getVoucherGrossTurnover(v);
-    const disc = downlineRate > 0 ? Math.round(subtotal * (downlineRate / 100)) : 0;
+    const resolved = resolveCustomerCommissionRate({
+      roundKey: roundKey3D,
+      customerName: v.customerName,
+      defaultRate: downlineRate,
+      globalRates,
+      roundRates
+    });
+    const disc = resolved.rate > 0 ? Math.round(subtotal * (resolved.rate / 100)) : 0;
 
     totalTurnover += subtotal;
     totalAgentCommission += disc;

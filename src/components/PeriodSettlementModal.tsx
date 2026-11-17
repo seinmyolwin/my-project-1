@@ -21,7 +21,12 @@ import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, evaluateWinnings, calculate3DForwardMasterPayout, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { getLocalDateStr, getDaysAgoStr, generateStatementRecords, getVoucherGrossTurnover } from '../utils/statementUtils';
-import { getCustomerCommission } from '../utils/commissionUtils';
+import {
+  getCustomerCommission,
+  getCustomerCommissionRates,
+  setCustomerCommissionRates,
+  COMMISSION_UPDATED_EVENT
+} from '../utils/commissionUtils';
 import { printStatementReport } from '../utils/printUtils';
 
 interface PeriodSettlementModalProps {
@@ -75,16 +80,18 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const [customCommissionRate, setCustomCommissionRate] = useState<number>(defaultCommission);
   const [copiedStatementText, setCopiedStatementText] = useState(false);
 
-  // Load/save customer custom commission rates in localStorage
-  const commissionStorageKey = 'shwe_customer_commissions_v1';
-  const customerCommissions = useMemo(() => {
-    try {
-      const saved = localStorage.getItem(commissionStorageKey);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
+  const [commissionRevision, setCommissionRevision] = useState(0);
+
+  React.useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
   }, []);
+
+  // Load/save customer custom commission rates via unified commissionUtils
+  const customerCommissions = useMemo(() => {
+    return getCustomerCommissionRates();
+  }, [commissionRevision, isOpen]);
 
   // When selected target changes for downline, load its saved custom commission rate if any
   React.useEffect(() => {
@@ -100,8 +107,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const handleSaveCustomerCommission = (name: string, rate: number) => {
     try {
       const updated = { ...customerCommissions, [name]: rate };
-      localStorage.setItem(commissionStorageKey, JSON.stringify(updated));
+      setCustomerCommissionRates(updated);
       setCustomCommissionRate(rate);
+      setCommissionRevision((r) => r + 1);
       alert(`"${name}" အတွက် ကော်မရှင်နှုန်း ${rate}% အား အောင်မြင်စွာ မှတ်သားပြီးပါပြီ ✓`);
     } catch {}
   };
@@ -613,7 +621,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     const items = isDownline ? downlineSettlementData.items : uplineSettlementData.items;
     items.forEach((item: any) => {
-      text += `${item.date} (${item.mode}) - ထိုး/တင်: ${formatAmount(Number(item.amount), '')}`;
+      const modePart = item.mode && item.mode !== 'အိုးစည်လေး' ? ` (${item.mode})` : '';
+      text += `${item.date}${modePart} - ထိုး/တင်: ${formatAmount(Number(item.amount), '')}`;
       if (item.winningNumbers && item.winningNumbers.length > 0) {
         text += ` [ထွက်ဂဏန်း: ${item.winningNumbers.join(', ')}]`;
       }
@@ -916,7 +925,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{item.date}</span>
-                          <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                          {item.mode && item.mode !== 'အိုးစည်လေး' && (
+                            <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                          )}
                           {item.winningNumbers && item.winningNumbers.length > 0 && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
                               ထွက်ဂဏန်း: {item.winningNumbers.join(', ')}
@@ -966,7 +977,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{item.date}</span>
-                          <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                          {item.mode && item.mode !== 'အိုးစည်လေး' && (
+                            <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                          )}
                           {item.winningNumbers && item.winningNumbers.length > 0 && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
                               ထွက်ဂဏန်း: {item.winningNumbers.join(', ')}
