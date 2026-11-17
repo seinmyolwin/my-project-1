@@ -31,11 +31,23 @@ import {
 } from '../utils/imageOcrUtils';
 import { BetItem, Voucher } from '../types';
 import { generateUUID } from '../utils/restorePoints';
+import { compressImageForArchive } from '../utils/rawClipsUtils';
+
+export interface ScannerArchiveMeta {
+  source: 'ocr' | 'direct_paste';
+  rawText?: string;
+  imageDataUrl?: string;
+}
 
 interface ImageSlipScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddBetsToCart: (items: BetItem[], customerName: string, customerPhone: string) => void;
+  onAddBetsToCart: (
+    items: BetItem[],
+    customerName: string,
+    customerPhone: string,
+    archiveMeta?: ScannerArchiveMeta
+  ) => void;
   onDirectCreateVoucher?: (items: BetItem[], customerName: string, customerPhone: string) => void;
   mode?: '3d' | '2d' | 'auto';
 }
@@ -594,7 +606,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
   const validRowsCount = extractedRows.filter(r => r.isValid).length;
 
   // Confirm and Send to Cart / Quick Sale Entry
-  const handleConfirmAddToCart = () => {
+  const handleConfirmAddToCart = async () => {
     const isLenValid = (len: number) => {
       if (mode === '2d') return len === 2;
       if (mode === '3d') return len === 3;
@@ -624,10 +636,28 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
       return;
     }
 
+    let archiveMeta: ScannerArchiveMeta | undefined;
+    if (inputTab === 'photo' && imageSrc) {
+      const compressedPhoto = await compressImageForArchive(imageSrc);
+      archiveMeta = {
+        source: 'ocr',
+        imageDataUrl: compressedPhoto
+      };
+    } else {
+      const originalCopiedText = directPasteText.trim() || rawOcrText.trim();
+      if (originalCopiedText) {
+        archiveMeta = {
+          source: 'direct_paste',
+          rawText: originalCopiedText
+        };
+      }
+    }
+
     onAddBetsToCart(
       validItems,
       detectedCustomerName.trim() || 'အထွေထွေ (Photo / Chat Entry)',
-      detectedCustomerPhone.trim()
+      detectedCustomerPhone.trim(),
+      archiveMeta
     );
     onClose();
   };

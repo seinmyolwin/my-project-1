@@ -464,6 +464,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
   }, [stmtRecords]);
 
+  // Reset Settings statement filter to 'all' whenever Settings opens so all 3 businesses show together
+  React.useEffect(() => {
+    if (isOpen) {
+      setStatementMode('all');
+    }
+  }, [isOpen]);
+
+  // Per-business breakdown across all 3 businesses in Settings Statements
+  const stmtPerBusinessBreakdown = React.useMemo(() => {
+    const modes: Array<{ key: '3d' | '2d' | 'football'; label: string; tone: string }> = [
+      { key: '3d', label: 'အိုးစည်လေး (3D)', tone: 'indigo' },
+      { key: '2d', label: 'ဇီးကွက် (2D)', tone: 'teal' },
+      { key: 'football', label: 'ပစ်တိုင်းထောင် (ဘောလုံး)', tone: 'emerald' }
+    ];
+    return modes.map((m) => {
+      const subset = stmtRecords.filter((r) => r.mode === m.key);
+      const totals = computeStatementGrandTotals(subset);
+      return {
+        ...m,
+        recordsCount: subset.length,
+        vouchers: totals.totalVouchers,
+        turnover: totals.totalTurnover,
+        payout: totals.totalPayout,
+        netProfit: totals.totalNetProfit,
+        isProfit: totals.isProfit
+      };
+    });
+  }, [stmtRecords]);
+
   // Export Statements to Excel
   const handleExportStatementsExcel = () => {
     const data = stmtRecords.map((r, i) => ({
@@ -3845,6 +3874,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     အမျိုးအစား: {statementMode === 'all' ? 'လုပ်ငန်းအားလုံးချုပ်' : statementMode === '3d' ? 'အိုးစည်လေး (3D)' : statementMode === '2d' ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (ဘောလုံး)'}
                   </p>
                 </div>
+
+                {/* 3-Business Individual Summary Cards when viewing All 3 Businesses */}
+                {statementMode === 'all' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {stmtPerBusinessBreakdown.map((biz) => {
+                      const badgeCls =
+                        biz.tone === 'indigo'
+                          ? 'bg-indigo-100 text-indigo-900 border-indigo-200'
+                          : biz.tone === 'teal'
+                          ? 'bg-teal-100 text-teal-900 border-teal-200'
+                          : 'bg-emerald-100 text-emerald-900 border-emerald-200';
+                      return (
+                        <div
+                          key={biz.key}
+                          onClick={() => setStatementMode(biz.key)}
+                          className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                          title={`${biz.label} သီးသန့် ကြည့်ရန် နှိပ်ပါ`}
+                        >
+                          <div className="min-w-0">
+                            <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded border ${badgeCls}`}>
+                              {biz.label}
+                            </span>
+                            <div className="text-[11px] text-slate-600 font-mono tabular-nums mt-1">
+                              ထိုးကြေး: <b className="text-slate-900">{formatAmount(biz.turnover, currency)}</b> ({biz.vouchers} စောင်)
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 font-mono tabular-nums">
+                            <span className="text-[10px] text-slate-500 block font-sans">အသားတင်</span>
+                            <span className={`text-xs font-black ${biz.isProfit ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {biz.isProfit ? '+' : '-'}{formatAmount(Math.abs(biz.netProfit), currency)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Summary Stats Overview Cards matching Exact 8-Step Formula */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">

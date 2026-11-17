@@ -181,6 +181,9 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     } else {
       // Auto-load all over-limit numbers of CURRENT round only
       setDraftItems(excessList);
+      if (initialNumber) {
+        setManualNum(initialNumber.padStart(2, '0'));
+      }
     }
   }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed]);
 

@@ -29,7 +29,7 @@ import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { formatAmount, getPermutations } from '../utils/lotteryUtils';
+import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
 import { PeriodSettlementModal } from './PeriodSettlementModal';
@@ -350,6 +350,28 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     };
   }, [statementRecords]);
 
+  // Per-business breakdown (used ONLY when effectiveMode === 'all' from Settings)
+  const perBusinessBreakdown = useMemo(() => {
+    const modes: Array<{ key: '3d' | '2d' | 'football'; label: string; tone: string }> = [
+      { key: '3d', label: 'အိုးစည်လေး (3D)', tone: 'indigo' },
+      { key: '2d', label: 'ဇီးကွက် (2D)', tone: 'teal' },
+      { key: 'football', label: 'ပစ်တိုင်းထောင်', tone: 'emerald' }
+    ];
+    return modes.map((m) => {
+      const subset = statementRecords.filter((r) => r.mode === m.key);
+      const t = computeStatementGrandTotals(subset);
+      return {
+        ...m,
+        recordsCount: subset.length,
+        vouchers: t.totalVouchers,
+        turnover: t.totalTurnover,
+        payout: t.totalPayout,
+        netProfit: t.totalNetProfit,
+        isProfit: t.isProfit
+      };
+    });
+  }, [statementRecords]);
+
   // Human readable period label
   const periodLabel = useMemo(() => {
     return getStatementPeriodLabel(periodPreset);
@@ -537,14 +559,16 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Excel ထုတ်</span>
             </button>
-            <button
-              type="button"
-              onClick={handleClosePeriod2D}
-              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="2D ကာလ (တနင်္လာ–သောကြာ) ပိတ်ရန်"
-            >
-              <span className="hidden sm:inline">2D ကာလပိတ်</span>
-            </button>
+            {effectiveMode === '2d' && (
+              <button
+                type="button"
+                onClick={handleClosePeriod2D}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="2D ကာလ (တနင်္လာ–သောကြာ) ပိတ်ရန်"
+              >
+                <span className="hidden sm:inline">2D ကာလပိတ်</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handlePrint}
@@ -596,9 +620,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       : 'ပစ်တိုင်းထောင် (ဘောလုံး) သီးသန့် ရှင်းတမ်း'}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-500 hidden md:inline font-medium">
-                  ★ လုပ်ငန်း ၃ ခုလုံး ပေါင်းချုပ်ရှင်းတမ်းကို "ဆက်တင် &gt; ရှင်းတမ်း" တွင် ကြည့်နိုင်ပါသည်
-                </span>
               </div>
             ) : (
               /* Mode Filter Tabs when opened in Master All mode */
@@ -820,7 +841,39 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               </div>
             </div>
           </div>
-          
+
+          {/* 3-Business Per-Line Breakdown (Master All mode from Settings only) */}
+          {effectiveMode === 'all' && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {perBusinessBreakdown.map((biz) => {
+                const badgeCls =
+                  biz.tone === 'indigo'
+                    ? 'bg-indigo-100 text-indigo-900 border-indigo-200'
+                    : biz.tone === 'teal'
+                    ? 'bg-teal-100 text-teal-900 border-teal-200'
+                    : 'bg-emerald-100 text-emerald-900 border-emerald-200';
+                return (
+                  <div key={biz.key} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded border ${badgeCls}`}>
+                        {biz.label}
+                      </span>
+                      <div className="text-[11px] text-slate-600 font-mono tabular-nums mt-1">
+                        ထိုးကြေး: <b className="text-slate-900">{formatAmount(biz.turnover, currency)}</b> ({biz.vouchers} စောင်)
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 font-mono tabular-nums">
+                      <span className="text-[10px] text-slate-500 block font-sans">အသားတင်</span>
+                      <span className={`text-xs font-black ${biz.isProfit ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {biz.isProfit ? '+' : '-'}{formatAmount(Math.abs(biz.netProfit), currency)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Comprehensive 8-Step Formula Overview Cards matching Exact Bookie Rules */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             
@@ -1227,7 +1280,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       const is3DRec = selectedRecord.mode === '3d';
                       const winNum = selectedRecord.winningResult ? String(selectedRecord.winningResult).trim() : '';
                       const toddSet = is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0
-                        ? new Set(getPermutations(winNum))
+                        ? new Set(getToddWinningNumbers(winNum))
                         : null;
                       const hasWonItem = v.items
                         ? v.items.some((it: any) => it.isWon || it.number === winNum || (toddSet?.has(String(it.number || '').trim()) ?? false))
@@ -1523,7 +1576,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                         const is3DRec = selectedRecord?.mode === '3d';
                         const itNum = String(it.number || '').trim();
                         const isStraightWin = !!winNum && itNum === winNum;
-                        const isToddWin = !isStraightWin && is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0 && getPermutations(winNum).includes(itNum);
+                        const isToddWin = !isStraightWin && is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0 && getToddWinningNumbers(winNum).includes(itNum);
                         const isWin = it.isWon || isStraightWin || isToddWin;
                         return (
                           <tr key={idx} className={isWin ? (isToddWin ? 'bg-indigo-50/80 font-bold' : 'bg-amber-50/80 font-bold') : ''}>
@@ -1743,6 +1796,7 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
       <PeriodSettlementModal
         isOpen={isPeriodSettlementOpen}
         onClose={() => setIsPeriodSettlementOpen(false)}
+        modeFilter={effectiveMode}
       />
     </div>
   );

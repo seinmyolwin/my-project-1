@@ -1,6 +1,6 @@
 import { createRestorePoint, restoreFromRestorePoint, generateUUID } from './utils/restorePoints';
 import { getDeviceShortCode } from './utils/deviceId';
-import { evaluateWinnings } from './utils/lotteryUtils';
+import { evaluateWinnings, getToddWinningNumbers } from './utils/lotteryUtils';
 import { evaluateTwoDWinnings } from './utils/twoDLotteryUtils';
 import { parseHandicapGoals } from './utils/footballUtils';
 import { runIdMigration } from './utils/idMigration';
@@ -68,6 +68,30 @@ async function runFullTestSuite() {
   assert(eval3D.winningBetsCount === 1, '3D winning evaluation straight count match');
   assert(eval3D.toddWinningBetsCount === 1, '3D winning evaluation todd permutation count match');
   assert(eval3D.totalPayout === 750000, '3D winning payout calculation (1000 * 700 + 500 * 100 = 750000)');
+
+  const todd654 = getToddWinningNumbers('654');
+  const expected654 = ['645', '456', '465', '564', '546', '653', '655'];
+  assert(
+    expected654.every((n) => todd654.includes(n)) && todd654.length === 7 && !todd654.includes('654'),
+    '3D todd for 654 must include permutations + 653 + 655'
+  );
+  const testVouchers654: any[] = [
+    {
+      id: 'v654',
+      roundId: 'r654',
+      items: [
+        { number: '654', amount: 1000, betType: 'straight' },
+        { number: '653', amount: 100, betType: 'straight' },
+        { number: '655', amount: 100, betType: 'straight' },
+        { number: '645', amount: 100, betType: 'straight' }
+      ],
+      subtotal: 1300,
+      netPayable: 1300
+    }
+  ];
+  const eval654 = evaluateWinnings(testVouchers654, '654', 500, 10);
+  assert(eval654.winningBetsCount === 1 && eval654.toddWinningBetsCount === 3, '3D 654 straight + todd (±1 and permutation) counts');
+  assert(eval654.totalPayout === 503000, '3D 654 total payout calculation');
 
   const testVouchers2D: any[] = [
     {

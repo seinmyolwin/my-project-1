@@ -37,6 +37,33 @@ export function getPermutations(numStr: string): string[] {
 }
 
 /**
+ * Calculate all Todd (တွတ် / ပတ်လည်) winning numbers for a 3-digit winning number:
+ * 1. All unique permutations of the winning number (excluding the straight number itself)
+ * 2. The ±1 adjacent numbers modulo 1000 (e.g. for '654': '645', '456', '465', '564', '546', '653', '655')
+ */
+export function getToddWinningNumbers(winningNumber: string): string[] {
+  if (!winningNumber) return [];
+  const cleanDigits = convertMyanmarToEnglishDigits(winningNumber).replace(/\D/g, '');
+  if (cleanDigits.length === 0 || cleanDigits.length > 3) return [];
+  const winNum = cleanDigits.padStart(3, '0');
+
+  const results = new Set<string>();
+  getPermutations(winNum).forEach((p) => {
+    if (p !== winNum) {
+      results.add(p);
+    }
+  });
+
+  const numVal = parseInt(winNum, 10);
+  const prevNum = String((numVal - 1 + 1000) % 1000).padStart(3, '0');
+  const nextNum = String((numVal + 1) % 1000).padStart(3, '0');
+  if (prevNum !== winNum) results.add(prevNum);
+  if (nextNum !== winNum) results.add(nextNum);
+
+  return Array.from(results);
+}
+
+/**
  * Generate popular lottery groups / patterns
  */
 export const LOTTERY_PATTERNS = {
@@ -363,8 +390,8 @@ export function evaluateWinnings(
     return { winners, totalPayout, winningBetsCount, toddWinningBetsCount };
   }
 
-  // All permutations of winning number for Todd/ပတ်လည် evaluation
-  const toddSet = new Set(getPermutations(winNum));
+  // All Todd/ပတ်လည် winning numbers (permutations + ±1 neighbors)
+  const toddSet = new Set(getToddWinningNumbers(winNum));
 
   vouchers.forEach((v) => {
     if (v.status === 'cancelled' || (v as any).deletedAt) return;
@@ -747,7 +774,7 @@ export function calculate3DForwardMasterPayout(
   const winNum = winningNumber.trim().padStart(3, '0');
   if (winNum.length !== 3) return 0;
 
-  const toddSet = new Set(getPermutations(winNum));
+  const toddSet = new Set(getToddWinningNumbers(winNum));
   let totalMasterPayout = 0;
 
   forwardSlips.forEach((f) => {

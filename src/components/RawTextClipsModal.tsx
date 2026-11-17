@@ -22,7 +22,9 @@ import {
   AlertCircle,
   Filter,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon,
+  ZoomIn
 } from 'lucide-react';
 import {
   RawBetClip,
@@ -57,6 +59,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [groupBy, setGroupBy] = useState<'customer' | 'round'>('customer');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Manual Add New Raw Text Form State
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -94,10 +97,10 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     if (customerFilter !== 'all' && c.customerName !== customerFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      const matchText = c.rawText.toLowerCase().includes(q);
-      const matchVoucher = c.voucherNumber.toLowerCase().includes(q);
+      const matchText = (c.rawText || '').toLowerCase().includes(q);
+      const matchVoucher = (c.voucherNumber || '').toLowerCase().includes(q);
       const matchCustomer = (c.customerName || '').toLowerCase().includes(q);
-      const matchRound = c.roundName.toLowerCase().includes(q);
+      const matchRound = (c.roundName || '').toLowerCase().includes(q);
       if (!matchText && !matchVoucher && !matchCustomer && !matchRound) return false;
     }
     return true;
@@ -480,17 +483,40 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
                 {/* Vouchers Grid: Compact, Auto-Height (No huge empty black spaces), Items-Start */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
-                  {section.clips.map((clip, idx) => (
+                  {section.clips.map((clip, idx) => {
+                    const photos = clip.imageUrls && clip.imageUrls.length > 0
+                      ? clip.imageUrls
+                      : (clip.imageDataUrl ? [clip.imageDataUrl] : []);
+                    const hasPhotos = photos.length > 0;
+                    const hasText = Boolean(clip.rawText && clip.rawText.trim());
+                    const sourceBadge = hasPhotos && !hasText
+                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-50 text-purple-700 border-purple-200' }
+                      : clip.source === 'telegram'
+                      ? { label: 'Telegram', cls: 'bg-sky-50 text-sky-700 border-sky-200' }
+                      : clip.source === 'batch_paste' || clip.source === 'direct_paste'
+                      ? { label: 'ကူးယူစာသား', cls: 'bg-amber-50 text-amber-800 border-amber-200' }
+                      : clip.source === 'manual'
+                      ? { label: 'လက်ရိုက်', cls: 'bg-slate-100 text-slate-700 border-slate-200' }
+                      : hasPhotos
+                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-50 text-purple-700 border-purple-200' }
+                      : null;
+
+                    return (
                     <div
                       key={clip.id}
                       className="bg-slate-50 border border-slate-200/90 rounded-xl p-2 space-y-1.5 hover:border-amber-400/90 hover:shadow-xs transition-all"
                     >
                       {/* Top Row: Voucher Badge, Customer/Round, Time, Category */}
                       <div className="flex items-center justify-between text-[11px] gap-1">
-                        <div className="flex items-center gap-1.5 font-bold shrink-0">
-                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-900 border border-amber-300/70 rounded-md text-[10px] font-black font-mono">
+                        <div className="flex items-center gap-1.5 font-bold min-w-0">
+                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-900 border border-amber-300/70 rounded-md text-[10px] font-black font-mono shrink-0">
                             {clip.voucherNumber || `ဘောင်ချာ #${idx + 1}`}
                           </span>
+                          {sourceBadge && (
+                            <span className={`px-1.5 py-0.2 rounded border text-[9px] font-bold shrink-0 ${sourceBadge.cls}`}>
+                              {sourceBadge.label}
+                            </span>
+                          )}
                           {groupBy === 'round' && clip.customerName && (
                             <span className="text-slate-800 font-bold text-[11px] truncate max-w-[100px]">
                               {clip.customerName}
@@ -521,34 +547,74 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                         </div>
                       )}
 
-                      {/* Raw Text Box: SNUG, COMPACT, NATURAL HEIGHT (NO BLACK BLANK) */}
-                      <pre className="bg-slate-900 text-emerald-300 font-mono text-[11px] px-2.5 py-1.5 rounded-lg whitespace-pre-wrap leading-snug select-all border border-slate-800 break-words max-h-40 overflow-y-auto">
-                        {clip.rawText}
-                      </pre>
+                      {/* Photo Slip Display (when scanned/uploaded as image) */}
+                      {hasPhotos && (
+                        <div className={`grid gap-1.5 ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                          {photos.map((photoSrc, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() => setPreviewImage(photoSrc)}
+                              className="group relative rounded-lg overflow-hidden border border-slate-300 bg-slate-900/95 hover:border-amber-500 transition-all cursor-pointer text-left"
+                              title="ဓာတ်ပုံ အကြီးချဲ့ကြည့်ရန် နှိပ်ပါ"
+                            >
+                              <img
+                                src={photoSrc}
+                                alt={`${clip.voucherNumber || 'Slip'} ဓာတ်ပုံ ${pIdx + 1}`}
+                                className="w-full max-h-48 object-contain mx-auto bg-slate-950"
+                              />
+                              <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-slate-900/80 text-white text-[10px] font-bold flex items-center gap-1 opacity-90 group-hover:opacity-100 shadow-xs">
+                                <ZoomIn className="w-3 h-3 text-amber-300" />
+                                <span>အကြီးကြည့်မည်</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                      {/* Footer: Copy Button & Trash */}
+                      {/* Raw Text Box (Exact typed or copied/pasted text; hidden for photo-only clips) */}
+                      {hasText && (
+                        <pre className="bg-slate-900 text-emerald-300 font-mono text-[11px] px-2.5 py-1.5 rounded-lg whitespace-pre-wrap leading-snug select-all border border-slate-800 break-words max-h-40 overflow-y-auto">
+                          {clip.rawText}
+                        </pre>
+                      )}
+
+                      {/* Footer: Copy / View Photo Button & Trash */}
                       <div className="flex items-center justify-between pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(clip)}
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                            copiedId === clip.id
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs'
-                          }`}
-                        >
-                          {copiedId === clip.id ? (
-                            <>
-                              <Check className="w-3 h-3 text-white" />
-                              <span>ကူးယူပြီး</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3 text-slate-500" />
-                              <span>စာသားကူးမည်</span>
-                            </>
-                          )}
-                        </button>
+                        {hasText ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(clip)}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              copiedId === clip.id
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs'
+                            }`}
+                          >
+                            {copiedId === clip.id ? (
+                              <>
+                                <Check className="w-3 h-3 text-white" />
+                                <span>ကူးယူပြီး</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 text-slate-500" />
+                                <span>စာသားကူးမည်</span>
+                              </>
+                            )}
+                          </button>
+                        ) : hasPhotos ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage(photos[0])}
+                            className="px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs"
+                          >
+                            <ImageIcon className="w-3 h-3 text-amber-600" />
+                            <span>ဓာတ်ပုံကြည့်မည်</span>
+                          </button>
+                        ) : (
+                          <span />
+                        )}
 
                         <div className="flex items-center gap-1">
                           {clip.totalAmountPreview !== undefined && clip.totalAmountPreview > 0 && (
@@ -567,12 +633,40 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {/* Lightbox Preview for Archived Photo Slips */}
+        {previewImage && (
+          <div
+            onClick={() => setPreviewImage(null)}
+            className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-2"
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="self-end p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 shadow-lg cursor-pointer"
+                title="ပိတ်မည်"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <img
+                src={previewImage}
+                alt="မူရင်း ဓာတ်ပုံမှတ်တမ်း"
+                className="max-w-full max-h-[82vh] object-contain rounded-xl border border-slate-700 shadow-2xl bg-black"
+              />
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

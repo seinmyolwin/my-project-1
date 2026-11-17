@@ -171,6 +171,9 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
       setDraftItems([initItem]);
     } else {
       setDraftItems(excessList);
+      if (initialNumber) {
+        setManualNum(initialNumber.padStart(3, '0'));
+      }
     }
   }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed]);
 

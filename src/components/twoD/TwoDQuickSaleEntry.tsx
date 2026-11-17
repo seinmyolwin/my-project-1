@@ -58,9 +58,15 @@ import {
   getTwoDKhwayRumble,
   getTwoDKhwayPuuRumble
 } from '../../utils/twoDLotteryUtils';
-import { saveRawClip } from '../../utils/rawClipsUtils';
+import {
+  saveRawClip,
+  StagedRawSource,
+  pruneStagedRawSources,
+  retainStagedRawSources,
+  buildClipPayloadFromStagedSources
+} from '../../utils/rawClipsUtils';
 import { OverLimitConfirmModal } from '../OverLimitConfirmModal';
-import { ImageSlipScannerModal } from '../ImageSlipScannerModal';
+import { ImageSlipScannerModal, ScannerArchiveMeta } from '../ImageSlipScannerModal';
 import {
   playTapSound,
   playAddSound,
@@ -122,6 +128,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
   // Cart / Pending Bet Items
   const [items, setItems] = useState<TwoDBetItem[]>([]);
+  const [stagedRawSources, setStagedRawSources] = useState<StagedRawSource[]>([]);
   // Tracking unconfirmed/active draft items (Yellow) vs confirmed staged items (Green)
   const [latestDraftIds, setLatestDraftIds] = useState<string[]>([]);
 
@@ -220,7 +227,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   // Photo Slip Scanner Modal state
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
 
-  const handleAddFromScanner = (scannedItems: BetItem[], scannedCustomerName: string, scannedPhone: string) => {
+  const handleAddFromScanner = (
+    scannedItems: BetItem[],
+    scannedCustomerName: string,
+    scannedPhone: string,
+    archiveMeta?: ScannerArchiveMeta
+  ) => {
     if (scannedCustomerName && !customerName) {
       setCustomerName(scannedCustomerName);
     }
@@ -228,16 +240,38 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       setCustomerPhone(scannedPhone);
     }
 
-    const newTwoDItems: TwoDBetItem[] = scannedItems.map((it, idx) => ({
-      id: `twoD-scan-${Date.now()}-${idx}`,
+    const newTwoDItems: TwoDBetItem[] = scannedItems.map((it) => ({
+      id: `twoD-scan-${generateUUID()}`,
       number: it.number.slice(0, 2),
       amount: it.amount,
       isRumble: it.isRumble,
       originalInput: it.originalInput || it.number
     }));
 
+    const addedIds = newTwoDItems.map(i => i.id);
     setItems(prev => [...prev, ...newTwoDItems]);
-    setLatestDraftIds(newTwoDItems.map(i => i.id));
+    setLatestDraftIds(addedIds);
+    if (archiveMeta?.imageDataUrl) {
+      setStagedRawSources(prev => [
+        ...prev,
+        {
+          id: `src-${generateUUID()}`,
+          source: 'ocr',
+          imageDataUrl: archiveMeta.imageDataUrl,
+          itemIds: addedIds
+        }
+      ]);
+    } else if (archiveMeta?.rawText) {
+      setStagedRawSources(prev => [
+        ...prev,
+        {
+          id: `src-${generateUUID()}`,
+          source: 'direct_paste',
+          rawText: archiveMeta.rawText,
+          itemIds: addedIds
+        }
+      ]);
+    }
     showToast(isMyanmar ? `ဓါတ်ပုံမှ ဂဏန်း ${newTwoDItems.length} လုံး အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ` : `Added ${newTwoDItems.length} items from photo`, 'success');
   };
 
@@ -427,8 +461,19 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       }
       if (newItems.length > 0) {
         playAddSound();
+        const newIds = newItems.map(i => i.id);
+        const khwayTypedLine = khwayInlineAmt ? rawInput : `${rawInput}=${targetAmt}`;
         setItems((prev) => [...prev, ...newItems]);
-        setLatestDraftIds(newItems.map(i => i.id));
+        setLatestDraftIds(newIds);
+        setStagedRawSources(prev => [
+          ...prev,
+          {
+            id: `src-${generateUUID()}`,
+            source: 'manual',
+            rawText: khwayTypedLine,
+            itemIds: newIds
+          }
+        ]);
         setNumberInput('');
         if (!isFocusMode) {
           setAmountInput('');
@@ -523,8 +568,22 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
         if (newItems.length > 0) {
           playAddSound();
+          const newIds = newItems.map(i => i.id);
+          const hasAmountInsideInput = /\d{2,}$/.test(rawInput) && !/\b\d{2}$/.test(rawInput.trim());
+          const patternTypedLine = (hasAmountInsideInput || !amountInput.trim())
+            ? rawInput
+            : `${rawInput}=${defAmt}`;
           setItems((prev) => [...prev, ...newItems]);
-          setLatestDraftIds(newItems.map(i => i.id));
+          setLatestDraftIds(newIds);
+          setStagedRawSources(prev => [
+            ...prev,
+            {
+              id: `src-${generateUUID()}`,
+              source: 'manual',
+              rawText: patternTypedLine,
+              itemIds: newIds
+            }
+          ]);
           setNumberInput('');
           if (!isFocusMode) {
             setAmountInput('');
@@ -564,6 +623,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     let amt = parseFloat(convertMyanmarToEnglishDigits(amountInput).trim());
+    let usedInlineAmount = false;
 
     // Check if amount is specified inline (e.g. "22,33,22,44, 500" or "၁၃,၂၄,၃၆,၄၆,၂၇,၈၄, ၁၀၀၀")
     if (isNaN(amt) || amt <= 0) {
@@ -573,6 +633,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         if (!isNaN(parsedLast) && parsedLast > 0) {
           amt = parsedLast;
           rawTokens.pop();
+          usedInlineAmount = true;
         }
       }
     } else {
@@ -584,6 +645,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
           if (!isNaN(parsedLast) && parsedLast > 0) {
             amt = parsedLast;
             rawTokens.pop();
+            usedInlineAmount = true;
           }
         }
       }
@@ -653,8 +715,22 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
     if (newItems.length > 0) {
       playAddSound();
+      const newIds = newItems.map(i => i.id);
+      const rSuffix = isRumble && !hasRInInput && !hasStraightKeyword ? ' R' : '';
+      const manualTypedLine = usedInlineAmount
+        ? `${rawInput}${rSuffix}`
+        : `${rawInput}${rSuffix}=${amt}`;
       setItems(prev => [...prev, ...newItems]);
-      setLatestDraftIds(newItems.map(i => i.id));
+      setLatestDraftIds(newIds);
+      setStagedRawSources(prev => [
+        ...prev,
+        {
+          id: `src-${generateUUID()}`,
+          source: 'manual',
+          rawText: manualTypedLine,
+          itemIds: newIds
+        }
+      ]);
       
       const displayNum = targetNumbers.length === 1 ? targetNumbers[0] : `${targetNumbers[0]} (${targetNumbers.length} ကွက်)`;
       const typeName = effectiveRumble ? (isMyanmar ? 'အာ' : 'R') : (isMyanmar ? 'ဒဲ့' : 'Direct');
@@ -769,9 +845,11 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       const removedIds = new Set(items.filter(i => i.groupId === gId).map(i => i.id));
       setItems(prev => prev.filter(i => i.groupId !== gId));
       setLatestDraftIds(prev => prev.filter(id => !removedIds.has(id)));
+      setStagedRawSources(prev => pruneStagedRawSources(prev, removedIds));
     } else {
       setItems(prev => prev.filter(i => i.id !== item.id));
       setLatestDraftIds(prev => prev.filter(id => id !== item.id));
+      setStagedRawSources(prev => pruneStagedRawSources(prev, new Set([item.id])));
     }
 
     numberInputRef.current?.focus();
@@ -790,6 +868,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     setItems(preservedItems);
+    setStagedRawSources(prev => retainStagedRawSources(prev, new Set(preservedItems.map(i => i.id))));
     setLatestDraftIds([]);
     setNumberInput(item.originalNumber || item.number);
     setAmountInput(String(item.originalAmount || item.amount));
@@ -812,9 +891,11 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       const removedIds = new Set(items.filter(i => i.groupId === gId).map(i => i.id));
       setItems(prev => prev.filter(item => item.groupId !== gId));
       setLatestDraftIds(prev => prev.filter(item => !removedIds.has(item)));
+      setStagedRawSources(prev => pruneStagedRawSources(prev, removedIds));
     } else {
       setItems(prev => prev.filter(item => item.id !== id));
       setLatestDraftIds(prev => prev.filter(item => item !== id));
+      setStagedRawSources(prev => pruneStagedRawSources(prev, new Set([id])));
     }
   };
 
@@ -1147,6 +1228,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       return;
     }
 
+    const originalBatchText = batchText.trim();
     const defAmt = parseFloat(batchDefaultAmount) || 1000;
     const result = parseTwoDBatchInput(batchText, defAmt);
     const parsed = Array.isArray(result) ? result : (result as any).items;
@@ -1176,9 +1258,21 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       return;
     }
 
+    const addedIds = allowed.map((i: TwoDBetItem) => i.id);
     playAddSound();
     setItems(prev => [...prev, ...allowed]);
-    setLatestDraftIds(allowed.map(i => i.id));
+    setLatestDraftIds(addedIds);
+    if (originalBatchText) {
+      setStagedRawSources(prev => [
+        ...prev,
+        {
+          id: `src-${generateUUID()}`,
+          source: 'batch_paste',
+          rawText: originalBatchText,
+          itemIds: addedIds
+        }
+      ]);
+    }
     setBatchText('');
     setIsBatchOpen(false);
     showToast(isMyanmar ? `အကွက်ပေါင်း (${allowed.length}) ကွက် အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ` : `Added ${allowed.length} items`, 'success');
@@ -1294,7 +1388,11 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       status: 'active'
     });
 
-    const rawTextFrom2DItems = finalItems.map(i => `${i.number}=${i.amount}${i.isRumble ? 'R' : ''}`).join('\n');
+    const clipPayload = buildClipPayloadFromStagedSources(
+      stagedRawSources,
+      new Set(finalItems.map(i => i.id)),
+      finalItems
+    );
     saveRawClip({
       category: '2d',
       roundId: activeRound.id,
@@ -1304,10 +1402,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       voucherNumber: voucher.voucherNo || `ဘောင်ချာ (2D)`,
       customerName: voucher.customerName || customerName.trim() || 'အထွေထွေ',
       customerPhone: voucher.customerPhone || customerPhone || undefined,
-      rawText: rawTextFrom2DItems,
+      rawText: clipPayload.rawText,
+      imageDataUrl: clipPayload.imageDataUrl,
+      imageUrls: clipPayload.imageUrls,
       itemCount: finalItems.length,
       totalAmountPreview: sub,
-      source: 'direct_paste'
+      source: clipPayload.source
     });
 
     const isDup = (voucher as any)?.isDuplicate;
@@ -1346,6 +1446,8 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
     // Reset Form
     setItems([]);
+    setStagedRawSources([]);
+    setLatestDraftIds([]);
     setCustomerName('');
     setCustomerPhone('');
     setNotes('');
@@ -1587,6 +1689,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   onClick={() => {
                     playDeleteSound();
                     setItems([]);
+                    setStagedRawSources([]);
                     setLatestDraftIds([]);
                     showToast(isMyanmar ? 'ဂဏန်းအားလုံးကို ဖျက်လိုက်ပါပြီ' : 'Cleared all items', 'warning');
                   }}
@@ -2493,6 +2596,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                   onClick={() => {
                     playDeleteSound();
                     setItems([]);
+                    setStagedRawSources([]);
                     setLatestDraftIds([]);
                     showToast(isMyanmar ? 'စာရင်းသွင်းထားသော ဂဏန်းအားလုံးကို ဖျက်လိုက်ပါပြီ' : 'Cleared all staged items', 'warning');
                   }}
@@ -2646,6 +2750,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                         onClick={() => {
                           playDeleteSound();
                           setItems([]);
+                          setStagedRawSources([]);
                           setLatestDraftIds([]);
                           showToast(isMyanmar ? 'စာရင်းသွင်းထားသော ဂဏန်းအားလုံးကို ဖျက်လိုက်ပါပြီ' : 'Cleared all items', 'warning');
                         }}

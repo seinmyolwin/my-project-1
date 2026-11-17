@@ -19,9 +19,135 @@ export interface RawBetClip {
   customerName: string;
   customerPhone?: string;
   rawText: string;
+  imageDataUrl?: string;
+  imageUrls?: string[];
   itemCount: number;
   totalAmountPreview?: number;
-  source?: 'batch_paste' | 'direct_paste' | 'telegram' | 'ocr';
+  source?: 'manual' | 'batch_paste' | 'direct_paste' | 'telegram' | 'ocr';
+}
+
+export interface StagedRawSource {
+  id: string;
+  source: 'manual' | 'batch_paste' | 'direct_paste' | 'ocr';
+  rawText?: string;
+  imageDataUrl?: string;
+  itemIds: string[];
+}
+
+export function pruneStagedRawSources(
+  sources: StagedRawSource[],
+  removedIds: Set<string>
+): StagedRawSource[] {
+  if (removedIds.size === 0) return sources;
+  return sources
+    .map(src => ({
+      ...src,
+      itemIds: src.itemIds.filter(id => !removedIds.has(id))
+    }))
+    .filter(src => src.itemIds.length > 0);
+}
+
+export function retainStagedRawSources(
+  sources: StagedRawSource[],
+  keptIds: Set<string>
+): StagedRawSource[] {
+  if (keptIds.size === 0) return [];
+  return sources
+    .map(src => ({
+      ...src,
+      itemIds: src.itemIds.filter(id => keptIds.has(id))
+    }))
+    .filter(src => src.itemIds.length > 0);
+}
+
+export function buildClipPayloadFromStagedSources(
+  sources: StagedRawSource[],
+  savedItemIds: Set<string>,
+  fallbackItems?: Array<{ number: string; amount: number; isRumble?: boolean; originalInput?: string }>
+): {
+  rawText: string;
+  imageDataUrl?: string;
+  imageUrls?: string[];
+  source: RawBetClip['source'];
+} {
+  const relevant = sources.filter(src => src.itemIds.some(id => savedItemIds.has(id)));
+  const texts = relevant.map(src => (src.rawText || '').trim()).filter(Boolean);
+  const photos = relevant
+    .map(src => (src.imageDataUrl || '').trim())
+    .filter(Boolean);
+
+  if (relevant.length > 0) {
+    let source: RawBetClip['source'] = 'manual';
+    if (photos.length > 0) {
+      source = 'ocr';
+    } else if (relevant.some(s => s.source === 'direct_paste')) {
+      source = 'direct_paste';
+    } else if (relevant.some(s => s.source === 'batch_paste')) {
+      source = 'batch_paste';
+    }
+
+    return {
+      rawText: texts.join('\n'),
+      imageDataUrl: photos[0] || undefined,
+      imageUrls: photos.length > 0 ? photos : undefined,
+      source
+    };
+  }
+
+  const fallbackText = (fallbackItems || [])
+    .map(it => it.originalInput?.trim() || `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`)
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    rawText: fallbackText,
+    source: 'manual'
+  };
+}
+
+export async function compressImageForArchive(
+  imageSrc: string,
+  maxDimension = 1000,
+  quality = 0.68
+): Promise<string> {
+  if (!imageSrc || typeof document === 'undefined' || typeof Image === 'undefined') {
+    return imageSrc;
+  }
+  if (!imageSrc.startsWith('data:image') && !imageSrc.startsWith('blob:')) {
+    return imageSrc;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        if (!width || !height) {
+          resolve(imageSrc);
+          return;
+        }
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.max(1, Math.round(width * ratio));
+          height = Math.max(1, Math.round(height * ratio));
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(imageSrc);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch {
+        resolve(imageSrc);
+      }
+    };
+    img.onerror = () => resolve(imageSrc);
+    img.src = imageSrc;
+  });
 }
 
 const STORAGE_KEY = 'shwe_mingalar_copied_raw_texts';
@@ -75,12 +201,33 @@ export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): Raw
     timestamp: Date.now()
   };
 
-  const updated = [newClip, ...clips];
+  let updated = [newClip, ...clips];
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated', { detail: { newClip } }));
   } catch (err) {
-    console.error('Failed to save raw clip:', err);
+    console.error('Failed to save raw clip (retrying after trimming oldest archived photos):', err);
+    try {
+      // Drop image payloads from oldest historical clips first to fit localStorage quota
+      for (let i = updated.length - 1; i >= 1; i--) {
+        if (updated[i].imageDataUrl || updated[i].imageUrls) {
+          const { imageDataUrl, imageUrls, ...withoutImg } = updated[i];
+          updated[i] = {
+            ...withoutImg,
+            rawText: withoutImg.rawText || '[ဓာတ်ပုံမှတ်တမ်း - Storage ပြည့်သဖြင့် ရှင်းထားပါသည်]'
+          };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated', { detail: { newClip } }));
+            return newClip;
+          } catch {
+            // continue trimming older photos
+          }
+        }
+      }
+    } catch (retryErr) {
+      console.error('Failed to save raw clip even after pruning:', retryErr);
+    }
   }
   return newClip;
 }

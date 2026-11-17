@@ -13,7 +13,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
-import { evaluateWinnings, formatAmount, getPermutations, convertMyanmarToEnglishDigits, parseExcelToRoundData3D } from '../utils/lotteryUtils';
+import { evaluateWinnings, formatAmount, getToddWinningNumbers, convertMyanmarToEnglishDigits, parseExcelToRoundData3D } from '../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { getLocalDateString } from '../utils/moneyUtils';
 import {
@@ -249,10 +249,10 @@ ${settings.shopName} (${settings.shopPhone})`;
     updateVoucher(voucherId, { isPaid: !currentPaid });
   };
 
-  // Permutations of current winning number for Todd
+  // All Todd numbers of current winning number (permutations + ±1 neighbors)
   const toddPerms = useMemo(() => {
     if (!winningInput || winningInput.length !== 3) return [];
-    return getPermutations(winningInput).filter(p => p !== winningInput);
+    return getToddWinningNumbers(winningInput);
   }, [winningInput]);
 
   // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round & Settings rates)

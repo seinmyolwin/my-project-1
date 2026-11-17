@@ -28,7 +28,7 @@ import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { formatAmount, getPermutations } from '../utils/lotteryUtils';
+import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { parseHandicapGoals } from '../utils/footballUtils';
 import { BookieMode } from '../types';
 import { getLocalDateString } from '../utils/moneyUtils';
@@ -117,7 +117,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
   // Export 3D to Excel
   const export3DResults = () => {
     const rows = settled3DRounds.map((r) => {
-      const perms = r.winningNumber ? getPermutations(r.winningNumber).filter((p) => p !== r.winningNumber).join(', ') : '-';
+      const perms = r.winningNumber ? getToddWinningNumbers(r.winningNumber).join(', ') : '-';
       return {
         'ရက်စွဲ (Date)': r.drawDate,
         'ပွဲစဉ်အမည် (Round Name)': r.name,
@@ -567,7 +567,7 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filtered3DRounds.map((round) => {
                       const perms = round.winningNumber
-                        ? getPermutations(round.winningNumber).filter((p) => p !== round.winningNumber)
+                        ? getToddWinningNumbers(round.winningNumber)
                         : [];
 
                       const isActive = round.id === lottery3D.activeRoundId;

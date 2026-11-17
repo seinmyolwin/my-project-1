@@ -607,10 +607,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       }
     }
 
-    // Save exact original bet text to Raw Text Archive upon voucher confirmation
-    const rawTextToArchive = (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
+    // Save exact original customer input (photo or original text) to Raw Text Archive upon voucher confirmation
+    const hasPhoto = Boolean(order.photoUrl && order.photoUrl.trim());
+    const rawTextToArchive = hasPhoto
+      ? ''
+      : (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
       ? order.rawText.trim()
-      : validItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+      : '';
 
     saveRawClip({
       category: effectiveCategory,
@@ -622,9 +625,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       customerName: finalCustomerName,
       customerPhone: order.senderPhone || undefined,
       rawText: rawTextToArchive,
+      imageDataUrl: hasPhoto ? order.photoUrl : undefined,
       itemCount: validItems.length,
       totalAmountPreview: subtotal,
-      source: 'telegram'
+      source: hasPhoto ? 'ocr' : 'telegram'
     });
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const } : o);
@@ -775,6 +779,28 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.drawImage(img, 0, 0);
+
+      // Persist a compact JPEG dataUrl so the archived photo survives page reloads
+      try {
+        const maxDim = 1000;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          const ratio = Math.min(maxDim / w, maxDim / h);
+          w = Math.max(1, Math.round(w * ratio));
+          h = Math.max(1, Math.round(h * ratio));
+        }
+        const archiveCanvas = document.createElement('canvas');
+        archiveCanvas.width = w;
+        archiveCanvas.height = h;
+        const aCtx = archiveCanvas.getContext('2d');
+        if (aCtx) {
+          aCtx.drawImage(img, 0, 0, w, h);
+          setNewPhotoPreview(archiveCanvas.toDataURL('image/jpeg', 0.68));
+        }
+      } catch {
+        // fallback to previewUrl
+      }
 
       const processedCanvas = preprocessCanvas(canvas, {
         contrast: 40,
@@ -1044,10 +1070,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       playSuccessSound();
     }
 
-    // Save exact original bet text to Raw Text Archive upon voucher approval
-    const rawTextToArchive = (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
+    // Save exact original customer input (photo or original text) to Raw Text Archive upon voucher approval
+    const hasPhoto = Boolean(order.photoUrl && order.photoUrl.trim());
+    const rawTextToArchive = hasPhoto
+      ? ''
+      : (order.rawText && order.rawText.trim() && order.rawText !== '[Photo Slip]')
       ? order.rawText.trim()
-      : effectiveParsedItems.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+      : '';
 
     const approvedTotal = subtotal || effectiveTotal || order.totalAmount;
 
@@ -1061,9 +1090,10 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       customerName: finalCustomerName,
       customerPhone: order.senderPhone || undefined,
       rawText: rawTextToArchive,
+      imageDataUrl: hasPhoto ? order.photoUrl : undefined,
       itemCount: effectiveParsedItems.length,
       totalAmountPreview: approvedTotal,
-      source: 'telegram'
+      source: hasPhoto ? 'ocr' : 'telegram'
     });
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'approved' as const, parsedItems: effectiveParsedItems, totalAmount: approvedTotal } : o);

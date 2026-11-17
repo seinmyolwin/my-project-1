@@ -24,7 +24,7 @@ import {
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
 import { cleanMasterAgentName } from '../utils/storage';
-import { formatAmount, getPermutations } from '../utils/lotteryUtils';
+import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 
 interface VouchersViewProps {
   onOpenPrintVoucher: (voucher: Voucher) => void;
@@ -476,7 +476,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
               displayVouchers.map((v) => {
                 const winNum = activeRound?.winningNumber?.trim().padStart(3, '0') || '';
                 const toddSet = winNum.length === 3 && (settings.defaultToddMultiplier ?? 0) > 0
-                  ? new Set(getPermutations(winNum))
+                  ? new Set(getToddWinningNumbers(winNum))
                   : null;
                 const isWinningVoucher =
                   !!winNum && v.items.some((i) => i.number === winNum || (toddSet?.has(i.number) ?? false));
@@ -724,7 +724,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     {selectedForwardSlip.items.map((item, idx) => {
                       const winNum = activeRound?.winningNumber?.trim().padStart(3, '0') || '';
                       const isStraightHit = !!winNum && winNum === item.number;
-                      const isToddHit = !isStraightHit && !!winNum && (settings.defaultToddMultiplier ?? 0) > 0 && getPermutations(winNum).includes(item.number);
+                      const isToddHit = !isStraightHit && !!winNum && (settings.defaultToddMultiplier ?? 0) > 0 && getToddWinningNumbers(winNum).includes(item.number);
                       const isHit = isStraightHit || isToddHit;
                       return (
                         <div

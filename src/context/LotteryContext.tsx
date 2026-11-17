@@ -24,7 +24,7 @@ import {
   saveStoredData,
   saveMultipleAtomic
 } from '../utils/storage';
-import { evaluateWinnings, exportLotteryDataToExcel, calculate3DForwardMasterPayout, getPermutations } from '../utils/lotteryUtils';
+import { evaluateWinnings, exportLotteryDataToExcel, calculate3DForwardMasterPayout, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { getLocalDateString, safeRound, calculatePayout } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
@@ -795,7 +795,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const formattedNum = winningNum.padStart(3, '0');
 
     const evalResult = evaluateWinnings(activeRoundVouchers, formattedNum, mult, toddMult);
-    const toddSet = new Set(getPermutations(formattedNum));
+    const toddSet = new Set(getToddWinningNumbers(formattedNum));
 
     setVouchers(prev =>
       prev.map(v => {

@@ -4,16 +4,15 @@ import {
   AlertTriangle,
   Send,
   Sliders,
-  Filter,
   Search,
   CheckCircle2,
-  FileSpreadsheet,
-  Layers,
+  Download,
   ArrowUpRight,
-  Sparkles,
-  Ban,
-  ShieldCheck,
-  Percent,
+  Lock,
+  Unlock,
+  LayoutGrid,
+  List,
+  Info,
   Star
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
@@ -34,7 +33,6 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
     settings,
     activeRound,
     aggregates,
-    roundSummary,
     toggleBlockNumber,
     exportToExcel
   } = useTwoDLottery();
@@ -44,6 +42,8 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'hot' | 'danger' | 'warning' | 'blocked' | 'empty'>('all');
   const [selectedDigitFilter, setSelectedDigitFilter] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'num_asc' | 'sold_desc' | 'risk_desc' | 'payout_desc'>('num_asc');
+  const [viewLayout, setViewLayout] = useState<'grid' | 'table'>('grid');
 
   // Excess over-limit numbers count for batch master forwarding
   const excessCount = useMemo(() => {
@@ -52,213 +52,278 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
     ).length;
   }, [aggregates]);
 
+  // Max sold for identifying highest bet cell
+  const maxSold = useMemo(() => {
+    const vals = (Object.values(aggregates) as TwoDNumberAggregate[]).map((a) => a.totalSold);
+    return Math.max(...vals, 0);
+  }, [aggregates]);
+
   // Category counts
   const counts = useMemo(() => {
     const list = Object.values(aggregates) as TwoDNumberAggregate[];
     return {
       all: list.length,
-      hot: list.filter(item => item.totalSold > 0).length,
-      danger: list.filter(item => (item.riskLevel === 'danger' || (item.limit > 0 && item.totalSold >= item.limit)) && !item.isBlocked).length,
-      warning: list.filter(item => item.riskLevel === 'warning').length,
-      blocked: list.filter(item => item.isBlocked).length,
-      empty: list.filter(item => item.totalSold === 0).length,
+      hot: list.filter((item) => item.totalSold > 0).length,
+      danger: list.filter((item) => (item.riskLevel === 'danger' || (item.limit > 0 && item.totalSold >= item.limit)) && !item.isBlocked).length,
+      warning: list.filter((item) => item.riskLevel === 'warning' && !item.isBlocked).length,
+      blocked: list.filter((item) => item.isBlocked).length,
+      empty: list.filter((item) => item.totalSold === 0).length
     };
   }, [aggregates]);
 
-  // Filtered 00-99 numbers
+  // Filtered & sorted 00-99 numbers
   const filteredNumbers = useMemo(() => {
     let list = Object.values(aggregates) as TwoDNumberAggregate[];
 
-    if (searchTerm.trim()) {
-      list = list.filter(item => item.number.includes(searchTerm.trim()));
-    }
-
     if (filterType === 'danger') {
-      list = list.filter(item => (item.riskLevel === 'danger' || (item.limit > 0 && item.totalSold >= item.limit)) && !item.isBlocked);
+      list = list.filter((item) => (item.riskLevel === 'danger' || (item.limit > 0 && item.totalSold >= item.limit)) && !item.isBlocked);
     } else if (filterType === 'warning') {
-      list = list.filter(item => item.riskLevel === 'warning');
+      list = list.filter((item) => item.riskLevel === 'warning' && !item.isBlocked);
     } else if (filterType === 'blocked') {
-      list = list.filter(item => item.isBlocked);
+      list = list.filter((item) => item.isBlocked);
     } else if (filterType === 'hot') {
-      list = list.filter(item => item.totalSold > 0).sort((a, b) => b.totalSold - a.totalSold);
+      list = list.filter((item) => item.totalSold > 0);
     } else if (filterType === 'empty') {
-      list = list.filter(item => item.totalSold === 0);
+      list = list.filter((item) => item.totalSold === 0);
     }
 
     if (selectedDigitFilter !== null) {
-      list = list.filter(item => item.number.startsWith(selectedDigitFilter));
+      list = list.filter((item) => item.number.startsWith(selectedDigitFilter));
     }
 
-    return list.sort((a, b) => a.number.localeCompare(b.number));
-  }, [aggregates, searchTerm, filterType, selectedDigitFilter]);
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim();
+      list = list.filter((item) => item.number.includes(q));
+    }
 
-  // Max sold for proportional heat map and highest bet highlighting
-  const maxSold = useMemo(() => {
-    const vals = (Object.values(aggregates) as TwoDNumberAggregate[]).map(a => a.totalSold);
-    return Math.max(...vals, 0);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'sold_desc') return b.totalSold - a.totalSold || a.number.localeCompare(b.number);
+      if (sortBy === 'payout_desc') return b.estimatedPayout - a.estimatedPayout || a.number.localeCompare(b.number);
+      if (sortBy === 'risk_desc') {
+        const riskScore = { danger: 3, warning: 2, safe: 1 };
+        return (riskScore[b.riskLevel] || 0) - (riskScore[a.riskLevel] || 0) || b.totalSold - a.totalSold;
+      }
+      return a.number.localeCompare(b.number);
+    });
+  }, [aggregates, searchTerm, filterType, selectedDigitFilter, sortBy]);
+
+  // Summary totals matching 3D header metrics
+  const currentSoldSum = useMemo(() => {
+    return (Object.values(aggregates) as TwoDNumberAggregate[]).reduce((acc, a) => acc + a.totalSold, 0);
   }, [aggregates]);
 
+  const currentFwdSum = useMemo(() => {
+    return (Object.values(aggregates) as TwoDNumberAggregate[]).reduce((acc, a) => acc + (a.forwardedAmount || 0), 0);
+  }, [aggregates]);
+
+  const currentRetainedSum = useMemo(() => {
+    return (Object.values(aggregates) as TwoDNumberAggregate[]).reduce((acc, a) => acc + a.retainedAmount, 0);
+  }, [aggregates]);
+
+  const getSuggestedForwardAmount = (item: TwoDNumberAggregate) => {
+    const netSold = Math.max(0, item.totalSold - (item.forwardedAmount || 0));
+    if (item.limit > 0 && netSold > item.limit) {
+      return netSold - item.limit;
+    }
+    return netSold;
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
-      {/* Top Smart Safe Cap & Financial Advisory Section (Replaces previous stat cards) */}
+    <div className="max-w-7xl mx-auto p-2.5 sm:p-4 space-y-3">
+      {/* Top Smart Safe Cap & Financial Advisory */}
       <TwoDSmartCapAdvisory onOpenLimitsManager={onOpenLimitsManager} />
 
-      {/* Control Bar: Filters, Search, Excel Export */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filterType === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-            }`}
-          >
-            <span>{isMyanmar ? 'အားလုံး' : 'All'}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'all' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              {counts.all}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType('hot')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filterType === 'hot'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-            }`}
-          >
-            <span>{isMyanmar ? 'အရောင်းများ' : 'Hot'}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'hot' ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'}`}>
-              {counts.hot}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType('danger')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filterType === 'danger'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
-            }`}
-          >
-            <span>{isMyanmar ? 'ဘရိတ်ပြည့်' : 'Full Limit'}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'danger' ? 'bg-rose-700 text-white' : 'bg-rose-200 text-rose-900'}`}>
-              {counts.danger}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType('warning')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filterType === 'warning'
-                ? 'bg-amber-500 text-white shadow-xs'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-            }`}
-          >
-            <span>{isMyanmar ? 'သတိပေး' : 'Warning'}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'warning' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
-              {counts.warning}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType('blocked')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filterType === 'blocked'
-                ? 'bg-purple-700 text-white shadow-xs'
-                : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200'
-            }`}
-          >
-            <span>{isMyanmar ? 'ဒိုင်' : 'Blocked'}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'blocked' ? 'bg-purple-800 text-white' : 'bg-purple-200 text-purple-900'}`}>
-              {counts.blocked}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterType('empty')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              filterType === 'empty'
-                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300'
-                : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
-            }`}
-          >
-            <span>{isMyanmar ? 'အလွတ်' : 'Empty'}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filterType === 'empty' ? 'bg-blue-700 text-white' : 'bg-blue-200 text-blue-800'}`}>
-              {counts.empty}
-            </span>
-          </button>
-        </div>
-
-        {/* Search & Actions */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-48">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder={isMyanmar ? 'ဂဏန်းရှာပါ (ဥပမာ- 24)' : 'Search number...'}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 text-xs font-mono rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-1 focus:ring-teal-200 bg-slate-50"
-            />
+      {/* Top Controls & Metrics Bar (Matching 3D Live Ledger) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>{isMyanmar ? 'ဇီးကွက် (2D) စာရင်းချုပ် (၀၀-၉၉)' : '2D Live Ledger (00-99)'}</span>
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              {isMyanmar
+                ? 'ဂဏန်းတစ်ခုချင်း လော့ချ/ဖွင့်၊ ဘရိတ်သတ်မှတ် နှင့် အထက်တင် လုပ်ဆောင်နိုင်သည်'
+                : 'Per-number lock, limit cap, and master forwarding'}
+            </p>
           </div>
 
-          {onOpenForwardModal && (
+          {/* Compact Metrics */}
+          <div className="grid grid-cols-3 gap-2 text-xs font-mono tabular-nums">
+            <div className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl">
+              <span className="text-slate-500 block text-[10px] font-sans font-semibold whitespace-nowrap">
+                {isMyanmar ? 'စုစုပေါင်းရောင်း' : 'Total Gross'}
+              </span>
+              <span className="font-black text-slate-900 text-xs sm:text-sm">
+                {formatAmount(currentSoldSum, settings.currency)}
+              </span>
+            </div>
+
+            <div className="bg-indigo-50/70 border border-indigo-200 px-2.5 py-1.5 rounded-xl">
+              <span className="text-indigo-700 block text-[10px] font-sans font-semibold whitespace-nowrap">
+                {isMyanmar ? 'အထက်တင်ပြီး' : 'Forwarded'}
+              </span>
+              <span className="font-black text-indigo-900 text-xs sm:text-sm">
+                {formatAmount(currentFwdSum, settings.currency)}
+              </span>
+            </div>
+
+            <div className="bg-teal-50/70 border border-teal-200 px-2.5 py-1.5 rounded-xl">
+              <span className="text-teal-700 block text-[10px] font-sans font-semibold whitespace-nowrap">
+                {isMyanmar ? 'ကိုယ်ပိုင်လက်ကျန်' : 'Retained'}
+              </span>
+              <span className="font-black text-teal-800 text-xs sm:text-sm">
+                {formatAmount(currentRetainedSum, settings.currency)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Bar, Search & Global Actions */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          {/* Status Filter Buttons */}
+          <div className="flex flex-wrap items-center gap-1">
+            {[
+              { id: 'all', label: isMyanmar ? 'အားလုံး' : 'All', count: counts.all, activeCls: 'bg-slate-900 text-white border-slate-900', idleCls: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' },
+              { id: 'hot', label: isMyanmar ? 'အရောင်းရှိ' : 'Sold', count: counts.hot, activeCls: 'bg-amber-600 text-white border-amber-600', idleCls: 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200' },
+              { id: 'danger', label: isMyanmar ? 'ဘရိတ်ပြည့်' : 'Full', count: counts.danger, activeCls: 'bg-rose-600 text-white border-rose-600', idleCls: 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200' },
+              { id: 'warning', label: isMyanmar ? 'သတိပေး' : 'Warn', count: counts.warning, activeCls: 'bg-amber-500 text-white border-amber-500', idleCls: 'bg-amber-50/70 hover:bg-amber-100 text-amber-800 border-amber-200' },
+              { id: 'blocked', label: isMyanmar ? 'လော့ပိတ်' : 'Locked', count: counts.blocked, activeCls: 'bg-purple-700 text-white border-purple-700', idleCls: 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200' },
+              { id: 'empty', label: isMyanmar ? 'အလွတ်' : 'Empty', count: counts.empty, activeCls: 'bg-blue-600 text-white border-blue-600', idleCls: 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200' }
+            ].map((f) => {
+              const isActive = filterType === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFilterType(f.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0 ${
+                    isActive ? f.activeCls : f.idleCls
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  <span className={`text-[10px] font-mono tabular-nums px-1 rounded ${isActive ? 'bg-black/20 text-white' : 'bg-white/80 text-slate-700'}`}>
+                    {f.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search, View Toggle, Sort, Master Forward, Excel */}
+          <div className="flex flex-wrap items-center gap-1.5 justify-end">
+            <div className="relative flex-1 sm:w-40 min-w-[130px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={isMyanmar ? 'ဂဏန်းရှာ (24)' : 'Search 24...'}
+                className="w-full h-8 bg-slate-50 focus:bg-white border border-slate-200 rounded-lg pl-8 pr-6 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-teal-500 font-mono"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1.5 text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Grid vs Table Layout Toggle */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewLayout('grid')}
+                className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  viewLayout === 'grid' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title={isMyanmar ? 'ဂဏန်းကွက်ဖြင့် ကြည့်မည်' : 'Grid View'}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isMyanmar ? 'အကွက်' : 'Grid'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewLayout('table')}
+                className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  viewLayout === 'table' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title={isMyanmar ? 'ဇယားဖြင့် ကြည့်မည်' : 'Table View'}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isMyanmar ? 'ဇယား' : 'Table'}</span>
+              </button>
+            </div>
+
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              className="h-8 bg-slate-50 border border-slate-200 rounded-lg px-2 text-[11px] font-bold text-slate-700 outline-none focus:border-teal-500 cursor-pointer shrink-0"
+            >
+              <option value="num_asc">{isMyanmar ? 'ဂဏန်းစဉ် (၀၀-၉၉)' : '00 - 99'}</option>
+              <option value="sold_desc">{isMyanmar ? 'ရောင်းအားများစဉ်' : 'Sold: High-Low'}</option>
+              <option value="payout_desc">{isMyanmar ? 'လျော်ကြေးများစဉ်' : 'Payout: High-Low'}</option>
+              <option value="risk_desc">{isMyanmar ? 'အန္တရာယ်များစဉ်' : 'Risk: High-Low'}</option>
+            </select>
+
+            {onOpenForwardModal && (
+              <button
+                type="button"
+                onClick={() => onOpenForwardModal()}
+                className="h-8 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isMyanmar ? 'ဒိုင်ကြီးဆီတင်' : 'Forward'}</span>
+                {excessCount > 0 && (
+                  <span className="bg-amber-400 text-slate-950 font-black font-mono text-[10px] px-1.5 rounded-full">
+                    {excessCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => onOpenForwardModal()}
-              className="px-3.5 py-2 bg-gradient-to-r from-amber-600 via-indigo-600 to-indigo-700 hover:from-amber-700 hover:to-indigo-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
-              title="သတ်မှတ်ချက်ကျော် ပိုနေသောဂဏန်းများကို စုစည်း၍ ဒိုင်ကြီးဆီ လွှဲတင်မည်"
+              onClick={exportToExcel}
+              className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Excel ထုတ်မည်"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isMyanmar ? 'ဒိုင်ကြီးဆီတင်မည်' : 'Forward to Master'}</span>
-              {excessCount > 0 && (
-                <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse ml-0.5">
-                  {excessCount}
-                </span>
-              )}
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Excel</span>
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={exportToExcel}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>{isMyanmar ? 'Excel ထုတ်' : 'Export'}</span>
-          </button>
+          </div>
         </div>
       </div>
 
-      {/* Head Digits Filter Bar (0 ထိပ် မှ 9 ထိပ်) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-        <span className="text-xs font-bold text-slate-500 shrink-0 mr-1">
+      {/* Head Digits Filter Bar (0x to 9x) */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+        <span className="text-[11px] font-bold text-slate-500 shrink-0 mr-1 whitespace-nowrap">
           {isMyanmar ? 'ထိပ်စီး:' : 'Head:'}
         </span>
         <button
           type="button"
           onClick={() => setSelectedDigitFilter(null)}
-          className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+          className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
             selectedDigitFilter === null
               ? 'bg-teal-600 text-white'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
           }`}
         >
           {isMyanmar ? 'အားလုံး' : 'All'}
         </button>
-        {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
+        {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
           <button
             key={d}
             type="button"
             onClick={() => setSelectedDigitFilter(selectedDigitFilter === d ? null : d)}
-            className={`px-2.5 py-1 text-xs font-bold font-mono rounded-lg transition-colors cursor-pointer shrink-0 ${
+            className={`px-2 py-1 text-[11px] font-bold font-mono rounded-lg transition-colors cursor-pointer shrink-0 ${
               selectedDigitFilter === d
                 ? 'bg-teal-600 text-white'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
             }`}
           >
             {d}x
@@ -266,198 +331,392 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
         ))}
       </div>
 
-      {/* Results Count & Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 px-1">
-        <div>
-          {isMyanmar ? 'တွေ့ရှိသော ဂဏန်း အရေအတွက်:' : 'Showing:'}{' '}
-          <span className="font-bold text-teal-700 font-mono">{filteredNumbers.length}</span> ခု
+      {/* Results Count & Action Legend */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 px-1">
+        <div className="font-medium">
+          {isMyanmar ? 'ဂဏန်းစုစုပေါင်း:' : 'Showing:'}{' '}
+          <span className="font-bold text-teal-700 font-mono tabular-nums">{filteredNumbers.length}</span>{' '}
+          {isMyanmar ? 'ခု' : ''}
         </div>
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px]">
-          <span className="flex items-center gap-1.5 font-bold text-amber-700">
-            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline-block" />
-            <span>{isMyanmar ? 'ထိုးကြေးအများဆုံး' : 'Top Bet'}</span>
+        <div className="flex flex-wrap items-center gap-2.5 text-[10px] text-slate-600">
+          <span className="inline-flex items-center gap-1 font-semibold">
+            <Lock className="w-3 h-3 text-rose-600" />
+            <span>{isMyanmar ? 'လော့' : 'Lock'}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block"></span>
-            <span>{isMyanmar ? 'ရောင်းပြီး (စိတ်ချရ)' : 'Sold (Safe)'}</span>
+          <span className="inline-flex items-center gap-1 font-semibold">
+            <Sliders className="w-3 h-3 text-amber-600" />
+            <span>{isMyanmar ? 'ဘရိတ်သတ်မှတ်' : 'Limit'}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
-            <span>{isMyanmar ? 'သတိပေး (80%+)' : 'Warning (80%+)'}</span>
+          <span className="inline-flex items-center gap-1 font-semibold">
+            <ArrowUpRight className="w-3 h-3 text-indigo-600" />
+            <span>{isMyanmar ? 'အထက်တင်' : 'Forward'}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
-            <span>{isMyanmar ? 'ဘရိတ်ပြည့် (Full)' : 'Full Limit'}</span>
+          <span className="text-slate-300">|</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+            <span>{isMyanmar ? 'စိတ်ချရ' : 'Safe'}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block"></span>
-            <span>{isMyanmar ? 'ဒိုင်ကာ (Blocked)' : 'Blocked'}</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span>{isMyanmar ? 'သတိပေး' : 'Warn'}</span>
           </span>
-          <span className="flex items-center gap-1.5 font-bold text-blue-700">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
-            <span>{isMyanmar ? 'အလွတ် (ထိုးကြေးမရှိ)' : 'Empty (No bets)'}</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span>{isMyanmar ? 'ပြည့်/ပိတ်' : 'Full/Lock'}</span>
           </span>
         </div>
       </div>
 
-      {/* 2D Matrix Grid (10x10) */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2.5 sm:gap-3">
-          {filteredNumbers.map(agg => {
-            const usagePercent = agg.limit > 0 ? Math.min(Math.round((agg.totalSold / agg.limit) * 100), 100) : 0;
-            const isFull = agg.limit > 0 && agg.totalSold >= agg.limit;
-            const isEmpty = agg.totalSold === 0 && !agg.isBlocked;
-            const isTopBet = maxSold > 0 && agg.totalSold === maxSold;
+      {viewLayout === 'grid' ? (
+        /* Ultra-Compact 2D Matrix Grid (10 columns on desktop) */
+        <div className="bg-white rounded-2xl p-2 sm:p-3 border border-slate-200 shadow-xs">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 gap-1.5 sm:gap-2">
+            {filteredNumbers.length === 0 ? (
+              <div className="col-span-full py-10 text-center text-xs text-slate-500 font-sans">
+                {isMyanmar ? 'ရှာဖွေမှုနှင့် ကိုက်ညီသော ဂဏန်းမရှိပါ' : 'No numbers found matching filter'}
+              </div>
+            ) : (
+              filteredNumbers.map((item) => {
+                const usagePercent = item.limit > 0 ? Math.min(Math.round((item.totalSold / item.limit) * 100), 100) : 0;
+                const isFull = item.limit > 0 && item.totalSold >= item.limit;
+                const isEmpty = item.totalSold === 0 && !item.isBlocked;
+                const isWinningNumber = activeRound?.winningNumber === item.number;
+                const isTopBet = maxSold > 0 && item.totalSold === maxSold;
+                const netSold = Math.max(0, item.totalSold - (item.forwardedAmount || 0));
+                const isOverNetLimit = item.limit > 0 && netSold > item.limit;
+                const forwardAmt = getSuggestedForwardAmount(item);
 
-            return (
-              <div
-                key={agg.number}
-                className={`relative rounded-2xl p-3 border transition-all flex flex-col justify-between group cursor-pointer ${
-                  isTopBet
-                    ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-400 shadow-sm'
-                    : agg.isBlocked
-                    ? 'bg-rose-50/80 border-rose-300 ring-1 ring-rose-200'
-                    : isFull
-                    ? 'bg-rose-50 border-rose-400 shadow-2xs'
-                    : agg.riskLevel === 'warning'
-                    ? 'bg-amber-50/60 border-amber-300 shadow-2xs'
-                    : agg.totalSold > 0
-                    ? 'bg-teal-50/40 border-teal-200 hover:border-teal-400'
-                    : 'bg-blue-50/70 border-blue-200 hover:border-blue-400 hover:bg-blue-100/50 ring-1 ring-blue-100/70 shadow-2xs'
-                }`}
-                onClick={() => {
-                  if (onOpenLimitsManager) {
-                    onOpenLimitsManager(agg.number);
-                  }
-                }}
-              >
-                {/* Number & Tag */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span
-                      className={`font-mono text-2xl font-black ${
-                        isTopBet
-                          ? 'text-amber-950 font-black'
-                          : agg.isBlocked
-                          ? 'text-rose-700 line-through'
-                          : isFull
-                          ? 'text-rose-900'
-                          : agg.riskLevel === 'warning'
-                          ? 'text-amber-900'
-                          : agg.totalSold > 0
-                          ? 'text-slate-900'
-                          : 'text-blue-700'
-                      }`}
-                    >
-                      {agg.number}
-                    </span>
-                    {isTopBet && (
-                      <span
-                        className="inline-flex items-center text-amber-500 animate-bounce"
-                        title={isMyanmar ? 'ထိုးကြေးအများဆုံး ဂဏန်း' : 'Top Bet Number'}
-                      >
-                        <Star className="w-4 h-4 fill-amber-400 text-amber-500 drop-shadow-xs" />
-                      </span>
-                    )}
-                  </div>
-
-                  {isTopBet ? (
-                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 text-[10px] font-black rounded-md flex items-center gap-0.5 shadow-2xs border border-amber-500">
-                      <Star className="w-2.5 h-2.5 fill-amber-950 text-amber-950" />
-                      <span>{isMyanmar ? 'အများဆုံး' : 'TOP'}</span>
-                    </span>
-                  ) : agg.isBlocked ? (
-                    <span className="px-1.5 py-0.5 bg-rose-200 text-rose-900 text-[10px] font-black rounded-md">
-                      {isMyanmar ? 'ကာ' : 'BLK'}
-                    </span>
-                  ) : isFull ? (
-                    <span className="px-1.5 py-0.5 bg-rose-600 text-white text-[10px] font-black rounded-md">
-                      {isMyanmar ? 'ပြည့်' : 'FULL'}
-                    </span>
-                  ) : agg.riskLevel === 'warning' ? (
-                    <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-md">
-                      {usagePercent}%
-                    </span>
-                  ) : isEmpty ? (
-                    <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-md border border-blue-200">
-                      {isMyanmar ? 'အလွတ်' : 'EMPTY'}
-                    </span>
-                  ) : null}
-                </div>
-
-                {/* Sold Amount */}
-                <div className="my-1.5">
-                  <div className={`font-mono text-xs font-bold ${isEmpty ? 'text-blue-600' : 'text-slate-800'}`}>
-                    {isEmpty ? (
-                      <span className="inline-flex items-center gap-1 font-semibold text-[11px] text-blue-600">
-                        {isMyanmar ? 'ထိုးကြေးမရှိ' : 'No bets (0)'}
-                      </span>
-                    ) : (
-                      formatAmount(agg.totalSold, settings.currency)
-                    )}
-                  </div>
-                  <div className={`text-[10px] font-medium ${isEmpty ? 'text-blue-400' : 'text-slate-400'}`}>
-                    {isMyanmar ? 'ကန့်သတ်:' : 'Lmt:'} {formatAmount(agg.limit, settings.currency)}
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className={`w-full rounded-full h-1.5 overflow-hidden ${isEmpty ? 'bg-blue-100' : 'bg-slate-200'}`}>
+                return (
                   <div
-                    className={`h-full transition-all rounded-full ${
-                      agg.isBlocked
-                        ? 'bg-rose-500'
+                    key={item.number}
+                    onClick={() => onOpenLimitsManager?.(item.number)}
+                    className={`rounded-xl p-1.5 sm:p-2 border transition-colors flex flex-col justify-between cursor-pointer ${
+                      isWinningNumber
+                        ? 'bg-amber-100 border-amber-400'
+                        : item.isBlocked
+                        ? 'bg-rose-50/90 border-rose-300'
                         : isFull
-                        ? 'bg-rose-600'
-                        : agg.riskLevel === 'warning'
-                        ? 'bg-amber-500'
-                        : agg.totalSold > 0
-                        ? 'bg-teal-500'
-                        : 'bg-blue-400'
-                    }`}
-                    style={{ width: `${agg.isBlocked ? 100 : isEmpty ? 0 : usagePercent}%` }}
-                  ></div>
-                </div>
-
-                {/* Quick actions on hover */}
-                <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleBlockNumber(agg.number);
-                    }}
-                    title={agg.isBlocked ? 'Unblock number' : 'Block number (ဒိုင်ကာ)'}
-                    className={`p-1 rounded-md transition-colors cursor-pointer ${
-                      agg.isBlocked
-                        ? 'text-rose-700 hover:bg-rose-200'
-                        : 'text-slate-400 hover:text-rose-600 hover:bg-slate-200'
+                        ? 'bg-rose-50/70 border-rose-300'
+                        : item.riskLevel === 'warning'
+                        ? 'bg-amber-50/70 border-amber-300'
+                        : isTopBet
+                        ? 'bg-amber-50/60 border-amber-400'
+                        : item.totalSold > 0
+                        ? 'bg-teal-50/40 border-teal-200 hover:border-teal-400'
+                        : 'bg-slate-50/70 border-slate-200/80 hover:border-teal-300'
                     }`}
                   >
-                    <Ban className="w-3.5 h-3.5" />
-                  </button>
+                    {/* Top: Number & Micro Status Badge */}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-0.5 min-w-0">
+                        <span
+                          className={`font-mono text-sm sm:text-base font-black tabular-nums leading-none ${
+                            item.isBlocked
+                              ? 'text-rose-700 line-through'
+                              : isFull
+                              ? 'text-rose-800'
+                              : item.riskLevel === 'warning'
+                              ? 'text-amber-900'
+                              : item.totalSold > 0
+                              ? 'text-slate-900'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          {item.number}
+                        </span>
+                        {isTopBet && <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />}
+                      </div>
 
-                  {agg.totalSold > 0 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onOpenForwardModal) {
-                          onOpenForwardModal(agg.number, agg.totalSold);
-                        }
-                      }}
-                      title="Forward to master dealer"
-                      className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                      {item.isBlocked ? (
+                        <span className="px-1 py-0.5 bg-rose-200 text-rose-900 text-[9px] font-black rounded leading-none shrink-0">
+                          {isMyanmar ? 'လော့' : 'LCK'}
+                        </span>
+                      ) : isWinningNumber ? (
+                        <span className="px-1 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded leading-none shrink-0">
+                          {isMyanmar ? 'ပေါက်' : 'WIN'}
+                        </span>
+                      ) : isFull ? (
+                        <span className="px-1 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded leading-none shrink-0">
+                          {isMyanmar ? 'ပြည့်' : 'FULL'}
+                        </span>
+                      ) : item.riskLevel === 'warning' ? (
+                        <span className="px-1 py-0.5 bg-amber-500 text-white text-[9px] font-black font-mono tabular-nums rounded leading-none shrink-0">
+                          {usagePercent}%
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Middle: Compact Sold & Limit */}
+                    <div className="mt-1 space-y-0.5">
+                      <div className={`font-mono text-[11px] font-bold tabular-nums leading-tight truncate ${
+                        isEmpty ? 'text-slate-400' : 'text-slate-900'
+                      }`}>
+                        {item.totalSold > 0 ? formatAmount(item.totalSold, '') : '0'}
+                      </div>
+                      <div className="flex items-center justify-between gap-1 text-[9px] font-mono tabular-nums text-slate-400 leading-none">
+                        <span className="truncate">
+                          /{item.limit > 0 ? formatAmount(item.limit, '') : '∞'}
+                        </span>
+                        {item.forwardedAmount > 0 && (
+                          <span className="text-indigo-600 font-bold shrink-0">
+                            ↑{formatAmount(item.forwardedAmount, '')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Hairline Progress Bar */}
+                    <div className="w-full rounded-full h-1 bg-slate-200/80 overflow-hidden my-1">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          item.isBlocked
+                            ? 'bg-rose-500'
+                            : isFull
+                            ? 'bg-rose-600'
+                            : item.riskLevel === 'warning'
+                            ? 'bg-amber-500'
+                            : item.totalSold > 0
+                            ? 'bg-teal-500'
+                            : 'bg-transparent'
+                        }`}
+                        style={{ width: `${item.isBlocked ? 100 : isEmpty ? 0 : usagePercent}%` }}
+                      />
+                    </div>
+
+                    {/* Bottom: Uniform 3 Per-Number Actions (Lock, Set Limit, Forward) */}
+                    <div className="pt-1 border-t border-slate-200/70 grid grid-cols-3 gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleBlockNumber(item.number);
+                        }}
+                        title={item.isBlocked ? 'လော့ဖွင့်မည်' : 'လော့ချမည် (ဒိုင်ကာ)'}
+                        className={`h-6 rounded-md flex items-center justify-center border transition-colors cursor-pointer ${
+                          item.isBlocked
+                            ? 'bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-200'
+                            : 'bg-white border-slate-200 text-slate-500 hover:text-rose-700 hover:border-rose-200 hover:bg-rose-50'
+                        }`}
+                      >
+                        {item.isBlocked ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenLimitsManager?.(item.number);
+                        }}
+                        title="ဘရိတ်သတ်မှတ်မည်"
+                        className="h-6 rounded-md flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition-colors cursor-pointer"
+                      >
+                        <Sliders className="w-3 h-3" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenForwardModal?.(item.number, forwardAmt);
+                        }}
+                        title="အထက်တင်မည်"
+                        className={`h-6 rounded-md flex items-center justify-center border transition-colors cursor-pointer ${
+                          isOverNetLimit
+                            ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-white border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300'
+                        }`}
+                      >
+                        <ArrowUpRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Compact 2D Ledger Table (Matching 3D Table View) */
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 whitespace-nowrap">
+                <tr>
+                  <th className="py-2 px-3">{isMyanmar ? 'ဂဏန်း' : 'No.'}</th>
+                  <th className="py-2 px-3 text-right">{isMyanmar ? 'ရောင်းရငွေ' : 'Sold'}</th>
+                  <th className="py-2 px-3 text-right">{isMyanmar ? 'အထက်တင်' : 'Fwd'}</th>
+                  <th className="py-2 px-3 text-right">{isMyanmar ? 'လက်ကျန်' : 'Retained'}</th>
+                  <th className="py-2 px-3">{isMyanmar ? 'ဘရိတ် / %' : 'Limit / %'}</th>
+                  <th className="py-2 px-3 text-right">{isMyanmar ? 'လျော်ကြေး' : 'Est. Payout'}</th>
+                  <th className="py-2 px-3">{isMyanmar ? 'အခြေအနေ' : 'Status'}</th>
+                  <th className="py-2 px-3 text-right">{isMyanmar ? 'လော့ / ဘရိတ် / တင်' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
+                {filteredNumbers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-10 text-center text-slate-500 font-sans">
+                      {isMyanmar ? 'ရှာဖွေမှုနှင့် ကိုက်ညီသော ဂဏန်းမရှိပါ' : 'No numbers found matching filter'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredNumbers.map((item) => {
+                    const usagePct = item.limit > 0 ? Math.round((item.totalSold / item.limit) * 100) : 0;
+                    const isWinningNumber = activeRound?.winningNumber === item.number;
+                    const isTopBet = maxSold > 0 && item.totalSold === maxSold;
+                    const isEmpty = item.totalSold === 0 && !item.isBlocked;
+                    const forwardAmt = getSuggestedForwardAmount(item);
+
+                    return (
+                      <tr
+                        key={item.number}
+                        className={`transition-colors ${
+                          isWinningNumber
+                            ? 'bg-amber-50/90'
+                            : isTopBet
+                            ? 'bg-amber-50/40'
+                            : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        <td className="py-1.5 px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-xs font-black tracking-wider border ${
+                                item.isBlocked
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200 line-through'
+                                  : isWinningNumber
+                                  ? 'bg-amber-400 text-slate-950 border-amber-500'
+                                  : isEmpty
+                                  ? 'bg-slate-50 text-slate-600 border-slate-200'
+                                  : 'bg-teal-50 text-teal-950 border-teal-200'
+                              }`}
+                            >
+                              {item.number}
+                            </span>
+                            {isTopBet && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />}
+                            {item.betCount > 0 && (
+                              <span className="text-[10px] text-slate-400 font-sans">
+                                ({item.betCount})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-1.5 px-3 text-right font-bold text-slate-900">
+                          {item.totalSold > 0 ? (
+                            formatAmount(item.totalSold, settings.currency)
+                          ) : (
+                            <span className="text-slate-400 font-normal">0</span>
+                          )}
+                        </td>
+
+                        <td className="py-1.5 px-3 text-right font-medium text-indigo-700">
+                          {item.forwardedAmount > 0 ? formatAmount(item.forwardedAmount, settings.currency) : <span className="text-slate-300">-</span>}
+                        </td>
+
+                        <td className="py-1.5 px-3 text-right font-bold text-teal-700">
+                          {item.retainedAmount > 0 ? formatAmount(item.retainedAmount, settings.currency) : <span className="text-slate-300">-</span>}
+                        </td>
+
+                        <td className="py-1.5 px-3">
+                          <div className="flex items-center gap-2 min-w-[110px] max-w-[140px]">
+                            <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  item.isBlocked
+                                    ? 'bg-rose-500'
+                                    : usagePct >= 100
+                                    ? 'bg-rose-500'
+                                    : usagePct >= settings.lowStockAlertPercentage
+                                    ? 'bg-amber-400'
+                                    : item.totalSold > 0
+                                    ? 'bg-teal-500'
+                                    : 'bg-transparent'
+                                }`}
+                                style={{ width: `${Math.min(100, usagePct)}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                              {item.limit > 0 ? `${formatAmount(item.limit, '')} (${usagePct}%)` : '∞'}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="py-1.5 px-3 text-right font-bold text-rose-600">
+                          {item.estimatedPayout > 0 ? formatAmount(item.estimatedPayout, settings.currency) : <span className="text-slate-300">-</span>}
+                        </td>
+
+                        <td className="py-1.5 px-3 font-sans whitespace-nowrap">
+                          {item.isBlocked ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>{isMyanmar ? 'လော့' : 'Locked'}</span>
+                            </span>
+                          ) : item.riskLevel === 'danger' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              <span>{isMyanmar ? 'ပြည့်' : 'Full'}</span>
+                            </span>
+                          ) : item.riskLevel === 'warning' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold">
+                              <Info className="w-2.5 h-2.5" />
+                              <span>{isMyanmar ? 'သတိ' : 'Warn'}</span>
+                            </span>
+                          ) : isEmpty ? (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {isMyanmar ? 'အလွတ်' : 'Empty'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 font-bold">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              <span>{isMyanmar ? 'စိတ်ချ' : 'Safe'}</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-1.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => toggleBlockNumber(item.number)}
+                              className={`p-1 rounded-md border transition-colors cursor-pointer ${
+                                item.isBlocked
+                                  ? 'bg-rose-100 hover:bg-rose-200 text-rose-700 border-rose-300'
+                                  : 'bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 border-slate-200'
+                              }`}
+                              title={item.isBlocked ? 'လော့ဖွင့်မည်' : 'လော့ချမည် (ဒိုင်ကာ)'}
+                            >
+                              {item.isBlocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => onOpenLimitsManager?.(item.number)}
+                              className="p-1 rounded-md bg-white hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 transition-colors cursor-pointer"
+                              title="ဘရိတ်သတ်မှတ်မည်"
+                            >
+                              <Sliders className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => onOpenForwardModal?.(item.number, forwardAmt)}
+                              className="p-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                              title="အထက်တင်မည်"
+                            >
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

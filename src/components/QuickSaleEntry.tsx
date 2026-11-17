@@ -32,9 +32,15 @@ import { useLottery } from '../context/LotteryContext';
 import { BetItem, VoucherItem, Voucher, ThreeDQuickButtonItem } from '../types';
 import { DEFAULT_3D_CUSTOM_BUTTONS } from '../utils/storage';
 import { getPermutations, parseQuickBetText, formatAmount, LOTTERY_PATTERNS, convertMyanmarToEnglishDigits } from '../utils/lotteryUtils';
-import { saveRawClip } from '../utils/rawClipsUtils';
+import {
+  saveRawClip,
+  StagedRawSource,
+  pruneStagedRawSources,
+  retainStagedRawSources,
+  buildClipPayloadFromStagedSources
+} from '../utils/rawClipsUtils';
 import { getTelegramOrders } from '../utils/telegramIntegration';
-import { ImageSlipScannerModal } from './ImageSlipScannerModal';
+import { ImageSlipScannerModal, ScannerArchiveMeta } from './ImageSlipScannerModal';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
 import {
   playTapSound,
@@ -113,6 +119,14 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
   });
   const [confirmClearActive, setConfirmClearActive] = useState(false);
+  const [stagedRawSources, setStagedRawSources] = useState<StagedRawSource[]>(() => {
+    try {
+      const saved = localStorage.getItem('pos_quick_sale_3d_draft_raw_sources');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Synchronize staged checkpoints to localStorage to protect against refresh / loss
   useEffect(() => {
@@ -120,14 +134,16 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       if (stagedItems.length > 0) {
         localStorage.setItem('pos_quick_sale_3d_draft_items', JSON.stringify(stagedItems));
         localStorage.setItem('pos_quick_sale_3d_draft_ids', JSON.stringify(latestDraftIds));
+        localStorage.setItem('pos_quick_sale_3d_draft_raw_sources', JSON.stringify(stagedRawSources));
       } else {
         localStorage.removeItem('pos_quick_sale_3d_draft_items');
         localStorage.removeItem('pos_quick_sale_3d_draft_ids');
+        localStorage.removeItem('pos_quick_sale_3d_draft_raw_sources');
       }
     } catch {
       // safe fallback for private browsing
     }
-  }, [stagedItems, latestDraftIds]);
+  }, [stagedItems, latestDraftIds, stagedRawSources]);
 
   // Real-time Telegram Order status counts (Pending vs Approved vs Rejected)
   const [telegramCounts, setTelegramCounts] = useState<{ pending: number; approved: number; rejected: number }>({
@@ -236,7 +252,12 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
   }, [toastNotification]);
 
-  const handleAddFromScanner = (items: BetItem[], scannedCustomerName: string, scannedPhone: string) => {
+  const handleAddFromScanner = (
+    items: BetItem[],
+    scannedCustomerName: string,
+    scannedPhone: string,
+    archiveMeta?: ScannerArchiveMeta
+  ) => {
     const allowedItems: BetItem[] = [];
     const blockedNums: string[] = [];
 
@@ -257,8 +278,30 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
 
     if (allowedItems.length > 0) {
+      const addedIds = allowedItems.map(i => i.id);
       setStagedItems(prev => [...prev, ...allowedItems]);
-      setLatestDraftIds(allowedItems.map(i => i.id));
+      setLatestDraftIds(addedIds);
+      if (archiveMeta?.imageDataUrl) {
+        setStagedRawSources(prev => [
+          ...prev,
+          {
+            id: `src-${generateUUID()}`,
+            source: 'ocr',
+            imageDataUrl: archiveMeta.imageDataUrl,
+            itemIds: addedIds
+          }
+        ]);
+      } else if (archiveMeta?.rawText) {
+        setStagedRawSources(prev => [
+          ...prev,
+          {
+            id: `src-${generateUUID()}`,
+            source: 'direct_paste',
+            rawText: archiveMeta.rawText,
+            itemIds: addedIds
+          }
+        ]);
+      }
       if (scannedCustomerName && (!customerName || customerName === 'အထွေထွေ (General)')) {
         setCustomerName(scannedCustomerName);
       }
@@ -403,6 +446,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
 
     let amount = parseInt(convertMyanmarToEnglishDigits(amountInput).trim(), 10);
+    let usedInlineAmount = false;
 
     // Check inline amount
     if (isNaN(amount) || amount <= 0) {
@@ -412,6 +456,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
         if (!isNaN(parsedLast) && parsedLast > 0) {
           amount = parsedLast;
           rawTokens.pop();
+          usedInlineAmount = true;
         }
       }
     } else {
@@ -422,6 +467,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
           if (!isNaN(parsedLast) && parsedLast > 0) {
             amount = parsedLast;
             rawTokens.pop();
+            usedInlineAmount = true;
           }
         }
       }
@@ -502,8 +548,23 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
     if (newItems.length > 0) {
       playAddSound();
+      const newIds = newItems.map(i => i.id);
+      const rSuffix = isRumble && !hasRInInput && !hasStraightKeyword ? ' R' : '';
+      const manualTypedLine = usedInlineAmount
+        ? `${rawInput}${rSuffix}`
+        : `${rawInput}${rSuffix}=${amount}`;
+
       setStagedItems(prev => [...prev, ...newItems]);
-      setLatestDraftIds(newItems.map(i => i.id));
+      setLatestDraftIds(newIds);
+      setStagedRawSources(prev => [
+        ...prev,
+        {
+          id: `src-${generateUUID()}`,
+          source: 'manual',
+          rawText: manualTypedLine,
+          itemIds: newIds
+        }
+      ]);
       
       const displayNum = targetNumbers.length === 1 ? targetNumbers[0] : `${targetNumbers[0]} (${targetNumbers.length} ကွက်)`;
       const typeName = effectiveRumble ? (isMyanmar ? 'ပတ်လည်' : 'R') : (isMyanmar ? 'ဒဲ့' : 'Direct');
@@ -677,6 +738,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
         
         return nextItems;
     });
+    setStagedRawSources(prev => pruneStagedRawSources(prev, itemsToRemove));
 
     numberInputRef.current?.focus();
     setToastNotification({
@@ -699,6 +761,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
 
     setStagedItems(preservedItems);
+    setStagedRawSources(prev => retainStagedRawSources(prev, new Set(preservedItems.map(i => i.id))));
     setLatestDraftIds([]);
     setNumberInput(item.originalNumber || item.number);
     setAmountInput(String(item.originalAmount || item.amount));
@@ -741,6 +804,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     const isRemovingConfirmed = stagedItems.some(i => itemsToRemove.has(i.id) && !latestDraftIds.includes(i.id));
 
     setStagedItems(prev => prev.filter(item => !itemsToRemove.has(item.id)));
+    setStagedRawSources(prev => pruneStagedRawSources(prev, itemsToRemove));
     setLatestDraftIds(prev => prev.filter(item => !itemsToRemove.has(item)));
     
     // If removing confirmed items, mark everything as draft for re-review
@@ -775,15 +839,26 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       isRumble: false,
       originalInput: `${name} (${num})`
     }));
+    const newIds = newItems.map(i => i.id);
     playAddSound();
     setStagedItems(prev => [...prev, ...newItems]);
-    setLatestDraftIds(newItems.map(i => i.id));
+    setLatestDraftIds(newIds);
+    setStagedRawSources(prev => [
+      ...prev,
+      {
+        id: `src-${generateUUID()}`,
+        source: 'manual',
+        rawText: `${name}=${amount}`,
+        itemIds: newIds
+      }
+    ]);
   };
 
   // Parse Text Batch
   const handleProcessBatchText = () => {
-    if (!rawBatchText.trim()) return;
-    const { items, errors } = parseQuickBetText(rawBatchText);
+    const originalBatchText = rawBatchText.trim();
+    if (!originalBatchText) return;
+    const { items, errors } = parseQuickBetText(originalBatchText);
     const allowedItems: BetItem[] = [];
     const blockedErrors: string[] = [];
 
@@ -798,9 +873,19 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     setBatchErrors([...errors, ...blockedErrors]);
 
     if (allowedItems.length > 0) {
+      const addedIds = allowedItems.map(i => i.id);
       playAddSound();
       setStagedItems(prev => [...prev, ...allowedItems]);
-      setLatestDraftIds(allowedItems.map(i => i.id));
+      setLatestDraftIds(addedIds);
+      setStagedRawSources(prev => [
+        ...prev,
+        {
+          id: `src-${generateUUID()}`,
+          source: 'batch_paste',
+          rawText: originalBatchText,
+          itemIds: addedIds
+        }
+      ]);
       setRawBatchText('');
       if (errors.length === 0 && blockedErrors.length === 0) {
         setShowBatchModal(false);
@@ -848,7 +933,11 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       status: 'active'
     });
 
-    const rawTextFromItems = itemsToSave.map(it => `${it.number}=${it.amount}${it.isRumble ? 'R' : ''}`).join('\n');
+    const clipPayload = buildClipPayloadFromStagedSources(
+      stagedRawSources,
+      new Set(itemsToSave.map(it => it.id)),
+      itemsToSave
+    );
     saveRawClip({
       category: '3d',
       roundId: activeRound?.id || 'round-3d',
@@ -858,14 +947,17 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       voucherNumber: newVoucher.voucherNo || `ဘောင်ချာ (${vouchers.length + 1})`,
       customerName: newVoucher.customerName || customerName.trim() || 'အထွေထွေ',
       customerPhone: newVoucher.customerPhone || customerPhone || undefined,
-      rawText: rawTextFromItems,
+      rawText: clipPayload.rawText,
+      imageDataUrl: clipPayload.imageDataUrl,
+      imageUrls: clipPayload.imageUrls,
       itemCount: itemsToSave.length,
       totalAmountPreview: finalSubtotal,
-      source: 'direct_paste'
+      source: clipPayload.source
     });
 
     // Clear Staging
     setStagedItems([]);
+    setStagedRawSources([]);
     setLatestDraftIds([]);
     setNotes('');
     playSuccessSound();
@@ -901,7 +993,9 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     if (blockedFound.length > 0) {
       const bNums = Array.from(new Set(blockedFound.map(b => b.number)));
       alert(`⚠️ သတိပေးချက်: အောက်ပါဂဏန်းများသည် 'ဒိုင်ကာဂဏန်း' ဖြစ်သဖြင့် ထိုးကြေးတက်လာစေကာမူ လုံးဝလက်မခံနိုင်ပါ:\n\n[${bNums.join(', ')}]\n\nအဆိုပါဂဏန်းများကို စာရင်းမှ ဖယ်ရှားပေးပါမည်။`);
+      const blockedIdSet = new Set(blockedFound.map(b => b.id));
       setStagedItems(prev => prev.filter(item => !isNumberBlocked(item.number)));
+      setStagedRawSources(prev => pruneStagedRawSources(prev, blockedIdSet));
       setIsSavingVoucher(false);
       return;
     }
@@ -1055,6 +1149,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     } else {
       alert(isMyanmar ? 'ထိုးဂဏန်းများ အားလုံး ပယ်ဖျက်လိုက်သဖြင့် ဘောင်ချာမထုတ်ပါ' : 'All bets rejected, voucher not created.');
       setStagedItems([]);
+      setStagedRawSources([]);
     }
   };
 
@@ -1232,6 +1327,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                   onClick={() => {
                     playDeleteSound();
                     setStagedItems([]);
+                    setStagedRawSources([]);
                     setLatestDraftIds([]);
                     setToastNotification({
                       type: 'warning',
@@ -2180,6 +2276,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                   onClick={() => {
                     playDeleteSound();
                     setStagedItems([]);
+                    setStagedRawSources([]);
                     setLatestDraftIds([]);
                     setToastNotification({
                       type: 'warning',
@@ -2345,6 +2442,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                         onClick={() => {
                           playDeleteSound();
                           setStagedItems([]);
+                          setStagedRawSources([]);
                           setLatestDraftIds([]);
                           setToastNotification({
                             type: 'warning',

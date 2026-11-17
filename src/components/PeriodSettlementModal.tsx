@@ -27,15 +27,26 @@ import { printStatementReport } from '../utils/printUtils';
 interface PeriodSettlementModalProps {
   isOpen: boolean;
   onClose: () => void;
+  modeFilter?: 'all' | '3d' | '2d' | 'football';
 }
 
-export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ isOpen, onClose }) => {
+export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ isOpen, onClose, modeFilter = 'all' }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
   const football = useFootball();
 
-  const currency = lottery2D.settings.currency || lottery3D.settings.currency || 'Ks';
-  const defaultCommission = lottery3D.settings.defaultCustomerDiscount ?? 0;
+  const currency =
+    modeFilter === '2d'
+      ? lottery2D.settings.currency || 'Ks'
+      : modeFilter === 'football'
+      ? football.settings.currency || 'Ks'
+      : lottery3D.settings.currency || lottery2D.settings.currency || 'Ks';
+  const defaultCommission =
+    modeFilter === '2d'
+      ? (lottery2D.settings.defaultCustomerDiscount ?? 0)
+      : modeFilter === 'football'
+      ? (football.settings.defaultCustomerDiscount ?? 0)
+      : (lottery3D.settings.defaultCustomerDiscount ?? 0);
 
   // Mode: downline (အောက်လက်ဒိုင်ငယ်/ဖောက်သည်) or upline (အထက်ဒိုင်/မာစတာဒိုင်)
   const [settlementType, setSettlementType] = useState<'downline' | 'upline'>('downline');
@@ -81,55 +92,70 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     } catch {}
   };
 
-  // 1. Gather all unique Downline Customer Names
+  // 1. Gather all unique Downline Customer Names (scoped by modeFilter)
   const downlineNames = useMemo(() => {
     const set = new Set<string>();
-    lottery3D.vouchers.forEach((v) => {
-      if (!v.deletedAt && v.status !== 'cancelled' && v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
-    });
-    lottery2D.vouchers.forEach((v) => {
-      if (!v.deletedAt && v.status !== 'cancelled' && v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
-    });
-    football.slips.forEach((s) => {
-      if (!s.deletedAt && s.status !== 'cancelled' && s.customerName && s.customerName.trim()) set.add(s.customerName.trim());
-    });
+    if (modeFilter === 'all' || modeFilter === '3d') {
+      lottery3D.vouchers.forEach((v) => {
+        if (!v.deletedAt && v.status !== 'cancelled' && v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
+      });
+    }
+    if (modeFilter === 'all' || modeFilter === '2d') {
+      lottery2D.vouchers.forEach((v) => {
+        if (!v.deletedAt && v.status !== 'cancelled' && v.customerName && v.customerName.trim()) set.add(v.customerName.trim());
+      });
+    }
+    if (modeFilter === 'all' || modeFilter === 'football') {
+      football.slips.forEach((s) => {
+        if (!s.deletedAt && s.status !== 'cancelled' && s.customerName && s.customerName.trim()) set.add(s.customerName.trim());
+      });
+    }
     return Array.from(set).sort();
-  }, [lottery3D.vouchers, lottery2D.vouchers, football.slips]);
+  }, [modeFilter, lottery3D.vouchers, lottery2D.vouchers, football.slips]);
 
-  // 2. Gather all unique Upline Master Agent Names
+  // 2. Gather all unique Upline Master Agent Names (scoped by modeFilter)
   const uplineNames = useMemo(() => {
     const set = new Set<string>();
-    lottery3D.forwardSlips.forEach((f) => {
-      if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
-    });
-    lottery2D.forwardSlips.forEach((f) => {
-      if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
-    });
-    football.forwardSlips.forEach((f) => {
-      if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
-    });
-    try {
-      const savedAgents = localStorage.getItem('shwe_master_agents_list');
-      if (savedAgents) {
-        const parsed = JSON.parse(savedAgents);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((a: any) => {
-            if (a.name) set.add(a.name.trim());
-          });
-        }
-      }
-    } catch {}
-    return Array.from(set).sort();
-  }, [lottery3D.forwardSlips, lottery2D.forwardSlips, football.forwardSlips]);
-
-  // Set default target if empty
-  React.useEffect(() => {
-    if (settlementType === 'downline' && downlineNames.length > 0 && !selectedTarget) {
-      setSelectedTarget(downlineNames[0]);
-    } else if (settlementType === 'upline' && uplineNames.length > 0 && !selectedTarget) {
-      setSelectedTarget(uplineNames[0]);
+    if (modeFilter === 'all' || modeFilter === '3d') {
+      lottery3D.forwardSlips.forEach((f) => {
+        if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
+      });
     }
-  }, [settlementType, downlineNames, uplineNames, selectedTarget]);
+    if (modeFilter === 'all' || modeFilter === '2d') {
+      lottery2D.forwardSlips.forEach((f) => {
+        if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
+      });
+    }
+    if (modeFilter === 'all' || modeFilter === 'football') {
+      football.forwardSlips.forEach((f) => {
+        if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
+      });
+    }
+    if (modeFilter === 'all') {
+      try {
+        const savedAgents = localStorage.getItem('shwe_master_agents_list');
+        if (savedAgents) {
+          const parsed = JSON.parse(savedAgents);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((a: any) => {
+              if (a.name) set.add(a.name.trim());
+            });
+          }
+        }
+      } catch {}
+    }
+    return Array.from(set).sort();
+  }, [modeFilter, lottery3D.forwardSlips, lottery2D.forwardSlips, football.forwardSlips]);
+
+  // Keep selectedTarget valid when settlementType or modeFilter changes
+  React.useEffect(() => {
+    const activeList = settlementType === 'downline' ? downlineNames : uplineNames;
+    if (activeList.length === 0) {
+      if (selectedTarget) setSelectedTarget('');
+    } else if (!selectedTarget || !activeList.includes(selectedTarget)) {
+      setSelectedTarget(activeList[0]);
+    }
+  }, [settlementType, downlineNames, uplineNames, selectedTarget, modeFilter]);
 
   // Quick preset handlers
   const applyPreset = (days: number) => {
@@ -205,89 +231,95 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     // 3D Vouchers
     const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
     const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
-    lottery3D.vouchers.forEach((v: any) => {
-      if (v.status === 'cancelled' || v.deletedAt) return;
-      const round = lottery3D.rounds.find(r => r.id === v.roundId);
-      const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
-      if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const amt = getVoucherGrossTurnover(v);
-        const winningNum = round?.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
+    if (modeFilter === 'all' || modeFilter === '3d') {
+      lottery3D.vouchers.forEach((v: any) => {
+        if (v.status === 'cancelled' || v.deletedAt) return;
+        const round = lottery3D.rounds.find(r => r.id === v.roundId);
+        const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
+        if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
+          const amt = getVoucherGrossTurnover(v);
+          const winningNum = round?.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
 
-        let payout = 0;
-        const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+          let payout = 0;
+          const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
-        if (winningNum && winningNum.length === 3) {
-          const evalRes = evaluateWinnings([v], winningNum, straightMult3D, toddMult3D);
-          evalRes.winners.forEach((w) => {
-            payout += w.wonPayout;
-            wonBets.push({ num: w.betNumber, amt: w.betAmount, wonAmt: w.wonPayout });
-          });
-        } else if (v.items && Array.isArray(v.items)) {
-          v.items.forEach((it: any) => {
-            if (it.isWon) {
-              const itemMult = it.betType === 'rumble' ? toddMult3D : straightMult3D;
-              const won = it.wonAmount || (it.amount * itemMult);
-              payout += won;
-              wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
-            }
-          });
+          if (winningNum && winningNum.length === 3) {
+            const evalRes = evaluateWinnings([v], winningNum, straightMult3D, toddMult3D);
+            evalRes.winners.forEach((w) => {
+              payout += w.wonPayout;
+              wonBets.push({ num: w.betNumber, amt: w.betAmount, wonAmt: w.wonPayout });
+            });
+          } else if (v.items && Array.isArray(v.items)) {
+            v.items.forEach((it: any) => {
+              if (it.isWon) {
+                const itemMult = it.betType === 'rumble' ? toddMult3D : straightMult3D;
+                const won = it.wonAmount || (it.amount * itemMult);
+                payout += won;
+                wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
+              }
+            });
+          }
+
+          totalSales += amt;
+          totalPayout += payout;
+          const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
+          addRecord(vDate, 'အိုးစည်လေး (3D)', amt, payout, sumText, winningNum, wonBets);
         }
-
-        totalSales += amt;
-        totalPayout += payout;
-        const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-        addRecord(vDate, 'အိုးစည်လေး (3D)', amt, payout, sumText, winningNum, wonBets);
-      }
-    });
+      });
+    }
 
     // 2D Vouchers
-    lottery2D.vouchers.forEach((v: any) => {
-      if (v.status === 'cancelled' || v.deletedAt) return;
-      const round = lottery2D.rounds.find(r => r.id === v.roundId);
-      const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
-      if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-        const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
-        const amt = getVoucherGrossTurnover(v);
-        const winningNum = round?.winningNumber;
-        const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
+    if (modeFilter === 'all' || modeFilter === '2d') {
+      lottery2D.vouchers.forEach((v: any) => {
+        if (v.status === 'cancelled' || v.deletedAt) return;
+        const round = lottery2D.rounds.find(r => r.id === v.roundId);
+        const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
+        if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
+          const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
+          const amt = getVoucherGrossTurnover(v);
+          const winningNum = round?.winningNumber;
+          const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
 
-        let payout = 0;
-        const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+          let payout = 0;
+          const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
-        if (v.items && Array.isArray(v.items)) {
-          v.items.forEach((it: any) => {
-            const isHit = it.isWon || (winningNum && it.number === winningNum);
-            if (isHit) {
-              const won = it.wonAmount || (it.amount * mult);
-              payout += won;
-              wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
-            }
-          });
+          if (v.items && Array.isArray(v.items)) {
+            v.items.forEach((it: any) => {
+              const isHit = it.isWon || (winningNum && it.number === winningNum);
+              if (isHit) {
+                const won = it.wonAmount || (it.amount * mult);
+                payout += won;
+                wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
+              }
+            });
+          }
+          if (payout === 0 && v.winningPayout) {
+            payout = v.winningPayout;
+          }
+
+          totalSales += amt;
+          totalPayout += payout;
+          const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
+          addRecord(vDate, `ဇီးကွက် (${sessionLabel})`, amt, payout, sumText, winningNum, wonBets);
         }
-        if (payout === 0 && v.winningPayout) {
-          payout = v.winningPayout;
-        }
-
-        totalSales += amt;
-        totalPayout += payout;
-        const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-        addRecord(vDate, `ဇီးကွက် (${sessionLabel})`, amt, payout, sumText, winningNum, wonBets);
-      }
-    });
+      });
+    }
 
     // Football Slips
-    football.slips.forEach((s: any) => {
-      if (s.status === 'cancelled' || s.deletedAt) return;
-      const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
-      if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
-        const amt = s.stakeAmount || s.netPayable || 0;
-        const payout = s.winningPayout || 0;
-        totalSales += amt;
-        totalPayout += payout;
-        const sumText = s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-';
-        addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, payout, sumText);
-      }
-    });
+    if (modeFilter === 'all' || modeFilter === 'football') {
+      football.slips.forEach((s: any) => {
+        if (s.status === 'cancelled' || s.deletedAt) return;
+        const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
+        if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
+          const amt = s.stakeAmount || s.netPayable || 0;
+          const payout = s.winningPayout || 0;
+          totalSales += amt;
+          totalPayout += payout;
+          const sumText = s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-';
+          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, payout, sumText);
+        }
+      });
+    }
 
     const items = Object.values(dayGroupMap).map(g => ({
       date: g.date,
@@ -311,7 +343,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       netBalance,
       items: items.sort((a, b) => b.date.localeCompare(a.date))
     };
-  }, [selectedTarget, startDate, endDate, customCommissionRate, lottery3D.vouchers, lottery2D.vouchers, lottery2D.rounds, football.slips]);
+  }, [modeFilter, selectedTarget, startDate, endDate, customCommissionRate, lottery3D.vouchers, lottery3D.rounds, lottery3D.settings, lottery2D.vouchers, lottery2D.rounds, lottery2D.settings, football.slips]);
 
   // ---------------------------------------------------------------------------
   // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS via generateStatementRecords)
@@ -339,7 +371,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       }
     };
 
-    const records = generateStatementRecords(dataSources, 'all', startDate, endDate);
+    const records = generateStatementRecords(dataSources, modeFilter, startDate, endDate);
 
     let totalForwarded = 0;
     let totalCommission = 0;
@@ -401,7 +433,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       netBalance,
       items: items.sort((a, b) => b.date.localeCompare(a.date))
     };
-  }, [selectedTarget, startDate, endDate, lottery2D.rounds, lottery2D.vouchers, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.vouchers, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
+  }, [modeFilter, selectedTarget, startDate, endDate, lottery2D.rounds, lottery2D.vouchers, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.vouchers, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
 
   // Export to Excel
   const handleExportExcel = () => {
@@ -521,10 +553,18 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black tracking-wide">
-                ကာလအလိုက် အကြွေးစာရင်းရှင်းတမ်း (Period Settlement)
+                {modeFilter === '3d'
+                  ? 'အိုးစည်လေး (3D) ကာလအလိုက် စာရင်းရှင်းတမ်း'
+                  : modeFilter === '2d'
+                  ? 'ဇီးကွက် (2D) ကာလအလိုက် စာရင်းရှင်းတမ်း'
+                  : modeFilter === 'football'
+                  ? 'ပစ်တိုင်းထောင် ကာလအလိုက် စာရင်းရှင်းတမ်း'
+                  : 'ကာလအလိုက် အကြွေးစာရင်းရှင်းတမ်း (လုပ်ငန်း ၃ ခုစုံ)'}
               </h2>
               <span className="text-xs font-bold text-slate-400">
-                ၅ ရက်စာ (တနင်္လာမှ သောကြာ) အထက်ဒိုင်နှင့် အောက်လက်ဒိုင်ငယ်များ ရှင်းတမ်း
+                {modeFilter === 'all'
+                  ? '၅ ရက်စာ (တနင်္လာမှ သောကြာ) အထက်ဒိုင်နှင့် အောက်လက်ဒိုင်ငယ်များ ရှင်းတမ်း'
+                  : 'သက်ဆိုင်ရာ လုပ်ငန်းတစ်ခုချင်းစီအလိုက် အထက်ဒိုင်နှင့် အောက်လက်ဒိုင်ငယ်များ ရှင်းတမ်း'}
               </span>
             </div>
           </div>
