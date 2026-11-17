@@ -19,7 +19,7 @@ import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
-import { formatAmount, evaluateWinnings, calculate3DForwardMasterPayout } from '../utils/lotteryUtils';
+import { formatAmount, evaluateWinnings, calculate3DForwardMasterPayout, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { getLocalDateStr, getDaysAgoStr, generateStatementRecords, getVoucherGrossTurnover } from '../utils/statementUtils';
 import { getCustomerCommission } from '../utils/commissionUtils';
 import { printStatementReport } from '../utils/printUtils';
@@ -29,6 +29,20 @@ interface PeriodSettlementModalProps {
   onClose: () => void;
   modeFilter?: 'all' | '3d' | '2d' | 'football';
 }
+
+const getMyanmarShortDay = (dateStr: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((dateStr || '').trim());
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const days = ['နွေ', 'လာ', 'ဂါ', 'ဟူး', 'တေး', 'ကြာ', 'နေ'];
+  return days[d.getDay()] || '';
+};
+
+const replaceZeegwetWithWeekday = (dateStr: string, label: string): string => {
+  const dayShort = getMyanmarShortDay(dateStr);
+  if (!dayShort) return label;
+  return label.includes('ဇီးကွက်') ? label.replace('ဇီးကွက်', dayShort) : label;
+};
 
 export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ isOpen, onClose, modeFilter = 'all' }) => {
   const lottery3D = useLottery();
@@ -263,7 +277,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           totalSales += amt;
           totalPayout += payout;
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-          addRecord(vDate, 'အိုးစည်လေး (3D)', amt, payout, sumText, winningNum, wonBets);
+          addRecord(vDate, 'အိုးစည်လေး', amt, payout, sumText, winningNum, wonBets);
         }
       });
     }
@@ -275,7 +289,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         const round = lottery2D.rounds.find(r => r.id === v.roundId);
         const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
         if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-          const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '2D';
+          const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '၂ လုံး';
           const amt = getVoucherGrossTurnover(v);
           const winningNum = round?.winningNumber;
           const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
@@ -300,7 +314,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           totalSales += amt;
           totalPayout += payout;
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-          addRecord(vDate, `ဇီးကွက် (${sessionLabel})`, amt, payout, sumText, winningNum, wonBets);
+          const dayShort = getMyanmarShortDay(vDate);
+          const twoDModeLabel = dayShort ? `${dayShort} (${sessionLabel})` : sessionLabel;
+          addRecord(vDate, twoDModeLabel, amt, payout, sumText, winningNum, wonBets);
         }
       });
     }
@@ -376,7 +392,17 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     let totalForwarded = 0;
     let totalCommission = 0;
     let totalPayout = 0;
-    const items: Array<{ date: string; mode: string; refNo: string; amount: number; commission: number; payout: number; summary: string }> = [];
+    const items: Array<{
+      date: string;
+      mode: string;
+      refNo: string;
+      amount: number;
+      commission: number;
+      payout: number;
+      winningNumbers: string[];
+      winningBets: Array<{ num: string; amt: number; wonAmt: number }>;
+      summary: string;
+    }> = [];
 
     const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
     const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
@@ -400,9 +426,76 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         });
 
         let recAgentPayout = 0;
+        const winningNumbers: string[] = [];
+        const winningBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+
         if (rec.mode === '3d') {
           if (rec.winningResult && /^\d{3}$/.test(rec.winningResult.trim())) {
-            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, rec.winningResult, straightMult3D, toddMult3D);
+            const win3D = rec.winningResult.trim().padStart(3, '0');
+            winningNumbers.push(win3D);
+            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, straightMult3D, toddMult3D);
+
+            const toddSet = new Set(getToddWinningNumbers(win3D));
+            targetForwards.forEach((f: any) => {
+              (f.items || []).forEach((it: any) => {
+                const num = String(it.number || '').trim().padStart(3, '0');
+                const amt = Number(it.amount) || 0;
+                if (amt <= 0) return;
+                let won = 0;
+                if (num === win3D) {
+                  won = straightMult3D > 0 ? amt * straightMult3D : 0;
+                } else if (toddSet.has(num)) {
+                  won = toddMult3D > 0 ? amt * toddMult3D : 0;
+                }
+                if (won > 0 || num === win3D || toddSet.has(num)) {
+                  const existing = winningBets.find(x => x.num === num);
+                  if (existing) {
+                    existing.amt += amt;
+                    existing.wonAmt += won;
+                  } else {
+                    winningBets.push({ num, amt, wonAmt: won });
+                  }
+                }
+              });
+            });
+          }
+        } else if (rec.mode === '2d') {
+          if (rec.winningResult && /^\d{2}$/.test(rec.winningResult.trim())) {
+            const win2D = rec.winningResult.trim().padStart(2, '0');
+            winningNumbers.push(win2D);
+            const round2D = lottery2D.rounds.find(r => r.id === rec.rawRoundId);
+            const mult2D = round2D?.multiplier || lottery2D.settings.defaultMultiplier || 80;
+
+            let exact2DPayout = 0;
+            let hasItemList = false;
+            targetForwards.forEach((f: any) => {
+              if (Array.isArray(f.items) && f.items.length > 0) {
+                hasItemList = true;
+                f.items.forEach((it: any) => {
+                  const num = String(it.number || '').trim().padStart(2, '0');
+                  const amt = Number(it.amount) || 0;
+                  if (amt > 0 && num === win2D) {
+                    const won = mult2D > 0 ? amt * mult2D : 0;
+                    exact2DPayout += won;
+                    const existing = winningBets.find(x => x.num === num);
+                    if (existing) {
+                      existing.amt += amt;
+                      existing.wonAmt += won;
+                    } else {
+                      winningBets.push({ num, amt, wonAmt: won });
+                    }
+                  }
+                });
+              }
+            });
+
+            if (hasItemList) {
+              recAgentPayout = Math.round(exact2DPayout);
+            } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
+              recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
+            }
+          } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
+            recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
           }
         } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
           recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
@@ -412,13 +505,21 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         totalCommission += recAgentCommission;
         totalPayout += recAgentPayout;
 
+        const dayShort = getMyanmarShortDay(rec.date);
+        const sessionLabel = rec.session === 'morning' ? 'မနက်' : rec.session === 'evening' ? 'ညနေ' : '';
+        const uplineModeLabel = rec.mode === '2d'
+          ? (dayShort ? (sessionLabel ? `${dayShort} (${sessionLabel})` : dayShort) : (sessionLabel || '၂ လုံး'))
+          : replaceZeegwetWithWeekday(rec.date, rec.modeLabel);
+
         items.push({
           date: rec.date,
-          mode: rec.modeLabel,
+          mode: uplineModeLabel,
           refNo: rec.name,
           amount: recAgentForwarded,
           commission: recAgentCommission,
           payout: recAgentPayout,
+          winningNumbers,
+          winningBets,
           summary: `ရလဒ်: ${rec.winningResult} (တင်ကြေး: ${recAgentForwarded}, ပေါက်ကြေးရရန်: ${recAgentPayout})`
         });
       }
@@ -505,7 +606,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     const totalPayout = isDownline ? downlineSettlementData.totalPayout : uplineSettlementData.totalPayout;
     const netBal = isDownline ? downlineSettlementData.netBalance : uplineSettlementData.netBalance;
 
-    let text = `${isDownline ? 'အောက်လက်ဒိုင်ငယ် ရှင်းတမ်း' : 'အထက်ဒိုင်ကြီး ရှင်းတမ်း'}\n`;
+    let text = '';
     text += `အမည်: ${targetName}\n`;
     text += `ကာလ: ${startDate} မှ ${endDate} အထိ\n`;
     text += `------------------------------------\n`;
@@ -531,8 +632,8 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     text += `စုစုပေါင်း ${isDownline ? 'ထိုးကြေး' : 'တင်ကြေး'}: ${formatAmount(totalSalesOrForward, currency)}\n`;
     text += `နုတ် - ကော်မရှင်: - ${formatAmount(totalComm, currency)}\n`;
     text += `အမှန်ရောင်းငွေ / ကျန်ငွေ: ${formatAmount(netSales, currency)}\n`;
-    text += `နုတ် - ပေါက်ကြေး: - ${formatAmount(totalPayout, currency)}P\n`;
-    text += `နောက်ဆုံး ${isDownline ? (netBal >= 0 ? 'ရရန်ငွေ (Receive)' : 'ပေးရန်ငွေ (Pay)') : (netBal >= 0 ? 'အထက်ဒိုင်သို့ ပေးရန်' : 'အထက်ဒိုင်မှ ရရန်')}: ${formatAmount(Math.abs(netBal), currency)}\n`;
+    text += `နုတ် - ပေါက်ကြေး: - ${formatAmount(totalPayout, currency)}\n`;
+    text += `နောက်ဆုံး ${isDownline ? (netBal >= 0 ? 'ရရန်ငွေ' : 'ပေးရန်ငွေ') : (netBal >= 0 ? 'အထက်ဒိုင်သို့ ပေးရန်' : 'အထက်ဒိုင်မှ ရရန်')}: ${formatAmount(Math.abs(netBal), currency)}\n`;
 
     navigator.clipboard.writeText(text);
     setCopiedStatementText(true);
@@ -793,9 +894,6 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           {/* Traditional Paper Slip Ledger Preview Card (Matching EM_25284f9f.jpg & image_0b84c059.png) */}
           <div id="printable-period-settlement" className="bg-amber-50/90 border-2 border-amber-900/30 rounded-2xl p-5 shadow-sm max-w-xl mx-auto space-y-4 font-mono text-slate-900">
             <div className="text-center border-b-2 border-dashed border-amber-900/30 pb-3 space-y-0.5">
-              <h4 className="text-sm font-black text-amber-950 uppercase">
-                {settlementType === 'downline' ? 'အောက်လက်ဒိုင်ငယ် ရှင်းတမ်း' : 'အထက်ဒိုင်ကြီး ရှင်းတမ်း'}
-              </h4>
               <div className="text-xs font-bold text-slate-700">
                 အမည်: <span className="text-indigo-700 underline">{selectedTarget || '-'}</span>
               </div>
@@ -807,7 +905,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             {/* Day-by-Day / Session-by-Session Breakdown Items (တနေ့စာချင်း အသေးစိတ်) */}
             <div className="border-b border-dashed border-slate-300 pb-3 space-y-2">
               <div className="text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                ရက်အလိုက် / ပွဲစဉ်အလိုက် အသေးစိတ် (Day-by-Day Breakdown)
+                ရက်အလိုက် / ပွဲစဉ်အလိုက် အသေးစိတ်
               </div>
               {settlementType === 'downline' ? (
                 downlineSettlementData.items.length === 0 ? (
@@ -856,11 +954,6 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                           </div>
                         </div>
                       )}
-
-                      {/* Betting summary line */}
-                      <div className="text-[10px] text-slate-500 truncate max-w-full font-sans">
-                        {item.summary}
-                      </div>
                     </div>
                   ))
                 )
@@ -874,6 +967,11 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{item.date}</span>
                           <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
+                          {item.winningNumbers && item.winningNumbers.length > 0 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                              ထွက်ဂဏန်း: {item.winningNumbers.join(', ')}
+                            </span>
+                          )}
                         </div>
                         <div className="text-right flex items-center gap-2">
                           <span className="font-bold text-slate-800">တင်ကြေး: {formatAmount(item.amount, '')}</span>
@@ -882,15 +980,32 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                       </div>
 
                       {item.payout > 0 && (
-                        <div className="flex items-center justify-between text-xs bg-rose-50/70 border border-rose-200 rounded-lg px-2 py-1">
-                          <span className="text-[11px] text-rose-800 font-bold">အထက်ပေါက်ကြေး ပြန်ရငွေ</span>
-                          <span className="text-rose-700 font-black">ပေါက်ကြေး: {formatAmount(item.payout, '')}P</span>
+                        <div className="flex items-center justify-between text-xs bg-rose-50/70 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                          <div className="text-[12px] text-rose-800 flex items-center gap-2 flex-wrap">
+                            {item.winningBets && item.winningBets.length > 0 ? (
+                              item.winningBets.map((wb, wIdx) => (
+                                <span key={wIdx} className="font-mono font-bold inline-flex items-center gap-1.5">
+                                  <span className="inline-block px-2 py-0.5 bg-white border border-rose-400 text-rose-700 rounded-full font-black text-xs shadow-2xs">
+                                    {wb.num}
+                                  </span>
+                                  <span className="font-black text-rose-700">{formatAmount(wb.amt, '')} P</span>
+                                </span>
+                              ))
+                            ) : item.winningNumbers && item.winningNumbers.length > 0 ? (
+                              item.winningNumbers.map((wn, wnIdx) => (
+                                <span key={wnIdx} className="inline-block px-2 py-0.5 bg-white border border-rose-400 text-rose-700 rounded-full font-black text-xs shadow-2xs">
+                                  {wn}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-rose-800 font-bold">အထက်ပေါက်ကြေး ပြန်ရငွေ</span>
+                            )}
+                          </div>
+                          <div className="text-rose-700 font-black text-right shrink-0">
+                            ပေါက်ကြေး: {formatAmount(item.payout, '')} Ks
+                          </div>
                         </div>
                       )}
-
-                      <div className="text-[10px] text-slate-500 truncate max-w-full font-sans">
-                        {item.summary}
-                      </div>
                     </div>
                   ))
                 )
@@ -900,23 +1015,23 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
             {/* Grand Totals Summary (Matching image_0b84c059.png) */}
             <div className="space-y-2 text-xs pt-1">
               <div className="flex items-center justify-between font-bold">
-                <span>{settlementType === 'downline' ? 'စုစုပေါင်းထိုးကြေး (Turnover):' : 'စုစုပေါင်းတင်ကြေး (Forwarded):'}</span>
+                <span>{settlementType === 'downline' ? 'စုစုပေါင်းထိုးကြေး:' : 'စုစုပေါင်းတင်ကြေး:'}</span>
                 <span>{formatAmount(settlementType === 'downline' ? downlineSettlementData.totalSales : uplineSettlementData.totalForwarded, currency)}</span>
               </div>
 
               <div className="flex items-center justify-between text-rose-700 font-bold border-b border-dashed border-slate-300 pb-2">
-                <span>နုတ် - ကော်မရှင် (Commission):</span>
+                <span>နုတ် - ကော်မရှင်:</span>
                 <span>- {formatAmount(settlementType === 'downline' ? downlineSettlementData.totalCommission : uplineSettlementData.totalCommission, currency)}</span>
               </div>
 
               <div className="flex items-center justify-between font-black text-slate-900 pt-0.5">
-                <span>အမှန်ရောင်းငွေ / ကျန်ငွေ (Net Sales):</span>
+                <span>အမှန်ရောင်းငွေ / ကျန်ငွေ:</span>
                 <span>{formatAmount(settlementType === 'downline' ? (downlineSettlementData.totalSales - downlineSettlementData.totalCommission) : (uplineSettlementData.totalForwarded - uplineSettlementData.totalCommission), currency)}</span>
               </div>
 
               <div className="flex items-center justify-between text-rose-700 font-bold border-b border-dashed border-slate-300 pb-2">
-                <span>နုတ် - ပေါက်ကြေး (Total Payout):</span>
-                <span>- {formatAmount(settlementType === 'downline' ? downlineSettlementData.totalPayout : uplineSettlementData.totalPayout, currency)}P</span>
+                <span>နုတ် - ပေါက်ကြေး:</span>
+                <span>- {formatAmount(settlementType === 'downline' ? downlineSettlementData.totalPayout : uplineSettlementData.totalPayout, currency)}</span>
               </div>
 
               {/* Final Net Balance */}
@@ -927,7 +1042,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
               }`}>
                 <span>
                   {settlementType === 'downline'
-                    ? ((downlineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး ရရန်ငွေ (Receive):' : 'နောက်ဆုံး ပေးရန်ငွေ (Pay):')
+                    ? ((downlineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး ရရန်ငွေ:' : 'နောက်ဆုံး ပေးရန်ငွေ:')
                     : ((uplineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး အထက်ဒိုင်သို့ ပေးရန်:' : 'နောက်ဆုံး အထက်ဒိုင်မှ ရရန်:')}
                 </span>
                 <span className="font-mono text-base font-black">
