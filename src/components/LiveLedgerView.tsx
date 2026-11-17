@@ -457,7 +457,7 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                         ? 'bg-amber-50/60 border-amber-400'
                         : item.totalSold > 0
                         ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400'
-                        : 'bg-slate-50/70 border-slate-200/80 hover:border-indigo-300'
+                        : 'bg-blue-50/90 border-blue-300 hover:border-blue-500'
                     }`}
                   >
                     {/* Top: Number & Micro Status Badge */}
@@ -473,7 +473,7 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                               ? 'text-amber-900'
                               : item.totalSold > 0
                               ? 'text-slate-900'
-                              : 'text-slate-600'
+                              : 'text-blue-700'
                           }`}
                         >
                           {item.number}
@@ -503,11 +503,13 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                     {/* Middle: Compact Sold & Limit */}
                     <div className="mt-1 space-y-0.5">
                       <div className={`font-mono text-[11px] font-bold tabular-nums leading-tight truncate ${
-                        isEmpty ? 'text-slate-400' : 'text-slate-900'
+                        isEmpty ? 'text-blue-500' : 'text-slate-900'
                       }`}>
                         {item.totalSold > 0 ? formatAmount(item.totalSold, '') : '0'}
                       </div>
-                      <div className="flex items-center justify-between gap-1 text-[9px] font-mono tabular-nums text-slate-400 leading-none">
+                      <div className={`flex items-center justify-between gap-1 text-[9px] font-mono tabular-nums leading-none ${
+                        isEmpty ? 'text-blue-400' : 'text-slate-400'
+                      }`}>
                         <span className="truncate">
                           /{item.limit > 0 ? formatAmount(item.limit, '') : '∞'}
                         </span>
@@ -641,7 +643,7 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                                   : isWinningNumber
                                   ? 'bg-amber-400 text-slate-950 border-amber-500'
                                   : isEmpty
-                                  ? 'bg-slate-50 text-slate-600 border-slate-200'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : 'bg-indigo-50 text-indigo-950 border-indigo-200'
                               }`}
                             >
@@ -717,7 +719,7 @@ export const LiveLedgerView: React.FC<LiveLedgerViewProps> = ({
                               <span>{isMyanmar ? 'သတိ' : 'Warn'}</span>
                             </span>
                           ) : isEmpty ? (
-                            <span className="text-[10px] text-slate-400 font-medium">
+                            <span className="text-[10px] text-blue-600 font-medium">
                               {isMyanmar ? 'အလွတ်' : 'Empty'}
                             </span>
                           ) : (

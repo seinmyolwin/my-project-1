@@ -4,6 +4,8 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { BookieMode } from '../types';
+import { LiveTwoDTicker } from './twoD/LiveTwoDTicker';
+import { getLocalDateString } from '../utils/moneyUtils';
 
 interface QuickResultsBannerProps {
   mode: BookieMode;
@@ -58,7 +60,7 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
       b.localeCompare(a)
     );
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const todayDateStr = uniqueDates.includes(todayStr) ? todayStr : (uniqueDates[0] || todayStr);
     const yesterdayDateStr = uniqueDates.find((d) => d < todayDateStr) || uniqueDates[1] || '';
 
@@ -104,9 +106,9 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
       lottery2D.activeRound?.multiplier || lottery2D.settings.defaultMultiplier;
 
     return (
-      <div className="bg-gradient-to-r from-teal-950 via-slate-900 to-teal-950 text-white rounded-2xl p-2.5 sm:px-4 shadow-sm border border-teal-800/60 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-gradient-to-r from-teal-950 via-slate-950 to-teal-950 text-white rounded-2xl p-2.5 sm:px-4 shadow-sm border border-teal-800/60 flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
         {/* Title: ဇီးကွက်ဂဏန်း and အဆ */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center font-bold border border-teal-500/30 shrink-0">
             <Trophy className="w-4 h-4 text-amber-400" />
           </div>
@@ -120,8 +122,13 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
           </div>
         </div>
 
+        {/* Center Empty Space: YouTube Live Style Real-Time SET / VAL / 2D Studio Display (Display-Only) */}
+        <div className="flex-1 min-w-0 xl:px-2">
+          <LiveTwoDTicker />
+        </div>
+
         {/* 2 Days Display (Yesterday & Today) */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
           {/* 1. Yesterday (အရင်ရက် / မနေ့က) */}
           {yesterdayDateStr && (
             <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-2xs cursor-pointer hover:bg-slate-700 transition-colors" onClick={() => onOpenStatement(yesterdayDateStr)}>

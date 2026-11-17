@@ -403,7 +403,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                         ? 'bg-amber-50/60 border-amber-400'
                         : item.totalSold > 0
                         ? 'bg-teal-50/40 border-teal-200 hover:border-teal-400'
-                        : 'bg-slate-50/70 border-slate-200/80 hover:border-teal-300'
+                        : 'bg-blue-50/90 border-blue-300 hover:border-blue-500'
                     }`}
                   >
                     {/* Top: Number & Micro Status Badge */}
@@ -419,7 +419,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                               ? 'text-amber-900'
                               : item.totalSold > 0
                               ? 'text-slate-900'
-                              : 'text-slate-600'
+                              : 'text-blue-700'
                           }`}
                         >
                           {item.number}
@@ -449,11 +449,13 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                     {/* Middle: Compact Sold & Limit */}
                     <div className="mt-1 space-y-0.5">
                       <div className={`font-mono text-[11px] font-bold tabular-nums leading-tight truncate ${
-                        isEmpty ? 'text-slate-400' : 'text-slate-900'
+                        isEmpty ? 'text-blue-500' : 'text-slate-900'
                       }`}>
                         {item.totalSold > 0 ? formatAmount(item.totalSold, '') : '0'}
                       </div>
-                      <div className="flex items-center justify-between gap-1 text-[9px] font-mono tabular-nums text-slate-400 leading-none">
+                      <div className={`flex items-center justify-between gap-1 text-[9px] font-mono tabular-nums leading-none ${
+                        isEmpty ? 'text-blue-400' : 'text-slate-400'
+                      }`}>
                         <span className="truncate">
                           /{item.limit > 0 ? formatAmount(item.limit, '') : '∞'}
                         </span>
@@ -587,7 +589,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                                   : isWinningNumber
                                   ? 'bg-amber-400 text-slate-950 border-amber-500'
                                   : isEmpty
-                                  ? 'bg-slate-50 text-slate-600 border-slate-200'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : 'bg-teal-50 text-teal-950 border-teal-200'
                               }`}
                             >
@@ -663,7 +665,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                               <span>{isMyanmar ? 'သတိ' : 'Warn'}</span>
                             </span>
                           ) : isEmpty ? (
-                            <span className="text-[10px] text-slate-400 font-medium">
+                            <span className="text-[10px] text-blue-600 font-medium">
                               {isMyanmar ? 'အလွတ်' : 'Empty'}
                             </span>
                           ) : (

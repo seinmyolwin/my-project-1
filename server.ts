@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createMessagingRouter, verifyOwnerTokenMiddleware, generateOwnerSessionToken } from './server/messagingHub';
+import { createLiveTwoDRouter } from './server/liveTwoDService';
 
 dotenv.config();
 
@@ -64,6 +65,9 @@ async function startServer() {
 
   // Mount Telegram messaging integration router (Protected routes inside messagingHub)
   app.use('/api', createMessagingRouter());
+
+  // Mount Live 2D (SET & Value) real-time market feed + SSE stream
+  app.use('/api', createLiveTwoDRouter());
 
   // Rate Limiter for AI / OCR endpoints (D3)
   const ocrRateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60', 10);

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { createMessagingRouter } from '../server/messagingHub.js';
+import { createLiveTwoDRouter } from '../server/liveTwoDService.js';
 import express from 'express';
 
 const app = express();
@@ -10,6 +11,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Mount messaging router securely
 const messagingRouter = createMessagingRouter();
 app.use('/api', messagingRouter);
+app.use('/api', createLiveTwoDRouter());
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, timestamp: Date.now() });
