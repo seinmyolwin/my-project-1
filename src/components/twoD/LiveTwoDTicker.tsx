@@ -47,6 +47,158 @@ type SlotViewMode = 'primary' | 'all';
 type InspectedKey = 'live' | '11:00' | '12:01' | '15:00' | '16:30';
 
 const SLOT_VIEW_STORAGE_KEY = 'shwe_2d_live_slot_view';
+const DIRECT_UPSTREAM_URL = 'https://api.thaistock2d.com/live';
+
+function extractSetAndValDigits(setStr?: string, valStr?: string): { setDigit: string; valDigit: string; twod: string } {
+  const cleanSet = (setStr || '').trim();
+  const cleanVal = (valStr || '').trim();
+
+  if (!cleanSet || cleanSet === '--' || !cleanVal || cleanVal === '--') {
+    return { setDigit: '-', valDigit: '-', twod: '--' };
+  }
+
+  const setDigitsOnly = cleanSet.replace(/[^0-9]/g, '');
+  const setDigit = setDigitsOnly.length > 0 ? setDigitsOnly[setDigitsOnly.length - 1] : '-';
+
+  const valIntPart = cleanVal.split('.')[0] || '';
+  const valIntDigits = valIntPart.replace(/[^0-9]/g, '');
+  const valDigit = valIntDigits.length > 0 ? valIntDigits[valIntDigits.length - 1] : '-';
+
+  const twod = setDigit !== '-' && valDigit !== '-' ? `${setDigit}${valDigit}` : '--';
+  return { setDigit, valDigit, twod };
+}
+
+function getMyanmarMarketClock(serverTimeStr?: string): { dayOfWeek: number; minutesOfDay: number } {
+  if (serverTimeStr) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/.exec(serverTimeStr.trim());
+    if (m) {
+      const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      return {
+        dayOfWeek: d.getUTCDay(),
+        minutesOfDay: Number(m[4]) * 60 + Number(m[5])
+      };
+    }
+  }
+  const mmtDate = new Date(Date.now() + 6.5 * 60 * 60 * 1000);
+  return {
+    dayOfWeek: mmtDate.getUTCDay(),
+    minutesOfDay: mmtDate.getUTCHours() * 60 + mmtDate.getUTCMinutes()
+  };
+}
+
+function computeMarketStatus(
+  serverTime: string,
+  isHoliday: boolean
+): { status: 'live' | 'break' | 'closed' | 'holiday'; label: string } {
+  if (isHoliday) {
+    return { status: 'holiday', label: 'ဈေးပိတ်ရက် (Holiday)' };
+  }
+  const { dayOfWeek, minutesOfDay } = getMyanmarMarketClock(serverTime);
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return { status: 'closed', label: 'စနေ/တနင်္ဂနွေ ဈေးပိတ်' };
+  }
+  if (minutesOfDay >= 570 && minutesOfDay <= 725) {
+    return { status: 'live', label: 'LIVE • မနက်ပိုင်း ဈေးဖွင့်' };
+  }
+  if (minutesOfDay > 725 && minutesOfDay < 840) {
+    return { status: 'break', label: 'နေ့လယ် ဈေးနားချိန်' };
+  }
+  if (minutesOfDay >= 840 && minutesOfDay <= 995) {
+    return { status: 'live', label: 'LIVE • ညနေပိုင်း ဈေးဖွင့်' };
+  }
+  return { status: 'closed', label: 'ဈေးပိတ်ချိန်' };
+}
+
+function normalizeUpstreamSlot(raw: any, label: string): LiveTwoDSlot | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const set = String(raw.set ?? '--').trim() || '--';
+  const value = String(raw.value ?? '--').trim() || '--';
+  const extracted = extractSetAndValDigits(set, value);
+  const apiTwod = String(raw.twod ?? '').trim();
+  const twod = apiTwod && apiTwod !== '--' ? apiTwod : extracted.twod;
+  const isLocked = twod !== '--' && set !== '--' && value !== '--';
+
+  return {
+    openTime: String(raw.open_time || ''),
+    label,
+    set,
+    value,
+    twod,
+    setDigit: extracted.setDigit,
+    valDigit: extracted.valDigit,
+    stockDate: raw.stock_date,
+    stockDatetime: raw.stock_datetime,
+    isLocked
+  };
+}
+
+function normalizeUpstreamPayload(data: any): LiveTwoDPayload {
+  const serverTime = String(data?.server_time || '');
+  const holidayStatus = String(data?.holiday?.status || '2');
+  const isHoliday = holidayStatus === '1';
+  const holidayName =
+    data?.holiday?.name && data.holiday.name !== 'NULL' ? String(data.holiday.name) : '';
+
+  const rawLive = data?.live || {};
+  const liveSet = String(rawLive.set ?? '--').trim() || '--';
+  const liveVal = String(rawLive.value ?? '--').trim() || '--';
+  const extracted = extractSetAndValDigits(liveSet, liveVal);
+  const apiLiveTwod = String(rawLive.twod ?? '').trim();
+  const liveTwod = apiLiveTwod && apiLiveTwod !== '--' ? apiLiveTwod : extracted.twod;
+
+  const resultsArr: any[] = Array.isArray(data?.result) ? data.result : [];
+  const findByTime = (t: string) => resultsArr.find((r) => String(r?.open_time || '').startsWith(t));
+  const market = computeMarketStatus(serverTime, isHoliday);
+
+  return {
+    success: true,
+    fetchedAt: Date.now(),
+    serverTime,
+    marketStatus: market.status,
+    marketStatusLabel: market.label,
+    holiday: {
+      isHoliday,
+      date: String(data?.holiday?.date || ''),
+      name: holidayName
+    },
+    live: {
+      set: liveSet,
+      value: liveVal,
+      twod: liveTwod,
+      setDigit: extracted.setDigit,
+      valDigit: extracted.valDigit,
+      time: String(rawLive.time || serverTime || ''),
+      date: String(rawLive.date || '')
+    },
+    slots: {
+      morning1100: normalizeUpstreamSlot(findByTime('11:00'), '11:00'),
+      morning1201: normalizeUpstreamSlot(findByTime('12:01'), '12:01'),
+      afternoon1500: normalizeUpstreamSlot(findByTime('15:00'), '15:00'),
+      evening1630: normalizeUpstreamSlot(findByTime('16:30'), '16:30')
+    }
+  };
+}
+
+async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('Non-JSON response');
+    }
+    return await res.json();
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 /**
  * Splits SET string (e.g. "1,474.31") so the last digit ("1") can be highlighted.
@@ -116,6 +268,7 @@ export const LiveTwoDTicker: React.FC = () => {
 
   const prevLiveFingerprintRef = useRef<string>('');
   const flashTimerRef = useRef<number | null>(null);
+  const marketStatusRef = useRef<LiveTwoDPayload['marketStatus'] | undefined>(undefined);
 
   const toggleSlotViewMode = () => {
     setSlotViewMode((prev) => {
@@ -140,74 +293,122 @@ export const LiveTwoDTicker: React.FC = () => {
       flashTimerRef.current = window.setTimeout(() => setIsFlashing(false), 750);
     }
     prevLiveFingerprintRef.current = fp;
+    marketStatusRef.current = payload.marketStatus;
     setData(payload);
     setIsLoading(false);
   }, []);
 
   const fetchOnce = useCallback(async () => {
+    // 1. Try local/backend API proxy first
     try {
-      const res = await fetch('/api/2d/live', { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: LiveTwoDPayload = await res.json();
-      applyPayload(json);
+      const json: LiveTwoDPayload = await fetchJsonWithTimeout('/api/2d/live', 3500);
+      if (json && json.success && json.live) {
+        applyPayload(json);
+        return;
+      }
     } catch {
-      setIsLoading(false);
+      // Fall through to direct CORS upstream fetch
     }
+
+    // 2. Fallback: fetch directly from CORS-enabled upstream API
+    try {
+      const raw = await fetchJsonWithTimeout(DIRECT_UPSTREAM_URL, 4500);
+      if (raw && (raw.live || Array.isArray(raw.result))) {
+        applyPayload(normalizeUpstreamPayload(raw));
+        return;
+      }
+    } catch {
+      // Ignore network failure, stop spinner
+    }
+
+    setIsLoading(false);
   }, [applyPayload]);
 
-  // Real-time SSE stream with fallback polling when market is active, and gentle refresh when closed/holiday
+  // Real-time SSE stream with immediate initial fetch + automatic polling fallback
   useEffect(() => {
     if (isPaused) return;
 
     let es: EventSource | null = null;
     let pollTimer: number | null = null;
+    let sseWatchdog: number | null = null;
+    let sseReceiving = false;
     let disposed = false;
 
     const startPolling = (intervalMs: number) => {
       if (pollTimer) window.clearInterval(pollTimer);
       pollTimer = window.setInterval(() => {
-        if (!disposed) void fetchOnce();
+        if (disposed) return;
+        const closed =
+          marketStatusRef.current === 'closed' || marketStatusRef.current === 'holiday';
+        if (closed && intervalMs < 30000) {
+          startPolling(60000);
+          return;
+        }
+        void fetchOnce();
       }, intervalMs);
     };
 
-    const marketClosed =
-      data?.marketStatus === 'closed' || data?.marketStatus === 'holiday';
+    // Always fetch immediately so data appears right away without waiting on SSE handshake
+    void fetchOnce();
 
-    if (marketClosed) {
-      // Market is closed/holiday: poll lightly every 60s instead of holding an open SSE connection
-      void fetchOnce();
-      startPolling(60000);
-    } else if (typeof EventSource !== 'undefined') {
-      es = new EventSource('/api/2d/live/stream');
-      es.onmessage = (ev) => {
-        if (disposed) return;
-        try {
-          const parsed: LiveTwoDPayload = JSON.parse(ev.data);
-          applyPayload(parsed);
-        } catch {
-          // ignore malformed frame
-        }
-      };
-      es.onerror = () => {
-        if (disposed) return;
-        if (es) {
-          es.close();
-          es = null;
-        }
-        void fetchOnce();
-        startPolling(3000);
-      };
+    if (typeof EventSource !== 'undefined') {
+      try {
+        es = new EventSource('/api/2d/live/stream');
+        es.onmessage = (ev) => {
+          if (disposed) return;
+          try {
+            const parsed: LiveTwoDPayload = JSON.parse(ev.data);
+            if (parsed && parsed.success && parsed.live) {
+              sseReceiving = true;
+              applyPayload(parsed);
+              if (parsed.marketStatus === 'closed' || parsed.marketStatus === 'holiday') {
+                if (es) {
+                  es.close();
+                  es = null;
+                }
+                startPolling(60000);
+              }
+            }
+          } catch {
+            // ignore malformed frame
+          }
+        };
+        es.onerror = () => {
+          if (disposed) return;
+          if (es) {
+            es.close();
+            es = null;
+          }
+          const closed =
+            marketStatusRef.current === 'closed' || marketStatusRef.current === 'holiday';
+          startPolling(closed ? 60000 : 2500);
+        };
+
+        // If SSE doesn't deliver within 4s (e.g. proxy buffering), start polling seamlessly
+        sseWatchdog = window.setTimeout(() => {
+          if (disposed || sseReceiving) return;
+          if (es) {
+            es.close();
+            es = null;
+          }
+          const closed =
+            marketStatusRef.current === 'closed' || marketStatusRef.current === 'holiday';
+          startPolling(closed ? 60000 : 2500);
+        }, 4000);
+      } catch {
+        startPolling(2500);
+      }
     } else {
-      void fetchOnce();
-      startPolling(3000);
+      startPolling(2500);
     }
 
     return () => {
       disposed = true;
       if (es) es.close();
       if (pollTimer) window.clearInterval(pollTimer);
+      if (sseWatchdog) window.clearTimeout(sseWatchdog);
     };
-  }, [isPaused, data?.marketStatus, applyPayload, fetchOnce]);
+  }, [isPaused, applyPayload, fetchOnce]);
 
   useEffect(() => {
     return () => {
@@ -380,7 +581,10 @@ export const LiveTwoDTicker: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => void fetchOnce()}
+            onClick={() => {
+              setIsLoading(true);
+              void fetchOnce();
+            }}
             className="p-1 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors cursor-pointer"
             title="ယခုချက်ချင်း ပြန်စစ်ရန်"
           >
