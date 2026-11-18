@@ -475,7 +475,27 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                 <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">ဘောင်ချာအမှတ်</th>
-                    <th className="p-3.5">ထိုးသူအမည်</th>
+                    <th className="p-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span>ထိုးသူအမည်</span>
+                        {availableCustomers.length > 0 && (
+                          <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-1.5 py-0.5 shadow-2xs" onClick={(e) => e.stopPropagation()}>
+                            <SlidersHorizontal className="w-3 h-3 text-teal-600" />
+                            <select
+                              value={customerFilter}
+                              onChange={(e) => setCustomerFilter(e.target.value)}
+                              className="text-[11px] font-sans font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
+                              title="Excel ကဲ့သို့ ထိုးသူအမည်ဖြင့် ဖယ်ထုတ်စစ်ထုတ်ရန်"
+                            >
+                              <option value="all">အားလုံး ({availableCustomers.length})</option>
+                              {availableCustomers.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </th>
                     <th className="p-3.5">ဖုန်းနံပါတ်</th>
                     <th className="p-3.5 text-center">ဂဏန်းအရေအတွက်</th>
                     <th className="p-3.5 text-right">စုစုပေါင်းငွေ</th>

@@ -19,7 +19,8 @@ import {
   Phone,
   X,
   Trophy,
-  Edit2
+  Edit2,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
@@ -77,9 +78,18 @@ export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher }
     setEditingVoucherId(null);
   };
 
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
+
+  const availableCustomers = useMemo(() => {
+    return Array.from(new Set(activeRoundVouchers.map(v => v.customerName))).filter(Boolean).sort();
+  }, [activeRoundVouchers]);
+
   // Filtered Customer Vouchers
   const displayVouchers = useMemo(() => {
     return activeRoundVouchers.filter((v) => {
+      // Customer filter
+      if (customerFilter !== 'all' && v.customerName !== customerFilter) return false;
+
       // Payment filter
       if (filterPaid === 'paid' && (!v.isPaid || v.status === 'cancelled')) return false;
       if (filterPaid === 'unpaid' && (v.isPaid || v.status === 'cancelled')) return false;
@@ -97,7 +107,7 @@ export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher }
       }
       return true;
     });
-  }, [activeRoundVouchers, filterPaid, searchQuery]);
+  }, [activeRoundVouchers, filterPaid, searchQuery, customerFilter]);
 
   // Filtered Forward Slips
   const displayForwardSlips = useMemo(() => {
@@ -455,7 +465,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
       {/* ========================================================================= */}
       {(activeCategory === 'all' || activeCategory === 'customer') && (
         <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <Receipt className="w-4 h-4 text-indigo-600" />
               <span>{isMyanmar ? 'ထိုးသူ ဝယ်သူများ၏ အရောင်းဘောင်ချာများ' : 'Customer Sales Vouchers'}</span>
@@ -463,6 +473,24 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                 {displayVouchers.length}
               </span>
             </h3>
+
+            {availableCustomers.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1 rounded-xl shadow-2xs font-sans">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="text-xs font-bold text-slate-700">ထိုးသူအမည်:</span>
+                <select
+                  value={customerFilter}
+                  onChange={(e) => setCustomerFilter(e.target.value)}
+                  className="px-2 py-0.5 text-xs rounded bg-slate-50 border border-slate-300 text-slate-900 font-bold cursor-pointer outline-none"
+                  title="Excel ကဲ့သို့ ထိုးသူအမည်ဖြင့် ဖယ်ထုတ်စစ်ထုတ်ရန်"
+                >
+                  <option value="all">ထိုးသူအားလုံး ({availableCustomers.length})</option>
+                  {availableCustomers.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
