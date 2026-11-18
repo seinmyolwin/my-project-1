@@ -63,12 +63,13 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
     }, 400);
   };
 
-  const isThreeCol = voucher.items.length > 14;
-  const isMultiCol = voucher.items.length > 6 || isThreeCol;
+  const isFourCol = voucher.items.length > 32;
+  const isThreeCol = voucher.items.length > 12;
+  const isMultiCol = voucher.items.length > 5 || isThreeCol;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className={`bg-white border border-slate-200 rounded-3xl w-full ${isThreeCol ? 'max-w-lg' : 'max-w-md'} shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
         
         {/* Modal Header */}
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
@@ -93,16 +94,16 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
             <span>အော်တိုသိမ်းဆည်းပြီးပါပြီ (နောက်ကြိုက်သည့်အချိန် ပြန်ထုတ်နိုင်ပါသည်)</span>
           </span>
           <span className="font-mono text-[10px] text-emerald-700 bg-emerald-100/80 px-1.5 py-0.2 rounded font-black">
-            A6 Size
+            တရွက်တည်း / PDF
           </span>
         </div>
 
-        {/* Printable Thermal/A6 Receipt Container */}
+        {/* Printable Single-Sheet Receipt Container */}
         <div className="p-3 sm:p-5 bg-slate-50/50 flex justify-center">
           <div
             ref={printRef}
             id="printable-voucher"
-            className="w-full max-w-[340px] bg-white text-slate-900 p-4 rounded-xl shadow-xs font-mono text-[11px] space-y-2.5 border border-slate-200"
+            className={`w-full ${isThreeCol ? 'max-w-[460px]' : 'max-w-[340px]'} bg-white text-slate-900 p-4 rounded-xl shadow-xs font-mono text-[11px] space-y-2.5 border border-slate-200`}
           >
             {/* Shop Header */}
             <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-2">
@@ -148,17 +149,19 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
 
               <div
                 className={`voucher-items-container ${
-                  isThreeCol
-                    ? 'grid grid-cols-3 gap-x-2 gap-y-0.5 max-h-48 overflow-y-auto pr-0.5'
+                  isFourCol
+                    ? 'grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-56 overflow-y-auto pr-0.5'
+                    : isThreeCol
+                    ? 'grid grid-cols-3 gap-x-2 gap-y-1 max-h-56 overflow-y-auto pr-0.5'
                     : isMultiCol
-                    ? 'grid grid-cols-2 gap-x-3 gap-y-0.5 max-h-48 overflow-y-auto pr-0.5'
-                    : 'space-y-0.5 max-h-48 overflow-y-auto pr-0.5'
+                    ? 'grid grid-cols-2 gap-x-3 gap-y-1 max-h-56 overflow-y-auto pr-0.5'
+                    : 'space-y-0.5 max-h-56 overflow-y-auto pr-0.5'
                 }`}
               >
                 {voucher.items.map((item, idx) => (
                   <div key={idx} className="flex justify-between text-[10.5px] leading-tight">
                     <span className="font-bold tracking-wider text-slate-900">
-                      {item.number} {item.betType === 'rumble' ? '(R)' : ''}
+                      {item.number}{item.betType === 'rumble' ? '(R)' : ''}
                     </span>
                     <span className="font-bold text-slate-700">
                       {formatAmount(item.amount, settings.currency)}
@@ -168,29 +171,30 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
               </div>
             </div>
 
-            {/* Financial Totals */}
-            <div className="space-y-0.5 text-[11px]">
-              <div className="flex justify-between text-slate-600">
-                <span>စုစုပေါင်း:</span>
-                <span>{formatAmount(voucher.subtotal, settings.currency)}</span>
-              </div>
-              {voucher.discountAmount > 0 && (
-                <div className="flex justify-between text-rose-600">
-                  <span>လျှော့ငွေ ({voucher.discountPercent}%):</span>
-                  <span>-{formatAmount(voucher.discountAmount, settings.currency)}</span>
+            {/* Financial Totals & Footer Notice (Kept Together) */}
+            <div className="voucher-summary-block space-y-2">
+              <div className="space-y-0.5 text-[11px]">
+                <div className="flex justify-between text-slate-600">
+                  <span>စုစုပေါင်း ({voucher.items.length} ကွက်):</span>
+                  <span>{formatAmount(voucher.subtotal, settings.currency)}</span>
                 </div>
-              )}
-              <div className="flex justify-between font-black text-xs text-slate-950 pt-1 border-t border-slate-300">
-                <span>ကျသင့်ငွေ စုစုပေါင်း:</span>
-                <span className="text-indigo-950">{formatAmount(voucher.netPayable, settings.currency)}</span>
+                {voucher.discountAmount > 0 && (
+                  <div className="flex justify-between text-rose-600">
+                    <span>လျှော့ငွေ ({voucher.discountPercent}%):</span>
+                    <span>-{formatAmount(voucher.discountAmount, settings.currency)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-black text-xs text-slate-950 pt-1 border-t border-slate-300">
+                  <span>ကျသင့်ငွေ စုစုပေါင်း:</span>
+                  <span className="text-indigo-950">{formatAmount(voucher.netPayable, settings.currency)}</span>
+                </div>
               </div>
-            </div>
 
-            {/* Footer Notice */}
-            <div className="text-center pt-1.5 space-y-0.5 border-t border-dashed border-slate-300">
-              <p className="text-[9px] text-slate-500 font-sans leading-tight">
-                {settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါက်ဂဏန်းထွက်သည်အထိ သိမ်းဆည်းထားပါ'}
-              </p>
+              <div className="text-center pt-1.5 space-y-0.5 border-t border-dashed border-slate-300">
+                <p className="text-[9px] text-slate-500 font-sans leading-tight">
+                  {settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါက်ဂဏန်းထွက်သည်အထိ သိမ်းဆည်းထားပါ'}
+                </p>
+              </div>
             </div>
 
           </div>

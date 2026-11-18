@@ -25,6 +25,7 @@ import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
 import { cleanMasterAgentName } from '../utils/storage';
 import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
+import { printVoucherSlip } from '../utils/printUtils';
 
 interface VouchersViewProps {
   onOpenPrintVoucher: (voucher: Voucher) => void;
@@ -683,88 +684,90 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
             </div>
 
             <div className="p-4 sm:p-5 space-y-4">
-              <div className="bg-amber-50/70 border border-amber-100 rounded-2xl p-3.5 space-y-2 text-xs">
-                <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold block">လွှဲစလစ်အမှတ်</span>
-                    <span className="font-mono font-black text-sm text-amber-900">{selectedForwardSlip.slipNo}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 font-bold block">ရက်စွဲ/အချိန်</span>
-                    <span className="text-[11px] text-slate-700 font-bold">
-                      {new Date(selectedForwardSlip.createdAt).toLocaleString('en-GB')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs pt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-amber-600" />
-                    <span className="text-slate-600">ဒိုင်ချုပ်:</span>
-                    <span className="font-bold text-slate-900">{selectedForwardSlip.masterAgentName}</span>
-                  </div>
-                  {selectedForwardSlip.masterAgentPhone && (
-                    <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-                      <Phone className="w-3 h-3 text-slate-400" />
-                      <span>{selectedForwardSlip.masterAgentPhone}</span>
+              <div id="printable-forward-slip" className="space-y-3">
+                <div className="bg-amber-50/70 border border-amber-100 rounded-2xl p-3.5 space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold block">လွှဲစလစ်အမှတ်</span>
+                      <span className="font-mono font-black text-sm text-amber-900">{selectedForwardSlip.slipNo}</span>
                     </div>
-                  )}
-                </div>
-              </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 font-bold block">ရက်စွဲ/အချိန်</span>
+                      <span className="text-[11px] text-slate-700 font-bold">
+                        {new Date(selectedForwardSlip.createdAt).toLocaleString('en-GB')}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Numbers Grid */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
-                  <span>ဒိုင်ကြီးဆီ လွှဲတင်သည့် 3D ဂဏန်းများ ({selectedForwardSlip.items.length} လုံး)</span>
-                  <span>လွှဲငွေ</span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedForwardSlip.items.map((item, idx) => {
-                      const winNum = activeRound?.winningNumber?.trim().padStart(3, '0') || '';
-                      const isStraightHit = !!winNum && winNum === item.number;
-                      const isToddHit = !isStraightHit && !!winNum && (settings.defaultToddMultiplier ?? 0) > 0 && getToddWinningNumbers(winNum).includes(item.number);
-                      const isHit = isStraightHit || isToddHit;
-                      return (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
-                            isStraightHit
-                              ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
-                              : isToddHit
-                              ? 'bg-indigo-100 border-indigo-300 text-indigo-950 font-black ring-2 ring-indigo-300 shadow-xs'
-                              : 'bg-white border-slate-200 text-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className={`font-black text-base ${isToddHit ? 'text-indigo-900' : 'text-amber-900'}`}>{item.number}</span>
-                            {isHit && <Trophy className={`w-3 h-3 ${isToddHit ? 'text-indigo-600' : 'text-amber-600'}`} />}
-                            {isToddHit && <span className="text-[9px] font-sans font-bold text-indigo-700">ပတ်လည်</span>}
-                          </div>
-                          <span className="font-bold text-slate-700">
-                            {formatAmount(item.amount, settings.currency)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="flex items-center justify-between text-xs pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="text-slate-600">ဒိုင်ချုပ်:</span>
+                      <span className="font-bold text-slate-900">{selectedForwardSlip.masterAgentName}</span>
+                    </div>
+                    {selectedForwardSlip.masterAgentPhone && (
+                      <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                        <Phone className="w-3 h-3 text-slate-400" />
+                        <span>{selectedForwardSlip.masterAgentPhone}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Summary */}
-              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-1.5 text-xs font-mono">
-                <div className="flex justify-between text-slate-600 font-medium">
-                  <span>စုစုပေါင်း လွှဲတင်ငွေ:</span>
-                  <span className="font-bold text-slate-900">{formatAmount(selectedForwardSlip.totalAmount, settings.currency)}</span>
+                {/* Numbers Grid */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
+                    <span>ဒိုင်ကြီးဆီ လွှဲတင်သည့် 3D ဂဏန်းများ ({selectedForwardSlip.items.length} လုံး)</span>
+                    <span>လွှဲငွေ</span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
+                    <div className="voucher-items-container grid grid-cols-2 gap-2">
+                      {selectedForwardSlip.items.map((item, idx) => {
+                        const winNum = activeRound?.winningNumber?.trim().padStart(3, '0') || '';
+                        const isStraightHit = !!winNum && winNum === item.number;
+                        const isToddHit = !isStraightHit && !!winNum && (settings.defaultToddMultiplier ?? 0) > 0 && getToddWinningNumbers(winNum).includes(item.number);
+                        const isHit = isStraightHit || isToddHit;
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
+                              isStraightHit
+                                ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
+                                : isToddHit
+                                ? 'bg-indigo-100 border-indigo-300 text-indigo-950 font-black ring-2 ring-indigo-300 shadow-xs'
+                                : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-black text-base ${isToddHit ? 'text-indigo-900' : 'text-amber-900'}`}>{item.number}</span>
+                              {isHit && <Trophy className={`w-3 h-3 ${isToddHit ? 'text-indigo-600' : 'text-amber-600'}`} />}
+                              {isToddHit && <span className="text-[9px] font-sans font-bold text-indigo-700">ပတ်လည်</span>}
+                            </div>
+                            <span className="font-bold text-slate-700">
+                              {formatAmount(item.amount, settings.currency)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between text-emerald-700 font-bold">
-                  <span>ကော်မရှင် ရငွေ ({selectedForwardSlip.commissionRate}%):</span>
-                  <span>+{formatAmount(selectedForwardSlip.commissionAmount, settings.currency)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-black text-slate-950 pt-1.5 border-t border-amber-200">
-                  <span>ဒိုင်သို့ အမှန်ပေးငွေ:</span>
-                  <span className="text-amber-900 font-black text-base">{formatAmount(selectedForwardSlip.netPaid, settings.currency)}</span>
+
+                {/* Summary */}
+                <div className="voucher-summary-block bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-1.5 text-xs font-mono">
+                  <div className="flex justify-between text-slate-600 font-medium">
+                    <span>စုစုပေါင်း လွှဲတင်ငွေ:</span>
+                    <span className="font-bold text-slate-900">{formatAmount(selectedForwardSlip.totalAmount, settings.currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>ကော်မရှင် ရငွေ ({selectedForwardSlip.commissionRate}%):</span>
+                    <span>+{formatAmount(selectedForwardSlip.commissionAmount, settings.currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-black text-slate-950 pt-1.5 border-t border-amber-200">
+                    <span>ဒိုင်သို့ အမှန်ပေးငွေ:</span>
+                    <span className="text-amber-900 font-black text-base">{formatAmount(selectedForwardSlip.netPaid, settings.currency)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -790,7 +793,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
 
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printVoucherSlip('printable-forward-slip', `အိုးစည်လေး အထက်တင်ဘောင်ချာ - ${selectedForwardSlip.slipNo}`)}
                   className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />

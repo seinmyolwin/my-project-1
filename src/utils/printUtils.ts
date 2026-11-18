@@ -21,15 +21,53 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
   }
 
   try {
-    // Clone target element
+    // Clone target element so on-screen modals remain untouched
     const clone = element.cloneNode(true) as HTMLElement;
 
-    // Expand any scrollable max-height containers in the clone for single-page printing
-    const scrollContainers = clone.querySelectorAll('[class*="overflow-y-auto"], [class*="max-h-"]');
-    scrollContainers.forEach((el) => {
+    // Remove screen-only elements inside clone
+    clone.querySelectorAll('.no-print, .print\\:hidden').forEach((el) => el.remove());
+
+    // Expand all scrollable / clipped / narrow width containers in the clone
+    const clampedContainers = clone.querySelectorAll(
+      '[class*="overflow-"], [class*="max-h-"], [class*="max-w-"]'
+    );
+    clampedContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.maxHeight = 'none';
+      htmlEl.style.height = 'auto';
       htmlEl.style.overflow = 'visible';
+      htmlEl.style.maxWidth = 'none';
+    });
+    clone.style.maxHeight = 'none';
+    clone.style.height = 'auto';
+    clone.style.overflow = 'visible';
+    clone.style.maxWidth = 'none';
+    clone.style.width = '100%';
+
+    // Auto-spread bet items into a dense, crisp multi-column grid so everything fits on 1 sheet
+    const itemContainers = clone.querySelectorAll('.voucher-items-container');
+    itemContainers.forEach((container) => {
+      const gridEl = container as HTMLElement;
+      const itemCount = gridEl.children.length;
+      let cols = 2;
+      if (itemCount <= 3) cols = 1;
+      else if (itemCount <= 8) cols = 2;
+      else if (itemCount <= 24) cols = 3;
+      else if (itemCount <= 65) cols = 4;
+      else cols = 5;
+
+      gridEl.classList.add('voucher-print-grid');
+      gridEl.setAttribute('data-print-cols', String(cols));
+      gridEl.style.display = 'grid';
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+      gridEl.style.gap = itemCount > 65 ? '3px 6px' : '4px 8px';
+      gridEl.style.maxHeight = 'none';
+      gridEl.style.overflow = 'visible';
+
+      Array.from(gridEl.children).forEach((child) => {
+        const cell = child as HTMLElement;
+        cell.classList.add('voucher-print-cell');
+      });
     });
 
     // Create print mount container
@@ -40,13 +78,13 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
       document.body.appendChild(printMount);
     }
     printMount.innerHTML = '';
-    
+
     const wrapper = document.createElement('div');
     wrapper.className = 'print-wrapper';
     wrapper.appendChild(clone);
     printMount.appendChild(wrapper);
 
-    // Inject dynamic print page style for A6 size
+    // Inject dynamic print CSS for unified single-voucher spread layout
     let styleEl = document.getElementById('dynamic-print-style') as HTMLStyleElement;
     if (!styleEl) {
       styleEl = document.createElement('style');
@@ -55,54 +93,96 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
     }
     styleEl.innerHTML = `
       @page {
-        size: A6 portrait;
-        margin: 2mm;
+        size: A4 portrait;
+        margin: 6mm;
       }
       @media print {
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
         body.print-mode-active > :not(#print-mount) {
           display: none !important;
         }
         body.print-mode-active #print-mount {
           display: block !important;
+          position: static !important;
           width: 100% !important;
-          max-width: 105mm !important;
+          max-width: 198mm !important;
           margin: 0 auto !important;
           padding: 0 !important;
           background: #ffffff !important;
-        }
-        body {
-          background: #ffffff !important;
-          color: #0f172a !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+          overflow: visible !important;
         }
         .print-wrapper {
           width: 100% !important;
-          max-width: 100mm !important;
+          max-width: 198mm !important;
           margin: 0 auto !important;
-          padding: 1mm !important;
+          padding: 0 !important;
           box-sizing: border-box !important;
+          overflow: visible !important;
         }
-        /* Ensure the printable content itself fits exactly inside A6 */
         #printable-voucher, #printable-forward-slip {
           width: 100% !important;
           max-width: 100% !important;
           margin: 0 !important;
+          padding: 10px 12px !important;
           box-shadow: none !important;
+          border-radius: 8px !important;
           background: #ffffff !important;
           color: #0f172a !important;
-          border: 1px solid #cbd5e1 !important;
+          border: 1.5px solid #94a3b8 !important;
           box-sizing: border-box !important;
+          overflow: visible !important;
+          max-height: none !important;
+          break-inside: auto !important;
+          page-break-inside: auto !important;
         }
         #printable-voucher *, #printable-forward-slip * {
           visibility: visible !important;
         }
-        #printable-voucher [class*="overflow-y-auto"],
+        #printable-voucher [class*="overflow-"],
         #printable-voucher [class*="max-h-"],
-        #printable-forward-slip [class*="overflow-y-auto"],
+        #printable-forward-slip [class*="overflow-"],
         #printable-forward-slip [class*="max-h-"] {
           max-height: none !important;
+          height: auto !important;
           overflow: visible !important;
+        }
+        .voucher-print-grid {
+          display: grid !important;
+          width: 100% !important;
+          break-inside: auto !important;
+          page-break-inside: auto !important;
+        }
+        .voucher-print-cell {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 5px !important;
+          padding: 3px 6px !important;
+          background: #f8fafc !important;
+          font-size: 10.5px !important;
+          line-height: 1.25 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 4px !important;
+        }
+        .voucher-print-grid[data-print-cols="5"] .voucher-print-cell {
+          font-size: 9.5px !important;
+          padding: 2px 4px !important;
+        }
+        .voucher-summary-block {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
         }
       }
     `;
@@ -111,12 +191,10 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
     document.title = title;
     document.body.classList.add('print-mode-active');
 
-    // Call print
-    window.focus();
-    window.print();
-
-    // Setup cleanup
+    let cleanedUp = false;
     const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       document.body.classList.remove('print-mode-active');
       document.title = originalTitle;
       if (printMount && printMount.parentNode) {
@@ -128,8 +206,13 @@ export function printVoucherSlip(elementId: string = 'printable-voucher', title:
     };
 
     window.addEventListener('afterprint', cleanup, { once: true });
-    // Fallback cleanup
-    setTimeout(cleanup, 2000);
+
+    // Call print
+    window.focus();
+    window.print();
+
+    // Extended fallback cleanup for mobile webviews where afterprint may not fire reliably
+    setTimeout(cleanup, 30000);
 
   } catch (error) {
     console.error('Print utility error:', error);

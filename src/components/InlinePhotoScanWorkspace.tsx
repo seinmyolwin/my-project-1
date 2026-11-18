@@ -223,18 +223,31 @@ export const InlinePhotoScanWorkspace: React.FC<InlinePhotoScanWorkspaceProps> =
           const sw = crop ? Math.max(20, Math.round(crop.w * nw)) : nw;
           const sh = crop ? Math.max(20, Math.round(crop.h * nh)) : nh;
 
-          const clampedW = Math.min(sw, nw - sx);
-          const clampedH = Math.min(sh, nh - sy);
+          const clampedW = Math.max(1, Math.min(sw, nw - sx));
+          const clampedH = Math.max(1, Math.min(sh, nh - sy));
+
+          const maxDim = 1600;
+          let targetW = clampedW;
+          let targetH = clampedH;
+          if (targetW > maxDim || targetH > maxDim) {
+            if (targetW > targetH) {
+              targetH = Math.max(1, Math.round((targetH * maxDim) / targetW));
+              targetW = maxDim;
+            } else {
+              targetW = Math.max(1, Math.round((targetW * maxDim) / targetH));
+              targetH = maxDim;
+            }
+          }
 
           const canvas = document.createElement('canvas');
-          canvas.width = clampedW;
-          canvas.height = clampedH;
+          canvas.width = targetW;
+          canvas.height = targetH;
           const ctx = canvas.getContext('2d');
           if (!ctx) {
             reject(new Error('Canvas context unavailable'));
             return;
           }
-          ctx.drawImage(img, sx, sy, clampedW, clampedH, 0, 0, clampedW, clampedH);
+          ctx.drawImage(img, sx, sy, clampedW, clampedH, 0, 0, targetW, targetH);
 
           if (contrastBoost || isGrayscale) {
             const processed = preprocessCanvas(canvas, {
@@ -272,7 +285,7 @@ export const InlinePhotoScanWorkspace: React.FC<InlinePhotoScanWorkspaceProps> =
       try {
         const effectiveCrop = options.fullImage || !useCropBox ? null : cropBox;
         const canvas = await buildCroppedCanvas(targetSrc, effectiveCrop);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
 
         setScanProgress(45);
         setScanStatusText(
@@ -296,11 +309,23 @@ export const InlinePhotoScanWorkspace: React.FC<InlinePhotoScanWorkspaceProps> =
         });
 
         if (!res.ok) {
-          const errPayload = await res.json().catch(() => ({}));
-          throw new Error(errPayload.error || `OCR service returned ${res.status}`);
+          const rawErrText = await res.text().catch(() => '');
+          let parsedErrMsg = '';
+          try {
+            const errPayload = JSON.parse(rawErrText);
+            parsedErrMsg = errPayload?.error || '';
+          } catch {
+            if (rawErrText && !rawErrText.trim().startsWith('<')) {
+              parsedErrMsg = rawErrText.trim().slice(0, 200);
+            }
+          }
+          throw new Error(parsedErrMsg || `OCR service returned ${res.status}`);
         }
 
         const data = await res.json();
+        if (data?.error) {
+          throw new Error(String(data.error));
+        }
         setScanProgress(90);
 
         let formattedRaw = convertMyanmarToEnglishDigits(String(data.rawText || '')).trim();

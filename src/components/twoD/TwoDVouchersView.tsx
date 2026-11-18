@@ -24,6 +24,7 @@ import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDVoucher, TwoDForwardSlip } from '../../types';
 import { cleanMasterAgentName } from '../../utils/storage';
 import { formatAmount } from '../../utils/lotteryUtils';
+import { printVoucherSlip } from '../../utils/printUtils';
 
 interface TwoDVouchersViewProps {
   onOpenPrintVoucher?: (voucher: TwoDVoucher) => void;
@@ -640,83 +641,85 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
             </div>
 
             <div className="p-4 sm:p-5 space-y-4">
-              {/* Slip Header Box */}
-              <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3.5 space-y-2 text-xs">
-                <div className="flex items-center justify-between border-b border-indigo-200/60 pb-2">
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold block">လွှဲစလစ်အမှတ်</span>
-                    <span className="font-mono font-black text-sm text-indigo-800">{selectedForwardSlip.slipNo}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 font-bold block">ရက်စွဲ/အချိန်</span>
-                    <span className="text-[11px] text-slate-700 font-bold">
-                      {new Date(selectedForwardSlip.createdAt).toLocaleString('en-GB')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs pt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-indigo-500" />
-                    <span className="text-slate-600">ဒိုင်ချုပ်:</span>
-                    <span className="font-bold text-slate-900">{selectedForwardSlip.masterAgentName}</span>
-                  </div>
-                  {selectedForwardSlip.masterAgentPhone && (
-                    <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-                      <Phone className="w-3 h-3 text-slate-400" />
-                      <span>{selectedForwardSlip.masterAgentPhone}</span>
+              <div id="printable-forward-slip" className="space-y-3">
+                {/* Slip Header Box */}
+                <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3.5 space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-indigo-200/60 pb-2">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold block">လွှဲစလစ်အမှတ်</span>
+                      <span className="font-mono font-black text-sm text-indigo-800">{selectedForwardSlip.slipNo}</span>
                     </div>
-                  )}
-                </div>
-              </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 font-bold block">ရက်စွဲ/အချိန်</span>
+                      <span className="text-[11px] text-slate-700 font-bold">
+                        {new Date(selectedForwardSlip.createdAt).toLocaleString('en-GB')}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Numbers Grid */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
-                  <span>ဒိုင်ကြီးဆီ လွှဲတင်သည့်ဂဏန်းများ ({selectedForwardSlip.items.length} လုံး)</span>
-                  <span>လွှဲငွေ</span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedForwardSlip.items.map((item, idx) => {
-                      const isHit = activeRound?.winningNumber === item.number;
-                      return (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
-                            isHit
-                              ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
-                              : 'bg-white border-slate-200 text-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-black text-base text-indigo-900">{item.number}</span>
-                            {isHit && <Trophy className="w-3 h-3 text-amber-600" />}
-                          </div>
-                          <span className="font-bold text-slate-700">
-                            {formatAmount(item.amount, settings.currency)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="flex items-center justify-between text-xs pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-indigo-500" />
+                      <span className="text-slate-600">ဒိုင်ချုပ်:</span>
+                      <span className="font-bold text-slate-900">{selectedForwardSlip.masterAgentName}</span>
+                    </div>
+                    {selectedForwardSlip.masterAgentPhone && (
+                      <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                        <Phone className="w-3 h-3 text-slate-400" />
+                        <span>{selectedForwardSlip.masterAgentPhone}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Total Calculation Card */}
-              <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3.5 space-y-1.5 text-xs font-mono">
-                <div className="flex justify-between text-slate-600 font-medium">
-                  <span>စုစုပေါင်း လွှဲတင်ငွေ:</span>
-                  <span className="font-bold text-slate-900">{formatAmount(selectedForwardSlip.totalAmount, settings.currency)}</span>
+                {/* Numbers Grid */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
+                    <span>ဒိုင်ကြီးဆီ လွှဲတင်သည့်ဂဏန်းများ ({selectedForwardSlip.items.length} လုံး)</span>
+                    <span>လွှဲငွေ</span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
+                    <div className="voucher-items-container grid grid-cols-2 gap-2">
+                      {selectedForwardSlip.items.map((item, idx) => {
+                        const isHit = activeRound?.winningNumber === item.number;
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
+                              isHit
+                                ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
+                                : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-base text-indigo-900">{item.number}</span>
+                              {isHit && <Trophy className="w-3 h-3 text-amber-600" />}
+                            </div>
+                            <span className="font-bold text-slate-700">
+                              {formatAmount(item.amount, settings.currency)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between text-emerald-700 font-bold">
-                  <span>ကော်မရှင် ရငွေ ({selectedForwardSlip.commissionRate}%):</span>
-                  <span>+{formatAmount(selectedForwardSlip.commissionAmount, settings.currency)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-black text-slate-950 pt-1.5 border-t border-indigo-200">
-                  <span>ဒိုင်သို့ အမှန်ပေးငွေ:</span>
-                  <span className="text-indigo-900 font-black text-base">{formatAmount(selectedForwardSlip.netPaid, settings.currency)}</span>
+
+                {/* Total Calculation Card */}
+                <div className="voucher-summary-block bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3.5 space-y-1.5 text-xs font-mono">
+                  <div className="flex justify-between text-slate-600 font-medium">
+                    <span>စုစုပေါင်း လွှဲတင်ငွေ:</span>
+                    <span className="font-bold text-slate-900">{formatAmount(selectedForwardSlip.totalAmount, settings.currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>ကော်မရှင် ရငွေ ({selectedForwardSlip.commissionRate}%):</span>
+                    <span>+{formatAmount(selectedForwardSlip.commissionAmount, settings.currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-black text-slate-950 pt-1.5 border-t border-indigo-200">
+                    <span>ဒိုင်သို့ အမှန်ပေးငွေ:</span>
+                    <span className="text-indigo-900 font-black text-base">{formatAmount(selectedForwardSlip.netPaid, settings.currency)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -742,7 +745,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
 
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printVoucherSlip('printable-forward-slip', `ဇီးကွက် အထက်တင်ဘောင်ချာ - ${selectedForwardSlip.slipNo}`)}
                   className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
@@ -787,132 +790,134 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
 
             {/* Slip On-Screen Card View */}
             <div className="p-4 sm:p-5 space-y-4">
-              {/* Slip Header Box */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
-                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold block">ဘောင်ချာအမှတ်</span>
-                    <span className="font-mono font-black text-sm text-teal-700">{selectedVoucher.voucherNo}</span>
+              <div id="printable-voucher" className="space-y-3">
+                {/* Slip Header Box */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold block">ဘောင်ချာအမှတ်</span>
+                      <span className="font-mono font-black text-sm text-teal-700">{selectedVoucher.voucherNo}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 font-bold block">ရက်စွဲ/အချိန်</span>
+                      <span className="text-[11px] text-slate-700 font-bold">
+                        {new Date(selectedVoucher.createdAt).toLocaleString('en-GB')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 font-bold block">ရက်စွဲ/အချိန်</span>
-                    <span className="text-[11px] text-slate-700 font-bold">
-                      {new Date(selectedVoucher.createdAt).toLocaleString('en-GB')}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between text-xs pt-0.5">
-                  <div className="flex items-center gap-1.5 flex-1">
-                    <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="text-slate-600 shrink-0">ထိုးသူ:</span>
-                    {editingVoucherId === selectedVoucher.id ? (
-                      <div className="flex items-center gap-1 flex-1">
-                        <input
-                          type="text"
-                          value={editingCustomerName}
-                          onChange={(e) => setEditingCustomerName(e.target.value)}
-                          className="px-2 py-0.5 text-xs border border-teal-500 rounded focus:outline-none bg-white flex-1"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveEditCustomer(selectedVoucher);
-                            if (e.key === 'Escape') handleCancelEditCustomer();
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => handleSaveEditCustomer(selectedVoucher, e)}
-                          className="p-1 bg-teal-600 text-white rounded hover:bg-teal-700"
-                        >
-                          <Check className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancelEditCustomer}
-                          className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold text-slate-900">{selectedVoucher.customerName}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => handleStartEditCustomer(selectedVoucher, e)}
-                          className="p-1 text-slate-400 hover:text-teal-600 rounded transition-colors"
-                          title="ထိုးသူအမည် ပြင်ရန်"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </button>
+                  <div className="flex items-center justify-between text-xs pt-0.5">
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-slate-600 shrink-0">ထိုးသူ:</span>
+                      {editingVoucherId === selectedVoucher.id ? (
+                        <div className="flex items-center gap-1 flex-1">
+                          <input
+                            type="text"
+                            value={editingCustomerName}
+                            onChange={(e) => setEditingCustomerName(e.target.value)}
+                            className="px-2 py-0.5 text-xs border border-teal-500 rounded focus:outline-none bg-white flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEditCustomer(selectedVoucher);
+                              if (e.key === 'Escape') handleCancelEditCustomer();
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => handleSaveEditCustomer(selectedVoucher, e)}
+                            className="p-1 bg-teal-600 text-white rounded hover:bg-teal-700"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEditCustomer}
+                            className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-slate-900">{selectedVoucher.customerName}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleStartEditCustomer(selectedVoucher, e)}
+                            className="no-print p-1 text-slate-400 hover:text-teal-600 rounded transition-colors"
+                            title="ထိုးသူအမည် ပြင်ရန်"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {((selectedVoucher) as { customerPhone?: string }).customerPhone && (
+                      <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                        <Phone className="w-3 h-3 text-slate-400" />
+                        <span>{((selectedVoucher) as { customerPhone?: string }).customerPhone}</span>
                       </div>
                     )}
                   </div>
-                  {((selectedVoucher) as { customerPhone?: string }).customerPhone && (
-                    <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-                      <Phone className="w-3 h-3 text-slate-400" />
-                      <span>{((selectedVoucher) as { customerPhone?: string }).customerPhone}</span>
+                </div>
+
+                {/* Numbers Grid (Scrollable on Screen) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
+                    <span>ထိုးထားသော ဂဏန်းများ ({selectedVoucher.items.length} ကွက်)</span>
+                    <span>ထိုးကြေးငွေ</span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
+                    <div className="voucher-items-container grid grid-cols-2 gap-2">
+                      {selectedVoucher.items.map((item, idx) => {
+                        const isHit = activeRound?.winningNumber === item.number;
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
+                              isHit
+                                ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
+                                : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-base text-slate-950">{item.number}</span>
+                              {item.betType === 'rumble' && (
+                                <span className="text-[9px] bg-teal-100 text-teal-800 font-bold px-1 rounded">
+                                  R
+                                </span>
+                              )}
+                              {isHit && (
+                                <Trophy className="w-3 h-3 text-amber-600" />
+                              )}
+                            </div>
+                            <span className="font-bold text-slate-700">
+                              {formatAmount(item.amount, settings.currency)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Calculation Card */}
+                <div className="voucher-summary-block bg-teal-50/80 border border-teal-200 rounded-2xl p-3.5 space-y-1.5 text-xs font-mono">
+                  <div className="flex justify-between text-slate-600 font-medium">
+                    <span>စုစုပေါင်း ထိုးကြေး:</span>
+                    <span className="font-bold text-slate-800">{formatAmount(selectedVoucher.subtotal, settings.currency)}</span>
+                  </div>
+                  {selectedVoucher.discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-bold">
+                      <span>ကော်မရှင် / လျှော့ငွေ ({selectedVoucher.discountPercent}%):</span>
+                      <span>-{formatAmount(selectedVoucher.discountAmount, settings.currency)}</span>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Numbers Grid (Scrollable on Screen) */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
-                  <span>ထိုးထားသော ဂဏန်းများ ({selectedVoucher.items.length} ကွက်)</span>
-                  <span>ထိုးကြေးငွေ</span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 max-h-56 overflow-y-auto space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedVoucher.items.map((item, idx) => {
-                      const isHit = activeRound?.winningNumber === item.number;
-                      return (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
-                            isHit
-                              ? 'bg-amber-100 border-amber-300 text-slate-950 font-black ring-2 ring-amber-400 shadow-xs'
-                              : 'bg-white border-slate-200 text-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-black text-base text-slate-950">{item.number}</span>
-                            {item.betType === 'rumble' && (
-                              <span className="text-[9px] bg-teal-100 text-teal-800 font-bold px-1 rounded">
-                                R
-                              </span>
-                            )}
-                            {isHit && (
-                              <Trophy className="w-3 h-3 text-amber-600" />
-                            )}
-                          </div>
-                          <span className="font-bold text-slate-700">
-                            {formatAmount(item.amount, settings.currency)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="flex justify-between text-sm font-black text-slate-950 pt-1.5 border-t border-teal-200">
+                    <span>အသားတင် ပေးချေငွေ:</span>
+                    <span className="text-teal-800 font-black text-base">{formatAmount(selectedVoucher.netPayable, settings.currency)}</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Total Calculation Card */}
-              <div className="bg-teal-50/80 border border-teal-200 rounded-2xl p-3.5 space-y-1.5 text-xs font-mono">
-                <div className="flex justify-between text-slate-600 font-medium">
-                  <span>စုစုပေါင်း ထိုးကြေး:</span>
-                  <span className="font-bold text-slate-800">{formatAmount(selectedVoucher.subtotal, settings.currency)}</span>
-                </div>
-                {selectedVoucher.discountAmount > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-bold">
-                    <span>ကော်မရှင် / လျှော့ငွေ ({selectedVoucher.discountPercent}%):</span>
-                    <span>-{formatAmount(selectedVoucher.discountAmount, settings.currency)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-black text-slate-950 pt-1.5 border-t border-teal-200">
-                  <span>အသားတင် ပေးချေငွေ:</span>
-                  <span className="text-teal-800 font-black text-base">{formatAmount(selectedVoucher.netPayable, settings.currency)}</span>
                 </div>
               </div>
 
@@ -944,7 +949,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     if (onOpenPrintVoucher) {
                       onOpenPrintVoucher(selectedVoucher);
                     } else {
-                      window.print();
+                      printVoucherSlip('printable-voucher', `ဇီးကွက် ဘောင်ချာ - ${selectedVoucher.voucherNo}`);
                     }
                   }}
                   className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"

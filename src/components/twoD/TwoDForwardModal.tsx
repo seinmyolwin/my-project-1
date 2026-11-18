@@ -38,6 +38,7 @@ import {
 } from '../../utils/twoDLotteryUtils';
 import { DEFAULT_2D_ACTION_BUTTONS, cleanMasterAgentName } from '../../utils/storage';
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../../utils/audioUtils';
+import { printVoucherSlip } from '../../utils/printUtils';
 import { generateUUID } from '../../utils/restorePoints';
 
 interface TwoDForwardModalProps {
@@ -485,9 +486,10 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     setTimeout(() => setCopySuccess(false), 2500);
   };
 
-  // Print Slip
+  // Print Slip using isolated single-sheet spread voucher utility
   const handlePrintSlip = () => {
-    window.print();
+    if (!createdSlip) return;
+    printVoucherSlip('printable-forward-slip', `ဇီးကွက် အထက်တင်ဘောင်ချာ - ${createdSlip.slipNo}`);
   };
 
   if (!isOpen) return null;
@@ -537,23 +539,48 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
               </p>
             </div>
 
-            {/* Receipt Box */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 font-mono text-xs space-y-3">
+            {/* Receipt Box (Spread Multi-Column & Printable as Single Sheet) */}
+            <div
+              id="printable-forward-slip"
+              className="bg-slate-50 border border-slate-200 rounded-2xl p-4 font-mono text-xs space-y-3"
+            >
+              <div className="text-center border-b border-dashed border-slate-300 pb-2">
+                <h2 className="font-black text-sm text-slate-900 font-sans">
+                  {settings.shopName ? `${settings.shopName} — ` : ''}
+                  {isMyanmar ? 'ဇီးကွက် အထက်တင်ဘောင်ချာ' : '2D Forward Slip'}
+                </h2>
+                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-[10px] text-slate-600 mt-0.5">
+                  <span>စလစ်: {createdSlip.slipNo}</span>
+                  <span>ဒိုင်ချုပ်: {cleanMasterAgentName(createdSlip.masterAgentName)}</span>
+                  <span>{new Date(createdSlip.createdAt).toLocaleString('en-GB')}</span>
+                </div>
+              </div>
               <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-2">
                 <span>ပွဲစဉ်: {activeRound?.name}</span>
-                <span>ဂဏန်း {createdSlip.items.length} တွဲ</span>
+                <span className="font-bold text-slate-900">ဂဏန်း {createdSlip.items.length} တွဲ</span>
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 divide-y divide-slate-100">
+              <div
+                className={`voucher-items-container max-h-56 overflow-y-auto grid gap-1.5 ${
+                  createdSlip.items.length > 14
+                    ? 'grid-cols-2 sm:grid-cols-3'
+                    : createdSlip.items.length > 4
+                    ? 'grid-cols-2'
+                    : 'grid-cols-1'
+                }`}
+              >
                 {createdSlip.items.map((it, idx) => (
-                  <div key={idx} className="pt-1.5 flex justify-between items-center text-slate-800">
-                    <span className="font-bold text-sm bg-indigo-50 border border-indigo-200 text-indigo-900 px-2 py-0.5 rounded">
+                  <div
+                    key={idx}
+                    className="flex justify-between items-center text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1"
+                  >
+                    <span className="font-bold text-xs sm:text-sm text-indigo-900">
                       {it.number}
                     </span>
-                    <span className="font-bold">{formatAmount(it.amount, settings.currency)}</span>
+                    <span className="font-bold text-xs">{formatAmount(it.amount, settings.currency)}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-slate-200 pt-2 space-y-1">
+              <div className="voucher-summary-block border-t border-slate-200 pt-2 space-y-1">
                 <div className="flex justify-between text-slate-600">
                   <span>လွှဲတင်ငွေ စုစုပေါင်း:</span>
                   <span className="font-bold">{formatAmount(createdSlip.totalAmount, settings.currency)}</span>
