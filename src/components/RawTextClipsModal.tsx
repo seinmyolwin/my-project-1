@@ -36,6 +36,144 @@ import {
 } from '../utils/rawClipsUtils';
 import { formatAmount } from '../utils/lotteryUtils';
 
+interface ClipColorTheme {
+  sectionBox: string;
+  sectionHeaderBorder: string;
+  iconBox: string;
+  countBadge: string;
+  cardBox: string;
+  badge: string;
+  dot: string;
+}
+
+const COLOR_THEMES: ClipColorTheme[] = [
+  {
+    sectionBox: 'bg-indigo-50/60 border-indigo-200 border-l-4 border-l-indigo-500',
+    sectionHeaderBorder: 'border-indigo-200/70',
+    iconBox: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+    countBadge: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+    cardBox: 'bg-indigo-50/90 border-indigo-200/90 border-l-4 border-l-indigo-500 hover:border-indigo-400',
+    badge: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+    dot: 'bg-indigo-500',
+  },
+  {
+    sectionBox: 'bg-emerald-50/60 border-emerald-200 border-l-4 border-l-emerald-500',
+    sectionHeaderBorder: 'border-emerald-200/70',
+    iconBox: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+    countBadge: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    cardBox: 'bg-emerald-50/90 border-emerald-200/90 border-l-4 border-l-emerald-500 hover:border-emerald-400',
+    badge: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    dot: 'bg-emerald-500',
+  },
+  {
+    sectionBox: 'bg-amber-50/65 border-amber-200 border-l-4 border-l-amber-500',
+    sectionHeaderBorder: 'border-amber-200/70',
+    iconBox: 'bg-amber-100 text-amber-800 border-amber-300',
+    countBadge: 'bg-amber-100 text-amber-900 border border-amber-200',
+    cardBox: 'bg-amber-50/90 border-amber-200/90 border-l-4 border-l-amber-500 hover:border-amber-400',
+    badge: 'bg-amber-100 text-amber-900 border-amber-300',
+    dot: 'bg-amber-500',
+  },
+  {
+    sectionBox: 'bg-rose-50/60 border-rose-200 border-l-4 border-l-rose-500',
+    sectionHeaderBorder: 'border-rose-200/70',
+    iconBox: 'bg-rose-100 text-rose-700 border-rose-300',
+    countBadge: 'bg-rose-100 text-rose-800 border border-rose-200',
+    cardBox: 'bg-rose-50/90 border-rose-200/90 border-l-4 border-l-rose-500 hover:border-rose-400',
+    badge: 'bg-rose-100 text-rose-900 border-rose-300',
+    dot: 'bg-rose-500',
+  },
+  {
+    sectionBox: 'bg-sky-50/60 border-sky-200 border-l-4 border-l-sky-500',
+    sectionHeaderBorder: 'border-sky-200/70',
+    iconBox: 'bg-sky-100 text-sky-700 border-sky-300',
+    countBadge: 'bg-sky-100 text-sky-800 border border-sky-200',
+    cardBox: 'bg-sky-50/90 border-sky-200/90 border-l-4 border-l-sky-500 hover:border-sky-400',
+    badge: 'bg-sky-100 text-sky-900 border-sky-300',
+    dot: 'bg-sky-500',
+  },
+  {
+    sectionBox: 'bg-purple-50/60 border-purple-200 border-l-4 border-l-purple-500',
+    sectionHeaderBorder: 'border-purple-200/70',
+    iconBox: 'bg-purple-100 text-purple-700 border-purple-300',
+    countBadge: 'bg-purple-100 text-purple-800 border border-purple-200',
+    cardBox: 'bg-purple-50/90 border-purple-200/90 border-l-4 border-l-purple-500 hover:border-purple-400',
+    badge: 'bg-purple-100 text-purple-900 border-purple-300',
+    dot: 'bg-purple-500',
+  },
+  {
+    sectionBox: 'bg-teal-50/60 border-teal-200 border-l-4 border-l-teal-500',
+    sectionHeaderBorder: 'border-teal-200/70',
+    iconBox: 'bg-teal-100 text-teal-700 border-teal-300',
+    countBadge: 'bg-teal-100 text-teal-800 border border-teal-200',
+    cardBox: 'bg-teal-50/90 border-teal-200/90 border-l-4 border-l-teal-500 hover:border-teal-400',
+    badge: 'bg-teal-100 text-teal-900 border-teal-300',
+    dot: 'bg-teal-500',
+  },
+  {
+    sectionBox: 'bg-orange-50/60 border-orange-200 border-l-4 border-l-orange-500',
+    sectionHeaderBorder: 'border-orange-200/70',
+    iconBox: 'bg-orange-100 text-orange-700 border-orange-300',
+    countBadge: 'bg-orange-100 text-orange-800 border border-orange-200',
+    cardBox: 'bg-orange-50/90 border-orange-200/90 border-l-4 border-l-orange-500 hover:border-orange-400',
+    badge: 'bg-orange-100 text-orange-900 border-orange-300',
+    dot: 'bg-orange-500',
+  },
+  {
+    sectionBox: 'bg-cyan-50/60 border-cyan-200 border-l-4 border-l-cyan-500',
+    sectionHeaderBorder: 'border-cyan-200/70',
+    iconBox: 'bg-cyan-100 text-cyan-700 border-cyan-300',
+    countBadge: 'bg-cyan-100 text-cyan-800 border border-cyan-200',
+    cardBox: 'bg-cyan-50/90 border-cyan-200/90 border-l-4 border-l-cyan-500 hover:border-cyan-400',
+    badge: 'bg-cyan-100 text-cyan-900 border-cyan-300',
+    dot: 'bg-cyan-500',
+  },
+  {
+    sectionBox: 'bg-fuchsia-50/60 border-fuchsia-200 border-l-4 border-l-fuchsia-500',
+    sectionHeaderBorder: 'border-fuchsia-200/70',
+    iconBox: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-300',
+    countBadge: 'bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200',
+    cardBox: 'bg-fuchsia-50/90 border-fuchsia-200/90 border-l-4 border-l-fuchsia-500 hover:border-fuchsia-400',
+    badge: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300',
+    dot: 'bg-fuchsia-500',
+  },
+  {
+    sectionBox: 'bg-lime-50/60 border-lime-200 border-l-4 border-l-lime-500',
+    sectionHeaderBorder: 'border-lime-200/70',
+    iconBox: 'bg-lime-100 text-lime-800 border-lime-300',
+    countBadge: 'bg-lime-100 text-lime-900 border border-lime-200',
+    cardBox: 'bg-lime-50/90 border-lime-200/90 border-l-4 border-l-lime-500 hover:border-lime-400',
+    badge: 'bg-lime-100 text-lime-900 border-lime-300',
+    dot: 'bg-lime-500',
+  },
+  {
+    sectionBox: 'bg-blue-50/60 border-blue-200 border-l-4 border-l-blue-500',
+    sectionHeaderBorder: 'border-blue-200/70',
+    iconBox: 'bg-blue-100 text-blue-700 border-blue-300',
+    countBadge: 'bg-blue-100 text-blue-800 border border-blue-200',
+    cardBox: 'bg-blue-50/90 border-blue-200/90 border-l-4 border-l-blue-500 hover:border-blue-400',
+    badge: 'bg-blue-100 text-blue-900 border-blue-300',
+    dot: 'bg-blue-500',
+  },
+];
+
+const DATE_BADGE_THEMES: string[] = [
+  'bg-slate-100 text-slate-700 border-slate-300',
+  'bg-violet-100 text-violet-800 border-violet-300',
+  'bg-emerald-100 text-emerald-800 border-emerald-300',
+  'bg-amber-100 text-amber-800 border-amber-300',
+  'bg-sky-100 text-sky-800 border-sky-300',
+  'bg-rose-100 text-rose-800 border-rose-300',
+];
+
+const hashText = (value: string): number => {
+  let h = 0;
+  for (let i = 0; i < value.length; i++) {
+    h = (h * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return h;
+};
+
 interface RawTextClipsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -85,9 +223,56 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   }, [isOpen]);
 
   // Extract unique dates, rounds, and customers for filtering
-  const availableDates = Array.from(new Set(clips.map(c => c.date))).sort().reverse();
-  const availableRounds = Array.from(new Set(clips.map(c => c.roundName))).filter(Boolean);
-  const availableCustomers = Array.from(new Set(clips.map(c => c.customerName))).filter(Boolean).sort();
+  const availableDates = useMemo(
+    () => Array.from(new Set(clips.map(c => c.date))).sort().reverse(),
+    [clips]
+  );
+  const availableRounds = useMemo(
+    () => Array.from(new Set(clips.map(c => c.roundName))).filter(Boolean),
+    [clips]
+  );
+  const availableCustomers = useMemo(
+    () => Array.from(new Set(clips.map(c => c.customerName))).filter(Boolean).sort(),
+    [clips]
+  );
+
+  // Assign distinct color themes to customers, rounds, and dates so each is immediately distinguishable
+  const customerColorMap = useMemo(() => {
+    const map = new Map<string, number>();
+    availableCustomers.forEach((cust, idx) => {
+      map.set(cust.trim(), idx % COLOR_THEMES.length);
+    });
+    return map;
+  }, [availableCustomers]);
+
+  const roundColorMap = useMemo(() => {
+    const map = new Map<string, number>();
+    availableRounds.forEach((rnd, idx) => {
+      // Offset and stride so round colors differ from customer colors by default
+      map.set(rnd, (idx * 5 + 3) % COLOR_THEMES.length);
+    });
+    return map;
+  }, [availableRounds]);
+
+  const dateBadgeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    availableDates.forEach((d, idx) => {
+      map.set(d, DATE_BADGE_THEMES[idx % DATE_BADGE_THEMES.length]);
+    });
+    return map;
+  }, [availableDates]);
+
+  const getCustomerTheme = (name?: string): ClipColorTheme => {
+    const key = (name && name.trim()) ? name.trim() : 'အထွေထွေဝယ်သူ';
+    const idx = customerColorMap.get(key) ?? (hashText(key) % COLOR_THEMES.length);
+    return COLOR_THEMES[idx];
+  };
+
+  const getRoundTheme = (roundName?: string, roundId?: string): ClipColorTheme => {
+    const key = roundName || roundId || 'အခြားပွဲစဉ်';
+    const idx = roundColorMap.get(key) ?? ((hashText(key) + 3) % COLOR_THEMES.length);
+    return COLOR_THEMES[idx];
+  };
 
   // Filtered clips
   const filteredClips = clips.filter(c => {
@@ -445,16 +630,24 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
               </p>
             </div>
           ) : (
-            groupedSections.map(([groupKey, section]) => (
-              <div key={groupKey} className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs space-y-2">
+            groupedSections.map(([groupKey, section]) => {
+              const sectionTheme =
+                groupBy === 'round'
+                  ? getRoundTheme(groupKey, section.clips[0]?.roundId)
+                  : getCustomerTheme(groupKey);
+              const headerDateBadge = section.subLabel
+                ? (dateBadgeMap.get(section.subLabel) || 'bg-white/80 text-slate-700 border-slate-300')
+                : '';
+
+              return (
+              <div
+                key={groupKey}
+                className={`border rounded-xl p-2.5 shadow-2xs space-y-2 transition-colors ${sectionTheme.sectionBox}`}
+              >
                 {/* Section Header */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 px-0.5">
+                <div className={`flex items-center justify-between border-b pb-1.5 px-0.5 ${sectionTheme.sectionHeaderBorder}`}>
                   <div className="flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs border ${
-                      groupBy === 'round'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                    }`}>
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs border ${sectionTheme.iconBox}`}>
                       {groupBy === 'round' ? (
                         <Layers className="w-3.5 h-3.5" />
                       ) : (
@@ -463,20 +656,23 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
-                        <span>{section.label}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full inline-block ${sectionTheme.dot}`} />
+                          <span>{section.label}</span>
+                        </span>
                         {section.subLabel && groupBy === 'round' && (
-                          <span className="text-[10px] text-slate-400 font-normal font-mono">
-                            ({section.subLabel})
+                          <span className={`text-[10px] font-bold font-mono px-1.5 py-0.2 rounded border ${headerDateBadge}`}>
+                            {section.subLabel}
                           </span>
                         )}
                       </h4>
                     </div>
-                    <span className="bg-slate-100 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full font-mono">
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${sectionTheme.countBadge}`}>
                       {section.clips.length} စောင်
                     </span>
                   </div>
 
-                  <div className="text-[10px] text-emerald-700 font-mono font-bold flex items-center gap-1">
+                  <div className="text-[10px] text-emerald-800 bg-white/75 border border-emerald-200/80 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
                     <span>နောက်ဆုံးထိုးထားသော ဘောင်ချာများ အပေါ်ဆုံးတွင်ရှိပါသည်</span>
                   </div>
                 </div>
@@ -484,32 +680,39 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                 {/* Vouchers Grid: Compact, Auto-Height (No huge empty black spaces), Items-Start */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
                   {section.clips.map((clip, idx) => {
+                    const cardTheme =
+                      groupBy === 'customer'
+                        ? getRoundTheme(clip.roundName, clip.roundId)
+                        : getCustomerTheme(clip.customerName);
+                    const dateBadgeCls =
+                      dateBadgeMap.get(clip.date) || 'bg-white/80 text-slate-700 border-slate-300';
+
                     const photos = clip.imageUrls && clip.imageUrls.length > 0
                       ? clip.imageUrls
                       : (clip.imageDataUrl ? [clip.imageDataUrl] : []);
                     const hasPhotos = photos.length > 0;
                     const hasText = Boolean(clip.rawText && clip.rawText.trim());
                     const sourceBadge = hasPhotos && !hasText
-                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-50 text-purple-700 border-purple-200' }
+                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
                       : clip.source === 'telegram'
-                      ? { label: 'Telegram', cls: 'bg-sky-50 text-sky-700 border-sky-200' }
+                      ? { label: 'Telegram', cls: 'bg-sky-100 text-sky-800 border-sky-300' }
                       : clip.source === 'batch_paste' || clip.source === 'direct_paste'
-                      ? { label: 'ကူးယူစာသား', cls: 'bg-amber-50 text-amber-800 border-amber-200' }
+                      ? { label: 'ကူးယူစာသား', cls: 'bg-amber-100 text-amber-900 border-amber-300' }
                       : clip.source === 'manual'
-                      ? { label: 'လက်ရိုက်', cls: 'bg-slate-100 text-slate-700 border-slate-200' }
+                      ? { label: 'လက်ရိုက်', cls: 'bg-white/90 text-slate-700 border-slate-300' }
                       : hasPhotos
-                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-50 text-purple-700 border-purple-200' }
+                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
                       : null;
 
                     return (
                     <div
                       key={clip.id}
-                      className="bg-slate-50 border border-slate-200/90 rounded-xl p-2 space-y-1.5 hover:border-amber-400/90 hover:shadow-xs transition-all"
+                      className={`border rounded-xl p-2 space-y-1.5 shadow-xs hover:shadow-sm transition-all ring-1 ring-white/70 ${cardTheme.cardBox}`}
                     >
                       {/* Top Row: Voucher Badge, Customer/Round, Time, Category */}
                       <div className="flex items-center justify-between text-[11px] gap-1">
                         <div className="flex items-center gap-1.5 font-bold min-w-0">
-                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-900 border border-amber-300/70 rounded-md text-[10px] font-black font-mono shrink-0">
+                          <span className="px-1.5 py-0.5 bg-white/90 text-amber-900 border border-amber-300/90 rounded-md text-[10px] font-black font-mono shrink-0 shadow-2xs">
                             {clip.voucherNumber || `ဘောင်ချာ #${idx + 1}`}
                           </span>
                           {sourceBadge && (
@@ -518,21 +721,26 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                             </span>
                           )}
                           {groupBy === 'round' && clip.customerName && (
-                            <span className="text-slate-800 font-bold text-[11px] truncate max-w-[100px]">
-                              {clip.customerName}
+                            <span className={`px-1.5 py-0.2 rounded-md border text-[10px] font-black truncate max-w-[115px] flex items-center gap-1 ${cardTheme.badge}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cardTheme.dot}`} />
+                              <span className="truncate">{clip.customerName}</span>
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 shrink-0">
-                          <Clock className="w-2.5 h-2.5 text-slate-400" />
-                          <span>{clip.date}</span>
-                          <span>•</span>
-                          <span>{clip.time || new Date(clip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-600 shrink-0">
+                          <span className={`px-1.5 py-0.2 rounded border text-[9px] font-bold flex items-center gap-0.5 ${dateBadgeCls}`}>
+                            <Calendar className="w-2.5 h-2.5 shrink-0" />
+                            <span>{clip.date}</span>
+                          </span>
+                          <span className="flex items-center gap-0.5 text-slate-600 font-bold">
+                            <Clock className="w-2.5 h-2.5 text-slate-500" />
+                            <span>{clip.time || new Date(clip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </span>
                           <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
-                            clip.category === '3d' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                            clip.category === '2d' ? 'bg-teal-50 text-teal-700 border border-teal-200' :
-                            'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            clip.category === '3d' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' :
+                            clip.category === '2d' ? 'bg-teal-100 text-teal-800 border border-teal-300' :
+                            'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           }`}>
                             {clip.category.toUpperCase()}
                           </span>
@@ -541,9 +749,12 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
                       {/* Round indicator if grouped by customer */}
                       {groupBy === 'customer' && clip.roundName && (
-                        <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 px-0.5">
-                          <Layers className="w-2.5 h-2.5 text-slate-400" />
-                          <span className="truncate">{clip.roundName}</span>
+                        <div className="flex items-center gap-1 px-0.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold font-mono max-w-full ${cardTheme.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cardTheme.dot}`} />
+                            <Layers className="w-2.5 h-2.5 shrink-0 opacity-80" />
+                            <span className="truncate">{clip.roundName}</span>
+                          </span>
                         </div>
                       )}
 
@@ -618,14 +829,14 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
                         <div className="flex items-center gap-1">
                           {clip.totalAmountPreview !== undefined && clip.totalAmountPreview > 0 && (
-                            <span className="text-[10px] font-mono font-bold text-slate-600">
+                            <span className="text-[10px] font-mono font-black text-slate-800 bg-white/80 border border-slate-200/80 px-1.5 py-0.2 rounded">
                               {formatAmount(clip.totalAmountPreview, 'K')}
                             </span>
                           )}
                           <button
                             type="button"
                             onClick={() => handleDelete(clip.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
                             title="ဖျက်မည်"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -637,7 +848,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                   })}
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
 
