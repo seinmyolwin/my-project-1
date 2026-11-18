@@ -5,17 +5,13 @@ interface UseDoubleBackToExitProps {
   closeActiveModal: () => void;
   isSubTab: boolean;
   goToMainTab: () => void;
-  isFocusMode?: boolean;
-  exitFocusMode?: () => void;
 }
 
 export function useDoubleBackToExit({
   hasActiveModal,
   closeActiveModal,
   isSubTab,
-  goToMainTab,
-  isFocusMode = false,
-  exitFocusMode
+  goToMainTab
 }: UseDoubleBackToExitProps) {
   const [showExitToast, setShowExitToast] = useState(false);
   const lastBackTimeRef = useRef<number>(0);
@@ -35,13 +31,6 @@ export function useDoubleBackToExit({
 
     const handlePopState = (e: PopStateEvent) => {
       const now = Date.now();
-
-      // Case 0: In Quick Entry Focus Mode -> Intercept and safely trigger exit focus mode
-      if (isFocusMode && exitFocusMode) {
-        exitFocusMode();
-        safePushState();
-        return;
-      }
 
       // Case 1: Active modal is open -> Close the modal
       if (hasActiveModal) {

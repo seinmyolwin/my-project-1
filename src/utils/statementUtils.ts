@@ -225,7 +225,7 @@ export function generateStatementRecords(
 
         // Forward slips must strictly belong to this specific round only (no cross-round leakage)
         const roundForwards = data.lottery2D.forwardSlips.filter(
-          (f) => f.roundId === round.id
+          (f) => f.roundId === round.id && !(f as any).deletedAt
         );
 
         let totalTurnover = 0;
@@ -669,6 +669,7 @@ export function generateStatementRecords(
       Object.keys(slipsByDate).forEach((d) => {
         const daySlips = slipsByDate[d];
         const dayForwards = data.football.forwardSlips.filter((f) => {
+          if ((f as any).deletedAt) return false;
           const fDate = f.roundDate || (f.createdAt || '').slice(0, 10);
           return fDate === d;
         });
@@ -714,8 +715,19 @@ export function generateStatementRecords(
             .reduce((sum, f) => sum + (f.stakeAmount || f.totalAmount || 0), 0);
           const forwardRatio = stake > 0 ? Math.min(1, forwardedStakeForSlip / stake) : 0;
 
-          const actPayout = s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won'
-            ? (s.actualPayout || s.potentialPayout || 0)
+          const isSettledOrEvaluated =
+            s.status === 'settled' ||
+            s.outcome === 'won' ||
+            s.outcome === 'half_won' ||
+            s.outcome === 'draw' ||
+            s.outcome === 'half_lost' ||
+            s.outcome === 'lost';
+          const actPayout = !isSettledOrEvaluated
+            ? 0
+            : typeof s.actualPayout === 'number'
+            ? s.actualPayout
+            : (s.outcome === 'won' || s.outcome === 'half_won')
+            ? (s.potentialPayout || 0)
             : 0;
 
           totalPayout += actPayout;
@@ -723,7 +735,7 @@ export function generateStatementRecords(
           masterPayout += slipMasterPayout;
           retainedPayout += (actPayout - slipMasterPayout);
 
-          if (s.status === 'settled' || s.outcome === 'won' || s.outcome === 'half_won') {
+          if (s.outcome === 'won' || s.outcome === 'half_won') {
             winnersCount += 1;
           }
         });
@@ -731,13 +743,17 @@ export function generateStatementRecords(
         let totalForwarded = 0;
         let forwardCommission = 0;
         dayForwards.forEach((f) => {
-          totalForwarded += f.stakeAmount || f.totalAmount || 0;
-          forwardCommission += f.commissionAmount || 0;
+          const fwdAmt = f.stakeAmount || f.totalAmount || 0;
+          totalForwarded += fwdAmt;
+          forwardCommission += typeof f.commissionAmount === 'number'
+            ? f.commissionAmount
+            : (f.commissionRate ? Math.round((fwdAmt * f.commissionRate) / 100) : 0);
         });
         const netPaid = totalForwarded - forwardCommission;
 
         const netSales = turnover - totalForwarded - agentCommission;
         const netProfit = netSales + masterPayout + forwardCommission - totalPayout;
+        const allSettled = daySlips.every((s) => s.status === 'settled');
 
         list.push({
           id: `football-${d}`,
@@ -745,7 +761,7 @@ export function generateStatementRecords(
           mode: 'football',
           modeLabel: 'ပစ်တိုင်းထောင်',
           name: `${d} ပစ်တိုင်းထောင် မောင်း/ဘော်ဒီ ရှင်းတမ်း`,
-          winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : 'စလစ်အားလုံး ရှင်းပြီး',
+          winningResult: winnersCount > 0 ? `${winnersCount} စလစ် ပေါက်` : allSettled ? 'စလစ်အားလုံး ရှင်းပြီး' : 'ပွဲစဉ် ဖွင့်လှစ်ဆဲ',
           turnover,
           totalForwarded,
           agentCommission,
@@ -759,7 +775,7 @@ export function generateStatementRecords(
           isProfit: netProfit >= 0,
           winnersCount,
           vouchersCount: daySlips.length,
-          status: 'settled',
+          status: allSettled ? 'settled' : 'open',
           vouchersList: daySlips,
           forwardList: dayForwards
         });

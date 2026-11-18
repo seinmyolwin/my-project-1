@@ -115,9 +115,6 @@ function AppContent() {
   const [activeTab2D, setActiveTab2D] = useState<'sales' | 'ledger' | 'winning' | 'vouchers'>('sales');
   const [activeTabFB, setActiveTabFB] = useState<'fixtures' | 'slip_entry' | 'slips_list'>('fixtures');
 
-  // Quick Entry Focus Mode state for Mobile/Tablet
-  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
-
   // Security & Business Switch State
   const [enabledModes, setEnabledModes] = useState<EnabledModes>(() => getStoredEnabledModes());
   const [isFirstTimeSetupOpen, setIsFirstTimeSetupOpen] = useState(() => isFirstTimePinSetup());
@@ -293,9 +290,7 @@ function AppContent() {
     hasActiveModal,
     closeActiveModal,
     isSubTab,
-    goToMainTab,
-    isFocusMode,
-    exitFocusMode: () => setIsFocusMode(false)
+    goToMainTab
   });
 
   // Sync document title with active mode
@@ -394,7 +389,7 @@ function AppContent() {
     onSwipeLeft: handleSwipeLeft,
     onSwipeRight: handleSwipeRight,
     threshold: 45,
-    disabled: hasActiveModal || isFocusMode
+    disabled: hasActiveModal
   });
 
   if (!isAuthenticated) {
@@ -403,44 +398,39 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Universal Multi-Bookie Header (Hidden in Focus Mode) */}
-      {!isFocusMode && (
-        <Header
-          dealerMode={dealerMode}
-          setDealerMode={setDealerMode}
-          activeTab={currentActiveTab}
-          setActiveTab={handleSetTab}
-          enabledModes={enabledModes}
-          onOpenSettings={() => setIsPinPromptOpen(true)}
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
-          onOpenRoundManager={handleOpenRoundManager}
-          onOpenLimitsManager={() => handleOpenLimitsModal()}
-          onOpenForwardModal={() => handleOpenForwardModal()}
-          onOpenBackupModal={() => setIsBackupModalOpen(true)}
-          onOpenHelp={() => setIsHelpOpen(true)}
-          onOpenStatements={() => handleOpenStatements(dealerMode)}
-          onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
-          onOpenTitleModal={() => setIsTitleModalOpen(true)}
-          onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
-          onEnterFocusMode={() => setIsFocusMode(true)}
-          onOpenCommandRules={() => setIsCommandRulesOpen(true)}
-          onLockApp={handleLockApp}
-          onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
-        />
-      )}
+      {/* Universal Multi-Bookie Header */}
+      <Header
+        dealerMode={dealerMode}
+        setDealerMode={setDealerMode}
+        activeTab={currentActiveTab}
+        setActiveTab={handleSetTab}
+        enabledModes={enabledModes}
+        onOpenSettings={() => setIsPinPromptOpen(true)}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
+        onOpenRoundManager={handleOpenRoundManager}
+        onOpenLimitsManager={() => handleOpenLimitsModal()}
+        onOpenForwardModal={() => handleOpenForwardModal()}
+        onOpenBackupModal={() => setIsBackupModalOpen(true)}
+        onOpenHelp={() => setIsHelpOpen(true)}
+        onOpenStatements={() => handleOpenStatements(dealerMode)}
+        onOpenPreviousResults={() => setIsPreviousResultsOpen(true)}
+        onOpenTitleModal={() => setIsTitleModalOpen(true)}
+        onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
+        onOpenCommandRules={() => setIsCommandRulesOpen(true)}
+        onLockApp={handleLockApp}
+        onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
+      />
 
       {/* Main View Area with Mobile Swipe Gestures */}
-      <main className={isFocusMode ? 'min-h-screen' : 'pb-10 pt-1.5 min-h-[75vh]'} {...swipeHandlers}>
-        {/* Prominent Quick Results Banner (Hidden in Focus Mode) */}
-        {!isFocusMode && (
-          <div className="max-w-7xl mx-auto px-2 sm:px-4 mb-2">
-            <QuickResultsBanner
-              mode={dealerMode}
-              onOpenHistory={() => setIsPreviousResultsOpen(true)}
-              onOpenStatement={(date) => handleOpenStatements(dealerMode, date)}
-            />
-          </div>
-        )}
+      <main className="pb-10 pt-1.5 min-h-[75vh]" {...swipeHandlers}>
+        {/* Prominent Quick Results Banner */}
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 mb-2">
+          <QuickResultsBanner
+            mode={dealerMode}
+            onOpenHistory={() => setIsPreviousResultsOpen(true)}
+            onOpenStatement={(date) => handleOpenStatements(dealerMode, date)}
+          />
+        </div>
 
         {/* ======================= 3D LOTTERY VIEWS ======================= */}
         {dealerMode === '3d' && (
@@ -450,8 +440,6 @@ function AppContent() {
                 onVoucherCreated={(v) => setPrintingVoucher3D(v)}
                 onOpenForwardModal={handleOpenForwardModal}
                 onOpenRoundManager={handleOpenRoundManager}
-                isFocusMode={isFocusMode}
-                onToggleFocusMode={setIsFocusMode}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
                 onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
                 onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
@@ -483,8 +471,6 @@ function AppContent() {
                 onVoucherCreated={(v) => setPrintingVoucher2D(v)}
                 onOpenForwardModal={handleOpenForwardModal}
                 onOpenRoundManager={handleOpenRoundManager}
-                isFocusMode={isFocusMode}
-                onToggleFocusMode={setIsFocusMode}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
                 onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
                 onOpenTelegramHub={() => setIsTelegramHubOpen(true)}

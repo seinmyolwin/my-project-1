@@ -47,6 +47,7 @@ import {
   generateStatementRecords,
   computeStatementGrandTotals,
   getStatementDateRange,
+  getStatementPeriodLabel,
   StatementPeriodPreset
 } from '../utils/statementUtils';
 import {
@@ -56,7 +57,7 @@ import {
 } from '../utils/commissionUtils';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig, ThreeDQuickActionButtonsConfig, ThreeDQuickButtonItem, TwoDQuickButtonItem } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS, DEFAULT_3D_CUSTOM_BUTTONS, DEFAULT_2D_CUSTOM_BUTTONS } from '../utils/storage';
-import { formatAmount, getPermutations, evaluateWinnings } from '../utils/lotteryUtils';
+import { formatAmount, getPermutations, evaluateWinnings, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { evaluateTwoDWinnings } from '../utils/twoDLotteryUtils';
 import { exportFootballDataToExcel } from '../utils/footballUtils';
 import {
@@ -362,8 +363,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
       } else if (mode === 'football') {
         const slipDate = recordId.replace('football-', '').replace('fb-', '');
-        const slipsToDelete = football.slips.filter((s) => (s.createdAt || s.roundDate || '').slice(0, 10) === slipDate);
+        const slipsToDelete = football.slips.filter((s) => (s.roundDate || (s.createdAt || '').slice(0, 10)) === slipDate);
         slipsToDelete.forEach((s) => football.deleteSlip(s.id));
+        const forwardsToDelete = football.forwardSlips.filter((f) => (f.roundDate || (f.createdAt || '').slice(0, 10)) === slipDate);
+        forwardsToDelete.forEach((f) => football.deleteForwardSlip(f.id));
       }
       setSelectedRecord(null);
       setIsConfirmingDelete(false);
@@ -564,9 +567,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // 2D Vouchers
     if (statementMode === 'all' || statementMode === '2d') {
+      const roundDate2DMap = new Map(lottery2D.rounds.map(r => [r.id, (r.drawDate || '').slice(0, 10)]));
       lottery2D.vouchers
         .filter(v => {
-          const d = (v.createdAt || '').slice(0, 10);
+          if (v.deletedAt || v.status === 'cancelled') return false;
+          const d = (v.roundId ? roundDate2DMap.get(v.roundId) : undefined) || (v.createdAt || '').slice(0, 10);
           return d >= stmtStartDate && d <= stmtEndDate;
         })
         .forEach(v => {
@@ -590,9 +595,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // 3D Vouchers
     if (statementMode === 'all' || statementMode === '3d') {
+      const roundDate3DMap = new Map(lottery3D.rounds.map(r => [r.id, (r.drawDate || '').slice(0, 10)]));
       lottery3D.vouchers
         .filter(v => {
-          const d = (v.createdAt || '').slice(0, 10);
+          if (v.deletedAt || v.status === 'cancelled') return false;
+          const d = (v.roundId ? roundDate3DMap.get(v.roundId) : undefined) || (v.createdAt || '').slice(0, 10);
           return d >= stmtStartDate && d <= stmtEndDate;
         })
         .forEach(v => {
@@ -618,6 +625,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (statementMode === 'all' || statementMode === 'football') {
       football.slips
         .filter(s => {
+          if (s.deletedAt || s.status === 'cancelled') return false;
           const d = s.roundDate || (s.createdAt || '').slice(0, 10);
           return d >= stmtStartDate && d <= stmtEndDate;
         })
@@ -3882,11 +3890,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {lottery3D.settings.shopName || 'ရွှေမင်္ဂလာ'} - စာရင်းရှင်းတမ်း အစီရင်ခံစာ
                   </h2>
                   <p className="text-xs text-slate-600 font-bold mt-1">
-                    {statementPeriod === 'today' ? 'ဒီနေ့ စာရင်းရှင်းတမ်း' :
-                     statementPeriod === 'five_days' ? '၅ ရက်စာ စာရင်းရှင်းတမ်း' :
-                     statementPeriod === 'week' ? '၁ ပတ်စာ စာရင်းရှင်းတမ်း' :
-                     statementPeriod === 'month' ? '၁ လစာ စာရင်းရှင်းတမ်း' : 'ရက်ရွေး စာရင်းရှင်းတမ်း'} 
-                    {' '}({stmtStartDate} မှ {stmtEndDate} အထိ)
+                    {getStatementPeriodLabel(statementPeriod)}
+                    {' '}({statementPeriod === 'all' ? 'မှတ်တမ်းအားလုံး' : `${stmtStartDate} မှ ${stmtEndDate} အထိ`})
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
                     အမျိုးအစား: {statementMode === 'all' ? 'လုပ်ငန်းအားလုံးချုပ်' : statementMode === '3d' ? 'အိုးစည်လေး (3D)' : statementMode === '2d' ? 'ဇီးကွက် (2D)' : 'ပစ်တိုင်းထောင် (ဘောလုံး)'}
@@ -4102,7 +4107,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span>•</span>
                             <span>အမှန်ရောင်း: {formatAmount(r.netSales, currency)}</span>
                             <span>•</span>
-                            <span>လျော်ကြေး: {formatAmount(r.payout, currency)}</span>
+                            <span>လျော်ကြေး: {formatAmount(r.totalPayout ?? r.payout, currency)}</span>
                             {r.forwardCommission > 0 && (
                               <>
                                 <span>•</span>
@@ -4340,27 +4345,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* Detail Content */}
             <div className="p-4 overflow-y-auto space-y-4 text-xs">
-              {/* Metrics summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              {/* Metrics summary - 8 exact steps */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၁။ ထိုးကြေး</span>
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၁။ မူလထိုးကြေး</span>
                   <span className="text-sm font-black font-mono text-slate-900">{formatAmount(selectedRecord.turnover, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-amber-800 font-bold block uppercase">၂။ အောက်လက်ကော်မရှင်</span>
+                  <span className="text-[10px] text-indigo-900 font-bold block uppercase">၂။ အထက်တင်ကြေး</span>
+                  <span className="text-sm font-black font-mono text-indigo-900">{formatAmount(selectedRecord.totalForwarded, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-amber-800 font-bold block uppercase">၃။ အောက်လက်ကော်</span>
                   <span className="text-sm font-black font-mono text-amber-800">-{formatAmount(selectedRecord.agentCommission, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-rose-600 font-bold block uppercase">၃။ ပေးလျော်ငွေ</span>
-                  <span className="text-sm font-black font-mono text-rose-700">{formatAmount(selectedRecord.payout, currency)}</span>
+                  <span className="text-[10px] text-sky-900 font-bold block uppercase">၄။ အမှန်ရောင်းငွေ</span>
+                  <span className="text-sm font-black font-mono text-sky-950">{formatAmount(selectedRecord.netSales, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-indigo-600 font-bold block uppercase">၄။ ဒိုင်ကြီးလွှဲကော်မရှင်</span>
-                  <span className="text-sm font-black font-mono text-indigo-700">+{formatAmount(selectedRecord.forwardCommission, currency)}</span>
+                  <span className="text-[10px] text-emerald-800 font-bold block uppercase">၅။ အထက်ပေါက်ကြေး</span>
+                  <span className="text-sm font-black font-mono text-emerald-800">+{formatAmount(selectedRecord.masterPayout, currency)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">၅။ အသားတင်ရလဒ်</span>
-                  <span className={`text-sm font-black font-mono px-1.5 py-0.5 rounded ${
+                  <span className="text-[10px] text-purple-800 font-bold block uppercase">၆။ အထက်ကော်မရှင်</span>
+                  <span className="text-sm font-black font-mono text-purple-800">+{formatAmount(selectedRecord.forwardCommission, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-rose-700 font-bold block uppercase">၇။ ပေးလျှော်ငွေ</span>
+                  <span className="text-sm font-black font-mono text-rose-700">-{formatAmount(selectedRecord.totalPayout ?? selectedRecord.payout, currency)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-600 font-bold block uppercase">၈။ အသားတင်ရလဒ်</span>
+                  <span className={`text-sm font-black font-mono px-1.5 py-0.5 rounded inline-block ${
                     selectedRecord.isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   }`}>
                     {selectedRecord.isProfit ? '+' : '-'}{formatAmount(Math.abs(selectedRecord.netProfit), currency)}
@@ -4375,37 +4392,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {(() => {
                     const is3D = selectedRecord.mode === '3d';
                     const is2D = selectedRecord.mode === '2d';
+                    const isFB = selectedRecord.mode === 'football';
                     const roundId = selectedRecord.rawRoundId || selectedRecord.id.replace(/^(3d|2d|football|fb)-/, '');
 
-                    let vouchersToDisplay: any[] = [];
-                    if (is2D) {
-                      vouchersToDisplay = lottery2D.vouchers.filter(v => 
-                        (v.roundId === roundId || (!v.roundId && (v.createdAt || '').slice(0, 10) === selectedRecord.date)) &&
-                        v.status !== 'cancelled'
-                      );
-                    } else if (is3D) {
-                      vouchersToDisplay = lottery3D.vouchers.filter(v => 
-                        (v.roundId === roundId || (!v.roundId && (v.createdAt || '').slice(0, 10) === selectedRecord.date)) &&
-                        v.status !== 'cancelled'
-                      );
-                    } else {
-                      vouchersToDisplay = football.slips.filter(s => (s.createdAt || s.roundDate || '').slice(0, 10) === selectedRecord.date && s.status !== 'cancelled');
+                    let vouchersToDisplay: any[] = Array.isArray(selectedRecord.vouchersList)
+                      ? selectedRecord.vouchersList
+                      : [];
+                    if (vouchersToDisplay.length === 0) {
+                      if (is2D) {
+                        vouchersToDisplay = lottery2D.vouchers.filter(v =>
+                          !v.deletedAt &&
+                          v.status !== 'cancelled' &&
+                          (v.roundId === roundId || (!v.roundId && (v.createdAt || '').slice(0, 10) === selectedRecord.date))
+                        );
+                      } else if (is3D) {
+                        vouchersToDisplay = lottery3D.vouchers.filter(v =>
+                          !v.deletedAt &&
+                          v.status !== 'cancelled' &&
+                          (v.roundId === roundId || (!v.roundId && (v.createdAt || '').slice(0, 10) === selectedRecord.date))
+                        );
+                      } else {
+                        vouchersToDisplay = football.slips.filter(s =>
+                          !s.deletedAt &&
+                          s.status !== 'cancelled' &&
+                          (s.roundDate || (s.createdAt || '').slice(0, 10)) === selectedRecord.date
+                        );
+                      }
                     }
 
                     if (vouchersToDisplay.length === 0) {
                       return <p className="p-4 text-center text-slate-400">ဘောင်ချာမှတ်တမ်း မရှိပါ</p>;
                     }
 
+                    const winNum = selectedRecord.winningResult ? String(selectedRecord.winningResult).trim() : '';
+                    const toddSet = is3D && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0
+                      ? new Set(getToddWinningNumbers(winNum))
+                      : null;
+
                     return vouchersToDisplay.map((v: any, index: number) => {
-                      const itemsStr = v.items ? v.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : '-';
-                      const hasWonItem = v.items ? v.items.some((it: any) => it.isWon || it.number === selectedRecord.winningResult) : false;
+                      const itemsStr = v.items
+                        ? v.items.map((it: any) => `${it.number}=${it.amount}${it.betType === 'rumble' ? 'R' : ''}`).join(', ')
+                        : (Array.isArray(v.selections) && v.selections.length > 0
+                          ? v.selections.map((sel: any) => `${sel.matchSummary || sel.matchId} (${sel.choiceLabel})`).join(' | ')
+                          : (v.matchesSummary || v.description || '-'));
+                      const hasWonItem = v.items
+                        ? v.items.some((it: any) => it.isWon || it.number === winNum || (toddSet?.has(String(it.number || '').trim()) ?? false))
+                        : (v.status === 'settled' && (v.outcome === 'won' || v.outcome === 'half_won'));
 
                       return (
-                        <div key={index} className="p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-[11px]">
-                          <div>
+                        <div key={v.id || index} className="p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-[11px]">
+                          <div className="min-w-0 pr-2">
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold font-mono text-slate-900">{v.voucherNo || v.slipNo}</span>
-                              <span className="text-slate-600 font-medium">({v.customerName})</span>
+                              <span className="text-slate-600 font-medium">({v.customerName || 'အထွေထွေ'})</span>
                               {hasWonItem && (
                                 <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 font-black text-[9px] rounded-md">
                                   ★ ပေါက်မဲ
@@ -4416,10 +4455,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               {itemsStr}
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0">
                             <span className="font-bold font-mono text-slate-900 block">{formatAmount(v.netPayable || v.subtotal || v.stakeAmount, currency)}</span>
-                            <span className={`text-[10px] ${v.isPaid ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                              {v.isPaid ? 'ရှင်းပြီး ✓' : 'ကြွေးကျန်'}
+                            <span className={`text-[10px] ${(isFB ? v.status === 'settled' : v.isPaid) ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                              {isFB
+                                ? (v.status === 'settled' ? 'ရှင်းပြီး ✓' : 'ဖွင့်လှစ်ဆဲ')
+                                : (v.isPaid ? 'ရှင်းပြီး ✓' : 'ကြွေးကျန်')}
                             </span>
                           </div>
                         </div>
