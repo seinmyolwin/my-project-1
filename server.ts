@@ -2,7 +2,7 @@ import { setupOwnerAuth, verifyOwnerAuth, makeFailureThrottle } from './server/o
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -116,8 +116,12 @@ async function startServer() {
       }
 
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+      }
+
       const ai = new GoogleGenAI({
-        apiKey: apiKey || '',
+        apiKey,
         httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
       });
 
@@ -125,36 +129,41 @@ async function startServer() {
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
       const modeInstruction = mode === '2d'
-        ? `Target Mode: 2D ONLY. Extract 2-digit numbers (00 to 99) and amounts.
-Also support:
-- 2D reversals / R / အာ / ပတ် / ပတ်လည် (e.g. "24R 1000", "24 အာ 500", "24-42 1000" -> produce 24=1000 and 42=1000).
-- Multiple 2D numbers with R / အာ / ပတ်.
-- Special Myanmar 2D lottery groups: အပူး, အပါ, ဘရိတ်, ထိပ်, နောက်, ပါဝါ, နက္ခတ်, ညီကို.`
+        ? `Target Mode: Myanmar 2D Lottery ONLY (2-digit numbers 00-99, plus Burmese 2D group keywords).
+Support all Myanmar 2D notations:
+- Straight bets: "52=57=500", "44 2000", "24=1000"
+- Direct & Reverse split: "52=7000r3000" or "52=7000/3000" (keep as "52=7000/3000" or "52=7000r3000")
+- Reversal / R: "42 R 500", "34 R 200", "24 အာ 500", "24ပတ် 500" -> write as "<num> R <amount>"
+- Handwritten bracket / hook / ditto marks (e.g. a "7"-shaped hook, bracket, or slash spanning rows below a stake like "34 R 200" with "35", "45" below it, or "33 500" with "44", "55" below it): expand EACH grouped row with that shared stake on its own line (e.g. "34 R 200", "35 R 200", "45 R 200").
+- Myanmar 2D keywords: "ပါ"/"ပါး"/"အပါ" (e.g. "4ပါ 200"), "ထိပ်" (Head), "ပိတ်"/"နောက်" (Tail), "ဘရိတ်"/"b" (Break), "အပူး" (Doubles), "ပါဝါ" (Power), "နက္ခတ်" (Natkhat), "ညီကို" (Brothers), "စုံစုံ", "မမ", "စုံမ", "မစုံ", "ခွေ", "ခွေပူး", "ခွေR".`
         : mode === '3d'
-        ? `Target Mode: 3D ONLY. Extract 3-digit numbers (000 to 999) and amounts.`
-        : `Target Mode: AUTO (both 2D and 3D).`;
+        ? `Target Mode: Myanmar 3D Lottery ONLY (3-digit numbers 000-999, plus Burmese 3D keywords).
+Support:
+- Straight bets: "123=1000", "123 456 500"
+- Direct / Rumble slash: "123=1000/200", "123 456 1000/200"
+- Rumble / R: "123 R 500", "123 ပတ် 500" -> "<num> R <amount>"
+- Handwritten bracket / ditto marks spanning multiple 3-digit rows sharing a stake: expand each row cleanly with that stake.
+- Break / Head / Tail keywords: "3 ဘရိတ် 300", "4 ထိပ် 500 ပိတ် 200".`
+        : `Target Mode: AUTO (Myanmar 2D or 3D lottery).`;
 
-      const prompt = `You are an expert OCR and data extraction assistant specialized in Myanmar 2D/3D lottery slips, paper receipts, and chat screenshots from Telegram and SMS.
-Analyze this image.
-1. Extract ALL readable text line-by-line verbatim into "rawText".
-2. Identify customer name if present.
-3. Identify customer phone number if present.
-4. Extract all betting numbers and amounts accurately:
-   ${modeInstruction}
-   - Convert all Myanmar numerals into English digits (0-9).
-   - IMPORTANT: Preserve the EXACT top-to-bottom / left-to-right appearance order as written in the image. NEVER sort bet numbers ascending or descending.
-5. Return ONLY a valid JSON object with this exact structure (no markdown fences, no explanatory comments):
-{
-  "customerName": "string",
-  "customerPhone": "string",
-  "items": [
-    { "number": "24", "amount": 1000, "isRumble": false, "originalRaw": "24=1000" }
-  ],
-  "rawText": "verbatim text lines detected in image"
-}`;
+      const prompt = `You are a highly accurate Myanmar & English OCR specialist for lottery slips — including messy handwritten notebook pages in Myanmar numerals (၀ ၁ ၂ ၃ ၄ ၅ ၆ ၇ ၈ ၉), English numerals (0-9), and chat screenshots (Viber/Telegram/Messenger/SMS).
+
+Read the image carefully and extract ONLY the betting numbers and stake amounts.
+Rules:
+1. Convert EVERY Myanmar digit (၀=0, ၁=1, ၂=2, ၃=3, ၄=4, ၅=5, ၆=6, ၇=7, ၈=8, ၉=9) into English digits (0-9).
+   Pay close attention to easily confused handwritten Myanmar digits: ၂ (2) vs ၃ (3), ၄ (4) vs ၅ (5), ၆ (6) vs ၈ (8) vs ၉ (9), ၇ (7) vs ၁ (1).
+2. FOCUS ONLY ON NUMBERS AND STAKES:
+   - IGNORE and EXCLUDE chat timestamps (e.g., "3:23 PM", "3:27 PM", "3:34 PM", "14:30"), status bars, delivery ticks, "Today/Yesterday", decorative periods, greetings, or incomplete crossed-out margin scribbles without amounts.
+   - Extract customer name into "customerName" separately if clearly written (e.g. ". မြင့်", ". မူမူ", "ကိုကျော်"), and DO NOT include the customer name or timestamp inside "rawText".
+3. Format "rawText" as clean "copied text style" lines ready for editing and direct batch parsing:
+   - Put each clean bet or chained equal-line cleanly on its own line (e.g., "52=57=58=50=59=500", "52=7000/3000", "42 R 500", "44 2000", "4ပါ 200").
+   - If multiple =amount groups are chained on one chat line (like "12=10=500=43=42=500"), either keep cleanly or split cleanly into "12=10=500" and "43=42=500".
+   - If a handwritten bracket/ditto hook connects lines below a stake, output each line with its full stake.
+4. Preserve the EXACT top-to-bottom order of bets as written in the image. NEVER sort numbers.
+${modeInstruction}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-4-hydrogen',
         contents: [
           {
             inlineData: {
@@ -163,7 +172,42 @@ Analyze this image.
             }
           },
           { text: prompt }
-        ]
+        ],
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              customerName: {
+                type: Type.STRING,
+                description: 'Detected customer name if shown in the image, otherwise empty string.'
+              },
+              customerPhone: {
+                type: Type.STRING,
+                description: 'Detected customer phone number if shown, otherwise empty string.'
+              },
+              rawText: {
+                type: Type.STRING,
+                description: 'Clean line-by-line copied bet text with English digits (0-9) containing ONLY betting numbers/keywords and stake amounts.'
+              },
+              items: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    number: { type: Type.STRING },
+                    amount: { type: Type.NUMBER },
+                    isRumble: { type: Type.BOOLEAN },
+                    originalRaw: { type: Type.STRING }
+                  },
+                  required: ['number', 'amount', 'isRumble', 'originalRaw']
+                }
+              }
+            },
+            required: ['customerName', 'customerPhone', 'rawText', 'items']
+          }
+        }
       });
 
       const textOutput = response.text || '';
@@ -171,7 +215,7 @@ Analyze this image.
       try {
         const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
         jsonResult = JSON.parse(cleanJson);
-      } catch (parseErr) {
+      } catch {
         const match = textOutput.match(/\{[\s\S]*\}/);
         if (match) {
           jsonResult = JSON.parse(match[0]);
@@ -196,8 +240,12 @@ Analyze this image.
       }
 
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+      }
+
       const ai = new GoogleGenAI({
-        apiKey: apiKey || '',
+        apiKey,
         httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
       });
 
@@ -207,8 +255,8 @@ Analyze this image.
         ? `Target Mode: 3D ONLY. Extract 3-digit numbers and amounts.`
         : `Target Mode: AUTO (both 2D and 3D).`;
 
-      const prompt = `You are an expert data parser for Myanmar 2D/3D lottery bets sent via Telegram or SMS.
-The user pasted text directly from a chat:
+      const prompt = `You are an expert data parser for Myanmar 2D/3D lottery bets sent via Telegram, Viber, or SMS.
+The user provided text:
 """
 ${text}
 """
@@ -217,20 +265,38 @@ Instructions:
 1. Identify customer name and phone number if present.
 2. Extract all bet items and amounts according to ${modeInstruction}.
 3. Convert all Myanmar numerals to English digits (0-9).
-4. IMPORTANT: Preserve the EXACT chronological/line-by-line appearance order from the input text. NEVER sort bet numbers ascending or descending.
-5. Return ONLY a valid JSON object matching:
-{
-  "customerName": "string",
-  "customerPhone": "string",
-  "items": [
-    { "number": "string", "amount": 1000, "isRumble": false, "originalRaw": "string" }
-  ],
-  "rawText": "clean summary preserving exact original order"
-}`;
+4. Exclude chat timestamps and non-bet chatter from rawText.
+5. Preserve the EXACT chronological/line-by-line appearance order from the input text. NEVER sort bet numbers ascending or descending.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              customerName: { type: Type.STRING },
+              customerPhone: { type: Type.STRING },
+              rawText: { type: Type.STRING },
+              items: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    number: { type: Type.STRING },
+                    amount: { type: Type.NUMBER },
+                    isRumble: { type: Type.BOOLEAN },
+                    originalRaw: { type: Type.STRING }
+                  },
+                  required: ['number', 'amount', 'isRumble', 'originalRaw']
+                }
+              }
+            },
+            required: ['customerName', 'customerPhone', 'rawText', 'items']
+          }
+        }
       });
 
       const textOutput = response.text || '';
@@ -238,7 +304,7 @@ Instructions:
       try {
         const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
         jsonResult = JSON.parse(cleanJson);
-      } catch (parseErr) {
+      } catch {
         const match = textOutput.match(/\{[\s\S]*\}/);
         if (match) {
           jsonResult = JSON.parse(match[0]);

@@ -36,10 +36,11 @@ import {
   StagedRawSource,
   pruneStagedRawSources,
   retainStagedRawSources,
-  buildClipPayloadFromStagedSources
+  buildClipPayloadFromStagedSources,
+  compressImageForArchive
 } from '../utils/rawClipsUtils';
 import { getTelegramOrders } from '../utils/telegramIntegration';
-import { ImageSlipScannerModal, ScannerArchiveMeta } from './ImageSlipScannerModal';
+import { InlinePhotoScanWorkspace } from './InlinePhotoScanWorkspace';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
 import {
   playTapSound,
@@ -169,8 +170,57 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
   const [rawBatchText, setRawBatchText] = useState('');
   const [batchErrors, setBatchErrors] = useState<string[]>([]);
 
-  // Photo Slip Scanner Modal state
-  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  // Inline Photo Scan Workspace state (visible directly on bet entry screen)
+  const [isPhotoWorkspaceOpen, setIsPhotoWorkspaceOpen] = useState(false);
+  const [workspacePhotoSrc, setWorkspacePhotoSrc] = useState<string | null>(null);
+  const [workspaceRawText, setWorkspaceRawText] = useState('');
+  const [workspaceCustomerName, setWorkspaceCustomerName] = useState('');
+  const [scanTriggerNonce, setScanTriggerNonce] = useState(0);
+  const compressedWorkspacePhotoRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspacePhotoSrc) {
+      compressedWorkspacePhotoRef.current = null;
+      return;
+    }
+    compressImageForArchive(workspacePhotoSrc).then((compressed) => {
+      if (!cancelled) {
+        compressedWorkspacePhotoRef.current = compressed;
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspacePhotoSrc]);
+
+  // Instant Ctrl+V image paste support right on the bet entry screen
+  useEffect(() => {
+    const handleGlobalImagePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            e.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              if (ev.target?.result) {
+                setWorkspacePhotoSrc(ev.target.result as string);
+                setIsPhotoWorkspaceOpen(true);
+                setScanTriggerNonce((n) => n + 1);
+              }
+            };
+            reader.readAsDataURL(blob);
+          }
+          return;
+        }
+      }
+    };
+    window.addEventListener('paste', handleGlobalImagePaste);
+    return () => window.removeEventListener('paste', handleGlobalImagePaste);
+  }, []);
 
   // Over-limit Decision Modal state
   const [isOverLimitModalOpen, setIsOverLimitModalOpen] = useState(false);
@@ -194,12 +244,15 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     }
   }, [toastNotification]);
 
-  const handleAddFromScanner = (
-    items: BetItem[],
-    scannedCustomerName: string,
-    scannedPhone: string,
-    archiveMeta?: ScannerArchiveMeta
+  const handleApplyInlineScannedText = async (
+    editedText: string,
+    fullImageSrc: string | null,
+    detectedCustomer?: string
   ) => {
+    const cleanText = editedText.trim();
+    if (!cleanText) return;
+
+    const { items, errors } = parseQuickBetText(cleanText);
     const allowedItems: BetItem[] = [];
     const blockedNums: string[] = [];
 
@@ -213,44 +266,55 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
 
     if (blockedNums.length > 0) {
       const uniqueBlocked = Array.from(new Set(blockedNums));
+      playWarningSound();
       setToastNotification({
         type: 'warning',
-        message: `စလစ်ဓါတ်ပုံထဲမှ ဒိုင်ကာဂဏန်း [${uniqueBlocked.join(', ')}] များအား ထိုးကြေးတက်လာစေကာမူ လက်မခံဘဲ ပယ်ဖျက်ထားပါသည်`
+        message: `ဒိုင်ကာဂဏန်း [${uniqueBlocked.join(', ')}] များအား ထိုးကြေးလက်မခံဘဲ ပယ်ဖျက်ထားပါသည်`
       });
     }
 
-    if (allowedItems.length > 0) {
-      const addedIds = allowedItems.map(i => i.id);
-      setStagedItems(prev => [...prev, ...allowedItems]);
-      setLatestDraftIds(addedIds);
-      if (archiveMeta?.imageDataUrl) {
-        setStagedRawSources(prev => [
-          ...prev,
-          {
-            id: `src-${generateUUID()}`,
-            source: 'ocr',
-            imageDataUrl: archiveMeta.imageDataUrl,
-            itemIds: addedIds
-          }
-        ]);
-      } else if (archiveMeta?.rawText) {
-        setStagedRawSources(prev => [
-          ...prev,
-          {
-            id: `src-${generateUUID()}`,
-            source: 'direct_paste',
-            rawText: archiveMeta.rawText,
-            itemIds: addedIds
-          }
-        ]);
-      }
-      if (scannedCustomerName && (!customerName || customerName === 'အထွေထွေ (General)')) {
-        setCustomerName(scannedCustomerName);
-      }
-      if (scannedPhone && !customerPhone) {
-        setCustomerPhone(scannedPhone);
-      }
+    if (allowedItems.length === 0) {
+      playWarningSound();
+      setToastNotification({
+        type: 'error',
+        message: errors[0] || (isMyanmar ? 'ဖတ်ရှု၍ရသော 3D ဂဏန်းမတွေ့ပါ' : 'No valid 3D bets found')
+      });
+      return;
     }
+
+    const addedIds = allowedItems.map(i => i.id);
+    playAddSound();
+    setStagedItems(prev => [...prev, ...allowedItems]);
+    setLatestDraftIds(addedIds);
+
+    const compressedPhoto = fullImageSrc
+      ? (compressedWorkspacePhotoRef.current || await compressImageForArchive(fullImageSrc))
+      : undefined;
+
+    setStagedRawSources(prev => [
+      ...prev,
+      {
+        id: `src-${generateUUID()}`,
+        source: compressedPhoto ? 'ocr' : 'batch_paste',
+        rawText: cleanText,
+        imageDataUrl: compressedPhoto,
+        itemIds: addedIds
+      }
+    ]);
+
+    if (
+      detectedCustomer &&
+      (!customerName || customerName === 'အထွေထွေ' || customerName === 'အထွေထွေ (General)')
+    ) {
+      setCustomerName(detectedCustomer);
+    }
+
+    setToastNotification({
+      type: 'success',
+      message: isMyanmar
+        ? `ဂဏန်း ${allowedItems.length} ကွက် ဘောင်ချာထဲ ထည့်သွင်းပြီးပါပြီ (ဘောင်ချာအတည်ပြုပါက မူရင်းဓာတ်ပုံကို Archive ထဲသိမ်းပေးမည်)`
+        : `Added ${allowedItems.length} bets to voucher cart`
+    });
   };
 
   const numberInputRef = useRef<HTMLInputElement>(null);
@@ -870,6 +934,12 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       new Set(itemsToSave.map(it => it.id)),
       itemsToSave
     );
+    const resolvedPhotoForArchive = clipPayload.imageDataUrl || compressedWorkspacePhotoRef.current || undefined;
+    const resolvedImageUrls = clipPayload.imageUrls && clipPayload.imageUrls.length > 0
+      ? clipPayload.imageUrls
+      : (resolvedPhotoForArchive ? [resolvedPhotoForArchive] : undefined);
+    const resolvedRawTextForArchive = clipPayload.rawText || workspaceRawText.trim();
+
     saveRawClip({
       category: '3d',
       roundId: activeRound?.id || 'round-3d',
@@ -879,19 +949,24 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
       voucherNumber: newVoucher.voucherNo || `ဘောင်ချာ (${vouchers.length + 1})`,
       customerName: newVoucher.customerName || customerName.trim() || 'အထွေထွေ',
       customerPhone: newVoucher.customerPhone || customerPhone || undefined,
-      rawText: clipPayload.rawText,
-      imageDataUrl: clipPayload.imageDataUrl,
-      imageUrls: clipPayload.imageUrls,
+      rawText: resolvedRawTextForArchive,
+      imageDataUrl: resolvedPhotoForArchive,
+      imageUrls: resolvedImageUrls,
       itemCount: itemsToSave.length,
       totalAmountPreview: finalSubtotal,
-      source: clipPayload.source
+      source: resolvedPhotoForArchive ? 'ocr' : clipPayload.source
     });
 
-    // Clear Staging
+    // Clear Staging & Inline Photo Workspace after Voucher Confirmation
     setStagedItems([]);
     setStagedRawSources([]);
     setLatestDraftIds([]);
     setNotes('');
+    setWorkspacePhotoSrc(null);
+    setWorkspaceRawText('');
+    setWorkspaceCustomerName('');
+    setIsPhotoWorkspaceOpen(false);
+    compressedWorkspacePhotoRef.current = null;
     playSuccessSound();
     setToastNotification({
       type: 'success',
@@ -1215,6 +1290,28 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
         </div>
       </div>
 
+      {/* Inline Photo Scan & Editable Copied Text Workspace right on the Bet Entry screen */}
+      <InlinePhotoScanWorkspace
+        isOpen={isPhotoWorkspaceOpen}
+        onClose={() => setIsPhotoWorkspaceOpen(false)}
+        mode="3d"
+        isMyanmar={isMyanmar}
+        currency={settings.currency}
+        defaultAmount={parseInt(amountInput, 10) || 1000}
+        activeImageSrc={workspacePhotoSrc}
+        onImageChange={(src) => {
+          setWorkspacePhotoSrc(src);
+          if (src) setScanTriggerNonce((n) => n + 1);
+        }}
+        rawText={workspaceRawText}
+        onRawTextChange={setWorkspaceRawText}
+        detectedCustomerName={workspaceCustomerName}
+        onDetectedCustomerNameChange={setWorkspaceCustomerName}
+        onApplyCustomerNameToVoucher={(name) => setCustomerName(name)}
+        onApplyParsedText={handleApplyInlineScannedText}
+        scanTriggerNonce={scanTriggerNonce}
+      />
+
       {/* Main Grid: Left = Entry Controls, Right = Slip Preview / Items Cart (On Mobile/Tablet, Voucher Draft on Top) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -1242,9 +1339,11 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                 {/* Photo OCR Scanner Trigger */}
                 <button
                   type="button"
-                  onClick={() => setIsScannerModalOpen(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer whitespace-nowrap"
-                  title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို အလိုအလျောက် ဖတ်ယူရန်"
+                  onClick={() => setIsPhotoWorkspaceOpen(prev => !prev)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer whitespace-nowrap ${
+                    isPhotoWorkspaceOpen ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                  title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို စာသားကူးပုံစံ ဖတ်ယူရန်"
                 >
                   <Camera className="w-3 h-3 shrink-0" />
                   <span>{isMyanmar ? 'စကင်ဖတ်' : 'Scan'}</span>
@@ -1808,7 +1907,7 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
                       <p>{isMyanmar ? 'ဂဏန်းများ ထည့်သွင်းထားခြင်း မရှိသေးပါ' : 'No numbers added to slip yet'}</p>
                       <button
                         type="button"
-                        onClick={() => setIsScannerModalOpen(true)}
+                        onClick={() => setIsPhotoWorkspaceOpen(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
                       >
                         <Camera className="w-3.5 h-3.5 text-indigo-600" />
@@ -1991,14 +2090,6 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
         </div>
 
       </div>
-
-      {/* Photo Slip OCR Scanner Modal */}
-      <ImageSlipScannerModal
-        isOpen={isScannerModalOpen}
-        onClose={() => setIsScannerModalOpen(false)}
-        onAddBetsToCart={handleAddFromScanner}
-        mode="3d"
-      />
 
       {/* Over-Limit / Dealer Forwarding Decision Modal */}
       <OverLimitConfirmModal

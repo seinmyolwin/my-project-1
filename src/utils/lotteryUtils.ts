@@ -120,7 +120,9 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
 
   let idCounter = 1;
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/[.,]+$/, '').trim();
+    if (!line) continue;
     try {
       const myanmarConverted = convertMyanmarToEnglishDigits(line);
 
@@ -193,9 +195,11 @@ export function parseQuickBetText(rawText: string): { items: BetItem[]; errors: 
         }
       }
 
-      // Check for 3D direct / rumble slash ratio pattern (e.g. "123 456 1000/200" or "123=1000/200")
-      const slash3DMatch = myanmarConverted.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
-                           myanmarConverted.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
+      // Check for 3D direct / rumble ratio pattern (e.g. "123 456 1000/200", "123=1000/200", "123=1000r200")
+      const slash3DMatch =
+        myanmarConverted.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
+        myanmarConverted.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/) ||
+        myanmarConverted.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d{4,})\s*[rR@]\s*(\d+)\s*$/);
       if (slash3DMatch) {
         const numbersRaw = slash3DMatch[1].trim();
         const straightAmt = parseInt(slash3DMatch[2], 10);

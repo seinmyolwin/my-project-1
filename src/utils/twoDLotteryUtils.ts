@@ -269,8 +269,9 @@ export function parseTwoDBatchInput(
     return seg.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
   });
 
-  function processSingleLine(line: string) {
-    if (!line || !line.trim()) return;
+  function processSingleLine(rawInputLine: string) {
+    const line = rawInputLine.replace(/[.,]+$/, '').trim();
+    if (!line) return;
 
     // Pattern 0A: Direct @ Reverse ratio pattern (e.g. "31-38=500@200", "86=400@200", "23 45 500@200")
     // Extracts direct numbers for direct amount (before @) and their reversals (အာ) for reverse amount (after @)
@@ -375,38 +376,104 @@ export function parseTwoDBatchInput(
       }
     }
 
-    // Pattern 0C: Chained equals (e.g. "12=13=02=03=92=91=82=83=52=53=500")
-    // Every number in the chain receives the final amount as straight (ဒဲ့) bets
+    // Pattern 0C: Chained equals (single or multi-segment: e.g. "52=57=58=500", "12=10=500=43=42=500", "52=7000r3000")
     if (line.includes('=')) {
       const eqTokens = line.split('=').map(t => t.trim()).filter(Boolean);
       if (eqTokens.length >= 2) {
-        const lastTok = eqTokens[eqTokens.length - 1];
-        const numPart = eqTokens.slice(0, eqTokens.length - 1);
-        const parsedAmt = parseInt(lastTok, 10);
+        const plannedOps: Array<
+          | { kind: 'straight'; nums: string[]; amt: number }
+          | { kind: 'split'; nums: string[]; directAmt: number; revAmt: number }
+        > = [];
+        let numBuffer: string[] = [];
+        let isCleanChain = true;
 
-        // Verify if all elements before the last one are 1-2 digit numbers and the last is a valid positive amount
-        const allDigits = numPart.every(t => /^\d{1,2}$/.test(t));
-        if (allDigits && !isNaN(parsedAmt) && parsedAmt > 0) {
-          numPart.forEach(token => {
-            const numStr = token.padStart(2, '0');
-            items.push({
-              id: `batch-${generateUUID()}`,
-              number: numStr,
-              amount: parsedAmt,
-              isRumble: false,
-              betType: 'straight',
-              originalInput: `${numStr} ဒဲ့ (${parsedAmt})`
-            });
+        for (let idx = 0; idx < eqTokens.length; idx++) {
+          const tok = eqTokens[idx];
+          const isLast = idx === eqTokens.length - 1;
+
+          // Match direct+reverse split amount token (e.g. "7000r3000", "7000/3000", "7000@3000")
+          const splitAmtMatch = tok.match(/^(\d{3,})\s*(?:r|R|\/|@)\s*(\d+)$/);
+          if (splitAmtMatch && numBuffer.length > 0) {
+            const directAmt = parseInt(splitAmtMatch[1], 10);
+            const revAmt = parseInt(splitAmtMatch[2], 10);
+            if (directAmt > 0 && revAmt > 0) {
+              plannedOps.push({ kind: 'split', nums: [...numBuffer], directAmt, revAmt });
+              numBuffer = [];
+              continue;
+            }
+          }
+
+          // Match single amount (>= 3 digits mid-chain, or >= 1 digits at the very end when preceded by numbers)
+          if (/^\d{3,}$/.test(tok) || (isLast && numBuffer.length > 0 && /^\d+$/.test(tok) && parseInt(tok, 10) > 0)) {
+            if (numBuffer.length === 0) {
+              isCleanChain = false;
+              break;
+            }
+            const parsedAmt = parseInt(tok, 10);
+            if (parsedAmt > 0) {
+              plannedOps.push({ kind: 'straight', nums: [...numBuffer], amt: parsedAmt });
+              numBuffer = [];
+              continue;
+            }
+          }
+
+          // Match 1-2 digit 2D number
+          if (/^\d{1,2}$/.test(tok)) {
+            numBuffer.push(tok.padStart(2, '0'));
+            continue;
+          }
+
+          isCleanChain = false;
+          break;
+        }
+
+        if (isCleanChain && numBuffer.length === 0 && plannedOps.length > 0) {
+          plannedOps.forEach(op => {
+            if (op.kind === 'straight') {
+              op.nums.forEach(numStr => {
+                items.push({
+                  id: `batch-${generateUUID()}`,
+                  number: numStr,
+                  amount: op.amt,
+                  isRumble: false,
+                  betType: 'straight',
+                  originalInput: `${numStr} ဒဲ့ (${op.amt})`
+                });
+              });
+            } else {
+              op.nums.forEach(numStr => {
+                items.push({
+                  id: `batch-${generateUUID()}`,
+                  number: numStr,
+                  amount: op.directAmt,
+                  isRumble: false,
+                  betType: 'straight',
+                  originalInput: `${numStr} ဒဲ့ (${op.directAmt})`
+                });
+                const revs = getTwoDReversal(numStr);
+                const reverseNum = revs.length > 1 ? revs[1] : revs[0];
+                items.push({
+                  id: `batch-${generateUUID()}`,
+                  number: reverseNum,
+                  amount: op.revAmt,
+                  isRumble: true,
+                  betType: 'rumble',
+                  originalInput: `${numStr} အာ (${reverseNum} = ${op.revAmt})`
+                });
+              });
+            }
           });
           return;
         }
       }
     }
 
-    // Pattern 0: Direct / Reverse slash ratio pattern (e.g. "23 45 26 800/200" or "34 46 37 1000/500")
-    // Extracts direct numbers for the 1st amount, and reversal (အာ) numbers for the 2nd amount
-    const slashRatioMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
-                            line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/);
+    // Pattern 0: Direct / Reverse ratio pattern (e.g. "23 45 26 800/200", "52=7000r3000", "52 7000r3000")
+    // Note: [rR] separator requires >=3 digits before r so regular "34 r 200" stays symmetric R 200
+    const slashRatioMatch =
+      line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
+      line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/) ||
+      line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d{3,})\s*[rR]\s*(\d+)\s*$/);
     if (slashRatioMatch) {
       const numbersRaw = slashRatioMatch[1].trim();
       const directAmt = parseInt(slashRatioMatch[2], 10);

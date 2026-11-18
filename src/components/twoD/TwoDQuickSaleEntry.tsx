@@ -34,7 +34,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
-import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, BetItem, TwoDNumberAggregate, TwoDQuickActionButtonsConfig, TwoDQuickButtonItem } from '../../types';
+import { TwoDBetItem, TwoDVoucher, OverLimitItemInfo, OverLimitAction, TwoDNumberAggregate, TwoDQuickActionButtonsConfig, TwoDQuickButtonItem } from '../../types';
 import { DEFAULT_2D_ACTION_BUTTONS, DEFAULT_2D_CUSTOM_BUTTONS } from '../../utils/storage';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { getTelegramOrders } from '../../utils/telegramIntegration';
@@ -59,13 +59,14 @@ import {
 } from '../../utils/twoDLotteryUtils';
 import {
   saveRawClip,
+  compressImageForArchive,
   StagedRawSource,
   pruneStagedRawSources,
   retainStagedRawSources,
   buildClipPayloadFromStagedSources
 } from '../../utils/rawClipsUtils';
 import { OverLimitConfirmModal } from '../OverLimitConfirmModal';
-import { ImageSlipScannerModal, ScannerArchiveMeta } from '../ImageSlipScannerModal';
+import { InlinePhotoScanWorkspace } from '../InlinePhotoScanWorkspace';
 import {
   playTapSound,
   playAddSound,
@@ -166,55 +167,126 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   // Toast notification
   const [toastNotification, setToastNotification] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // Photo Slip Scanner Modal state
-  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  // Inline Photo Scan Workspace state (visible directly on bet entry screen)
+  const [isPhotoWorkspaceOpen, setIsPhotoWorkspaceOpen] = useState(false);
+  const [workspacePhotoSrc, setWorkspacePhotoSrc] = useState<string | null>(null);
+  const [workspaceRawText, setWorkspaceRawText] = useState('');
+  const [workspaceCustomerName, setWorkspaceCustomerName] = useState('');
+  const [scanTriggerNonce, setScanTriggerNonce] = useState(0);
+  const compressedWorkspacePhotoRef = useRef<string | null>(null);
 
-  const handleAddFromScanner = (
-    scannedItems: BetItem[],
-    scannedCustomerName: string,
-    scannedPhone: string,
-    archiveMeta?: ScannerArchiveMeta
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspacePhotoSrc) {
+      compressedWorkspacePhotoRef.current = null;
+      return;
+    }
+    compressImageForArchive(workspacePhotoSrc).then((compressed) => {
+      if (!cancelled) {
+        compressedWorkspacePhotoRef.current = compressed;
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspacePhotoSrc]);
+
+  // Instant Ctrl+V image paste support right on the 2D bet entry screen
+  useEffect(() => {
+    const handleGlobalImagePaste = (e: ClipboardEvent) => {
+      const clipboardItems = e.clipboardData?.items;
+      if (!clipboardItems) return;
+      for (let i = 0; i < clipboardItems.length; i++) {
+        if (clipboardItems[i].type.indexOf('image') !== -1) {
+          const blob = clipboardItems[i].getAsFile();
+          if (blob) {
+            e.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              if (ev.target?.result) {
+                setWorkspacePhotoSrc(ev.target.result as string);
+                setIsPhotoWorkspaceOpen(true);
+                setScanTriggerNonce((n) => n + 1);
+              }
+            };
+            reader.readAsDataURL(blob);
+          }
+          return;
+        }
+      }
+    };
+    window.addEventListener('paste', handleGlobalImagePaste);
+    return () => window.removeEventListener('paste', handleGlobalImagePaste);
+  }, []);
+
+  const handleApplyInlineScannedText = async (
+    editedText: string,
+    fullImageSrc: string | null,
+    detectedCustomer?: string
   ) => {
-    if (scannedCustomerName && !customerName) {
-      setCustomerName(scannedCustomerName);
-    }
-    if (scannedPhone && !customerPhone) {
-      setCustomerPhone(scannedPhone);
+    const cleanText = editedText.trim();
+    if (!cleanText) return;
+
+    const defAmt = parseFloat(batchDefaultAmount) || 1000;
+    const result = parseTwoDBatchInput(cleanText, defAmt);
+    const parsed: TwoDBetItem[] = Array.isArray(result) ? result : (result as any).items;
+    const warnings: string[] = (result as any).warnings || [];
+
+    if (warnings && warnings.length > 0) {
+      showToast(warnings.join(', '), 'warning');
     }
 
-    const newTwoDItems: TwoDBetItem[] = scannedItems.map((it) => ({
-      id: `twoD-scan-${generateUUID()}`,
-      number: it.number.slice(0, 2),
-      amount: it.amount,
-      isRumble: it.isRumble,
-      originalInput: it.originalInput || it.number
-    }));
+    if (parsed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ဖတ်ရှု၍ရသော 2D ဂဏန်းမရှိပါ' : 'No valid 2D bets found', 'error');
+      return;
+    }
 
-    const addedIds = newTwoDItems.map(i => i.id);
-    setItems(prev => [...prev, ...newTwoDItems]);
+    const blocked = parsed.filter(p => isNumberBlocked(p.number));
+    const allowed = parsed.filter(p => !isNumberBlocked(p.number));
+
+    if (blocked.length > 0) {
+      playWarningSound();
+      const list = Array.from(new Set(blocked.map(b => b.number))).join(', ');
+      showToast(isMyanmar ? `ဒိုင်ကာဂဏန်း [${list}] များကို အလိုအလျောက် ပယ်ဖျက်ထားပါသည်` : `Removed blocked numbers`, 'warning');
+    }
+
+    if (allowed.length === 0) {
+      playWarningSound();
+      showToast(isMyanmar ? 'ထည့်သွင်းထားသော ဂဏန်းများအားလုံး ဒိုင်ကာဖြစ်နေပါသည်' : 'All entered numbers are blocked', 'error');
+      return;
+    }
+
+    const addedIds = allowed.map((i: TwoDBetItem) => i.id);
+    playAddSound();
+    setItems(prev => [...prev, ...allowed]);
     setLatestDraftIds(addedIds);
-    if (archiveMeta?.imageDataUrl) {
-      setStagedRawSources(prev => [
-        ...prev,
-        {
-          id: `src-${generateUUID()}`,
-          source: 'ocr',
-          imageDataUrl: archiveMeta.imageDataUrl,
-          itemIds: addedIds
-        }
-      ]);
-    } else if (archiveMeta?.rawText) {
-      setStagedRawSources(prev => [
-        ...prev,
-        {
-          id: `src-${generateUUID()}`,
-          source: 'direct_paste',
-          rawText: archiveMeta.rawText,
-          itemIds: addedIds
-        }
-      ]);
+
+    const compressedPhoto = fullImageSrc
+      ? (compressedWorkspacePhotoRef.current || await compressImageForArchive(fullImageSrc))
+      : undefined;
+
+    setStagedRawSources(prev => [
+      ...prev,
+      {
+        id: `src-${generateUUID()}`,
+        source: compressedPhoto ? 'ocr' : 'batch_paste',
+        rawText: cleanText,
+        imageDataUrl: compressedPhoto,
+        itemIds: addedIds
+      }
+    ]);
+
+    if (detectedCustomer && !customerName) {
+      setCustomerName(detectedCustomer);
     }
-    showToast(isMyanmar ? `ဓါတ်ပုံမှ ဂဏန်း ${newTwoDItems.length} လုံး အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ` : `Added ${newTwoDItems.length} items from photo`, 'success');
+
+    showToast(
+      isMyanmar
+        ? `ဂဏန်း ${allowed.length} ကွက် ဘောင်ချာထဲ ထည့်သွင်းပြီးပါပြီ (ဘောင်ချာအတည်ပြုပါက မူရင်းဓာတ်ပုံကို Archive ထဲသိမ်းပေးမည်)`
+        : `Added ${allowed.length} bets to voucher cart`,
+      'success'
+    );
   };
 
   const numberInputRef = useRef<HTMLInputElement>(null);
@@ -1307,6 +1379,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       new Set(finalItems.map(i => i.id)),
       finalItems
     );
+    const resolvedPhotoForArchive = clipPayload.imageDataUrl || compressedWorkspacePhotoRef.current || undefined;
+    const resolvedImageUrls = clipPayload.imageUrls && clipPayload.imageUrls.length > 0
+      ? clipPayload.imageUrls
+      : (resolvedPhotoForArchive ? [resolvedPhotoForArchive] : undefined);
+    const resolvedRawTextForArchive = clipPayload.rawText || workspaceRawText.trim();
+
     saveRawClip({
       category: '2d',
       roundId: activeRound.id,
@@ -1316,12 +1394,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       voucherNumber: voucher.voucherNo || `ဘောင်ချာ (2D)`,
       customerName: voucher.customerName || customerName.trim() || 'အထွေထွေ',
       customerPhone: voucher.customerPhone || customerPhone || undefined,
-      rawText: clipPayload.rawText,
-      imageDataUrl: clipPayload.imageDataUrl,
-      imageUrls: clipPayload.imageUrls,
+      rawText: resolvedRawTextForArchive,
+      imageDataUrl: resolvedPhotoForArchive,
+      imageUrls: resolvedImageUrls,
       itemCount: finalItems.length,
       totalAmountPreview: sub,
-      source: clipPayload.source
+      source: resolvedPhotoForArchive ? 'ocr' : clipPayload.source
     });
 
     const isDup = (voucher as any)?.isDuplicate;
@@ -1358,7 +1436,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       showToast(isMyanmar ? `ဘောင်ချာ [${voucher.voucherNo}] ထုတ်ပြီးပါပြီ` : `Voucher created`, 'success');
     }
 
-    // Reset Form
+    // Reset Form & Inline Photo Workspace after Voucher Confirmation
     setItems([]);
     setStagedRawSources([]);
     setLatestDraftIds([]);
@@ -1366,6 +1444,11 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     setCustomerPhone('');
     setNotes('');
     setDiscountPercent(0);
+    setWorkspacePhotoSrc(null);
+    setWorkspaceRawText('');
+    setWorkspaceCustomerName('');
+    setIsPhotoWorkspaceOpen(false);
+    compressedWorkspacePhotoRef.current = null;
 
     onVoucherCreated(voucher);
   };
@@ -1550,6 +1633,28 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         </div>
       </div>
 
+      {/* Inline Photo Scan & Editable Copied Text Workspace right on the Bet Entry screen */}
+      <InlinePhotoScanWorkspace
+        isOpen={isPhotoWorkspaceOpen}
+        onClose={() => setIsPhotoWorkspaceOpen(false)}
+        mode="2d"
+        isMyanmar={isMyanmar}
+        currency={settings.currency}
+        defaultAmount={parseFloat(batchDefaultAmount) || 1000}
+        activeImageSrc={workspacePhotoSrc}
+        onImageChange={(src) => {
+          setWorkspacePhotoSrc(src);
+          if (src) setScanTriggerNonce((n) => n + 1);
+        }}
+        rawText={workspaceRawText}
+        onRawTextChange={setWorkspaceRawText}
+        detectedCustomerName={workspaceCustomerName}
+        onDetectedCustomerNameChange={setWorkspaceCustomerName}
+        onApplyCustomerNameToVoucher={(name) => setCustomerName(name)}
+        onApplyParsedText={handleApplyInlineScannedText}
+        scanTriggerNonce={scanTriggerNonce}
+      />
+
       {/* Main Grid: Input Form & Cart (On Mobile/Tablet, Voucher Draft on Top) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column (Desktop Left / Mobile Bottom): Quick Entry Pad & Helpers (7 cols) */}
@@ -1571,7 +1676,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsScannerModalOpen(true)}
+                  onClick={() => setIsPhotoWorkspaceOpen(prev => !prev)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer whitespace-nowrap"
                   title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို အလိုအလျောက် ဖတ်ယူရန်"
                 >
@@ -2059,7 +2164,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                       <p>{isMyanmar ? 'ဂဏန်းများ ထည့်သွင်းထားခြင်း မရှိသေးပါ' : 'No numbers added to slip yet'}</p>
                       <button
                         type="button"
-                        onClick={() => setIsScannerModalOpen(true)}
+                        onClick={() => setIsPhotoWorkspaceOpen(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-teal-700 border border-teal-200 text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
                       >
                         <Camera className="w-3.5 h-3.5 text-teal-600" />
@@ -2343,14 +2448,6 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         overLimitItems={pendingOverLimitItems}
         customerName={customerName}
         onConfirm={handleConfirmOverLimit}
-      />
-
-      {/* Image Slip Scanner Modal */}
-      <ImageSlipScannerModal
-        isOpen={isScannerModalOpen}
-        onClose={() => setIsScannerModalOpen(false)}
-        onAddBetsToCart={handleAddFromScanner}
-        mode="2d"
       />
     </div>
   );
