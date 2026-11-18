@@ -336,9 +336,14 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
       img.crossOrigin = 'anonymous';
       img.onload = async () => {
         const isRotated = rotation === 90 || rotation === 270;
+        const rawW = isRotated ? img.naturalHeight || 1200 : img.naturalWidth || 1200;
+        const rawH = isRotated ? img.naturalWidth || 1200 : img.naturalHeight || 1200;
+        const maxDim = 1600;
+        const scale = Math.min(1, maxDim / Math.max(rawW, rawH));
+
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = isRotated ? img.naturalHeight || 1200 : img.naturalWidth || 1200;
-        tempCanvas.height = isRotated ? img.naturalWidth || 1200 : img.naturalHeight || 1200;
+        tempCanvas.width = Math.max(1, Math.round(rawW * scale));
+        tempCanvas.height = Math.max(1, Math.round(rawH * scale));
 
         const ctx = tempCanvas.getContext('2d');
         if (!ctx) {
@@ -348,6 +353,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
 
         ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
         ctx.rotate((rotation * Math.PI) / 180);
+        ctx.scale(scale, scale);
         ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
 
         // If user explicitly applied filters (for faint paper receipts), apply preprocessCanvas.
@@ -357,7 +363,7 @@ export const ImageSlipScannerModal: React.FC<ImageSlipScannerModalProps> = ({
           ? preprocessCanvas(tempCanvas, { contrast, brightness, threshold: enableThreshold, grayscale: isGrayscale })
           : tempCanvas;
 
-        const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.90);
+        const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.85);
 
         try {
           setScanProgress(45);

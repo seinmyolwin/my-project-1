@@ -105,7 +105,13 @@ async function initMultiShopStores() {
     shopStoresMap.set('default', def);
   }
 }
-initMultiShopStores().catch(err => console.error('Failed to init multi-shop stores:', err));
+const isServerlessRuntime = Boolean(
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTION_TARGET
+);
+
+if (!isServerlessRuntime) {
+  initMultiShopStores().catch(err => console.error('Failed to init multi-shop stores:', err));
+}
 
 async function getOrCreateShopStore(shopId: string = 'default'): Promise<ShopStoreData> {
   const id = shopId && shopId.trim() ? shopId.trim() : 'default';
@@ -328,31 +334,33 @@ async function processTelegramUpdateForShop(update: any, shopId: string) {
   await persistShopStore(shopId);
 }
 
-// Background polling loop every 3 seconds
-setInterval(async () => {
-  for (const [shopId, shopStore] of shopStoresMap.entries()) {
-    const token = getTelegramTokenForShop(shopStore);
-    if (!token) continue;
+// Background polling loop every 3 seconds (persistent server only; disabled on Vercel serverless)
+if (!isServerlessRuntime) {
+  setInterval(async () => {
+    for (const [shopId, shopStore] of shopStoresMap.entries()) {
+      const token = getTelegramTokenForShop(shopStore);
+      if (!token) continue;
 
-    let offset = shopOffsets.get(shopId) || 0;
-    try {
-      const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=2`, 'GET', undefined, token);
-      if (!res.ok && res.message && res.message.includes("can't use getUpdates while webhook is active")) {
-        if (!shopStore.telegram.webhookUrl) {
-          console.log(`[Telegram Polling] Clearing stale Telegram webhook for shop ${shopId}...`);
-          await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false }, token);
+      let offset = shopOffsets.get(shopId) || 0;
+      try {
+        const res = await callTelegramApi(`getUpdates?offset=${offset}&timeout=2`, 'GET', undefined, token);
+        if (!res.ok && res.message && res.message.includes("can't use getUpdates while webhook is active")) {
+          if (!shopStore.telegram.webhookUrl) {
+            console.log(`[Telegram Polling] Clearing stale Telegram webhook for shop ${shopId}...`);
+            await callTelegramApi('deleteWebhook', 'POST', { drop_pending_updates: false }, token);
+          }
         }
-      }
-      if (res.ok && Array.isArray(res.result)) {
-        for (const update of res.result) {
-          offset = update.update_id + 1;
-          shopOffsets.set(shopId, offset);
-          await processTelegramUpdateForShop(update, shopId);
+        if (res.ok && Array.isArray(res.result)) {
+          for (const update of res.result) {
+            offset = update.update_id + 1;
+            shopOffsets.set(shopId, offset);
+            await processTelegramUpdateForShop(update, shopId);
+          }
         }
-      }
-    } catch {}
-  }
-}, 3000);
+      } catch {}
+    }
+  }, 3000);
+}
 
 export function createMessagingRouter() {
   const router = express.Router();
