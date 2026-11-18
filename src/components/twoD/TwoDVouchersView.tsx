@@ -37,6 +37,8 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
     activeRound,
     activeRoundVouchers,
     activeRoundForwardSlips,
+    aggregates,
+    addForwardSlip,
     updateVoucher,
     deleteVoucher,
     deleteForwardSlip,
@@ -188,6 +190,43 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
   const totalCustomerSales = activeRoundVouchers.reduce((acc, v) => acc + v.netPayable, 0);
   const totalForwardAmount = activeRoundForwardSlips.reduce((acc, s) => acc + s.totalAmount, 0);
 
+  const handleForwardAllBets = () => {
+    if (activeRound?.status === 'settled' || activeRound?.status === 'closed') {
+      alert(isMyanmar ? 'ဤပွဲစဉ်သည် ပေါက်ဂဏန်း အတည်ပြုပြီး/ပိတ်သိမ်းပြီး ဖြစ်သဖြင့် လွှဲတင်၍ မရတော့ပါ' : 'Round is closed or settled.');
+      return;
+    }
+    const items = (Object.values(aggregates) as any[])
+      .map(agg => ({
+        number: agg.number,
+        amount: Math.max(0, agg.totalSold - (agg.forwardedAmount || 0))
+      }))
+      .filter(i => i.amount > 0);
+
+    if (items.length === 0) {
+      alert(isMyanmar ? 'အထက်ဒိုင်သို့ လွှဲတင်ရန် ကျန်ရှိသော အကွက်များ မရှိသေးပါ' : 'No bets available to forward.');
+      return;
+    }
+
+    const totalAmount = items.reduce((acc, i) => acc + i.amount, 0);
+    const commissionRate = settings.defaultCommissionRate ?? 0;
+    const commissionAmount = Math.round((totalAmount * commissionRate) / 100);
+    const netPaid = totalAmount - commissionAmount;
+
+    addForwardSlip({
+      roundId: activeRound?.id || 'default',
+      masterAgentName: settings.defaultMasterAgentName?.trim() || 'ဒိုင်ချုပ်',
+      masterAgentPhone: settings.defaultMasterAgentPhone?.trim() || undefined,
+      items,
+      totalAmount,
+      commissionRate,
+      commissionAmount,
+      netPaid,
+      notes: isMyanmar ? 'ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်တင်ခြင်း' : 'Forwarded all bets'
+    });
+
+    alert(isMyanmar ? `ရှိသမျှအကွက် (${items.length} ကွက်၊ စုစုပေါင်း ${formatAmount(totalAmount, settings.currency)}) အထက်ဒိုင်သို့ အောင်မြင်စွာ လွှဲတင်ပြီးပါပြီ။` : 'Successfully forwarded all bets.');
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6" {...voucherSwipeHandlers}>
       {/* Header and Filter Bar */}
@@ -231,6 +270,16 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                 ))}
               </select>
             )}
+
+            <button
+              type="button"
+              onClick={handleForwardAllBets}
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
+              title="ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်သို့ တိုက်ရိုက် လွှဲတင်မည်"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isMyanmar ? 'အကွက်အားလုံး လွှဲတင်မည်' : 'Forward All'}</span>
+            </button>
 
             <button
               type="button"
