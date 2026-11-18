@@ -20,7 +20,8 @@ import {
   X,
   Trophy,
   Edit2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ChevronDown
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
@@ -475,20 +476,18 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
             </h3>
 
             {availableCustomers.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1 rounded-xl shadow-2xs font-sans">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="text-xs font-bold text-slate-700">ထိုးသူအမည်:</span>
+              <div className="relative inline-flex items-center" title="ထိုးသူအမည်ဖြင့် စစ်ထုတ်ရန်">
                 <select
                   value={customerFilter}
                   onChange={(e) => setCustomerFilter(e.target.value)}
-                  className="px-2 py-0.5 text-xs rounded bg-slate-50 border border-slate-300 text-slate-900 font-bold cursor-pointer outline-none"
-                  title="Excel ကဲ့သို့ ထိုးသူအမည်ဖြင့် ဖယ်ထုတ်စစ်ထုတ်ရန်"
+                  className="appearance-none bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-xl px-2.5 py-1.5 pr-7 font-bold cursor-pointer outline-none shadow-2xs"
                 >
-                  <option value="all">ထိုးသူအားလုံး ({availableCustomers.length})</option>
+                  <option value="all">ထိုးသူအားလုံး</option>
                   {availableCustomers.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2 pointer-events-none" />
               </div>
             )}
           </div>

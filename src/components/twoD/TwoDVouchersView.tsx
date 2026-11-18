@@ -18,7 +18,8 @@ import {
   Send,
   SlidersHorizontal,
   ExternalLink,
-  Edit2
+  Edit2,
+  ChevronDown
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDVoucher, TwoDForwardSlip } from '../../types';
@@ -476,22 +477,21 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                   <tr>
                     <th className="p-3.5">ဘောင်ချာအမှတ်</th>
                     <th className="p-3.5">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <span>ထိုးသူအမည်</span>
                         {availableCustomers.length > 0 && (
-                          <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-1.5 py-0.5 shadow-2xs" onClick={(e) => e.stopPropagation()}>
-                            <SlidersHorizontal className="w-3 h-3 text-teal-600" />
+                          <div className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()} title="ထိုးသူအမည်ဖြင့် စစ်ထုတ်ရန်">
                             <select
                               value={customerFilter}
                               onChange={(e) => setCustomerFilter(e.target.value)}
-                              className="text-[11px] font-sans font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
-                              title="Excel ကဲ့သို့ ထိုးသူအမည်ဖြင့် ဖယ်ထုတ်စစ်ထုတ်ရန်"
+                              className="appearance-none bg-transparent hover:bg-slate-200/60 text-slate-500 hover:text-slate-800 rounded p-1 pr-4 text-xs cursor-pointer outline-none"
                             >
-                              <option value="all">အားလုံး ({availableCustomers.length})</option>
+                              <option value="all">အားလုံး</option>
                               {availableCustomers.map(c => (
                                 <option key={c} value={c}>{c}</option>
                               ))}
                             </select>
+                            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-0.5 pointer-events-none" />
                           </div>
                         )}
                       </div>
