@@ -29,16 +29,16 @@ import { printVoucherSlip } from '../../utils/printUtils';
 
 interface TwoDVouchersViewProps {
   onOpenPrintVoucher?: (voucher: TwoDVoucher) => void;
+  onOpenForwardAllModal?: () => void;
 }
 
-export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintVoucher }) => {
+export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintVoucher, onOpenForwardAllModal }) => {
   const {
     settings,
     activeRound,
     activeRoundVouchers,
     activeRoundForwardSlips,
     aggregates,
-    addForwardSlip,
     updateVoucher,
     deleteVoucher,
     deleteForwardSlip,
@@ -207,24 +207,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
       return;
     }
 
-    const totalAmount = items.reduce((acc, i) => acc + i.amount, 0);
-    const commissionRate = settings.defaultCommissionRate ?? 0;
-    const commissionAmount = Math.round((totalAmount * commissionRate) / 100);
-    const netPaid = totalAmount - commissionAmount;
-
-    addForwardSlip({
-      roundId: activeRound?.id || 'default',
-      masterAgentName: settings.defaultMasterAgentName?.trim() || 'ဒိုင်ချုပ်',
-      masterAgentPhone: settings.defaultMasterAgentPhone?.trim() || undefined,
-      items,
-      totalAmount,
-      commissionRate,
-      commissionAmount,
-      netPaid,
-      notes: isMyanmar ? 'ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်တင်ခြင်း' : 'Forwarded all bets'
-    });
-
-    alert(isMyanmar ? `ရှိသမျှအကွက် (${items.length} ကွက်၊ စုစုပေါင်း ${formatAmount(totalAmount, settings.currency)}) အထက်ဒိုင်သို့ အောင်မြင်စွာ လွှဲတင်ပြီးပါပြီ။` : 'Successfully forwarded all bets.');
+    onOpenForwardAllModal?.();
   };
 
   return (
@@ -275,7 +258,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
               type="button"
               onClick={handleForwardAllBets}
               className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
-              title="ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်သို့ တိုက်ရိုက် လွှဲတင်မည်"
+              title="ရှိသမျှအကွက်အားလုံး စစ်ဆေးပြင်ဆင်ပြီး အထက်ဒိုင်သို့ လွှဲတင်မည်"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isMyanmar ? 'အကွက်အားလုံး လွှဲတင်မည်' : 'Forward All'}</span>

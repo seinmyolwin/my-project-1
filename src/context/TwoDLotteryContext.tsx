@@ -261,7 +261,22 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rawForwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
     const loaded = loadStoredData<TwoDForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_2D, []);
-    return loaded || [];
+    if (!Array.isArray(loaded)) return [];
+    try {
+      if (localStorage.getItem('forward_all_2d_cleanup_v1') !== 'true') {
+        const cleaned = loaded.filter(
+          (f) => f.notes !== 'ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်တင်ခြင်း' && f.notes !== 'Forwarded all bets'
+        );
+        if (cleaned.length !== loaded.length) {
+          saveStoredData(STORAGE_KEYS.FORWARD_SLIPS_2D, cleaned);
+        }
+        localStorage.setItem('forward_all_2d_cleanup_v1', 'true');
+        return cleaned;
+      }
+    } catch {
+      // ignore
+    }
+    return loaded;
   });
   const forwardSlips = useMemo(() => rawForwardSlips.filter(f => !(f as any).deletedAt), [rawForwardSlips]);
 

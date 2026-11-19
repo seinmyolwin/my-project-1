@@ -33,6 +33,7 @@ interface ForwardSlipsModalProps {
   onClose: () => void;
   initialNumber?: string;
   initialAmount?: number;
+  initialForwardAll?: boolean;
 }
 
 interface DraftForwardItem {
@@ -49,7 +50,8 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   isOpen,
   onClose,
   initialNumber,
-  initialAmount
+  initialAmount,
+  initialForwardAll
 }) => {
   const {
     activeRound,
@@ -119,6 +121,29 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     return list.sort((a, b) => b.excessAmount - a.excessAmount);
   }, [aggregates]);
 
+  // Compute ALL remaining 3D numbers from active round aggregates
+  const allRemainingList: DraftForwardItem[] = useMemo(() => {
+    const list: DraftForwardItem[] = [];
+    const allAggs = Object.values(aggregates) as NumberAggregate[];
+
+    allAggs.forEach((agg) => {
+      const netSold = Math.max(0, agg.totalSold - (agg.forwardedAmount || 0));
+      if (netSold > 0) {
+        list.push({
+          id: `all-3d-${agg.number}`,
+          number: agg.number,
+          totalSold: agg.totalSold,
+          limit: agg.limit,
+          excessAmount: netSold,
+          forwardAmount: netSold,
+          selected: true
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.forwardAmount - a.forwardAmount);
+  }, [aggregates]);
+
   // 3D Quick Action Buttons visibility & active status config
   const enabledButtons = useMemo<ThreeDQuickActionButtonsConfig>(() => {
     return {
@@ -169,13 +194,15 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
         selected: true
       };
       setDraftItems([initItem]);
+    } else if (initialForwardAll) {
+      setDraftItems(allRemainingList);
     } else {
       setDraftItems(excessList);
       if (initialNumber) {
         setManualNum(initialNumber.padStart(3, '0'));
       }
     }
-  }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed]);
+  }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed, initialForwardAll]);
 
   // Handle setting active master agent as default
   const handleSaveAsDefaultAgent = () => {
@@ -789,14 +816,26 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   </span>
                 </div>
 
-                {excessList.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setDraftItems(excessList)}
-                    className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
-                  >
-                    ပိုနေသောဂဏန်းများ အကုန်ပြန်ယူမည်
-                  </button>
+                {initialForwardAll ? (
+                  allRemainingList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDraftItems(allRemainingList)}
+                      className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                    >
+                      ကျန်ရှိအကွက်အားလုံး ပြန်ယူမည်
+                    </button>
+                  )
+                ) : (
+                  excessList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDraftItems(excessList)}
+                      className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                    >
+                      ပိုနေသောဂဏန်းများ အကုန်ပြန်ယူမည်
+                    </button>
+                  )
                 )}
               </div>
 

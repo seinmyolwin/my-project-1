@@ -159,10 +159,10 @@ function AppContent() {
   const [printingVoucher2D, setPrintingVoucher2D] = useState<TwoDVoucher | null>(null);
 
   const [isForwardModal3DOpen, setIsForwardModal3DOpen] = useState(false);
-  const [forwardInitialData3D, setForwardInitialData3D] = useState<{ num?: string; amt?: number }>({});
+  const [forwardInitialData3D, setForwardInitialData3D] = useState<{ num?: string; amt?: number; forwardAll?: boolean }>({});
 
   const [isForwardModal2DOpen, setIsForwardModal2DOpen] = useState(false);
-  const [forwardInitialData2D, setForwardInitialData2D] = useState<{ num?: string; amt?: number }>({});
+  const [forwardInitialData2D, setForwardInitialData2D] = useState<{ num?: string; amt?: number; forwardAll?: boolean }>({});
 
   // Close 2D forward modal when round is settled or active round changes
   useEffect(() => {
@@ -326,12 +326,12 @@ function AppContent() {
     else if (dealerMode === '2d') setIsRoundManager2DOpen(true);
   };
 
-  const handleOpenForwardModal = (num?: string, amt?: number) => {
+  const handleOpenForwardModal = (num?: string, amt?: number, forwardAll?: boolean) => {
     if (dealerMode === '3d') {
-      setForwardInitialData3D({ num, amt });
+      setForwardInitialData3D({ num, amt, forwardAll });
       setIsForwardModal3DOpen(true);
     } else if (dealerMode === '2d') {
-      setForwardInitialData2D({ num, amt });
+      setForwardInitialData2D({ num, amt, forwardAll });
       setIsForwardModal2DOpen(true);
     }
   };
@@ -458,7 +458,10 @@ function AppContent() {
             )}
 
             {activeTab3D === 'vouchers' && (
-              <VouchersView onOpenPrintVoucher={(v) => setPrintingVoucher3D(v)} />
+              <VouchersView
+                onOpenPrintVoucher={(v) => setPrintingVoucher3D(v)}
+                onOpenForwardAllModal={() => handleOpenForwardModal(undefined, undefined, true)}
+              />
             )}
           </>
         )}
@@ -489,7 +492,10 @@ function AppContent() {
             )}
 
             {activeTab2D === 'vouchers' && (
-              <TwoDVouchersView onOpenPrintVoucher={(v) => setPrintingVoucher2D(v)} />
+              <TwoDVouchersView
+                onOpenPrintVoucher={(v) => setPrintingVoucher2D(v)}
+                onOpenForwardAllModal={() => handleOpenForwardModal(undefined, undefined, true)}
+              />
             )}
           </>
         )}
@@ -531,6 +537,7 @@ function AppContent() {
         }}
         initialNumber={forwardInitialData3D.num}
         initialAmount={forwardInitialData3D.amt}
+        initialForwardAll={forwardInitialData3D.forwardAll}
       />
 
       <LimitManagerModal
@@ -561,6 +568,7 @@ function AppContent() {
         }}
         initialNumber={forwardInitialData2D.num}
         initialAmount={forwardInitialData2D.amt}
+        initialForwardAll={forwardInitialData2D.forwardAll}
       />
 
       <TwoDRoundManagerModal

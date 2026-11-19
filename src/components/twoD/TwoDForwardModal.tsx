@@ -46,6 +46,7 @@ interface TwoDForwardModalProps {
   onClose: () => void;
   initialNumber?: string;
   initialAmount?: number;
+  initialForwardAll?: boolean;
 }
 
 interface ForwardDraftItem {
@@ -62,7 +63,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
   isOpen,
   onClose,
   initialNumber,
-  initialAmount
+  initialAmount,
+  initialForwardAll
 }) => {
   const { settings, activeRound, aggregates, addForwardSlip, updateSettings } = useTwoDLottery();
   const isMyanmar = settings.language === 'my';
@@ -125,6 +127,29 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     return list.sort((a, b) => b.excessAmount - a.excessAmount);
   }, [aggregates]);
 
+  // Compute ALL remaining 2D numbers from active round aggregates
+  const allRemainingList: ForwardDraftItem[] = useMemo(() => {
+    const list: ForwardDraftItem[] = [];
+    const allAggs = Object.values(aggregates) as TwoDNumberAggregate[];
+
+    allAggs.forEach((agg) => {
+      const netSold = Math.max(0, agg.totalSold - (agg.forwardedAmount || 0));
+      if (netSold > 0) {
+        list.push({
+          id: `all-2d-${agg.number}`,
+          number: agg.number,
+          totalSold: agg.totalSold,
+          limit: agg.limit,
+          excessAmount: netSold,
+          forwardAmount: netSold,
+          selected: true
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.forwardAmount - a.forwardAmount);
+  }, [aggregates]);
+
   // Quick Action Buttons visibility & active status config
   const enabledButtons = useMemo<TwoDQuickActionButtonsConfig>(() => {
     return {
@@ -179,6 +204,8 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
         selected: true
       };
       setDraftItems([initItem]);
+    } else if (initialForwardAll) {
+      setDraftItems(allRemainingList);
     } else {
       // Auto-load all over-limit numbers of CURRENT round only
       setDraftItems(excessList);
@@ -186,7 +213,7 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
         setManualNum(initialNumber.padStart(2, '0'));
       }
     }
-  }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed]);
+  }, [isOpen, activeRound?.id, activeRound?.status, isRoundSettledOrClosed, initialForwardAll]);
 
   // Handle setting active master agent as default
   const handleSaveAsDefaultAgent = () => {
@@ -1065,14 +1092,26 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {excessList.length > 0 && draftItems.length < excessList.length && (
-                    <button
-                      type="button"
-                      onClick={() => setDraftItems(excessList)}
-                      className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
-                    >
-                      ပိုနေသောဂဏန်းများ အကုန်ဆွဲယူမည် ({excessList.length} လုံး)
-                    </button>
+                  {initialForwardAll ? (
+                    allRemainingList.length > 0 && draftItems.length < allRemainingList.length && (
+                      <button
+                        type="button"
+                        onClick={() => setDraftItems(allRemainingList)}
+                        className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                      >
+                        ကျန်ရှိအကွက်အားလုံး ပြန်ယူမည် ({allRemainingList.length} လုံး)
+                      </button>
+                    )
+                  ) : (
+                    excessList.length > 0 && draftItems.length < excessList.length && (
+                      <button
+                        type="button"
+                        onClick={() => setDraftItems(excessList)}
+                        className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                      >
+                        ပိုနေသောဂဏန်းများ အကုန်ဆွဲယူမည် ({excessList.length} လုံး)
+                      </button>
+                    )
                   )}
                 </div>
               </div>

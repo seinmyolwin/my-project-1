@@ -202,9 +202,25 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
   const vouchers = useMemo(() => rawVouchers.filter(v => !v.deletedAt && v.status !== 'cancelled'), [rawVouchers]);
 
-  const [rawForwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() =>
-    loadStoredData<ForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS, [])
-  );
+  const [rawForwardSlips, setForwardSlips] = useState<ForwardSlip[]>(() => {
+    const loaded = loadStoredData<ForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS, []);
+    if (!Array.isArray(loaded)) return [];
+    try {
+      if (localStorage.getItem('forward_all_3d_cleanup_v1') !== 'true') {
+        const cleaned = loaded.filter(
+          (f) => f.notes !== 'ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်တင်ခြင်း' && f.notes !== 'Forwarded all bets'
+        );
+        if (cleaned.length !== loaded.length) {
+          saveStoredData(STORAGE_KEYS.FORWARD_SLIPS, cleaned);
+        }
+        localStorage.setItem('forward_all_3d_cleanup_v1', 'true');
+        return cleaned;
+      }
+    } catch {
+      // ignore
+    }
+    return loaded;
+  });
   const forwardSlips = useMemo(() => rawForwardSlips.filter(f => !(f as any).deletedAt), [rawForwardSlips]);
 
   const [limits, setLimits] = useState<NumberLimit>(() =>
