@@ -7,10 +7,11 @@ import {
   Receipt,
   Save,
   CheckCircle2,
+  Star
 } from 'lucide-react';
 import { Voucher } from '../types';
 import { useLottery } from '../context/LotteryContext';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { printVoucherSlip } from '../utils/printUtils';
 
 interface VoucherPrintModalProps {
@@ -27,6 +28,18 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({ voucher, o
   if (!voucher) return null;
 
   const isMyanmar = settings.language === 'my';
+  const isSettledRound = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
+  const winNum = isSettledRound ? activeRound!.winningNumber!.trim().padStart(3, '0') : '';
+  const toddSet = winNum.length === 3 && (settings.defaultToddMultiplier ?? 0) > 0
+    ? new Set(getToddWinningNumbers(winNum))
+    : null;
+  const isWinningVoucher =
+    isSettledRound &&
+    voucher.status !== 'cancelled' &&
+    voucher.items.some((item) => {
+      const n = String(item.number || '').trim().padStart(3, '0');
+      return n === winNum || (toddSet?.has(n) ?? false);
+    });
 
   const handlePrint = () => {
     printVoucherSlip('printable-voucher', `အိုးစည်လေး ဘောင်ချာ - ${voucher.voucherNo}`);
@@ -75,8 +88,9 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Receipt className="w-4 h-4 text-indigo-600" />
-            <h3 className="text-sm font-bold text-slate-900">
-              {isMyanmar ? 'အိုးစည်လေး ဘောင်ချာ' : 'Voucher Receipt'}
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <span>{isMyanmar ? 'အိုးစည်လေး ဘောင်ချာ' : 'Voucher Receipt'}</span>
+              {isWinningVoucher && <Star className="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" />}
             </h3>
           </div>
           <button
@@ -158,16 +172,21 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
                     : 'space-y-0.5 max-h-56 overflow-y-auto pr-0.5'
                 }`}
               >
-                {voucher.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-[10.5px] leading-tight">
-                    <span className="font-bold tracking-wider text-slate-900">
-                      {item.number}{item.betType === 'rumble' ? '(R)' : ''}
-                    </span>
-                    <span className="font-bold text-slate-700">
-                      {formatAmount(item.amount, settings.currency)}
-                    </span>
-                  </div>
-                ))}
+                {voucher.items.map((item, idx) => {
+                  const n = String(item.number || '').trim().padStart(3, '0');
+                  const isWin = isSettledRound && voucher.status !== 'cancelled' && (n === winNum || (toddSet?.has(n) ?? false));
+                  return (
+                    <div key={idx} className={`flex justify-between text-[10.5px] leading-tight ${isWin ? 'bg-amber-100/80 px-1 rounded' : ''}`}>
+                      <span className="font-bold tracking-wider text-slate-900 inline-flex items-center gap-0.5">
+                        {isWin && <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500 shrink-0" />}
+                        <span>{item.number}{item.betType === 'rumble' ? '(R)' : ''}</span>
+                      </span>
+                      <span className="font-bold text-slate-700">
+                        {formatAmount(item.amount, settings.currency)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

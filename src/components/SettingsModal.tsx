@@ -34,7 +34,8 @@ import {
   Printer,
   AlertCircle,
   Calendar,
-  Edit3
+  Edit3,
+  Star
 } from 'lucide-react';
 import { verifyOwnerPassword } from '../utils/securityUtils';
 import { CustomerCommissionManager } from './CustomerCommissionManager';
@@ -4446,8 +4447,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               <span className="font-bold font-mono text-slate-900">{v.voucherNo || v.slipNo}</span>
                               <span className="text-slate-600 font-medium">({v.customerName || 'အထွေထွေ'})</span>
                               {hasWonItem && (
-                                <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 font-black text-[9px] rounded-md">
-                                  ★ ပေါက်မဲ
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] rounded-md">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                                  <span>ပေါက်မဲ</span>
                                 </span>
                               )}
                             </div>

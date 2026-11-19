@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Wallet,
   Copy,
-  Check
+  Check,
+  Star
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -924,6 +925,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                     <div key={i} className="py-2 border-b border-slate-200/80 last:border-0 space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {(item.payout > 0 || (item.winningBets && item.winningBets.length > 0)) && (
+                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline shrink-0" />
+                          )}
                           <span className="font-bold text-slate-900">{item.date}</span>
                           {item.mode && item.mode !== 'အိုးစည်လေး' && (
                             <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
@@ -976,6 +980,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                     <div key={i} className="py-2 border-b border-slate-200/80 last:border-0 space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.payout > 0 && (
+                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline shrink-0" />
+                          )}
                           <span className="font-bold text-slate-900">{item.date}</span>
                           {item.mode && item.mode !== 'အိုးစည်လေး' && (
                             <span className="text-slate-600 font-bold text-[11px]">({item.mode})</span>
@@ -1100,7 +1107,14 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="p-2.5 text-slate-500">{item.date}</td>
                           <td className="p-2.5 font-sans font-bold text-slate-800">{item.mode}</td>
-                          <td className="p-2.5 text-teal-700 font-bold">{item.refNo}</td>
+                          <td className="p-2.5 text-teal-700 font-bold">
+                            <span className="inline-flex items-center gap-1">
+                              {(item.payout > 0 || (item.winningBets && item.winningBets.length > 0)) && (
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline shrink-0" />
+                              )}
+                              <span>{item.refNo}</span>
+                            </span>
+                          </td>
                           <td className="p-2.5 text-right font-bold text-slate-900">{formatAmount(item.amount)}</td>
                           <td className="p-2.5 text-right font-bold text-amber-600">{formatAmount(item.payout)}</td>
                           <td className="p-2.5 font-sans text-slate-600 truncate max-w-xs">{item.summary}</td>
@@ -1119,7 +1133,14 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="p-2.5 text-slate-500">{item.date}</td>
                           <td className="p-2.5 font-sans font-bold text-slate-800">{item.mode}</td>
-                          <td className="p-2.5 text-indigo-700 font-bold">{item.refNo}</td>
+                          <td className="p-2.5 text-indigo-700 font-bold">
+                            <span className="inline-flex items-center gap-1">
+                              {item.payout > 0 && (
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 inline shrink-0" />
+                              )}
+                              <span>{item.refNo}</span>
+                            </span>
+                          </td>
                           <td className="p-2.5 text-right font-bold text-slate-900">{formatAmount(item.amount)}</td>
                           <td className="p-2.5 text-right font-bold text-sky-600">{formatAmount(item.commission)}</td>
                           <td className="p-2.5 text-right font-bold text-amber-600">{formatAmount(item.payout)}</td>

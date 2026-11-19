@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   RefreshCw,
   Image as ImageIcon,
-  ZoomIn
+  ZoomIn,
+  Star
 } from 'lucide-react';
 import {
   RawBetClip,
@@ -34,7 +35,10 @@ import {
   deleteRawClipsByRound,
   clearAllRawClips
 } from '../utils/rawClipsUtils';
-import { formatAmount } from '../utils/lotteryUtils';
+import { formatAmount, parseQuickBetText, getToddWinningNumbers } from '../utils/lotteryUtils';
+import { parseTwoDBatchInput } from '../utils/twoDLotteryUtils';
+import { useLottery } from '../context/LotteryContext';
+import { useTwoDLottery } from '../context/TwoDLotteryContext';
 
 interface ClipColorTheme {
   sectionBox: string;
@@ -189,6 +193,9 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   activeRoundName2D,
   currentDealerMode = '3d'
 }) => {
+  const lottery3D = useLottery();
+  const lottery2D = useTwoDLottery();
+
   const [clips, setClips] = useState<RawBetClip[]>(() => getRawClips());
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | '3d' | '2d' | 'football'>('all');
@@ -326,6 +333,104 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
       return timeB - timeA;
     });
   }, [filteredClips, groupBy]);
+
+  const clipWinMap = useMemo(() => {
+    const map = new Map<string, { isWinner: boolean; winningNumber: string }>();
+    const toddMult3D = lottery3D.settings.defaultToddMultiplier ?? 0;
+
+    clips.forEach((clip) => {
+      if (clip.category !== '3d' && clip.category !== '2d') return;
+
+      if (clip.category === '3d') {
+        const round =
+          lottery3D.rounds.find((r) => r.id === clip.roundId) ||
+          lottery3D.rounds.find((r) => r.name === clip.roundName) ||
+          (clip.roundId === 'manual-3d'
+            ? lottery3D.rounds.find((r) => r.drawDate === clip.date && r.status === 'settled')
+            : undefined);
+
+        if (!round || round.status !== 'settled' || !round.winningNumber) return;
+        const winNum = round.winningNumber.trim().padStart(3, '0');
+        if (!/^\d{3}$/.test(winNum)) return;
+        const toddSet = toddMult3D > 0 ? new Set(getToddWinningNumbers(winNum)) : null;
+
+        let isWinner = false;
+        const linkedVoucher = clip.voucherNumber
+          ? lottery3D.vouchers.find(
+              (v) =>
+                !(v as any).deletedAt &&
+                v.status !== 'cancelled' &&
+                v.roundId === round.id &&
+                v.voucherNo === clip.voucherNumber
+            )
+          : undefined;
+
+        if (linkedVoucher) {
+          isWinner = linkedVoucher.items.some((it) => {
+            const num = String(it.number || '').trim().padStart(3, '0');
+            return num === winNum || (toddSet?.has(num) ?? false);
+          });
+        } else if (clip.rawText && clip.rawText.trim()) {
+          const parsed = parseQuickBetText(clip.rawText);
+          isWinner = parsed.items.some((it) => {
+            const num = String(it.number || '').trim().padStart(3, '0');
+            return num === winNum || (toddSet?.has(num) ?? false);
+          });
+        }
+
+        if (isWinner) {
+          map.set(clip.id, { isWinner: true, winningNumber: winNum });
+        }
+      } else if (clip.category === '2d') {
+        const round =
+          lottery2D.rounds.find((r) => r.id === clip.roundId) ||
+          lottery2D.rounds.find((r) => r.name === clip.roundName) ||
+          (clip.roundId === 'manual-2d'
+            ? lottery2D.rounds.find((r) => r.drawDate === clip.date && r.status === 'settled')
+            : undefined);
+
+        if (!round || round.status !== 'settled' || !round.winningNumber) return;
+        const winNum = round.winningNumber.trim().padStart(2, '0');
+        if (!/^\d{2}$/.test(winNum)) return;
+
+        let isWinner = false;
+        const linkedVoucher = clip.voucherNumber
+          ? lottery2D.vouchers.find(
+              (v) =>
+                !(v as any).deletedAt &&
+                v.status !== 'cancelled' &&
+                v.roundId === round.id &&
+                v.voucherNo === clip.voucherNumber
+            )
+          : undefined;
+
+        if (linkedVoucher) {
+          isWinner = linkedVoucher.items.some(
+            (it) => String(it.number || '').trim().padStart(2, '0') === winNum
+          );
+        } else if (clip.rawText && clip.rawText.trim()) {
+          const parsed = parseTwoDBatchInput(clip.rawText);
+          const parsedItems = Array.isArray(parsed) ? parsed : parsed.items;
+          isWinner = parsedItems.some(
+            (it) => String(it.number || '').trim().padStart(2, '0') === winNum
+          );
+        }
+
+        if (isWinner) {
+          map.set(clip.id, { isWinner: true, winningNumber: winNum });
+        }
+      }
+    });
+
+    return map;
+  }, [
+    clips,
+    lottery3D.rounds,
+    lottery3D.vouchers,
+    lottery3D.settings.defaultToddMultiplier,
+    lottery2D.rounds,
+    lottery2D.vouchers
+  ]);
 
   if (!isOpen) return null;
 
@@ -670,6 +775,16 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${sectionTheme.countBadge}`}>
                       {section.clips.length} စောင်
                     </span>
+                    {(() => {
+                      const winCount = section.clips.filter((c) => clipWinMap.get(c.id)?.isWinner).length;
+                      if (winCount === 0) return null;
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                          <span>{winCount} ပေါက်</span>
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <div className="text-[10px] text-emerald-800 bg-white/75 border border-emerald-200/80 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
@@ -704,10 +819,16 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                       ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
                       : null;
 
+                    const winInfo = clipWinMap.get(clip.id);
+
                     return (
                     <div
                       key={clip.id}
-                      className={`border rounded-xl p-2 space-y-1.5 shadow-xs hover:shadow-sm transition-all ring-1 ring-white/70 ${cardTheme.cardBox}`}
+                      className={`border rounded-xl p-2 space-y-1.5 shadow-xs hover:shadow-sm transition-all ${
+                        winInfo?.isWinner
+                          ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/70'
+                          : `ring-1 ring-white/70 ${cardTheme.cardBox}`
+                      }`}
                     >
                       {/* Top Row: Voucher Badge, Customer/Round, Time, Category */}
                       <div className="flex items-center justify-between text-[11px] gap-1">
@@ -715,6 +836,15 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                           <span className="px-1.5 py-0.5 bg-white/90 text-amber-900 border border-amber-300/90 rounded-md text-[10px] font-black font-mono shrink-0 shadow-2xs">
                             {clip.voucherNumber || `ဘောင်ချာ #${idx + 1}`}
                           </span>
+                          {winInfo?.isWinner && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black shrink-0"
+                              title={`ပေါက်ဂဏန်း (${winInfo.winningNumber}) ပါဝင်သည်`}
+                            >
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                              <span>{winInfo.winningNumber}</span>
+                            </span>
+                          )}
                           {sourceBadge && (
                             <span className={`px-1.5 py-0.2 rounded border text-[9px] font-bold shrink-0 ${sourceBadge.cls}`}>
                               {sourceBadge.label}

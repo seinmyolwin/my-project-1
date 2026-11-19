@@ -7,6 +7,7 @@ import {
   Receipt,
   Save,
   CheckCircle2,
+  Star
 } from 'lucide-react';
 import { TwoDVoucher } from '../../types';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
@@ -27,6 +28,12 @@ export const TwoDVoucherPrintModal: React.FC<TwoDVoucherPrintModalProps> = ({ vo
   if (!voucher) return null;
 
   const isMyanmar = settings.language === 'my';
+  const isSettledRound = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
+  const winNum = isSettledRound ? activeRound!.winningNumber!.trim().padStart(2, '0') : '';
+  const isWinningVoucher =
+    isSettledRound &&
+    voucher.status !== 'cancelled' &&
+    voucher.items.some((it) => String(it.number || '').trim().padStart(2, '0') === winNum);
 
   const handlePrint = () => {
     printVoucherSlip('printable-voucher', `ဇီးကွက် ဘောင်ချာ - ${voucher.voucherNo}`);
@@ -75,8 +82,9 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Receipt className="w-4 h-4 text-teal-600" />
-            <h3 className="text-sm font-bold text-slate-900">
-              {isMyanmar ? 'ဇီးကွက် အရောင်းဘောင်ချာ' : '2D Voucher Slip'}
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <span>{isMyanmar ? 'ဇီးကွက် အရောင်းဘောင်ချာ' : '2D Voucher Slip'}</span>
+              {isWinningVoucher && <Star className="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" />}
             </h3>
           </div>
           <button
@@ -157,12 +165,18 @@ ${settings.voucherFooterMessage || 'ကံကောင်းပါစေ - က�
                     : 'space-y-0.5 max-h-56 overflow-y-auto pr-0.5'
                 }`}
               >
-                {voucher.items.map((it, idx) => (
-                  <div key={idx} className="flex justify-between text-[10.5px] leading-tight">
-                    <span className="font-black tracking-wider text-slate-950">{it.number}</span>
-                    <span className="font-bold text-slate-700">{formatAmount(it.amount, settings.currency)}</span>
-                  </div>
-                ))}
+                {voucher.items.map((it, idx) => {
+                  const isWin = isSettledRound && voucher.status !== 'cancelled' && String(it.number || '').trim().padStart(2, '0') === winNum;
+                  return (
+                    <div key={idx} className={`flex justify-between text-[10.5px] leading-tight ${isWin ? 'bg-amber-100/80 px-1 rounded' : ''}`}>
+                      <span className="font-black tracking-wider text-slate-950 inline-flex items-center gap-0.5">
+                        {isWin && <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500 shrink-0" />}
+                        <span>{it.number}</span>
+                      </span>
+                      <span className="font-bold text-slate-700">{formatAmount(it.amount, settings.currency)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

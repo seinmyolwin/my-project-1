@@ -13,7 +13,8 @@ import {
   FileSpreadsheet,
   AlertCircle,
   Receipt,
-  Percent
+  Percent,
+  Star
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
@@ -1201,8 +1202,12 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                       return (
                         <tr key={voucher.id} className="hover:bg-amber-50/40 transition-colors">
                           <td className="p-3 font-bold text-slate-900 flex items-center gap-1">
-                            {totalStake === maxStake && maxStake > 0 && <span className="text-amber-500 text-lg leading-none">★</span>}
-                            {voucher.voucherNo}
+                            {isSettled && !isTestingMode ? (
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />
+                            ) : (
+                              totalStake === maxStake && maxStake > 0 && <span className="text-amber-500 text-lg leading-none">★</span>
+                            )}
+                            <span>{voucher.voucherNo}</span>
                           </td>
                           <td className="p-3 font-sans text-slate-800 font-bold">{voucher.customerName}</td>
                           <td className="p-3 text-slate-500">{voucher.customerPhone || '-'}</td>

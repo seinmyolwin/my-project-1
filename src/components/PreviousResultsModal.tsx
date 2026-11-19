@@ -22,7 +22,8 @@ import {
   Layers,
   Flame,
   RotateCcw,
-  Globe2
+  Globe2,
+  Star
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -602,8 +603,11 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
 
                             {/* Large 3D Winning Number Pill */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] uppercase font-black text-slate-400 mb-1">
-                                တည့်ပေါက်ဂဏန်း
+                              <span className="text-[10px] uppercase font-black text-slate-400 mb-1 flex items-center gap-1">
+                                {round.status === 'settled' && !!round.winningNumber && (
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                                )}
+                                <span>တည့်ပေါက်ဂဏန်း</span>
                               </span>
                               <div className="px-4 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-amber-300 flex items-center justify-center font-mono text-3xl font-black shadow-md border-2 border-indigo-400 tracking-wider">
                                 {round.winningNumber || '---'}
@@ -795,8 +799,11 @@ export const PreviousResultsModal: React.FC<PreviousResultsModalProps> = ({
 
                             {/* Large 2D Winning Number Badge */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] uppercase font-black text-slate-400 mb-1">
-                                ထွက်ဂဏန်း
+                              <span className="text-[10px] uppercase font-black text-slate-400 mb-1 flex items-center gap-1">
+                                {round.status === 'settled' && !!round.winningNumber && (
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                                )}
+                                <span>ထွက်ဂဏန်း</span>
                               </span>
                               <div className="w-16 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-amber-950 flex items-center justify-center font-mono text-3xl font-black shadow-md border-2 border-amber-300 tracking-wider">
                                 {round.winningNumber || '--'}

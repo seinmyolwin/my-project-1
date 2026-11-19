@@ -11,7 +11,8 @@ import {
   User,
   AlertCircle,
   Receipt,
-  Percent
+  Percent,
+  Star
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { evaluateWinnings, formatAmount, getToddWinningNumbers, convertMyanmarToEnglishDigits, parseExcelToRoundData3D } from '../utils/lotteryUtils';
@@ -1060,7 +1061,12 @@ ${settings.shopName} (${settings.shopPhone})`;
 
                         {/* Voucher No */}
                         <td className="p-3 font-bold text-slate-900">
-                          {winner.voucherNo}
+                          <span className="inline-flex items-center gap-1">
+                            {isSettled && !isTestingMode && (
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />
+                            )}
+                            <span>{winner.voucherNo}</span>
+                          </span>
                         </td>
 
                         {/* Customer */}

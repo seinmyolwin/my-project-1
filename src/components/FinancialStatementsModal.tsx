@@ -23,7 +23,8 @@ import {
   Search,
   Send,
   Users,
-  Edit2
+  Edit2,
+  Star
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -1145,6 +1146,9 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                               {rec.modeLabel}
                             </span>
                             <span>{rec.name}</span>
+                            {rec.status === 'settled' && (rec.mode === '3d' || rec.mode === '2d') && (rec.winnersCount > 0 || (rec.masterPayout ?? 0) > 0) && (
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />
+                            )}
                           </div>
                           <span className="text-[10px] text-slate-400 font-medium">
                             ဘောင်ချာ {rec.vouchersCount} စောင် {rec.winnersCount > 0 ? `• ပေါက်သူ ${rec.winnersCount} ဦး` : ''}
@@ -1423,8 +1427,9 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                               </span>
                               <span className="text-slate-600 font-medium">({v.customerName || 'အထွေထွေ'})</span>
                               {hasWonItem && (
-                                <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 font-black text-[9px] rounded-md animate-pulse">
-                                  ★ ပေါက်မဲ
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] rounded-md">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                                  <span>ပေါက်မဲ</span>
                                 </span>
                               )}
                             </div>
@@ -1533,12 +1538,27 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                   <div className="border border-indigo-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto divide-y divide-indigo-50 bg-indigo-50/20">
                     {selectedRecord.forwardList.map((f: any, fIdx: number) => {
                       const itemsStr = f.items ? f.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : '-';
+                      const isSettled2D3D = selectedRecord.status === 'settled' && (selectedRecord.mode === '3d' || selectedRecord.mode === '2d');
+                      const winNum = selectedRecord.winningResult ? String(selectedRecord.winningResult).trim() : '';
+                      const toddSet = selectedRecord.mode === '3d' && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0
+                        ? new Set(getToddWinningNumbers(winNum))
+                        : null;
+                      const fwdWon = isSettled2D3D && !!winNum && Array.isArray(f.items) && f.items.some((it: any) => {
+                        const num = String(it.number || '').trim();
+                        return num === winNum || (toddSet?.has(num) ?? false);
+                      });
                       return (
-                        <div key={fIdx} className="p-2.5 flex items-center justify-between text-[11px]">
+                        <div key={fIdx} className={`p-2.5 flex items-center justify-between text-[11px] ${fwdWon ? 'bg-amber-50/70' : ''}`}>
                           <div className="flex-1 min-w-0 pr-2">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold font-mono text-indigo-950">{f.slipNo || `FWD-${fIdx + 1}`}</span>
                               <span className="text-slate-600 font-medium">({f.masterAgentName || 'ဒိုင်ချုပ်ကြီး'})</span>
+                              {fwdWon && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 font-black text-[9px] rounded-md">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                                  <span>ပေါက်မဲ</span>
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-md">
                               {itemsStr}
@@ -1704,6 +1724,9 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                           <tr key={idx} className={isWin ? (isToddWin ? 'bg-indigo-50/80 font-bold' : 'bg-amber-50/80 font-bold') : ''}>
                             <td className="py-1.5 px-2.5 text-slate-400 font-mono">{idx + 1}</td>
                             <td className="py-1.5 px-2.5 font-black font-mono text-slate-900 text-sm">
+                              {isWin && selectedRecord?.status === 'settled' && (
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-500 inline mr-1 shrink-0" />
+                              )}
                               {it.number}
                             </td>
                             <td className="py-1.5 px-2.5 text-[10px] text-slate-500 font-bold">

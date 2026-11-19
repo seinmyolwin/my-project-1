@@ -432,8 +432,9 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                           {isMyanmar ? 'လော့' : 'LCK'}
                         </span>
                       ) : isWinningNumber ? (
-                        <span className="px-1 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded leading-none shrink-0">
-                          {isMyanmar ? 'ပေါက်' : 'WIN'}
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded leading-none shrink-0">
+                          {activeRound?.status === 'settled' && <Star className="w-2.5 h-2.5 fill-slate-950 text-slate-950 shrink-0" />}
+                          <span>{isMyanmar ? 'ပေါက်' : 'WIN'}</span>
                         </span>
                       ) : isFull ? (
                         <span className="px-1 py-0.5 bg-rose-600 text-white text-[9px] font-black rounded leading-none shrink-0">
@@ -583,7 +584,7 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                         <td className="py-1.5 px-3">
                           <div className="flex items-center gap-1.5">
                             <span
-                              className={`px-2 py-0.5 rounded-md text-xs font-black tracking-wider border ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-black tracking-wider border ${
                                 item.isBlocked
                                   ? 'bg-rose-50 text-rose-700 border-rose-200 line-through'
                                   : isWinningNumber
@@ -593,7 +594,10 @@ export const TwoDLiveLedgerView: React.FC<TwoDLiveLedgerViewProps> = ({
                                   : 'bg-teal-50 text-teal-950 border-teal-200'
                               }`}
                             >
-                              {item.number}
+                              {isWinningNumber && activeRound?.status === 'settled' && (
+                                <Star className="w-3 h-3 fill-slate-950 text-slate-950 shrink-0" />
+                              )}
+                              <span>{item.number}</span>
                             </span>
                             {isTopBet && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />}
                             {item.betCount > 0 && (
