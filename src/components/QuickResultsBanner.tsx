@@ -124,7 +124,11 @@ export const QuickResultsBanner: React.FC<QuickResultsBannerProps> = ({ mode, on
 
         {/* Center Empty Space: YouTube Live Style Real-Time SET / VAL / 2D Studio Display (Display-Only) */}
         <div className="flex-1 min-w-0 xl:px-2">
-          <LiveTwoDTicker />
+          <LiveTwoDTicker
+            confirmedDate={todayDateStr}
+            confirmedMorningNumber={todayMorn?.status === 'settled' && todayMorn.winningNumber ? todayMorn.winningNumber : undefined}
+            confirmedEveningNumber={todayEve?.status === 'settled' && todayEve.winningNumber ? todayEve.winningNumber : undefined}
+          />
         </div>
 
         {/* 2 Days Display (Yesterday & Today) */}

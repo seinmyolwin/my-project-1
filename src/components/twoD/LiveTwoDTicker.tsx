@@ -250,7 +250,17 @@ function renderHighlightedVal(valStr: string, digit: string) {
   );
 }
 
-export const LiveTwoDTicker: React.FC = () => {
+export interface LiveTwoDTickerProps {
+  confirmedDate?: string;
+  confirmedMorningNumber?: string;
+  confirmedEveningNumber?: string;
+}
+
+export const LiveTwoDTicker: React.FC<LiveTwoDTickerProps> = ({
+  confirmedDate,
+  confirmedMorningNumber,
+  confirmedEveningNumber
+}) => {
   const [data, setData] = useState<LiveTwoDPayload | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -455,23 +465,64 @@ export const LiveTwoDTicker: React.FC = () => {
   }, []);
 
   const displayedSlots = useMemo(() => {
-    const s1100 = data?.slots.morning1100;
-    const s1201 = data?.slots.morning1201;
-    const s1500 = data?.slots.afternoon1500;
-    const s1630 = data?.slots.evening1630;
+    const applyConfirmedOverride = (
+      rawSlot: LiveTwoDSlot | null | undefined,
+      time: '12:01' | '16:30',
+      confirmedNum?: string
+    ): { slot: LiveTwoDSlot | null; isOwnerConfirmed: boolean; differsFromUpstream: boolean } => {
+      const normalizedConfirmed = (confirmedNum || '').trim();
+      if (!normalizedConfirmed) {
+        return { slot: rawSlot ?? null, isOwnerConfirmed: false, differsFromUpstream: false };
+      }
+
+      const upstreamDate = rawSlot?.stockDate || data?.live?.date || '';
+      if (upstreamDate && confirmedDate && upstreamDate !== confirmedDate) {
+        return { slot: rawSlot ?? null, isOwnerConfirmed: false, differsFromUpstream: false };
+      }
+
+      const differsFromUpstream = !!rawSlot && rawSlot.twod !== '--' && rawSlot.twod !== normalizedConfirmed;
+      const overriddenSlot: LiveTwoDSlot = rawSlot
+        ? {
+            ...rawSlot,
+            twod: normalizedConfirmed,
+            setDigit: differsFromUpstream ? '-' : rawSlot.setDigit,
+            valDigit: differsFromUpstream ? '-' : rawSlot.valDigit,
+            isLocked: true
+          }
+        : {
+            openTime: `${time}:00`,
+            label: time,
+            set: '--',
+            value: '--',
+            twod: normalizedConfirmed,
+            setDigit: '-',
+            valDigit: '-',
+            stockDate: confirmedDate,
+            isLocked: true
+          };
+
+      return { slot: overriddenSlot, isOwnerConfirmed: true, differsFromUpstream };
+    };
+
+    const s1100 = data?.slots.morning1100 ?? null;
+    const s1201Override = applyConfirmedOverride(data?.slots.morning1201, '12:01', confirmedMorningNumber);
+    const s1500 = data?.slots.afternoon1500 ?? null;
+    const s1630Override = applyConfirmedOverride(data?.slots.evening1630, '16:30', confirmedEveningNumber);
 
     const primaryList = [
       {
         key: '12:01' as const,
         time: '12:01',
         subLabel: 'မနက်',
-        slot: s1201
+        slot: s1201Override.slot,
+        isOwnerConfirmed: s1201Override.isOwnerConfirmed
       },
       {
         key: '16:30' as const,
         time: '16:30',
         subLabel: 'ညနေ',
-        slot: s1630
+        slot: s1630Override.slot,
+        isOwnerConfirmed: s1630Override.isOwnerConfirmed
       }
     ];
 
@@ -480,15 +531,30 @@ export const LiveTwoDTicker: React.FC = () => {
     }
 
     return [
-      { key: '11:00' as const, time: '11:00', subLabel: 'မနက်', slot: s1100 },
+      { key: '11:00' as const, time: '11:00', subLabel: 'မနက်', slot: s1100, isOwnerConfirmed: false },
       primaryList[0],
-      { key: '15:00' as const, time: '15:00', subLabel: 'နေ့လယ်', slot: s1500 },
+      { key: '15:00' as const, time: '15:00', subLabel: 'နေ့လယ်', slot: s1500, isOwnerConfirmed: false },
       primaryList[1]
     ];
-  }, [data, slotViewMode]);
+  }, [data, slotViewMode, confirmedDate, confirmedMorningNumber, confirmedEveningNumber]);
 
   // Determine what SET / VAL / 2D is currently in the main studio focus
   const activeStage = useMemo(() => {
+    if (inspectedKey !== 'live') {
+      const found = displayedSlots.find((item) => item.key === inspectedKey);
+      if (found?.slot) {
+        return {
+          tag: found.isOwnerConfirmed ? `${found.time} (${found.subLabel} • အတည်ပြု)` : `${found.time} (${found.subLabel})`,
+          set: found.slot.set,
+          value: found.slot.value,
+          twod: found.slot.twod,
+          setDigit: found.slot.setDigit,
+          valDigit: found.slot.valDigit,
+          isLocked: found.slot.isLocked,
+          isLiveView: false
+        };
+      }
+    }
     if (!data) {
       return {
         tag: 'LIVE',
@@ -500,21 +566,6 @@ export const LiveTwoDTicker: React.FC = () => {
         isLocked: false,
         isLiveView: true
       };
-    }
-    if (inspectedKey !== 'live') {
-      const found = displayedSlots.find((item) => item.key === inspectedKey);
-      if (found?.slot) {
-        return {
-          tag: `${found.time} (${found.subLabel})`,
-          set: found.slot.set,
-          value: found.slot.value,
-          twod: found.slot.twod,
-          setDigit: found.slot.setDigit,
-          valDigit: found.slot.valDigit,
-          isLocked: found.slot.isLocked,
-          isLiveView: false
-        };
-      }
     }
     return {
       tag: 'LIVE',
@@ -715,7 +766,7 @@ export const LiveTwoDTicker: React.FC = () => {
 
         {/* Right: Selectable Time Slots (12:01 & 16:30 primary, or all 4) */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {displayedSlots.map(({ key, time, subLabel, slot }) => {
+          {displayedSlots.map(({ key, time, subLabel, slot, isOwnerConfirmed }) => {
             const isSelected = inspectedKey === key;
             const locked = !!slot?.isLocked;
             return (
@@ -730,7 +781,11 @@ export const LiveTwoDTicker: React.FC = () => {
                       ? 'bg-slate-900/90 border-slate-700/80 hover:border-teal-600/60 text-slate-200'
                       : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 text-slate-400'
                 }`}
-                title={`${time} (${subLabel}) SET/VAL အသေးစိတ် ကြည့်ရန်`}
+                title={
+                  isOwnerConfirmed
+                    ? `${time} (${subLabel}) ပိုင်ရှင်အတည်ပြုဂဏန်း: ${slot?.twod}`
+                    : `${time} (${subLabel}) SET/VAL အသေးစိတ် ကြည့်ရန်`
+                }
               >
                 <div className="leading-tight">
                   <div className="text-[10px] font-mono font-bold text-teal-300">{time}</div>
