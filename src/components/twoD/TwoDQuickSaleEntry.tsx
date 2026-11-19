@@ -1676,21 +1676,21 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsPhotoWorkspaceOpen(prev => !prev)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer whitespace-nowrap"
-                  title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို အလိုအလျောက် ဖတ်ယူရန်"
-                >
-                  <Camera className="w-3 h-3 shrink-0" />
-                  <span>{isMyanmar ? 'စကင်ဖတ်' : 'Scan'}</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => setIsBatchOpen(true)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-teal-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer whitespace-nowrap active:scale-95"
                   title="စာသားကူးထည့်ရန် (Batch Paste)"
                 >
                   <FileText className="w-3 h-3 text-teal-500 shrink-0" />
                   <span>{isMyanmar ? 'စာသားကူး' : 'Batch'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoWorkspaceOpen(prev => !prev)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-transform active:scale-95 shadow-2xs cursor-pointer whitespace-nowrap"
+                  title="ဓါတ်ပုံ / စလစ်ထဲမှ ဂဏန်းများကို အလိုအလျောက် ဖတ်ယူရန်"
+                >
+                  <Camera className="w-3 h-3 shrink-0" />
+                  <span>{isMyanmar ? 'စကင်ဖတ်' : 'Scan'}</span>
                 </button>
               </div>
             </div>
@@ -2011,15 +2011,15 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             {/* Voucher Header & Customer Info */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-xs bg-slate-100 text-slate-600 font-mono px-2.5 py-1 rounded-lg font-semibold">
+                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
                 <div className="flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-teal-600" />
                   <h3 className="text-base font-bold text-slate-900">
                     {isMyanmar ? 'ဘောင်ချာ / ပြေစာ အချက်အလက်' : 'Slip / Voucher Details'}
                   </h3>
                 </div>
-                <span className="text-xs bg-slate-100 text-slate-600 font-mono px-2.5 py-1 rounded-lg font-semibold">
-                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
               </div>
 
               {/* Customer Name & Phone (matching 3D location & layout) */}
