@@ -40,6 +40,11 @@ import { DEFAULT_2D_ACTION_BUTTONS, cleanMasterAgentName } from '../../utils/sto
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../../utils/audioUtils';
 import { printVoucherSlip } from '../../utils/printUtils';
 import { generateUUID } from '../../utils/restorePoints';
+import {
+  getUplineCommission,
+  getUplineCommissionRates,
+  setUplineCommissionRates
+} from '../../utils/commissionUtils';
 
 interface TwoDForwardModalProps {
   isOpen: boolean;
@@ -82,15 +87,21 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
 
   const [masterAgentName, setMasterAgentName] = useState(cleanMasterAgentName(settings.defaultMasterAgentName) || '');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '');
-  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
+  const [commissionRate, setCommissionRate] = useState<number>(() =>
+    getUplineCommission(cleanMasterAgentName(settings.defaultMasterAgentName) || '', settings.defaultCommissionRate ?? 0, '2d')
+  );
   const [notes, setNotes] = useState('');
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
 
   useEffect(() => {
-    if (typeof settings.defaultCommissionRate === 'number') {
-      setCommissionRate(settings.defaultCommissionRate);
-    }
-  }, [settings.defaultCommissionRate]);
+    if (!isOpen) return;
+    const savedRate = getUplineCommission(
+      masterAgentName || cleanMasterAgentName(settings.defaultMasterAgentName) || '',
+      settings.defaultCommissionRate ?? 0,
+      '2d'
+    );
+    setCommissionRate(savedRate);
+  }, [settings.defaultCommissionRate, isOpen]);
 
   // Draft Forward Items (with selection and custom amounts)
   const [draftItems, setDraftItems] = useState<ForwardDraftItem[]>([]);
@@ -229,10 +240,24 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
       defaultCommissionRate: rate
     });
 
+    // Save per-dealer upline commission rate strictly for 2D
+    const existingUpline = getUplineCommissionRates('2d');
+    setUplineCommissionRates({ ...existingUpline, [name]: rate }, '2d');
+
     // Save in savedAgents list
     setSavedAgents(prev => {
+      const existing = prev.find(a => a.name === name);
       const filtered = prev.filter(a => a.name !== name);
-      const updated = [{ name, phone, commissionRate: rate }, ...filtered];
+      const existingByMode = (existing as any)?.commissionRatesByMode || {};
+      const updated = [
+        {
+          name,
+          phone,
+          commissionRate: rate,
+          commissionRatesByMode: { ...existingByMode, '2d': rate }
+        },
+        ...filtered
+      ];
       try {
         localStorage.setItem('shwe_master_agents_list', JSON.stringify(updated));
       } catch {
@@ -245,10 +270,20 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
     setTimeout(() => setSavedDefaultSuccess(false), 3000);
   };
 
-  const handleSelectSavedAgent = (agent: { name: string; phone?: string; commissionRate?: number }) => {
+  const handleSelectSavedAgent = (agent: { name: string; phone?: string; commissionRate?: number; commissionRatesByMode?: Record<string, number> }) => {
     setMasterAgentName(agent.name);
     if (agent.phone) setMasterAgentPhone(agent.phone);
-    if (typeof agent.commissionRate === 'number') setCommissionRate(agent.commissionRate);
+    const modeFallback = agent.commissionRatesByMode?.['2d'];
+    const resolved = getUplineCommission(
+      agent.name,
+      typeof modeFallback === 'number'
+        ? modeFallback
+        : typeof agent.commissionRate === 'number'
+        ? agent.commissionRate
+        : (settings.defaultCommissionRate ?? 0),
+      '2d'
+    );
+    setCommissionRate(resolved);
   };
 
   // Toggle selection for a single number
@@ -688,7 +723,14 @@ export const TwoDForwardModal: React.FC<TwoDForwardModalProps> = ({
                   <input
                     type="text"
                     value={masterAgentName}
-                    onChange={(e) => setMasterAgentName(e.target.value)}
+                    onChange={(e) => {
+                      const nextName = e.target.value;
+                      setMasterAgentName(nextName);
+                      const uplineMap = getUplineCommissionRates('2d');
+                      if (uplineMap[nextName.trim()] !== undefined) {
+                        setCommissionRate(uplineMap[nextName.trim()]);
+                      }
+                    }}
                     onFocus={(e) => e.target.select()}
                     placeholder="ဒိုင် အမည် ရိုက်ထည့်ပါ"
                     className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-teal-500 shadow-2xs"

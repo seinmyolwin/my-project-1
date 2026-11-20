@@ -24,6 +24,15 @@ import {
   saveStoredData,
   saveMultipleAtomic
 } from '../utils/storage';
+import {
+  getUplineCommission,
+  getUplineCommissionRates,
+  getAllRoundUplineCommissions,
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions,
+  COMMISSION_UPDATED_EVENT
+} from '../utils/commissionUtils';
+import { calculateThreeDSingleRoundStatement, getVoucherGrossTurnover } from '../utils/statementUtils';
 import { evaluateWinnings, exportLotteryDataToExcel, calculate3DForwardMasterPayout, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { getLocalDateString, safeRound, calculatePayout } from '../utils/moneyUtils';
 import { generateUpToDate3DRounds } from '../utils/thaiLotteryApi';
@@ -33,7 +42,6 @@ import { triggerRibbonsCelebration } from '../utils/audioUtils';
 import { runIdMigration } from '../utils/idMigration';
 import { runPhonePurgeMigration } from '../utils/migrationUtils';
 import { generateUUID } from '../utils/restorePoints';
-import { getVoucherGrossTurnover } from '../utils/statementUtils';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
 
@@ -511,9 +519,9 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem('forward_counter_v1', String(counter));
     const pad = String(counter).padStart(6, '0');
 
-    const commRate = typeof settings.defaultCommissionRate === 'number'
-      ? settings.defaultCommissionRate
-      : (slipData.commissionRate ?? 0);
+    const commRate = typeof slipData.commissionRate === 'number'
+      ? slipData.commissionRate
+      : getUplineCommission(slipData.masterAgentName || '', settings.defaultCommissionRate ?? 0, '3d');
     if (!Number.isFinite(commRate)) throw new Error('ကော်မရှင်နှုန်း သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     const commAmt = commRate > 0 ? safeRound((slipData.totalAmount * commRate) / 100) : 0;
     const netPaid = safeRound(slipData.totalAmount - commAmt);
@@ -725,68 +733,49 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return alerts.sort((a, b) => b.percentage - a.percentage);
   }, [aggregates, settings.lowStockAlertPercentage]);
 
+  const [commissionRevision, setCommissionRevision] = useState(0);
+  useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+  }, []);
+
   const roundSummary = useMemo<RoundSummary>(() => {
-    const downlineRate = typeof settings.defaultCustomerDiscount === 'number' ? settings.defaultCustomerDiscount : 0;
-    const uplineRate = typeof settings.defaultCommissionRate === 'number' ? settings.defaultCommissionRate : 0;
-    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
-    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
-
-    let totalSales = 0;
-    let totalDiscount = 0;
-
-    activeRoundVouchers.forEach(v => {
-      const gross = getVoucherGrossTurnover(v);
-      const disc = downlineRate > 0 ? safeRound((gross * downlineRate) / 100) : 0;
-      totalSales += gross;
-      totalDiscount += disc;
-    });
-    const netRevenue = safeRound(totalSales - totalDiscount);
-
-    let totalForwarded = 0;
-    let forwardedCommission = 0;
-    activeRoundForwardSlips.forEach(f => {
-      const amt = f.totalAmount || 0;
-      totalForwarded += amt;
-      forwardedCommission += uplineRate > 0 ? safeRound((amt * uplineRate) / 100) : 0;
+    const stmt = calculateThreeDSingleRoundStatement({
+      round: activeRound || null,
+      vouchers: activeRoundVouchers,
+      forwardSlips: activeRoundForwardSlips,
+      winningNumber: activeRound?.winningNumber,
+      multiplier: settings.defaultMultiplier,
+      toddMultiplier: settings.defaultToddMultiplier,
+      settings,
+      globalRates: getCustomerCommissionRates('3d'),
+      roundRates: getAllRoundCustomerCommissions(),
+      uplineGlobalRates: getUplineCommissionRates('3d'),
+      uplineRoundRates: getAllRoundUplineCommissions()
     });
 
-    let totalPayout = 0;
-    let masterPayout = 0;
-    let totalWinnersCount = 0;
-
-    if (activeRound?.winningNumber) {
-      const formattedNum = activeRound.winningNumber.padStart(3, '0');
-      const evalResult = evaluateWinnings(activeRoundVouchers, formattedNum, mult, toddMult);
-      totalWinnersCount = evalResult.winningBetsCount + evalResult.toddWinningBetsCount;
-      totalPayout = evalResult.totalPayout;
-
-      masterPayout = calculate3DForwardMasterPayout(activeRoundForwardSlips, formattedNum, mult, toddMult);
-    }
-
-    const netPaid = safeRound(totalForwarded - forwardedCommission);
-    const netProfit = safeRound(netRevenue - netPaid - totalPayout + masterPayout);
+    const netRevenue = safeRound(stmt.turnover - stmt.agentCommission);
 
     return {
-      totalSales,
-      totalVouchers: activeRoundVouchers.length,
-      totalDiscount,
+      totalSales: stmt.turnover,
+      totalVouchers: stmt.vouchersCount,
+      totalDiscount: stmt.agentCommission,
       netRevenue,
-      totalForwarded,
-      forwardedCommission,
-      totalPayout,
+      totalForwarded: stmt.totalForwarded,
+      forwardedCommission: stmt.forwardCommission,
+      totalPayout: stmt.totalPayout,
       winningNumber: activeRound?.winningNumber,
-      totalWinnersCount,
-      netProfit,
-      isProfit: netProfit >= 0
+      totalWinnersCount: stmt.winnersCount,
+      netProfit: stmt.netProfit,
+      isProfit: stmt.isProfit
     };
   }, [
     activeRound,
     activeRoundVouchers,
     activeRoundForwardSlips,
-    settings.defaultMultiplier,
-    settings.defaultToddMultiplier,
-    settings.defaultCommissionRate,
-    settings.defaultCustomerDiscount
+    settings,
+    commissionRevision
   ]);
 
   const settleWinningNumber = useCallback((winningNum: string, _multiplier?: number, _toddMultiplier?: number) => {

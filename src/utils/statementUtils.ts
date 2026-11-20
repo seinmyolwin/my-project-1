@@ -2,9 +2,16 @@ import { evaluateTwoDWinnings, normalizeTwoDMultiplier } from './twoDLotteryUtil
 import { evaluateWinnings, calculate3DForwardMasterPayout } from './lotteryUtils';
 import { TwoDVoucher, TwoDDrawRound, Voucher, DrawRound, FootballSlip, ForwardSlip } from '../types';
 import {
+  CommissionBusinessMode,
+  ScopedCommissionRates,
   getCustomerCommissionRates,
+  getCustomerCommissionRatesByMode,
   getAllRoundCustomerCommissions,
-  resolveCustomerCommissionRate
+  resolveCustomerCommissionRate,
+  getUplineCommissionRates,
+  getUplineCommissionRatesByMode,
+  getAllRoundUplineCommissions,
+  resolveUplineCommissionRate
 } from './commissionUtils';
 
 
@@ -186,6 +193,142 @@ export interface StatementDataSources {
   };
 }
 
+export function getResolvedVoucherCommission(params: {
+  voucher: any;
+  mode: CommissionBusinessMode;
+  roundKey?: string;
+  defaultDownlineRate: number;
+  globalRates?: Record<string, number>;
+  globalRatesByMode?: ScopedCommissionRates;
+  roundRates?: Record<string, Record<string, number>>;
+}): { rate: number; amount: number; isExplicit: boolean; gross: number } {
+  const v = params.voucher || {};
+  const gross =
+    params.mode === 'football' && !Array.isArray(v.items) && v.subtotal === undefined
+      ? (Number(v.stakeAmount) || Number(v.netPayable) || 0)
+      : getVoucherGrossTurnover(v);
+
+  const resolved = resolveCustomerCommissionRate({
+    mode: params.mode,
+    roundKey: params.roundKey,
+    customerName: v.customerName,
+    defaultRate: params.defaultDownlineRate,
+    globalRates: params.globalRates,
+    globalRatesByMode: params.globalRatesByMode,
+    roundRates: params.roundRates
+  });
+
+  if (resolved.isExplicit) {
+    return {
+      rate: resolved.rate,
+      amount: resolved.rate > 0 ? Math.round((gross * resolved.rate) / 100) : 0,
+      isExplicit: true,
+      gross
+    };
+  }
+
+  if (params.mode === '3d') {
+    const fallbackRate = params.defaultDownlineRate || 0;
+    return {
+      rate: fallbackRate,
+      amount: fallbackRate > 0 ? Math.round((gross * fallbackRate) / 100) : 0,
+      isExplicit: false,
+      gross
+    };
+  }
+
+  // 2D & Football fallback when no explicit per-round or per-customer-per-business rate exists
+  if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
+    const pct =
+      typeof v.discountPercent === 'number' && v.discountPercent > 0
+        ? v.discountPercent
+        : params.defaultDownlineRate;
+    return { rate: pct, amount: v.discountAmount, isExplicit: false, gross };
+  }
+  if (typeof v.discountPercent === 'number' && v.discountPercent > 0) {
+    return {
+      rate: v.discountPercent,
+      amount: Math.round((gross * v.discountPercent) / 100),
+      isExplicit: false,
+      gross
+    };
+  }
+  const fallbackRate = params.defaultDownlineRate || 0;
+  return {
+    rate: fallbackRate,
+    amount: fallbackRate > 0 ? Math.round((gross * fallbackRate) / 100) : 0,
+    isExplicit: false,
+    gross
+  };
+}
+
+export function getResolvedForwardCommission(params: {
+  forwardSlip: any;
+  mode: CommissionBusinessMode;
+  roundKey?: string;
+  defaultUplineRate: number;
+  uplineGlobalRates?: Record<string, number>;
+  uplineGlobalRatesByMode?: ScopedCommissionRates;
+  uplineRoundRates?: Record<string, Record<string, number>>;
+}): { rate: number; amount: number; isExplicit: boolean } {
+  const f = params.forwardSlip || {};
+  const amt = Number(f.totalAmount ?? f.stakeAmount ?? 0) || 0;
+  const resolved = resolveUplineCommissionRate({
+    mode: params.mode,
+    roundKey: params.roundKey,
+    masterAgentName: f.masterAgentName,
+    defaultRate: params.defaultUplineRate,
+    uplineGlobalRates: params.uplineGlobalRates,
+    uplineGlobalRatesByMode: params.uplineGlobalRatesByMode,
+    uplineRoundRates: params.uplineRoundRates
+  });
+
+  if (resolved.isExplicit) {
+    return {
+      rate: resolved.rate,
+      amount: resolved.rate > 0 ? Math.round((amt * resolved.rate) / 100) : 0,
+      isExplicit: true
+    };
+  }
+
+  if (params.mode === '3d') {
+    if (typeof f.commissionRate === 'number' && f.commissionRate > 0) {
+      const amount =
+        typeof f.commissionAmount === 'number' && f.commissionAmount > 0
+          ? f.commissionAmount
+          : Math.round((amt * f.commissionRate) / 100);
+      return { rate: f.commissionRate, amount, isExplicit: false };
+    }
+    const fallbackRate = params.defaultUplineRate || 0;
+    return {
+      rate: fallbackRate,
+      amount: fallbackRate > 0 ? Math.round((amt * fallbackRate) / 100) : 0,
+      isExplicit: false
+    };
+  }
+
+  // 2D or Football fallback when no explicit per-dealer rate is set
+  if (typeof f.commissionAmount === 'number' && f.commissionAmount > 0) {
+    const rate = typeof f.commissionRate === 'number' ? f.commissionRate : params.defaultUplineRate;
+    return { rate, amount: f.commissionAmount, isExplicit: false };
+  }
+  if (typeof f.commissionRate === 'number' && f.commissionRate > 0) {
+    return {
+      rate: f.commissionRate,
+      amount: Math.round((amt * f.commissionRate) / 100),
+      isExplicit: false
+    };
+  }
+  if (typeof f.commissionRate !== 'number' && params.defaultUplineRate > 0) {
+    return {
+      rate: params.defaultUplineRate,
+      amount: Math.round((amt * params.defaultUplineRate) / 100),
+      isExplicit: false
+    };
+  }
+  return { rate: 0, amount: f.commissionAmount || 0, isExplicit: false };
+}
+
 /**
  * Universal Single Source of Truth for generating Financial Statement Records across 2D, 3D and Football.
  */
@@ -196,13 +339,30 @@ export function generateStatementRecords(
   endDate: string,
   commissionOverrides?: {
     globalRates?: Record<string, number>;
+    globalRatesByMode?: ScopedCommissionRates;
     roundRates?: Record<string, Record<string, number>>;
+    uplineGlobalRates?: Record<string, number>;
+    uplineGlobalRatesByMode?: ScopedCommissionRates;
+    uplineRoundRates?: Record<string, Record<string, number>>;
   }
 ): StatementRecord[] {
   const list: StatementRecord[] = [];
   const todayStr = getLocalDateStr();
-  const globalRates = commissionOverrides?.globalRates ?? getCustomerCommissionRates();
+  const baseCustomerByMode = commissionOverrides?.globalRatesByMode ?? getCustomerCommissionRatesByMode();
+  const globalRatesByMode: ScopedCommissionRates = {
+    '2d': mode === '2d' && commissionOverrides?.globalRates ? commissionOverrides.globalRates : baseCustomerByMode['2d'],
+    '3d': mode === '3d' && commissionOverrides?.globalRates ? commissionOverrides.globalRates : baseCustomerByMode['3d'],
+    'football': mode === 'football' && commissionOverrides?.globalRates ? commissionOverrides.globalRates : baseCustomerByMode['football']
+  };
   const roundRates = commissionOverrides?.roundRates ?? getAllRoundCustomerCommissions();
+
+  const baseUplineByMode = commissionOverrides?.uplineGlobalRatesByMode ?? getUplineCommissionRatesByMode();
+  const uplineGlobalRatesByMode: ScopedCommissionRates = {
+    '2d': mode === '2d' && commissionOverrides?.uplineGlobalRates ? commissionOverrides.uplineGlobalRates : baseUplineByMode['2d'],
+    '3d': mode === '3d' && commissionOverrides?.uplineGlobalRates ? commissionOverrides.uplineGlobalRates : baseUplineByMode['3d'],
+    'football': mode === 'football' && commissionOverrides?.uplineGlobalRates ? commissionOverrides.uplineGlobalRates : baseUplineByMode['football']
+  };
+  const uplineRoundRates = commissionOverrides?.uplineRoundRates ?? getAllRoundUplineCommissions();
 
   // ====================================================
   // 1. Process 2D (ဇီးကွက်)
@@ -232,44 +392,38 @@ export function generateStatementRecords(
         let totalAgentCommission = 0;
 
         const roundKey2D = `2d-${round.id}`;
+        const fallback2D = typeof data.lottery2D.settings?.defaultCustomerDiscount === 'number'
+          ? data.lottery2D.settings.defaultCustomerDiscount
+          : 0;
         roundVouchers.forEach((v) => {
-          const voucherSubtotal = getVoucherGrossTurnover(v);
-          const fallback2D = data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0;
-          const resolved = resolveCustomerCommissionRate({
+          const resolvedVouch = getResolvedVoucherCommission({
+            voucher: v,
+            mode: '2d',
             roundKey: roundKey2D,
-            customerName: v.customerName,
-            defaultRate: fallback2D,
-            globalRates,
+            defaultDownlineRate: fallback2D,
+            globalRatesByMode,
             roundRates
           });
 
-          let voucherDiscount = 0;
-          if (resolved.isExplicit) {
-            voucherDiscount = resolved.rate > 0 ? Math.round(voucherSubtotal * (resolved.rate / 100)) : 0;
-          } else {
-            const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-              ? v.discountPercent
-              : fallback2D;
-
-            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-              voucherDiscount = v.discountAmount;
-            } else if (agentRate > 0) {
-              voucherDiscount = Math.round(voucherSubtotal * (agentRate / 100));
-            } else if (round.commissionRate && round.commissionRate > 0) {
-              voucherDiscount = Math.round(voucherSubtotal * (round.commissionRate / 100));
-            }
-          }
-
-          totalTurnover += voucherSubtotal;
-          totalAgentCommission += voucherDiscount;
+          totalTurnover += resolvedVouch.gross;
+          totalAgentCommission += resolvedVouch.amount;
         });
 
         // Forward slips to master bookie
         let totalForwarded = 0;
         let forwardCommission = 0;
+        const defaultUpline2D = data.lottery2D.settings.defaultCommissionRate ?? 0;
         roundForwards.forEach((f) => {
           totalForwarded += f.totalAmount || 0;
-          forwardCommission += f.commissionAmount || 0;
+          const resolvedFwd = getResolvedForwardCommission({
+            forwardSlip: f,
+            mode: '2d',
+            roundKey: roundKey2D,
+            defaultUplineRate: defaultUpline2D,
+            uplineGlobalRatesByMode,
+            uplineRoundRates
+          });
+          forwardCommission += resolvedFwd.amount;
         });
         const netPaid = totalForwarded - forwardCommission;
 
@@ -374,34 +528,21 @@ export function generateStatementRecords(
         let winnersCount = 0;
 
         const orphanKey2D = `2d-orphaned-${d}`;
+        const fallback2D = typeof data.lottery2D.settings?.defaultCustomerDiscount === 'number'
+          ? data.lottery2D.settings.defaultCustomerDiscount
+          : 0;
         vList.forEach(v => {
-          const sub = getVoucherGrossTurnover(v);
-          const fallback2D = data.lottery2D.settings.defaultCustomerDiscount ?? data.lottery2D.settings.defaultCommissionRate ?? 0;
-          const resolved = resolveCustomerCommissionRate({
+          const resolvedVouch = getResolvedVoucherCommission({
+            voucher: v,
+            mode: '2d',
             roundKey: orphanKey2D,
-            customerName: v.customerName,
-            defaultRate: fallback2D,
-            globalRates,
+            defaultDownlineRate: fallback2D,
+            globalRatesByMode,
             roundRates
           });
 
-          let disc = 0;
-          if (resolved.isExplicit) {
-            disc = resolved.rate > 0 ? Math.round(sub * (resolved.rate / 100)) : 0;
-          } else {
-            const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-              ? v.discountPercent
-              : fallback2D;
-
-            if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-              disc = v.discountAmount;
-            } else if (agentRate > 0) {
-              disc = Math.round(sub * (agentRate / 100));
-            }
-          }
-
-          turnover += sub;
-          agentCommission += disc;
+          turnover += resolvedVouch.gross;
+          agentCommission += resolvedVouch.amount;
           v.items.forEach(it => {
             if (it.isWon) {
               payout += (it.wonAmount || (it.amount * (data.lottery2D.settings.defaultMultiplier || 0)));
@@ -485,18 +626,17 @@ export function generateStatementRecords(
         const roundKey3D = `3d-${round.id}`;
 
         roundVouchers.forEach((v) => {
-          const sub = getVoucherGrossTurnover(v);
-          const resolved = resolveCustomerCommissionRate({
+          const resolvedVouch = getResolvedVoucherCommission({
+            voucher: v,
+            mode: '3d',
             roundKey: roundKey3D,
-            customerName: v.customerName,
-            defaultRate: downlineRate,
-            globalRates,
+            defaultDownlineRate: downlineRate,
+            globalRatesByMode,
             roundRates
           });
-          const disc = resolved.rate > 0 ? Math.round(sub * (resolved.rate / 100)) : 0;
 
-          totalTurnover += sub;
-          totalAgentCommission += disc;
+          totalTurnover += resolvedVouch.gross;
+          totalAgentCommission += resolvedVouch.amount;
         });
 
         // 3D Forward slips to master bookie
@@ -505,7 +645,15 @@ export function generateStatementRecords(
         roundForwards.forEach((f) => {
           const amt = f.totalAmount || 0;
           totalForwarded += amt;
-          forwardCommission += uplineRate > 0 ? Math.round((amt * uplineRate) / 100) : 0;
+          const resolvedFwd = getResolvedForwardCommission({
+            forwardSlip: f,
+            mode: '3d',
+            roundKey: roundKey3D,
+            defaultUplineRate: uplineRate,
+            uplineGlobalRatesByMode,
+            uplineRoundRates
+          });
+          forwardCommission += resolvedFwd.amount;
         });
         const netPaid = totalForwarded - forwardCommission;
 
@@ -597,18 +745,17 @@ export function generateStatementRecords(
 
         const orphanKey3D = `3d-orphaned-${d}`;
         vList.forEach(v => {
-          const sub = getVoucherGrossTurnover(v);
-          const resolved = resolveCustomerCommissionRate({
+          const resolvedVouch = getResolvedVoucherCommission({
+            voucher: v,
+            mode: '3d',
             roundKey: orphanKey3D,
-            customerName: v.customerName,
-            defaultRate: downlineRate,
-            globalRates,
+            defaultDownlineRate: downlineRate,
+            globalRatesByMode,
             roundRates
           });
-          const disc = resolved.rate > 0 ? Math.round(sub * (resolved.rate / 100)) : 0;
 
-          turnover += sub;
-          agentCommission += disc;
+          turnover += resolvedVouch.gross;
+          agentCommission += resolvedVouch.amount;
           v.items.forEach(it => {
             if (it.isWon) {
               payout += (it.wonAmount || (it.amount * straightMult));
@@ -682,32 +829,22 @@ export function generateStatementRecords(
         let winnersCount = 0;
 
         const roundKeyFB = `football-${d}`;
+        const fallbackFB = typeof data.football.settings?.defaultCustomerDiscount === 'number'
+          ? data.football.settings.defaultCustomerDiscount
+          : 0;
         daySlips.forEach((s) => {
-          const stake = s.stakeAmount || s.netPayable || 0;
-          const fallbackFB = data.football.settings?.defaultCustomerDiscount ?? data.football.settings?.defaultCommissionRate ?? 0;
-          const resolved = resolveCustomerCommissionRate({
+          const resolvedSlip = getResolvedVoucherCommission({
+            voucher: s,
+            mode: 'football',
             roundKey: roundKeyFB,
-            customerName: s.customerName,
-            defaultRate: fallbackFB,
-            globalRates,
+            defaultDownlineRate: fallbackFB,
+            globalRatesByMode,
             roundRates
           });
-
-          let disc = 0;
-          if (resolved.isExplicit) {
-            disc = resolved.rate > 0 ? Math.round(stake * (resolved.rate / 100)) : 0;
-          } else {
-            const agentRate = (typeof s.discountPercent === 'number' && s.discountPercent > 0)
-              ? s.discountPercent
-              : fallbackFB;
-
-            disc = s.discountAmount > 0
-              ? s.discountAmount
-              : agentRate > 0 ? Math.round(stake * (agentRate / 100)) : 0;
-          }
+          const stake = resolvedSlip.gross;
 
           turnover += stake;
-          agentCommission += disc;
+          agentCommission += resolvedSlip.amount;
 
           // Forward ratio for this slip
           const forwardedStakeForSlip = dayForwards
@@ -742,12 +879,19 @@ export function generateStatementRecords(
 
         let totalForwarded = 0;
         let forwardCommission = 0;
+        const defaultUplineFB = data.football.settings?.defaultCommissionRate ?? 0;
         dayForwards.forEach((f) => {
           const fwdAmt = f.stakeAmount || f.totalAmount || 0;
           totalForwarded += fwdAmt;
-          forwardCommission += typeof f.commissionAmount === 'number'
-            ? f.commissionAmount
-            : (f.commissionRate ? Math.round((fwdAmt * f.commissionRate) / 100) : 0);
+          const resolvedFwd = getResolvedForwardCommission({
+            forwardSlip: f,
+            mode: 'football',
+            roundKey: roundKeyFB,
+            defaultUplineRate: defaultUplineFB,
+            uplineGlobalRatesByMode,
+            uplineRoundRates
+          });
+          forwardCommission += resolvedFwd.amount;
         });
         const netPaid = totalForwarded - forwardCommission;
 
@@ -864,14 +1008,18 @@ export interface TwoDSingleRoundStatementParams {
   settings: any;
   globalRates?: Record<string, number>;
   roundRates?: Record<string, Record<string, number>>;
+  uplineGlobalRates?: Record<string, number>;
+  uplineRoundRates?: Record<string, Record<string, number>>;
 }
 
 export function calculateTwoDSingleRoundStatement(
   params: TwoDSingleRoundStatementParams
 ): SingleRoundFinancialBreakdown {
   const { round, vouchers, forwardSlips, winningNumber, multiplier, settings } = params;
-  const globalRates = params.globalRates ?? getCustomerCommissionRates();
+  const globalRates = params.globalRates ?? getCustomerCommissionRates('2d');
   const roundRates = params.roundRates ?? getAllRoundCustomerCommissions();
+  const uplineGlobalRates = params.uplineGlobalRates ?? getUplineCommissionRates('2d');
+  const uplineRoundRates = params.uplineRoundRates ?? getAllRoundUplineCommissions();
   const roundKey2D = round ? `2d-${round.id}` : undefined;
 
   // 1. Turnover & Agent Commission (Vouchers for this round only, active/not cancelled)
@@ -879,45 +1027,40 @@ export function calculateTwoDSingleRoundStatement(
   let totalAgentCommission = 0;
 
   const validVouchers = vouchers.filter((v) => v.status !== 'cancelled' && !v.deletedAt);
+  const fallback2D = typeof settings?.defaultCustomerDiscount === 'number'
+    ? settings.defaultCustomerDiscount
+    : 0;
 
   validVouchers.forEach((v) => {
-    const subtotal = getVoucherGrossTurnover(v);
-    const fallback2D = settings?.defaultCustomerDiscount ?? settings?.defaultCommissionRate ?? 0;
-    const resolved = resolveCustomerCommissionRate({
+    const resolvedVouch = getResolvedVoucherCommission({
+      voucher: v,
+      mode: '2d',
       roundKey: roundKey2D,
-      customerName: v.customerName,
-      defaultRate: fallback2D,
+      defaultDownlineRate: fallback2D,
       globalRates,
       roundRates
     });
 
-    let disc = 0;
-    if (resolved.isExplicit) {
-      disc = resolved.rate > 0 ? Math.round(subtotal * (resolved.rate / 100)) : 0;
-    } else {
-      const agentRate = (typeof v.discountPercent === 'number' && v.discountPercent > 0)
-        ? v.discountPercent
-        : fallback2D;
-
-      if (typeof v.discountAmount === 'number' && v.discountAmount > 0) {
-        disc = v.discountAmount;
-      } else if (agentRate > 0) {
-        disc = Math.round(subtotal * (agentRate / 100));
-      } else if (round?.commissionRate && round.commissionRate > 0) {
-        disc = Math.round(subtotal * (round.commissionRate / 100));
-      }
-    }
-
-    totalTurnover += subtotal;
-    totalAgentCommission += disc;
+    totalTurnover += resolvedVouch.gross;
+    totalAgentCommission += resolvedVouch.amount;
   });
 
   // 2. Forwarded slips to master bookie for this round
   let totalForwarded = 0;
   let forwardCommission = 0;
-  forwardSlips.forEach((f) => {
+  const defaultUpline2D = settings?.defaultCommissionRate ?? 0;
+  const activeForwards = forwardSlips.filter((f) => !(f as any).deletedAt);
+  activeForwards.forEach((f) => {
     totalForwarded += f.totalAmount || 0;
-    forwardCommission += f.commissionAmount || 0;
+    const resolvedFwd = getResolvedForwardCommission({
+      forwardSlip: f,
+      mode: '2d',
+      roundKey: roundKey2D,
+      defaultUplineRate: defaultUpline2D,
+      uplineGlobalRates,
+      uplineRoundRates
+    });
+    forwardCommission += resolvedFwd.amount;
   });
   const netPaid = totalForwarded - forwardCommission;
 
@@ -942,7 +1085,7 @@ export function calculateTwoDSingleRoundStatement(
     });
 
     let totalForwardedForWinNum = 0;
-    forwardSlips.forEach((f) => {
+    activeForwards.forEach((f) => {
       f.items.forEach((it) => {
         if (it.number === winNum) totalForwardedForWinNum += it.amount;
       });
@@ -1002,14 +1145,18 @@ export interface ThreeDSingleRoundStatementParams {
   settings: any;
   globalRates?: Record<string, number>;
   roundRates?: Record<string, Record<string, number>>;
+  uplineGlobalRates?: Record<string, number>;
+  uplineRoundRates?: Record<string, Record<string, number>>;
 }
 
 export function calculateThreeDSingleRoundStatement(
   params: ThreeDSingleRoundStatementParams
 ): SingleRoundFinancialBreakdown {
   const { round, vouchers, forwardSlips, winningNumber, multiplier, toddMultiplier, settings } = params;
-  const globalRates = params.globalRates ?? getCustomerCommissionRates();
+  const globalRates = params.globalRates ?? getCustomerCommissionRates('3d');
   const roundRates = params.roundRates ?? getAllRoundCustomerCommissions();
+  const uplineGlobalRates = params.uplineGlobalRates ?? getUplineCommissionRates('3d');
+  const uplineRoundRates = params.uplineRoundRates ?? getAllRoundUplineCommissions();
   const roundKey3D = round ? `3d-${round.id}` : undefined;
 
   const downlineRate = typeof settings?.defaultCustomerDiscount === 'number'
@@ -1031,18 +1178,17 @@ export function calculateThreeDSingleRoundStatement(
   const validVouchers = vouchers.filter((v) => v.status !== 'cancelled' && !v.deletedAt);
 
   validVouchers.forEach((v) => {
-    const subtotal = getVoucherGrossTurnover(v);
-    const resolved = resolveCustomerCommissionRate({
+    const resolvedVouch = getResolvedVoucherCommission({
+      voucher: v,
+      mode: '3d',
       roundKey: roundKey3D,
-      customerName: v.customerName,
-      defaultRate: downlineRate,
+      defaultDownlineRate: downlineRate,
       globalRates,
       roundRates
     });
-    const disc = resolved.rate > 0 ? Math.round(subtotal * (resolved.rate / 100)) : 0;
 
-    totalTurnover += subtotal;
-    totalAgentCommission += disc;
+    totalTurnover += resolvedVouch.gross;
+    totalAgentCommission += resolvedVouch.amount;
   });
 
   const activeForwards = forwardSlips.filter((f) => !(f as any).deletedAt);
@@ -1051,7 +1197,15 @@ export function calculateThreeDSingleRoundStatement(
   activeForwards.forEach((f) => {
     const amt = f.totalAmount || 0;
     totalForwarded += amt;
-    forwardCommission += uplineRate > 0 ? Math.round((amt * uplineRate) / 100) : 0;
+    const resolvedFwd = getResolvedForwardCommission({
+      forwardSlip: f,
+      mode: '3d',
+      roundKey: roundKey3D,
+      defaultUplineRate: uplineRate,
+      uplineGlobalRates,
+      uplineRoundRates
+    });
+    forwardCommission += resolvedFwd.amount;
   });
   const netPaid = totalForwarded - forwardCommission;
 

@@ -28,6 +28,15 @@ import { evaluateTwoDWinnings, exportTwoDLotteryToExcel, is2DRoundClosed, normal
 import { generateUpToDate2DRounds } from '../utils/thaiLotteryApi';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
+import {
+  getUplineCommission,
+  getUplineCommissionRates,
+  getAllRoundUplineCommissions,
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions,
+  COMMISSION_UPDATED_EVENT
+} from '../utils/commissionUtils';
+import { calculateTwoDSingleRoundStatement, getVoucherGrossTurnover } from '../utils/statementUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
 import { merge2DVouchersNoDuplicates } from '../utils/deduplicationUtils';
 import { triggerRibbonsCelebration } from '../utils/audioUtils';
@@ -35,7 +44,6 @@ import { generateUUID } from '../utils/restorePoints';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { createTombstone } from '../utils/tombstoneUtils';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
-import { getVoucherGrossTurnover } from '../utils/statementUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -663,7 +671,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     localStorage.setItem('forward_counter_2d_v1', String(counter));
     const pad = String(counter).padStart(6, '0');
 
-    const commRate = slipData.commissionRate ?? settings.defaultCommissionRate;
+    const commRate = typeof slipData.commissionRate === 'number'
+      ? slipData.commissionRate
+      : getUplineCommission(slipData.masterAgentName || '', settings.defaultCommissionRate ?? 0, '2d');
     if (!Number.isFinite(commRate)) throw new Error('ကော်မရှင်နှုန်း သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     const commAmt = safeRound((slipData.totalAmount * commRate) / 100);
     const netPaid = safeRound(slipData.totalAmount - commAmt);
@@ -885,64 +895,45 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return alerts.sort((a, b) => b.percentage - a.percentage);
   }, [aggregates, settings.lowStockAlertPercentage]);
 
-  // Round summary
+  const [commissionRevision, setCommissionRevision] = useState(0);
+  useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+  }, []);
+
+  // Round summary (Unified Single Source of Truth matching TwoDWinningPayoutView & Header)
   const roundSummary = useMemo<TwoDRoundSummary>(() => {
-    let totalSales = 0;
-    let totalDiscount = 0;
-    let netRevenue = 0;
-
-    activeRoundVouchers.forEach(v => {
-      totalSales += v.subtotal;
-      totalDiscount += v.discountAmount;
-      netRevenue += v.netPayable;
+    const stmt = calculateTwoDSingleRoundStatement({
+      round: activeRound || null,
+      vouchers: activeRoundVouchers,
+      forwardSlips: activeRoundForwardSlips as any,
+      winningNumber: activeRound?.winningNumber,
+      multiplier: activeRound?.multiplier || settings.defaultMultiplier,
+      settings,
+      globalRates: getCustomerCommissionRates('2d'),
+      roundRates: getAllRoundCustomerCommissions(),
+      uplineGlobalRates: getUplineCommissionRates('2d'),
+      uplineRoundRates: getAllRoundUplineCommissions()
     });
 
-    let totalForwarded = 0;
-    let forwardedCommission = 0;
-    activeRoundForwardSlips.forEach(f => {
-      totalForwarded += f.totalAmount;
-      forwardedCommission += f.commissionAmount;
-    });
-
-    let totalPayout = 0;
-    let masterPayout = 0;
-    let retainedPayout = 0;
-    let totalWinnersCount = 0;
-
-    if (activeRound?.winningNumber) {
-      let mult = activeRound.multiplier || settings.defaultMultiplier;
-      const formattedNum = activeRound.winningNumber.padStart(2, '0');
-      const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
-      totalWinnersCount = evalResult.totalWinnersCount;
-      totalPayout = evalResult.totalPayout;
-
-      // ဒိုင်လွှဲ စနစ်: ဒိုင်ကြီးဆီ လွှဲထားသော ဂဏန်းပေါက်ပါက ဒိုင်ကြီးဆီမှ ပေါက်ကြေး ပြန်ရသည်။
-      const winningAgg = aggregates[formattedNum];
-      const forwardedWonAmount = winningAgg ? winningAgg.forwardedAmount : 0;
-      masterPayout = mult > 0 ? forwardedWonAmount * mult : 0;
-      const retainedAmount = winningAgg ? Math.max(0, winningAgg.retainedAmount) : 0;
-      retainedPayout = mult > 0 ? retainedAmount * mult : 0;
-    }
-
-    const netPaid = safeRound(totalForwarded - forwardedCommission);
-    // ဒိုင်အသားတင် အမြတ်/အရှုံး = Customer Net Revenue - Net Paid to Master Bookie - Total Payout + Master Payout
-    const netProfit = safeRound(netRevenue - netPaid - totalPayout + masterPayout);
+    const netRevenue = safeRound(stmt.turnover - stmt.agentCommission);
 
     return {
-      totalSales,
-      totalVouchers: activeRoundVouchers.length,
-      totalDiscount,
+      totalSales: stmt.turnover,
+      totalVouchers: stmt.vouchersCount,
+      totalDiscount: stmt.agentCommission,
       netRevenue,
-      totalForwarded,
-      forwardedCommission,
-      totalPayout,
-      retainedPayout,
+      totalForwarded: stmt.totalForwarded,
+      forwardedCommission: stmt.forwardCommission,
+      totalPayout: stmt.totalPayout,
+      retainedPayout: stmt.retainedPayout,
       winningNumber: activeRound?.winningNumber,
-      totalWinnersCount,
-      netProfit,
-      isProfit: netProfit >= 0
+      totalWinnersCount: stmt.winnersCount,
+      netProfit: stmt.netProfit,
+      isProfit: stmt.isProfit
     };
-  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier, aggregates]);
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, settings, commissionRevision]);
 
   // Settle winning number
   const settleWinningNumber = useCallback((winningNum: string, multiplier?: number) => {

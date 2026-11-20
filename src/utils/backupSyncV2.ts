@@ -22,6 +22,8 @@ export const V2_ENTITY_KEYS: string[] = [
   'football_ledger_settings_v1', 'football_ledger_active_date_v1', 'football_ledger_leagues_v1',
   'period_closings_v1',
   'shwe_master_agents_list', 'shwe_customer_commissions_v1',
+  'shwe_customer_commission_rates', 'shwe_customer_commission_rates_v2', 'shwe_round_customer_commissions_v1',
+  'shwe_upline_commission_rates', 'shwe_upline_commission_rates_v2', 'shwe_round_upline_commissions_v1',
   'shwe_mingalar_copied_raw_texts', 'bookie_custom_command_rules_v2',
   'id_migration_map_v1',
 ];

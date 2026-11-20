@@ -52,13 +52,16 @@ import {
   getStatementPeriodLabel,
   generateStatementRecords,
   computeStatementGrandTotals,
-  getVoucherGrossTurnover
+  getVoucherGrossTurnover,
+  getResolvedVoucherCommission,
+  getResolvedForwardCommission
 } from '../utils/statementUtils';
 import {
   COMMISSION_UPDATED_EVENT,
-  getCustomerCommissionRates,
+  getCustomerCommissionRatesByMode,
   getAllRoundCustomerCommissions,
-  resolveCustomerCommissionRate
+  getUplineCommissionRatesByMode,
+  getAllRoundUplineCommissions
 } from '../utils/commissionUtils';
 import { CustomerCommissionPromptModal } from './CustomerCommissionPromptModal';
 
@@ -195,7 +198,22 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         const updatedList = (selectedRecord.vouchersList || []).filter((item: any) => item.id !== vId);
         const updatedTurnover = updatedList.reduce((sum: number, item: any) => sum + getVoucherGrossTurnover(item), 0);
         const updatedPayout = updatedList.reduce((sum: number, item: any) => sum + (item.totalPayout || item.actualPayout || 0), 0);
-        const updatedCommission = updatedList.reduce((sum: number, item: any) => sum + (item.discountAmount || 0), 0);
+        const fallbackDownline =
+          selectedRecord.mode === '2d'
+            ? (lottery2D.settings.defaultCustomerDiscount ?? 0)
+            : selectedRecord.mode === '3d'
+            ? (lottery3D.settings.defaultCustomerDiscount ?? 0)
+            : (football.settings?.defaultCustomerDiscount ?? 0);
+        const updatedCommission = updatedList.reduce((sum: number, item: any) => {
+          return sum + getResolvedVoucherCommission({
+            voucher: item,
+            mode: selectedRecord.mode,
+            roundKey: selectedRecord.id,
+            defaultDownlineRate: fallbackDownline,
+            globalRatesByMode,
+            roundRates
+          }).amount;
+        }, 0);
         const updatedNetSales = updatedTurnover - selectedRecord.totalForwarded - updatedCommission;
         const updatedNetProfit = updatedNetSales + selectedRecord.masterPayout + selectedRecord.forwardCommission - updatedPayout;
 
@@ -303,11 +321,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       ? 'ပစ်တိုင်းထောင် (ဘောလုံး) သီးသန့် ကာလအလိုက် စာရင်းရှင်းတမ်းနှင့် အမြတ်/အရှုံး အစီရင်ခံစာ'
       : 'အောက်လက်ကော်မရှင် ပေးငွေ၊ ဒိုင်ကြီးလွှဲကော်မရှင်၊ ထိုးကြေးနှင့် ပေးလျော်ငွေ အတိအကျ ရှင်းတမ်း';
 
-  // Live customer & per-round commission overrides
-  const { globalRates, roundRates } = useMemo(() => {
+  // Live customer & upline per-round commission overrides (strictly scoped by business mode)
+  const { globalRatesByMode, roundRates, uplineGlobalRatesByMode, uplineRoundRates } = useMemo(() => {
     return {
-      globalRates: getCustomerCommissionRates(),
-      roundRates: getAllRoundCustomerCommissions()
+      globalRatesByMode: getCustomerCommissionRatesByMode(),
+      roundRates: getAllRoundCustomerCommissions(),
+      uplineGlobalRatesByMode: getUplineCommissionRatesByMode(),
+      uplineRoundRates: getAllRoundUplineCommissions()
     };
   }, [commissionRevision, isOpen]);
 
@@ -336,14 +356,16 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       effectiveMode,
       startDate,
       endDate,
-      { globalRates, roundRates }
+      { globalRatesByMode, roundRates, uplineGlobalRatesByMode, uplineRoundRates }
     );
   }, [
     effectiveMode,
     startDate,
     endDate,
-    globalRates,
+    globalRatesByMode,
     roundRates,
+    uplineGlobalRatesByMode,
+    uplineRoundRates,
     lottery2D.rounds,
     lottery2D.vouchers,
     lottery2D.forwardSlips,
@@ -357,11 +379,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     football.settings
   ]);
 
-  // Automatically ask for per-customer commission rates before showing calculated statement when modal opens
+  // Automatically ask for per-customer & per-upline commission rates before showing calculated statement when modal opens
   React.useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      const hasVouchers = statementRecords.some((r) => (r.vouchersList?.length || 0) > 0);
-      if (hasVouchers) {
+      const hasEntries = statementRecords.some(
+        (r) => (r.vouchersList?.length || 0) > 0 || (r.forwardList?.length || 0) > 0
+      );
+      if (hasEntries) {
         setCommissionPromptTarget('period');
         setIsCommissionPromptOpen(true);
       }
@@ -601,10 +625,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 setIsCommissionPromptOpen(true);
               }}
               className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              title="ထိုးသား / အောက်လက်ဒိုင် တစ်ဦးချင်းစီ၏ ကော်မရှင် % သတ်မှတ်ရန်"
+              title="ထိုးသားကော် / အထက်ဒိုင်ကော် တစ်ဦးချင်းစီ၏ % သတ်မှတ်ရန်"
             >
               <Percent className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">ထိုးသားကော် သတ်မှတ်ရန်</span>
+              <span className="hidden sm:inline">ထိုးသား / အထက်ဒိုင်ကော်</span>
             </button>
             <button
               type="button"
@@ -909,7 +933,9 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 
           {(() => {
             const unconfirmedCount = statementRecords.filter(
-              (rec) => (rec.vouchersList?.length || 0) > 0 && !roundRates[rec.id]
+              (rec) =>
+                ((rec.vouchersList?.length || 0) > 0 && !roundRates[rec.id]) ||
+                ((rec.forwardList?.length || 0) > 0 && !uplineRoundRates[rec.id])
             ).length;
             if (unconfirmedCount === 0) return null;
             return (
@@ -917,7 +943,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                 <div className="flex items-center gap-2 text-amber-950 font-bold">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
-                    ပွဲစဉ် {unconfirmedCount} ခုအတွက် ထိုးသားတစ်ဦးချင်းစီ၏ ကော်မရှင် (%) သတ်မှတ်ရန် ကျန်ရှိနေပါသည် (လက်ရှိ Settings နှုန်းဖြင့် တွက်ထားသည်)
+                    ပွဲစဉ် {unconfirmedCount} ခုအတွက် ထိုးသားကော် / အထက်ဒိုင်ကော် (%) သတ်မှတ်ရန် ကျန်ရှိနေပါသည် (လက်ရှိ Settings နှုန်းဖြင့် တွက်ထားသည်)
                   </span>
                 </div>
                 <button
@@ -929,7 +955,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                   className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors shrink-0"
                 >
                   <Percent className="w-3.5 h-3.5" />
-                  <span>ထိုးသားကော် သတ်မှတ်ပြီး တွက်မည်</span>
+                  <span>ထိုးသား / အထက်ဒိုင်ကော် သတ်မှတ်မည်</span>
                 </button>
               </div>
             );
@@ -1321,7 +1347,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
                     >
                       <Percent className="w-3 h-3" />
-                      <span>ဤပွဲစဉ် ထိုးသားကော် ပြင်မည်</span>
+                      <span>ထိုးသား / အထက်ဒိုင်ကော် ပြင်မည်</span>
                     </button>
                     <span className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md font-bold">
                       ပေါက်ဂဏန်း: {selectedRecord.winningResult}
@@ -1399,19 +1425,15 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                         : selectedRecord.mode === '2d'
                         ? (lottery2D.settings.defaultCustomerDiscount ?? 0)
                         : (football.settings?.defaultCustomerDiscount ?? 0);
-                      const resolvedComm = resolveCustomerCommissionRate({
+                      const resolvedVouch = getResolvedVoucherCommission({
+                        voucher: v,
+                        mode: selectedRecord.mode,
                         roundKey: selectedRecord.id,
-                        customerName: v.customerName,
-                        defaultRate: fallbackRate,
-                        globalRates,
+                        defaultDownlineRate: fallbackRate,
+                        globalRatesByMode,
                         roundRates
                       });
-                      const grossAmt = Array.isArray(v.items) || v.subtotal !== undefined
-                        ? getVoucherGrossTurnover(v)
-                        : (Number(v.stakeAmount) || Number(v.netPayable) || 0);
-                      const voucherDisc = resolvedComm.isExplicit || selectedRecord.mode === '3d'
-                        ? (resolvedComm.rate > 0 ? Math.round((grossAmt * resolvedComm.rate) / 100) : 0)
-                        : (v.discountAmount > 0 ? v.discountAmount : 0);
+                      const voucherDisc = resolvedVouch.amount;
                       
                       return (
                         <div 
@@ -1547,6 +1569,19 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                         const num = String(it.number || '').trim();
                         return num === winNum || (toddSet?.has(num) ?? false);
                       });
+                      const defaultUpline = selectedRecord.mode === '3d'
+                        ? (lottery3D.settings.defaultCommissionRate ?? 0)
+                        : selectedRecord.mode === '2d'
+                        ? (lottery2D.settings.defaultCommissionRate ?? 0)
+                        : (football.settings?.defaultCommissionRate ?? 0);
+                      const resolvedFwdComm = getResolvedForwardCommission({
+                        forwardSlip: f,
+                        mode: selectedRecord.mode,
+                        roundKey: selectedRecord.id,
+                        defaultUplineRate: defaultUpline,
+                        uplineGlobalRatesByMode,
+                        uplineRoundRates
+                      });
                       return (
                         <div key={fIdx} className={`p-2.5 flex items-center justify-between text-[11px] ${fwdWon ? 'bg-amber-50/70' : ''}`}>
                           <div className="flex-1 min-w-0 pr-2">
@@ -1569,7 +1604,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                               {formatAmount(f.totalAmount, currency)}
                             </span>
                             <span className="text-[9px] text-emerald-700 font-mono">
-                              (ကော် +{formatAmount(f.commissionAmount || 0, currency)})
+                              (ကော် {resolvedFwdComm.rate}% • +{formatAmount(resolvedFwdComm.amount, currency)})
                             </span>
                           </div>
                         </div>
@@ -1959,10 +1994,33 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
             ? (football.settings?.defaultCustomerDiscount ?? 0)
             : (lottery3D.settings.defaultCustomerDiscount ?? 0)
         }
+        defaultUplineFallbackRate={
+          commissionPromptTarget === 'record' && selectedRecord
+            ? selectedRecord.mode === '2d'
+              ? (lottery2D.settings.defaultCommissionRate ?? 0)
+              : selectedRecord.mode === 'football'
+              ? (football.settings?.defaultCommissionRate ?? 0)
+              : (lottery3D.settings.defaultCommissionRate ?? 0)
+            : effectiveMode === '2d'
+            ? (lottery2D.settings.defaultCommissionRate ?? 0)
+            : effectiveMode === 'football'
+            ? (football.settings?.defaultCommissionRate ?? 0)
+            : (lottery3D.settings.defaultCommissionRate ?? 0)
+        }
+        defaultFallbackRatesByMode={{
+          '2d': lottery2D.settings.defaultCustomerDiscount ?? 0,
+          '3d': lottery3D.settings.defaultCustomerDiscount ?? 0,
+          'football': football.settings?.defaultCustomerDiscount ?? 0
+        }}
+        defaultUplineFallbackRatesByMode={{
+          '2d': lottery2D.settings.defaultCommissionRate ?? 0,
+          '3d': lottery3D.settings.defaultCommissionRate ?? 0,
+          'football': football.settings?.defaultCommissionRate ?? 0
+        }}
         title={
           commissionPromptTarget === 'record' && selectedRecord
-            ? `${selectedRecord.name} - ထိုးသား ကော်မရှင် သတ်မှတ်ရန်`
-            : 'ထိုးသား / အောက်လက်ဒိုင် ကော်မရှင် သတ်မှတ်ရန်'
+            ? `${selectedRecord.name} - ထိုးသား / အထက်ဒိုင်ကော် သတ်မှတ်ရန်`
+            : 'ထိုးသားကော် / အထက်ဒိုင်ကော် သတ်မှတ်ရန်'
         }
         onConfirm={() => {
           setCommissionRevision((r) => r + 1);

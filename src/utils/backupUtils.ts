@@ -305,6 +305,8 @@ export async function exportSecureMasterBackup(ownerPin: string = ''): Promise<s
       'auxiliary': {
         masterAgents: getStorageItemSafe('shwe_master_agents_list'),
         customerCommissions: getStorageItemSafe('shwe_customer_commissions_v1'),
+        customerCommissionsV2: getStorageItemSafe('shwe_customer_commission_rates_v2'),
+        uplineCommissionsV2: getStorageItemSafe('shwe_upline_commission_rates_v2'),
         deletedRounds2D: getStorageItemSafe('2d_ledger_deleted_rounds_v1'),
         rawTextClips: getStorageItemSafe('shwe_mingalar_copied_raw_texts')
       }
@@ -579,6 +581,12 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
       if (paux) {
         setItemWithBackup('shwe_master_agents_list', paux.masterAgents);
         setItemWithBackup('shwe_customer_commissions_v1', paux.customerCommissions);
+        if (paux.customerCommissionsV2) {
+          setItemWithBackup('shwe_customer_commission_rates_v2', paux.customerCommissionsV2);
+        }
+        if (paux.uplineCommissionsV2) {
+          setItemWithBackup('shwe_upline_commission_rates_v2', paux.uplineCommissionsV2);
+        }
         setItemWithBackup('2d_ledger_deleted_rounds_v1', paux.deletedRounds2D);
         setItemWithBackup('shwe_mingalar_copied_raw_texts', paux.rawTextClips);
       }

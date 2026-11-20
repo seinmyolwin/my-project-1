@@ -27,6 +27,15 @@ import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/foo
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
+import {
+  getUplineCommission,
+  getUplineCommissionRates,
+  getAllRoundUplineCommissions,
+  getCustomerCommissionRates,
+  getAllRoundCustomerCommissions,
+  COMMISSION_UPDATED_EVENT
+} from '../utils/commissionUtils';
+import { getResolvedVoucherCommission, getResolvedForwardCommission } from '../utils/statementUtils';
 
 
 interface FootballContextType {
@@ -590,13 +599,22 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('forward_counter_fb_v1', String(counter));
     const pad = String(counter).padStart(6, '0');
 
+    const resolvedRate = typeof slipData.commissionRate === 'number'
+      ? slipData.commissionRate
+      : getUplineCommission(slipData.masterAgentName || '', settings.defaultCommissionRate ?? 0, 'football');
+    const resolvedAmount = typeof slipData.commissionAmount === 'number'
+      ? slipData.commissionAmount
+      : Math.round(((slipData.stakeAmount || 0) * resolvedRate) / 100);
+
     const newSlip: FootballForwardSlip = {
       ...slipData,
+      commissionRate: resolvedRate,
+      commissionAmount: resolvedAmount,
       slipId: finalSlipId,
       id: generateUUID(),
       slipNo: `${shortCode}-FWDFB-${pad}`,
       createdAt: new Date().toISOString(),
-      upperCommissionRate: slipData.commissionRate ?? settings.defaultCommissionRate,
+      upperCommissionRate: resolvedRate,
       snapshotSource: 'created'
     };
     setForwardSlips(prev => [newSlip, ...prev]);
@@ -612,13 +630,27 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setForwardSlips(updated);
   }, [rawForwardSlips]);
 
-  // Overall financial summary for active date
+  const [commissionRevision, setCommissionRevision] = useState(0);
+  useEffect(() => {
+    const onCommUpdated = () => setCommissionRevision((r) => r + 1);
+    window.addEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+    return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
+  }, []);
+
+  // Overall financial summary for active date (Unified with statementUtils Single Source of Truth)
   const summary = useMemo<FootballSummary>(() => {
+    const globalRates = getCustomerCommissionRates('football');
+    const roundRates = getAllRoundCustomerCommissions();
+    const uplineGlobalRates = getUplineCommissionRates('football');
+    const uplineRoundRates = getAllRoundUplineCommissions();
+    const roundKeyFB = `football-${activeDate}`;
+    const defaultDownlineFB = typeof settings.defaultCustomerDiscount === 'number' ? settings.defaultCustomerDiscount : 0;
+    const defaultUplineFB = typeof settings.defaultCommissionRate === 'number' ? settings.defaultCommissionRate : 0;
+
     let totalStake = 0;
     let totalBodyStake = 0;
     let totalMaungStake = 0;
     let totalDiscount = 0;
-    let netRevenue = 0;
     let totalPayout = 0;
     let retainedPayout = 0;
     let wonTicketsCount = 0;
@@ -626,23 +658,44 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let pendingTicketsCount = 0;
 
     activeDateSlips.forEach(s => {
-      totalStake += s.stakeAmount;
-      totalDiscount += s.discountAmount;
-      netRevenue += s.netPayable;
+      const resolvedSlip = getResolvedVoucherCommission({
+        voucher: s,
+        mode: 'football',
+        roundKey: roundKeyFB,
+        defaultDownlineRate: defaultDownlineFB,
+        globalRates,
+        roundRates
+      });
+      const stake = resolvedSlip.gross;
+      totalStake += stake;
+      totalDiscount += resolvedSlip.amount;
 
       if (s.slipType === 'body_single') {
-        totalBodyStake += s.stakeAmount;
+        totalBodyStake += stake;
       } else {
-        totalMaungStake += s.stakeAmount;
+        totalMaungStake += stake;
       }
 
       // Calculate forwarded ratio for this slip
       const forwardedStakeForSlip = activeDateForwardSlips
         .filter(f => f.slipId === s.id || (f.slipNo && f.slipNo === s.slipNo))
         .reduce((sum, f) => sum + f.stakeAmount, 0);
-      const forwardRatio = s.stakeAmount > 0 ? Math.min(1, forwardedStakeForSlip / s.stakeAmount) : 0;
+      const forwardRatio = stake > 0 ? Math.min(1, forwardedStakeForSlip / stake) : 0;
 
-      const actPayout = s.actualPayout || 0;
+      const isSettledOrEvaluated =
+        s.status === 'settled' ||
+        s.outcome === 'won' ||
+        s.outcome === 'half_won' ||
+        s.outcome === 'draw' ||
+        s.outcome === 'half_lost' ||
+        s.outcome === 'lost';
+      const actPayout = !isSettledOrEvaluated
+        ? 0
+        : typeof s.actualPayout === 'number'
+        ? s.actualPayout
+        : (s.outcome === 'won' || s.outcome === 'half_won')
+        ? (s.potentialPayout || 0)
+        : 0;
       totalPayout += actPayout;
       retainedPayout += actPayout * (1 - forwardRatio);
 
@@ -659,9 +712,18 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let forwardedCommission = 0;
     activeDateForwardSlips.forEach(f => {
       totalForwarded += f.stakeAmount;
-      forwardedCommission += f.commissionAmount;
+      const resolvedFwd = getResolvedForwardCommission({
+        forwardSlip: f,
+        mode: 'football',
+        roundKey: roundKeyFB,
+        defaultUplineRate: defaultUplineFB,
+        uplineGlobalRates,
+        uplineRoundRates
+      });
+      forwardedCommission += resolvedFwd.amount;
     });
 
+    const netRevenue = totalStake - totalDiscount;
     const netPaid = totalForwarded - forwardedCommission;
     const netProfit = netRevenue - netPaid - retainedPayout;
 
@@ -682,7 +744,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       lostTicketsCount,
       pendingTicketsCount
     };
-  }, [activeDateSlips, activeDateForwardSlips]);
+  }, [activeDate, activeDateSlips, activeDateForwardSlips, settings.defaultCustomerDiscount, settings.defaultCommissionRate, commissionRevision]);
 
   const exportToExcel = useCallback(() => {
     exportFootballDataToExcel(

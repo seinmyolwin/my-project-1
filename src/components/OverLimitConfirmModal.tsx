@@ -13,8 +13,10 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
+import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { OverLimitItemInfo, OverLimitAction } from '../types';
 import { formatAmount } from '../utils/lotteryUtils';
+import { getUplineCommission, getUplineCommissionRates } from '../utils/commissionUtils';
 
 export type { OverLimitItemInfo, OverLimitAction } from '../types';
 
@@ -24,6 +26,7 @@ interface OverLimitConfirmModalProps {
   items?: OverLimitItemInfo[];
   overLimitItems?: OverLimitItemInfo[];
   customerName?: string;
+  mode?: '2d' | '3d';
   onConfirm: (
     decisions: OverLimitItemInfo[],
     masterAgentName: string,
@@ -38,10 +41,13 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
   items,
   overLimitItems,
   customerName = 'အထွေထွေ',
+  mode = '3d',
   onConfirm
 }) => {
   const effectiveItems = overLimitItems || items || [];
-  const { settings } = useLottery();
+  const { settings: settings3D } = useLottery();
+  const { settings: settings2D } = useTwoDLottery();
+  const settings = mode === '2d' ? settings2D : settings3D;
   const isMyanmar = settings.language === 'my';
 
   const [decisions, setDecisions] = useState<OverLimitItemInfo[]>([]);
@@ -51,13 +57,19 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
   const [masterPhone, setMasterPhone] = useState<string>(
     settings.defaultMasterAgentPhone || ''
   );
-  const [commissionRate, setCommissionRate] = useState<number>(
-    settings.defaultCommissionRate ?? 0
+  const [commissionRate, setCommissionRate] = useState<number>(() =>
+    getUplineCommission(settings.defaultMasterAgentName || '', settings.defaultCommissionRate ?? 0, mode)
   );
 
   useEffect(() => {
-    setCommissionRate(settings.defaultCommissionRate ?? 0);
-  }, [settings.defaultCommissionRate, isOpen]);
+    if (!isOpen) return;
+    const defaultName = settings.defaultMasterAgentName || '';
+    setMasterName(defaultName);
+    setMasterPhone(settings.defaultMasterAgentPhone || '');
+    setCommissionRate(
+      getUplineCommission(defaultName, settings.defaultCommissionRate ?? 0, mode)
+    );
+  }, [settings.defaultMasterAgentName, settings.defaultMasterAgentPhone, settings.defaultCommissionRate, isOpen, mode]);
 
   useEffect(() => {
     if (effectiveItems && effectiveItems.length > 0) {
@@ -198,7 +210,14 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
                   <input
                     type="text"
                     value={masterName}
-                    onChange={(e) => setMasterName(e.target.value)}
+                    onChange={(e) => {
+                      const nextName = e.target.value;
+                      setMasterName(nextName);
+                      const uplineMap = getUplineCommissionRates(mode);
+                      if (uplineMap[nextName.trim()] !== undefined) {
+                        setCommissionRate(uplineMap[nextName.trim()]);
+                      }
+                    }}
                     className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-medium outline-none focus:border-indigo-500 shadow-2xs"
                   />
                 </div>
@@ -215,13 +234,16 @@ export const OverLimitConfirmModal: React.FC<OverLimitConfirmModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    {isMyanmar ? 'ရရှိမည့် ကော်မရှင် (%) (ဆက်တင်မှ)' : 'Commission Rate (%) (Settings)'}
+                    {isMyanmar ? 'အထက်ဒိုင်ကော် (%)' : 'Commission Rate (%)'}
                   </label>
                   <input
                     type="number"
-                    readOnly
+                    min="0"
+                    max="100"
+                    step="0.5"
                     value={commissionRate}
-                    className="w-full bg-slate-100 border border-indigo-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-bold font-mono outline-none cursor-not-allowed shadow-2xs"
+                    onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-slate-900 font-bold font-mono outline-none focus:border-indigo-500 shadow-2xs"
                   />
                 </div>
               </div>

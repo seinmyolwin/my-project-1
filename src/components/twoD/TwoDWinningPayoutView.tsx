@@ -28,7 +28,9 @@ import {
 import {
   COMMISSION_UPDATED_EVENT,
   getCustomerCommissionRates,
-  getAllRoundCustomerCommissions
+  getAllRoundCustomerCommissions,
+  getUplineCommissionRates,
+  getAllRoundUplineCommissions
 } from '../../utils/commissionUtils';
 import { CustomerCommissionPromptModal } from '../CustomerCommissionPromptModal';
 import { triggerRibbonsCelebration } from '../../utils/audioUtils';
@@ -458,8 +460,10 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
       winningNumber: currentWinningNumber,
       multiplier: currentMultiplier,
       settings,
-      globalRates: getCustomerCommissionRates(),
-      roundRates: getAllRoundCustomerCommissions()
+      globalRates: getCustomerCommissionRates('2d'),
+      roundRates: getAllRoundCustomerCommissions(),
+      uplineGlobalRates: getUplineCommissionRates('2d'),
+      uplineRoundRates: getAllRoundUplineCommissions()
     });
   }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, currentWinningNumber, currentMultiplier, settings, commissionRevision]);
 
@@ -937,7 +941,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                 className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
               >
                 <Percent className="w-3.5 h-3.5" />
-                <span>ထိုးသားကော် သတ်မှတ်ရန်</span>
+                <span>ထိုးသား / အထက်ဒိုင်ကော်</span>
               </button>
               <div className="text-right">
                 <span className="text-[10px] text-slate-300 font-bold block uppercase tracking-wider">ဒိုင် အသားတင် ရလဒ်</span>
@@ -1242,12 +1246,20 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
         isOpen={isCommissionPromptOpen}
         records={
           activeRound
-            ? [{ id: `2d-${activeRound.id}`, name: activeRound.name, date: activeRound.drawDate, vouchersList: activeRoundVouchers }]
+            ? [{
+                id: `2d-${activeRound.id}`,
+                mode: '2d',
+                name: activeRound.name,
+                date: activeRound.drawDate,
+                vouchersList: activeRoundVouchers,
+                forwardList: activeRoundForwardSlips
+              }]
             : []
         }
         currency={settings.currency}
         defaultFallbackRate={settings.defaultCustomerDiscount ?? 0}
-        title={`${activeRound?.name || '2D ပွဲစဉ်'} - ထိုးသား ကော်မရှင် သတ်မှတ်ရန်`}
+        defaultUplineFallbackRate={settings.defaultCommissionRate ?? 0}
+        title={`${activeRound?.name || '2D ပွဲစဉ်'} - ထိုးသား / အထက်ဒိုင်ကော် သတ်မှတ်ရန်`}
         onConfirm={() => {
           setCommissionRevision((r) => r + 1);
           setIsCommissionPromptOpen(false);

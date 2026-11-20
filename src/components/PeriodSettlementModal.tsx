@@ -21,11 +21,24 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, evaluateWinnings, calculate3DForwardMasterPayout, getToddWinningNumbers } from '../utils/lotteryUtils';
-import { getLocalDateStr, getDaysAgoStr, generateStatementRecords, getVoucherGrossTurnover } from '../utils/statementUtils';
 import {
-  getCustomerCommission,
-  getCustomerCommissionRates,
-  setCustomerCommissionRates,
+  getLocalDateStr,
+  getDaysAgoStr,
+  generateStatementRecords,
+  getResolvedVoucherCommission,
+  getResolvedForwardCommission
+} from '../utils/statementUtils';
+import {
+  CommissionBusinessMode,
+  ScopedCommissionRates,
+  COMMISSION_BUSINESS_MODES,
+  inferModeFromRoundKey,
+  getCustomerCommissionRatesByMode,
+  setBulkRoundAndGlobalCustomerCommissions,
+  getUplineCommissionRatesByMode,
+  setBulkRoundAndGlobalUplineCommissions,
+  getAllRoundUplineCommissions,
+  getAllRoundCustomerCommissions,
   COMMISSION_UPDATED_EVENT
 } from '../utils/commissionUtils';
 import { printStatementReport } from '../utils/printUtils';
@@ -68,6 +81,31 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       ? (football.settings.defaultCustomerDiscount ?? 0)
       : (lottery3D.settings.defaultCustomerDiscount ?? 0);
 
+  const defaultUplineCommission =
+    modeFilter === '2d'
+      ? (lottery2D.settings.defaultCommissionRate ?? 0)
+      : modeFilter === 'football'
+      ? (football.settings.defaultCommissionRate ?? 0)
+      : (lottery3D.settings.defaultCommissionRate ?? 0);
+
+  const getDefaultDownlineForMode = (mode: CommissionBusinessMode): number => {
+    if (mode === '2d') return lottery2D.settings.defaultCustomerDiscount ?? 0;
+    if (mode === 'football') return football.settings?.defaultCustomerDiscount ?? 0;
+    return lottery3D.settings.defaultCustomerDiscount ?? 0;
+  };
+
+  const getDefaultUplineForMode = (mode: CommissionBusinessMode): number => {
+    if (mode === '2d') return lottery2D.settings.defaultCommissionRate ?? 0;
+    if (mode === 'football') return football.settings?.defaultCommissionRate ?? 0;
+    return lottery3D.settings.defaultCommissionRate ?? 0;
+  };
+
+  const getModeShortLabel = (mode: CommissionBusinessMode): string => {
+    if (mode === '2d') return 'ဇီးကွက် (2D)';
+    if (mode === '3d') return 'အိုးစည်လေး (3D)';
+    return 'ပစ်တိုင်းထောင်';
+  };
+
   // Mode: downline (အောက်လက်ဒိုင်ငယ်/ဖောက်သည်) or upline (အထက်ဒိုင်/မာစတာဒိုင်)
   const [settlementType, setSettlementType] = useState<'downline' | 'upline'>('downline');
 
@@ -78,7 +116,12 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const [endDate, setEndDate] = useState(todayStr);
 
   const [selectedTarget, setSelectedTarget] = useState<string>('');
-  const [customCommissionRate, setCustomCommissionRate] = useState<number>(defaultCommission);
+  const [perModeRates, setPerModeRates] = useState<Record<CommissionBusinessMode, number>>({
+    '2d': getDefaultDownlineForMode('2d'),
+    '3d': getDefaultDownlineForMode('3d'),
+    'football': getDefaultDownlineForMode('football')
+  });
+  const [dirtyModes, setDirtyModes] = useState<Partial<Record<CommissionBusinessMode, boolean>>>({});
   const [copiedStatementText, setCopiedStatementText] = useState(false);
 
   const [commissionRevision, setCommissionRevision] = useState(0);
@@ -89,29 +132,86 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     return () => window.removeEventListener(COMMISSION_UPDATED_EVENT, onCommUpdated);
   }, []);
 
-  // Load/save customer custom commission rates via unified commissionUtils
-  const customerCommissions = useMemo(() => {
-    return getCustomerCommissionRates();
+  // Load/save customer & upline custom commission rates strictly scoped by business mode
+  const customerCommissionsByMode = useMemo<ScopedCommissionRates>(() => {
+    return getCustomerCommissionRatesByMode();
   }, [commissionRevision, isOpen]);
 
-  // When selected target changes for downline, load its saved custom commission rate if any
-  React.useEffect(() => {
-    if (settlementType === 'downline' && selectedTarget) {
-      if (customerCommissions[selectedTarget] !== undefined) {
-        setCustomCommissionRate(customerCommissions[selectedTarget]);
-      } else {
-        setCustomCommissionRate(defaultCommission);
-      }
-    }
-  }, [selectedTarget, settlementType, defaultCommission, customerCommissions]);
+  const uplineCommissionsByMode = useMemo<ScopedCommissionRates>(() => {
+    return getUplineCommissionRatesByMode();
+  }, [commissionRevision, isOpen]);
 
-  const handleSaveCustomerCommission = (name: string, rate: number) => {
+  // When selected target or settlementType changes, load its saved per-business custom rates
+  React.useEffect(() => {
+    if (!selectedTarget) return;
+    if (settlementType === 'downline') {
+      setPerModeRates({
+        '2d': customerCommissionsByMode['2d'][selectedTarget] ?? getDefaultDownlineForMode('2d'),
+        '3d': customerCommissionsByMode['3d'][selectedTarget] ?? getDefaultDownlineForMode('3d'),
+        'football': customerCommissionsByMode['football'][selectedTarget] ?? getDefaultDownlineForMode('football')
+      });
+    } else {
+      setPerModeRates({
+        '2d': uplineCommissionsByMode['2d'][selectedTarget] ?? getDefaultUplineForMode('2d'),
+        '3d': uplineCommissionsByMode['3d'][selectedTarget] ?? getDefaultUplineForMode('3d'),
+        'football': uplineCommissionsByMode['football'][selectedTarget] ?? getDefaultUplineForMode('football')
+      });
+    }
+    setDirtyModes({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTarget, settlementType, customerCommissionsByMode, uplineCommissionsByMode, lottery2D.settings.defaultCustomerDiscount, lottery2D.settings.defaultCommissionRate, lottery3D.settings.defaultCustomerDiscount, lottery3D.settings.defaultCommissionRate, football.settings.defaultCustomerDiscount, football.settings.defaultCommissionRate]);
+
+  const getRoundKeysInRangeForMode = (mode: CommissionBusinessMode): string[] => {
+    const keys: string[] = [];
+    if (mode === '2d') {
+      lottery2D.rounds.forEach((r) => {
+        const d = (r.drawDate || '').slice(0, 10);
+        if (d >= startDate && d <= endDate) keys.push(`2d-${r.id}`);
+      });
+      lottery2D.vouchers.forEach((v: any) => {
+        const d = (v.createdAt || '').slice(0, 10);
+        if (d >= startDate && d <= endDate && !v.roundId) {
+          const k = `2d-orphaned-${d}`;
+          if (!keys.includes(k)) keys.push(k);
+        }
+      });
+    } else if (mode === '3d') {
+      lottery3D.rounds.forEach((r) => {
+        const d = (r.drawDate || '').slice(0, 10);
+        if (d >= startDate && d <= endDate) keys.push(`3d-${r.id}`);
+      });
+      lottery3D.vouchers.forEach((v: any) => {
+        const d = (v.createdAt || '').slice(0, 10);
+        if (d >= startDate && d <= endDate && !v.roundId) {
+          const k = `3d-orphaned-${d}`;
+          if (!keys.includes(k)) keys.push(k);
+        }
+      });
+    } else {
+      football.slips.forEach((s: any) => {
+        const d = s.roundDate || (s.createdAt || '').slice(0, 10);
+        if (d >= startDate && d <= endDate) {
+          const k = `football-${d}`;
+          if (!keys.includes(k)) keys.push(k);
+        }
+      });
+    }
+    return keys;
+  };
+
+  const handleSaveTargetCommission = (name: string, modeToSave: CommissionBusinessMode, rate: number) => {
     try {
-      const updated = { ...customerCommissions, [name]: rate };
-      setCustomerCommissionRates(updated);
-      setCustomCommissionRate(rate);
+      const clamped = isNaN(rate) || rate < 0 ? 0 : Math.min(100, rate);
+      const roundKeys = getRoundKeysInRangeForMode(modeToSave);
+      if (settlementType === 'downline') {
+        setBulkRoundAndGlobalCustomerCommissions(roundKeys, { [name]: clamped }, modeToSave);
+      } else {
+        setBulkRoundAndGlobalUplineCommissions(roundKeys, { [name]: clamped }, modeToSave);
+      }
+      setPerModeRates((prev) => ({ ...prev, [modeToSave]: clamped }));
+      setDirtyModes((prev) => ({ ...prev, [modeToSave]: false }));
       setCommissionRevision((r) => r + 1);
-      alert(`"${name}" အတွက် ကော်မရှင်နှုန်း ${rate}% အား အောင်မြင်စွာ မှတ်သားပြီးပါပြီ ✓`);
+      alert(`"${name}" (${getModeShortLabel(modeToSave)}) အတွက် ကော်မရှင်နှုန်း ${clamped}% အား အောင်မြင်စွာ မှတ်သားပြီးပါပြီ ✓`);
     } catch {}
   };
 
@@ -189,17 +289,47 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   };
 
   // ---------------------------------------------------------------------------
-  // SETTLEMENT COMPUTATION FOR DOWNLINE (VOUCHERS)
+  // SETTLEMENT COMPUTATION FOR DOWNLINE (VOUCHERS) — SCOPED PER BUSINESS MODE
   // ---------------------------------------------------------------------------
   const downlineSettlementData = useMemo(() => {
-    if (!selectedTarget) return { totalSales: 0, totalCommission: 0, totalPayout: 0, netBalance: 0, items: [] };
+    if (!selectedTarget) {
+      return {
+        totalSales: 0,
+        totalCommission: 0,
+        totalPayout: 0,
+        netBalance: 0,
+        items: [],
+        activeModes: [] as CommissionBusinessMode[]
+      };
+    }
+
+    const roundRatesAll = getAllRoundCustomerCommissions();
+    const effectiveGlobalByMode: ScopedCommissionRates = {
+      '2d': { ...customerCommissionsByMode['2d'], [selectedTarget]: perModeRates['2d'] },
+      '3d': { ...customerCommissionsByMode['3d'], [selectedTarget]: perModeRates['3d'] },
+      'football': { ...customerCommissionsByMode['football'], [selectedTarget]: perModeRates['football'] }
+    };
+    const effectiveRoundRates: Record<string, Record<string, number>> = {};
+    for (const [rk, map] of Object.entries(roundRatesAll)) {
+      const m = inferModeFromRoundKey(rk);
+      if (dirtyModes[m]) {
+        const cloned = { ...map };
+        delete cloned[selectedTarget];
+        effectiveRoundRates[rk] = cloned;
+      } else {
+        effectiveRoundRates[rk] = map;
+      }
+    }
 
     let totalSales = 0;
+    let totalCommission = 0;
     let totalPayout = 0;
+    const activeModesSet = new Set<CommissionBusinessMode>();
     const dayGroupMap: Record<string, {
       date: string;
       mode: string;
       amount: number;
+      commission: number;
       payout: number;
       itemsCount: number;
       summaries: string[];
@@ -211,6 +341,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       date: string,
       mode: string,
       amount: number,
+      commission: number,
       payout: number,
       summary: string,
       winningNumber?: string,
@@ -222,6 +353,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           date,
           mode,
           amount: 0,
+          commission: 0,
           payout: 0,
           itemsCount: 0,
           summaries: [],
@@ -230,6 +362,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         };
       }
       dayGroupMap[key].amount += amount;
+      dayGroupMap[key].commission += commission;
       dayGroupMap[key].payout += payout;
       dayGroupMap[key].itemsCount += 1;
       if (summary && summary !== '-') {
@@ -254,13 +387,25 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     // 3D Vouchers
     const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
     const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
+    const defaultDownline3D = typeof lottery3D.settings.defaultCustomerDiscount === 'number' ? lottery3D.settings.defaultCustomerDiscount : 0;
     if (modeFilter === 'all' || modeFilter === '3d') {
       lottery3D.vouchers.forEach((v: any) => {
         if (v.status === 'cancelled' || v.deletedAt) return;
         const round = lottery3D.rounds.find(r => r.id === v.roundId);
         const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
         if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
-          const amt = getVoucherGrossTurnover(v);
+          activeModesSet.add('3d');
+          const roundKey3D = round ? `3d-${round.id}` : `3d-orphaned-${vDate}`;
+          const resolvedVouch = getResolvedVoucherCommission({
+            voucher: v,
+            mode: '3d',
+            roundKey: roundKey3D,
+            defaultDownlineRate: defaultDownline3D,
+            globalRatesByMode: effectiveGlobalByMode,
+            roundRates: effectiveRoundRates
+          });
+          const amt = resolvedVouch.gross;
+          const comm = resolvedVouch.amount;
           const winningNum = round?.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
 
           let payout = 0;
@@ -284,22 +429,35 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           }
 
           totalSales += amt;
+          totalCommission += comm;
           totalPayout += payout;
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-          addRecord(vDate, 'အိုးစည်လေး', amt, payout, sumText, winningNum, wonBets);
+          addRecord(vDate, 'အိုးစည်လေး', amt, comm, payout, sumText, winningNum, wonBets);
         }
       });
     }
 
     // 2D Vouchers
+    const defaultDownline2D = typeof lottery2D.settings.defaultCustomerDiscount === 'number' ? lottery2D.settings.defaultCustomerDiscount : 0;
     if (modeFilter === 'all' || modeFilter === '2d') {
       lottery2D.vouchers.forEach((v: any) => {
         if (v.status === 'cancelled' || v.deletedAt) return;
         const round = lottery2D.rounds.find(r => r.id === v.roundId);
         const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
         if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
+          activeModesSet.add('2d');
           const sessionLabel = round?.session === 'morning' ? 'မနက်' : round?.session === 'evening' ? 'ညနေ' : '၂ လုံး';
-          const amt = getVoucherGrossTurnover(v);
+          const roundKey2D = round ? `2d-${round.id}` : `2d-orphaned-${vDate}`;
+          const resolvedVouch = getResolvedVoucherCommission({
+            voucher: v,
+            mode: '2d',
+            roundKey: roundKey2D,
+            defaultDownlineRate: defaultDownline2D,
+            globalRatesByMode: effectiveGlobalByMode,
+            roundRates: effectiveRoundRates
+          });
+          const amt = resolvedVouch.gross;
+          const comm = resolvedVouch.amount;
           const winningNum = round?.winningNumber;
           const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
 
@@ -321,27 +479,55 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           }
 
           totalSales += amt;
+          totalCommission += comm;
           totalPayout += payout;
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
           const dayShort = getMyanmarShortDay(vDate);
           const twoDModeLabel = dayShort ? `${dayShort} (${sessionLabel})` : sessionLabel;
-          addRecord(vDate, twoDModeLabel, amt, payout, sumText, winningNum, wonBets);
+          addRecord(vDate, twoDModeLabel, amt, comm, payout, sumText, winningNum, wonBets);
         }
       });
     }
 
     // Football Slips
+    const defaultDownlineFB = typeof football.settings?.defaultCustomerDiscount === 'number' ? football.settings.defaultCustomerDiscount : 0;
     if (modeFilter === 'all' || modeFilter === 'football') {
       football.slips.forEach((s: any) => {
         if (s.status === 'cancelled' || s.deletedAt) return;
         const sDate = s.roundDate || (s.createdAt || '').slice(0, 10);
         if (sDate >= startDate && sDate <= endDate && s.customerName?.trim() === selectedTarget) {
-          const amt = s.stakeAmount || s.netPayable || 0;
-          const payout = s.winningPayout || 0;
+          activeModesSet.add('football');
+          const roundKeyFB = `football-${sDate}`;
+          const resolvedSlip = getResolvedVoucherCommission({
+            voucher: s,
+            mode: 'football',
+            roundKey: roundKeyFB,
+            defaultDownlineRate: defaultDownlineFB,
+            globalRatesByMode: effectiveGlobalByMode,
+            roundRates: effectiveRoundRates
+          });
+          const amt = resolvedSlip.gross;
+          const comm = resolvedSlip.amount;
+          const isSettledOrEvaluated =
+            s.status === 'settled' ||
+            s.outcome === 'won' ||
+            s.outcome === 'half_won' ||
+            s.outcome === 'draw' ||
+            s.outcome === 'half_lost' ||
+            s.outcome === 'lost';
+          const payout = !isSettledOrEvaluated
+            ? 0
+            : typeof s.actualPayout === 'number'
+            ? s.actualPayout
+            : (s.outcome === 'won' || s.outcome === 'half_won')
+            ? (s.potentialPayout || 0)
+            : (s.winningPayout || 0);
+
           totalSales += amt;
+          totalCommission += comm;
           totalPayout += payout;
           const sumText = s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-';
-          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, payout, sumText);
+          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, comm, payout, sumText);
         }
       });
     }
@@ -351,30 +537,43 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       mode: g.mode,
       refNo: `${g.itemsCount} ဘောင်ချာ`,
       amount: g.amount,
+      commission: g.commission,
       payout: g.payout,
       winningNumbers: g.winningNumbers,
       winningBets: g.winningBets,
       summary: g.summaries.join(' | ') || '-'
     }));
 
-    const commissionRate = getCustomerCommission(selectedTarget, customCommissionRate);
-    const totalCommission = Math.round((totalSales * commissionRate) / 100);
     const netBalance = (totalSales - totalCommission) - totalPayout;
+    const activeModes: CommissionBusinessMode[] =
+      modeFilter !== 'all'
+        ? [modeFilter]
+        : COMMISSION_BUSINESS_MODES.filter((m) => activeModesSet.has(m));
 
     return {
       totalSales,
       totalCommission,
       totalPayout,
       netBalance,
-      items: items.sort((a, b) => b.date.localeCompare(a.date))
+      items: items.sort((a, b) => b.date.localeCompare(a.date)),
+      activeModes
     };
-  }, [modeFilter, selectedTarget, startDate, endDate, customCommissionRate, lottery3D.vouchers, lottery3D.rounds, lottery3D.settings, lottery2D.vouchers, lottery2D.rounds, lottery2D.settings, football.slips]);
+  }, [modeFilter, selectedTarget, startDate, endDate, perModeRates, dirtyModes, customerCommissionsByMode, commissionRevision, lottery3D.vouchers, lottery3D.rounds, lottery3D.settings, lottery2D.vouchers, lottery2D.rounds, lottery2D.settings, football.slips, football.settings]);
 
   // ---------------------------------------------------------------------------
   // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS via generateStatementRecords)
   // ---------------------------------------------------------------------------
   const uplineSettlementData = useMemo(() => {
-    if (!selectedTarget) return { totalForwarded: 0, totalCommission: 0, totalPayout: 0, netBalance: 0, items: [] };
+    if (!selectedTarget) {
+      return {
+        totalForwarded: 0,
+        totalCommission: 0,
+        totalPayout: 0,
+        netBalance: 0,
+        items: [],
+        activeModes: [] as CommissionBusinessMode[]
+      };
+    }
 
     const dataSources = {
       lottery2D: {
@@ -396,11 +595,35 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       }
     };
 
-    const records = generateStatementRecords(dataSources, modeFilter, startDate, endDate);
+    const effectiveUplineByMode: ScopedCommissionRates = {
+      '2d': { ...uplineCommissionsByMode['2d'], [selectedTarget]: perModeRates['2d'] },
+      '3d': { ...uplineCommissionsByMode['3d'], [selectedTarget]: perModeRates['3d'] },
+      'football': { ...uplineCommissionsByMode['football'], [selectedTarget]: perModeRates['football'] }
+    };
+    const rawUplineRoundRates = getAllRoundUplineCommissions();
+    const effectiveUplineRoundRates: Record<string, Record<string, number>> = {};
+    for (const [rk, map] of Object.entries(rawUplineRoundRates)) {
+      const m = inferModeFromRoundKey(rk);
+      if (dirtyModes[m]) {
+        const cloned = { ...map };
+        delete cloned[selectedTarget];
+        effectiveUplineRoundRates[rk] = cloned;
+      } else {
+        effectiveUplineRoundRates[rk] = map;
+      }
+    }
+
+    const records = generateStatementRecords(dataSources, modeFilter, startDate, endDate, {
+      globalRatesByMode: customerCommissionsByMode,
+      roundRates: getAllRoundCustomerCommissions(),
+      uplineGlobalRatesByMode: effectiveUplineByMode,
+      uplineRoundRates: effectiveUplineRoundRates
+    });
 
     let totalForwarded = 0;
     let totalCommission = 0;
     let totalPayout = 0;
+    const activeModesSet = new Set<CommissionBusinessMode>();
     const items: Array<{
       date: string;
       mode: string;
@@ -416,22 +639,31 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
     const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
     const uplineRate3D = typeof lottery3D.settings.defaultCommissionRate === 'number' ? lottery3D.settings.defaultCommissionRate : 0;
+    const uplineRate2D = typeof lottery2D.settings.defaultCommissionRate === 'number' ? lottery2D.settings.defaultCommissionRate : 0;
+    const uplineRateFB = typeof football.settings.defaultCommissionRate === 'number' ? football.settings.defaultCommissionRate : 0;
 
     records.forEach((rec) => {
       const forwards = rec.forwardList || [];
       const targetForwards = forwards.filter((f: any) => !(f as any).deletedAt && f.masterAgentName?.trim() === selectedTarget);
+      const defaultRecUplineRate =
+        rec.mode === '3d' ? uplineRate3D : rec.mode === '2d' ? uplineRate2D : uplineRateFB;
 
       if (targetForwards.length > 0) {
+        activeModesSet.add(rec.mode);
         let recAgentForwarded = 0;
         let recAgentCommission = 0;
         targetForwards.forEach((f: any) => {
           const amt = f.totalAmount || 0;
           recAgentForwarded += amt;
-          if (rec.mode === '3d') {
-            recAgentCommission += uplineRate3D > 0 ? Math.round((amt * uplineRate3D) / 100) : 0;
-          } else {
-            recAgentCommission += f.commissionAmount || 0;
-          }
+          const resolvedFwd = getResolvedForwardCommission({
+            forwardSlip: f,
+            mode: rec.mode,
+            roundKey: rec.id,
+            defaultUplineRate: defaultRecUplineRate,
+            uplineGlobalRatesByMode: effectiveUplineByMode,
+            uplineRoundRates: effectiveUplineRoundRates
+          });
+          recAgentCommission += resolvedFwd.amount;
         });
 
         let recAgentPayout = 0;
@@ -535,15 +767,38 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
     });
 
     const netBalance = (totalForwarded - totalCommission) - totalPayout;
+    const activeModes: CommissionBusinessMode[] =
+      modeFilter !== 'all'
+        ? [modeFilter]
+        : COMMISSION_BUSINESS_MODES.filter((m) => activeModesSet.has(m));
 
     return {
       totalForwarded,
       totalCommission,
       totalPayout,
       netBalance,
-      items: items.sort((a, b) => b.date.localeCompare(a.date))
+      items: items.sort((a, b) => b.date.localeCompare(a.date)),
+      activeModes
     };
-  }, [modeFilter, selectedTarget, startDate, endDate, lottery2D.rounds, lottery2D.vouchers, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.vouchers, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
+  }, [modeFilter, selectedTarget, startDate, endDate, perModeRates, dirtyModes, customerCommissionsByMode, uplineCommissionsByMode, commissionRevision, lottery2D.rounds, lottery2D.vouchers, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.vouchers, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
+
+  const activeModesForControls: CommissionBusinessMode[] = useMemo(() => {
+    if (modeFilter !== 'all') return [modeFilter];
+    const fromData =
+      settlementType === 'downline'
+        ? downlineSettlementData.activeModes
+        : uplineSettlementData.activeModes;
+    return fromData.length > 0 ? fromData : ['2d', '3d'];
+  }, [modeFilter, settlementType, downlineSettlementData.activeModes, uplineSettlementData.activeModes]);
+
+  const rateSummaryLabel = useMemo(() => {
+    if (activeModesForControls.length === 1) {
+      return `${perModeRates[activeModesForControls[0]]}%`;
+    }
+    return activeModesForControls
+      .map((m) => `${m.toUpperCase()} ${perModeRates[m]}%`)
+      .join(' / ');
+  }, [activeModesForControls, perModeRates]);
 
   // Export to Excel
   const handleExportExcel = () => {
@@ -565,7 +820,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         'ဘောက်ချာနံပါတ်': `ဒိုင်ငယ်: ${selectedTarget}`,
         'ထိုးငွေ (ကျပ်)': downlineSettlementData.totalSales,
         'ပေါက်ကြေး (ကျပ်)': downlineSettlementData.totalPayout,
-        'အသေးစိတ်': `ကော်မရှင် (${customCommissionRate}%): ${downlineSettlementData.totalCommission}`
+        'အသေးစိတ်': `ကော်မရှင် (${rateSummaryLabel}): ${downlineSettlementData.totalCommission}`
       });
 
       const ws = XLSX.utils.json_to_sheet(data);
@@ -813,29 +1068,55 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
               </button>
             </div>
 
-            {settlementType === 'downline' && selectedTarget && (
-              <div className="flex items-center gap-2">
+            {selectedTarget && (
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                  <Percent className="w-3.5 h-3.5 text-teal-600" />
-                  ကော်မရှင် %:
+                  <Percent className={`w-3.5 h-3.5 ${settlementType === 'downline' ? 'text-teal-600' : 'text-indigo-600'}`} />
+                  {settlementType === 'downline' ? 'ထိုးသားကော် %:' : 'အထက်ဒိုင်ကော် %:'}
                 </span>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="100"
-                  value={customCommissionRate}
-                  onChange={(e) => setCustomCommissionRate(parseFloat(e.target.value) || 0)}
-                  className="w-16 bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:ring-2 focus:ring-teal-500/30 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleSaveCustomerCommission(selectedTarget, customCommissionRate)}
-                  className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                  title="ဤဖောက်သည်အတွက် ကော်မရှင်နှုန်းအား အမြဲမှတ်သားရန်"
-                >
-                  မှတ်သား
-                </button>
+                {activeModesForControls.map((m) => (
+                  <div
+                    key={m}
+                    className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1"
+                  >
+                    {activeModesForControls.length > 1 && (
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
+                        m === '2d'
+                          ? 'bg-teal-100 text-teal-900'
+                          : m === '3d'
+                          ? 'bg-slate-200 text-slate-900'
+                          : 'bg-emerald-100 text-emerald-900'
+                      }`}>
+                        {m === '2d' ? '2D' : m === '3d' ? '3D' : 'FB'}
+                      </span>
+                    )}
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      value={perModeRates[m]}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setPerModeRates((prev) => ({ ...prev, [m]: isNaN(val) ? 0 : val }));
+                        setDirtyModes((prev) => ({ ...prev, [m]: true }));
+                      }}
+                      className="w-14 bg-white border border-slate-300 rounded-lg px-1.5 py-0.5 text-xs font-mono font-bold text-center text-slate-800 focus:ring-2 focus:ring-teal-500/30 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveTargetCommission(selectedTarget, m, perModeRates[m])}
+                      className={`px-2 py-0.5 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer ${
+                        settlementType === 'downline'
+                          ? 'bg-teal-600 hover:bg-teal-700'
+                          : 'bg-indigo-600 hover:bg-indigo-700'
+                      }`}
+                      title={`${getModeShortLabel(m)} အတွက် ကော်မရှင်နှုန်းအား အမြဲမှတ်သားရန်`}
+                    >
+                      မှတ်သား
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -850,7 +1131,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 </span>
               </div>
               <div className="bg-sky-950 text-white rounded-2xl p-3.5 border border-sky-800/60 shadow-xs">
-                <span className="text-[11px] font-bold text-sky-300 block mb-1">ကော်မရှင် ({customCommissionRate}%)</span>
+                <span className="text-[11px] font-bold text-sky-300 block mb-1">ကော်မရှင် ({rateSummaryLabel})</span>
                 <span className="text-base sm:text-lg font-mono font-black text-sky-300">
                   {formatAmount(downlineSettlementData.totalCommission)} {currency}
                 </span>
@@ -879,7 +1160,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 </span>
               </div>
               <div className="bg-sky-950 text-white rounded-2xl p-3.5 border border-sky-800/60 shadow-xs">
-                <span className="text-[11px] font-bold text-sky-300 block mb-1">ကော်မရှင်ပြန်ရငွေ</span>
+                <span className="text-[11px] font-bold text-sky-300 block mb-1">ကော်မရှင်ပြန်ရငွေ ({rateSummaryLabel})</span>
                 <span className="text-base sm:text-lg font-mono font-black text-sky-300">
                   {formatAmount(uplineSettlementData.totalCommission)} {currency}
                 </span>

@@ -53,8 +53,10 @@ import {
 } from '../utils/statementUtils';
 import {
   COMMISSION_UPDATED_EVENT,
-  getCustomerCommissionRates,
-  getAllRoundCustomerCommissions
+  getCustomerCommissionRatesByMode,
+  getAllRoundCustomerCommissions,
+  getUplineCommissionRatesByMode,
+  getAllRoundUplineCommissions
 } from '../utils/commissionUtils';
 import { BookieMode, TwoDNumberAggregate, NumberAggregate, TwoDQuickActionButtonsConfig, ThreeDQuickActionButtonsConfig, ThreeDQuickButtonItem, TwoDQuickButtonItem } from '../types';
 import { DEFAULT_2D_ACTION_BUTTONS, DEFAULT_3D_CUSTOM_BUTTONS, DEFAULT_2D_CUSTOM_BUTTONS } from '../utils/storage';
@@ -440,8 +442,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       stmtStartDate,
       stmtEndDate,
       {
-        globalRates: getCustomerCommissionRates(),
-        roundRates: getAllRoundCustomerCommissions()
+        globalRatesByMode: getCustomerCommissionRatesByMode(),
+        roundRates: getAllRoundCustomerCommissions(),
+        uplineGlobalRatesByMode: getUplineCommissionRatesByMode(),
+        uplineRoundRates: getAllRoundUplineCommissions()
       }
     );
   }, [

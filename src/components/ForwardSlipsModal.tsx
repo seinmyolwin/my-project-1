@@ -24,6 +24,11 @@ import { DEFAULT_3D_ACTION_BUTTONS, cleanMasterAgentName } from '../utils/storag
 import { playTapSound, playWarningSound, playAddSound, playSuccessSound, playDeleteSound } from '../utils/audioUtils';
 import { printVoucherSlip } from '../utils/printUtils';
 import { generateUUID } from '../utils/restorePoints';
+import {
+  getUplineCommission,
+  getUplineCommissionRates,
+  setUplineCommissionRates
+} from '../utils/commissionUtils';
 
 // Helper to simplify agent name
 const simplifyAgentName = (name: string) => name.split('(')[0].trim();
@@ -80,12 +85,20 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
   // Form State
   const [masterAgentName, setMasterAgentName] = useState(settings.defaultMasterAgentName || '');
   const [masterAgentPhone, setMasterAgentPhone] = useState(settings.defaultMasterAgentPhone || '');
-  const [commissionRate, setCommissionRate] = useState<number>(settings.defaultCommissionRate ?? 0);
+  const [commissionRate, setCommissionRate] = useState<number>(() =>
+    getUplineCommission(settings.defaultMasterAgentName || '', settings.defaultCommissionRate ?? 0, '3d')
+  );
   const [notes, setNotes] = useState('');
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
 
   useEffect(() => {
-    setCommissionRate(settings.defaultCommissionRate ?? 0);
+    if (!isOpen) return;
+    const savedRate = getUplineCommission(
+      masterAgentName || settings.defaultMasterAgentName || '',
+      settings.defaultCommissionRate ?? 0,
+      '3d'
+    );
+    setCommissionRate(savedRate);
   }, [settings.defaultCommissionRate, isOpen]);
 
   // Draft items
@@ -218,10 +231,24 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
       defaultCommissionRate: rate
     });
 
+    // Save per-dealer upline commission rate strictly for 3D
+    const existingUpline = getUplineCommissionRates('3d');
+    setUplineCommissionRates({ ...existingUpline, [name]: rate }, '3d');
+
     // Save in savedAgents list
     setSavedAgents(prev => {
+      const existing = prev.find(a => a.name === name);
       const filtered = prev.filter(a => a.name !== name);
-      const updated = [{ name, phone, commissionRate: rate }, ...filtered];
+      const existingByMode = (existing as any)?.commissionRatesByMode || {};
+      const updated = [
+        {
+          name,
+          phone,
+          commissionRate: rate,
+          commissionRatesByMode: { ...existingByMode, '3d': rate }
+        },
+        ...filtered
+      ];
       try {
         localStorage.setItem('shwe_master_agents_list', JSON.stringify(updated));
       } catch {
@@ -234,10 +261,20 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
     setTimeout(() => setSavedDefaultSuccess(false), 3000);
   };
 
-  const handleSelectSavedAgent = (agent: { name: string; phone?: string; commissionRate?: number }) => {
+  const handleSelectSavedAgent = (agent: { name: string; phone?: string; commissionRate?: number; commissionRatesByMode?: Record<string, number> }) => {
     setMasterAgentName(agent.name);
     if (agent.phone) setMasterAgentPhone(agent.phone);
-    setCommissionRate(settings.defaultCommissionRate ?? 0);
+    const modeFallback = agent.commissionRatesByMode?.['3d'];
+    const resolved = getUplineCommission(
+      agent.name,
+      typeof modeFallback === 'number'
+        ? modeFallback
+        : typeof agent.commissionRate === 'number'
+        ? agent.commissionRate
+        : (settings.defaultCommissionRate ?? 0),
+      '3d'
+    );
+    setCommissionRate(resolved);
   };
 
   // Toggle selection
@@ -583,7 +620,14 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   <input
                     type="text"
                     value={masterAgentName}
-                    onChange={(e) => setMasterAgentName(e.target.value)}
+                    onChange={(e) => {
+                      const nextName = e.target.value;
+                      setMasterAgentName(nextName);
+                      const uplineMap = getUplineCommissionRates('3d');
+                      if (uplineMap[nextName.trim()] !== undefined) {
+                        setCommissionRate(uplineMap[nextName.trim()]);
+                      }
+                    }}
                     placeholder="ဒိုင်ကြီး အမည် ရိုက်ထည့်ပါ"
                     className="w-full h-9 px-3 bg-white rounded-xl border border-slate-300 font-bold text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                   />
@@ -599,13 +643,17 @@ export const ForwardSlipsModal: React.FC<ForwardSlipsModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">အထက်ကော်မရှင် (%) (ဆက်တင်မှ)</label>
+                  <label className="block font-bold text-slate-700 mb-1">အထက်ဒိုင်ကော် (%)</label>
                   <div className="relative">
                     <input
                       type="number"
-                      readOnly
+                      min="0"
+                      max="100"
+                      step="0.5"
                       value={commissionRate}
-                      className="w-full h-9 px-3 pr-7 bg-slate-100 rounded-xl border border-slate-300 font-mono font-bold text-slate-700 outline-none cursor-not-allowed shadow-2xs"
+                      onChange={(e) => setCommissionRate(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      className="w-full h-9 px-3 pr-7 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 outline-none focus:border-indigo-500 shadow-2xs"
                     />
                     <Percent className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
                   </div>

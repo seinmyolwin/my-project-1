@@ -42,6 +42,7 @@ import {
 import { getTelegramOrders } from '../utils/telegramIntegration';
 import { InlinePhotoScanWorkspace } from './InlinePhotoScanWorkspace';
 import { OverLimitConfirmModal, OverLimitItemInfo } from './OverLimitConfirmModal';
+import { getUplineCommission } from '../utils/commissionUtils';
 import {
   playTapSound,
   playAddSound,
@@ -1121,17 +1122,16 @@ export const QuickSaleEntry: React.FC<QuickSaleEntryProps> = ({
     let forwardNotes = '';
     if (forwardItems.length > 0) {
       const fwdTotal = forwardItems.reduce((acc, i) => acc + i.amount, 0);
-      const commRate = typeof settings.defaultCommissionRate === 'number'
-        ? settings.defaultCommissionRate
-        : (typeof commissionRate === 'number' ? commissionRate : 0);
-      const commAmt = commRate > 0 ? Math.round((fwdTotal * commRate) / 100) : 0;
-      const netPaid = fwdTotal - commAmt;
-
       const resolvedAgent = (masterAgentName || settings.defaultMasterAgentName || '').trim();
       if (!resolvedAgent) {
         alert('ဒိုင်ချုပ်အမည် သတ်မှတ်ပါ');
         return;
       }
+      const commRate = typeof commissionRate === 'number'
+        ? commissionRate
+        : getUplineCommission(resolvedAgent, settings.defaultCommissionRate ?? 0, '3d');
+      const commAmt = commRate > 0 ? Math.round((fwdTotal * commRate) / 100) : 0;
+      const netPaid = fwdTotal - commAmt;
 
       addForwardSlip({
         roundId: activeRound?.id || 'default',

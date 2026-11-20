@@ -120,6 +120,10 @@ export function isAppKeyForDeletion(key: string): boolean {
     key === 'shwe_master_agents_list' ||
     key === 'bookie_custom_command_rules_v2' ||
     key.startsWith('shwe_customer_commissions_') ||
+    key.startsWith('shwe_customer_commission_') ||
+    key.startsWith('shwe_round_customer_') ||
+    key.startsWith('shwe_upline_commission') ||
+    key.startsWith('shwe_round_upline_') ||
     key.startsWith('shwe_mingalar_') ||
     key.startsWith('quick_results') ||
     key === 'active_bookie_mode' ||

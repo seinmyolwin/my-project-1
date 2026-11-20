@@ -2447,6 +2447,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         }}
         overLimitItems={pendingOverLimitItems}
         customerName={customerName}
+        mode="2d"
         onConfirm={handleConfirmOverLimit}
       />
     </div>
