@@ -838,8 +838,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                   </div>
                 </div>
 
-                {/* Vouchers Vertical Stack: Clean Dark Boxes Only (Earliest = 1 at bottom, Latest = Top number) */}
-                <div className="flex flex-col gap-2">
+                {/* Compact 3-Column Grid on Tablet & Desktop (md:grid-cols-3), No Heavy Black Boxes */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {section.clips.map((clip, idx) => {
                     const serialNo = section.clips.length - idx;
                     const photos = clip.imageUrls && clip.imageUrls.length > 0
@@ -853,69 +853,68 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                     return (
                       <div
                         key={clip.id}
-                        className="flex items-start sm:items-center gap-2"
+                        className={`rounded-lg border p-2 shadow-2xs flex flex-col gap-1.5 transition-colors ${
+                          winInfo?.isWinner
+                            ? 'bg-amber-50/70 border-amber-400 ring-1 ring-amber-400/70'
+                            : 'bg-white border-slate-200/90 hover:border-slate-300'
+                        }`}
                       >
-                        {/* Serial Number (1 = earliest at bottom, highest = latest at top) */}
-                        <span
-                          className={`min-w-[2rem] h-8 px-2 rounded-lg border font-mono font-black text-xs flex items-center justify-center shrink-0 shadow-2xs ${
-                            winInfo?.isWinner
-                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-400'
-                              : 'bg-white text-slate-800 border-slate-300'
-                          }`}
-                          title={`အစဉ် ${serialNo}`}
-                        >
-                          {serialNo}
-                        </span>
+                        {/* Compact Top Row: Serial #, Stake Amount, Eye Icon */}
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span
+                            className={`min-w-[1.5rem] h-6 px-1.5 rounded-md border font-mono font-black text-[11px] flex items-center justify-center gap-0.5 shrink-0 ${
+                              winInfo?.isWinner
+                                ? 'bg-amber-100 text-amber-900 border-amber-400'
+                                : 'bg-slate-100 text-slate-800 border-slate-300'
+                            }`}
+                            title={`အစဉ် ${serialNo}`}
+                          >
+                            {winInfo?.isWinner && (
+                              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500 shrink-0" />
+                            )}
+                            <span>{serialNo}</span>
+                          </span>
 
-                        {/* Dark Raw Text Box Only (Hidden: date, voucherNo, round, time, copy button, business tag) */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span
+                              className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-black text-[11px] whitespace-nowrap"
+                              title="ထိုးကြေး"
+                            >
+                              {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setInspectingItem({ clip, serialNo })}
+                              className="w-6 h-6 rounded-md bg-slate-50 hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                              title="အသေးစိတ် ဖွင့်ကြည့်မည်"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Compact Raw Text (Clean Light Surface, Tight Line-Height) */}
                         <div className="flex-1 min-w-0">
                           {hasText ? (
-                            <pre
-                              className={`bg-slate-900 text-emerald-300 font-mono text-[11px] sm:text-xs px-3 py-2 rounded-lg whitespace-pre-wrap leading-snug select-all border break-words max-h-44 overflow-y-auto ${
-                                winInfo?.isWinner
-                                  ? 'border-amber-400 ring-1 ring-amber-400/70'
-                                  : 'border-slate-800'
-                              }`}
-                            >
+                            <pre className="bg-slate-50/90 text-slate-900 font-mono text-[11px] px-2 py-1.5 rounded-md whitespace-pre-wrap leading-tight select-all border border-slate-200/80 break-words max-h-28 overflow-y-auto">
                               {clip.rawText}
                             </pre>
                           ) : hasPhotos ? (
-                            <div
+                            <button
+                              type="button"
                               onClick={() => setInspectingItem({ clip, serialNo })}
-                              className={`bg-slate-900 text-amber-300 font-mono text-xs px-3 py-2 rounded-lg border flex items-center gap-2 cursor-pointer hover:border-amber-400 transition-colors ${
-                                winInfo?.isWinner
-                                  ? 'border-amber-400 ring-1 ring-amber-400/70'
-                                  : 'border-slate-800'
-                              }`}
+                              className="w-full bg-purple-50/80 hover:bg-purple-100/70 text-purple-800 font-mono text-[11px] font-bold px-2 py-1.5 rounded-md border border-purple-200 flex items-center gap-1.5 cursor-pointer transition-colors text-left"
                             >
-                              <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                              <ImageIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                               <span className="truncate">
                                 [ဓာတ်ပုံမှတ်တမ်း {photos.length} ပုံ]
                               </span>
-                            </div>
+                            </button>
                           ) : (
-                            <div className="bg-slate-900 text-slate-400 font-mono text-xs px-3 py-2 rounded-lg border border-slate-800">
+                            <div className="bg-slate-50 text-slate-400 font-mono text-[11px] px-2 py-1 rounded-md border border-slate-200">
                               -
                             </div>
                           )}
-                        </div>
-
-                        {/* Right Side: Stake Amount & Eye Detail Button */}
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          <span
-                            className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-emerald-800 font-mono font-black text-[11px] sm:text-xs whitespace-nowrap shadow-2xs"
-                            title="ထိုးကြေး"
-                          >
-                            {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setInspectingItem({ clip, serialNo })}
-                            className="w-8 h-8 rounded-lg bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-300 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer shadow-2xs active:scale-95"
-                            title="အသေးစိတ် ဖွင့်ကြည့်မည်"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
                         </div>
                       </div>
                     );
@@ -1057,7 +1056,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
                 {/* Full Raw Text Box */}
                 {hasText && (
-                  <pre className="bg-slate-900 text-emerald-300 font-mono text-xs px-3 py-2.5 rounded-xl whitespace-pre-wrap leading-relaxed select-all border border-slate-800 break-words max-h-60 overflow-y-auto">
+                  <pre className="bg-slate-50 text-slate-900 font-mono text-xs px-3 py-2.5 rounded-xl whitespace-pre-wrap leading-relaxed select-all border border-slate-200 break-words max-h-60 overflow-y-auto">
                     {clip.rawText}
                   </pre>
                 )}
