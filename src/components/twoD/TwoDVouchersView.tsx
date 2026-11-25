@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSwipeGesture } from '../../hooks/useSwipeGesture';
 import {
   Receipt,
@@ -20,20 +20,33 @@ import {
   ExternalLink,
   Edit2,
   ChevronDown,
-  Star
+  Star,
+  FileText
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
 import { TwoDVoucher, TwoDForwardSlip } from '../../types';
 import { cleanMasterAgentName } from '../../utils/storage';
 import { formatAmount } from '../../utils/lotteryUtils';
 import { printVoucherSlip } from '../../utils/printUtils';
+import { getRawClips, findRawClipForVoucher, RawBetClip } from '../../utils/rawClipsUtils';
 
 interface TwoDVouchersViewProps {
   onOpenPrintVoucher?: (voucher: TwoDVoucher) => void;
   onOpenForwardAllModal?: () => void;
+  focusedVoucher?: { voucherNo: string; key: number } | null;
+  onClearFocusedVoucher?: () => void;
+  onOpenRawClipsModal?: () => void;
+  onOpenRawClipForVoucher?: (voucher: TwoDVoucher) => void;
 }
 
-export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintVoucher, onOpenForwardAllModal }) => {
+export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({
+  onOpenPrintVoucher,
+  onOpenForwardAllModal,
+  focusedVoucher,
+  onClearFocusedVoucher,
+  onOpenRawClipsModal,
+  onOpenRawClipForVoucher
+}) => {
   const {
     settings,
     activeRound,
@@ -70,6 +83,21 @@ export const TwoDVouchersView: React.FC<TwoDVouchersViewProps> = ({ onOpenPrintV
   const [selectedVoucher, setSelectedVoucher] = useState<TwoDVoucher | null>(null);
   const [selectedForwardSlip, setSelectedForwardSlip] = useState<TwoDForwardSlip | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [rawClips, setRawClips] = useState<RawBetClip[]>(() => getRawClips());
+
+  useEffect(() => {
+    const syncClips = () => setRawClips(getRawClips());
+    window.addEventListener('shwe_raw_clips_updated', syncClips);
+    return () => window.removeEventListener('shwe_raw_clips_updated', syncClips);
+  }, []);
+
+  useEffect(() => {
+    if (focusedVoucher?.voucherNo) {
+      setActiveTabType('customer');
+      setCustomerFilter('all');
+      setSearchTerm(focusedVoucher.voucherNo);
+    }
+  }, [focusedVoucher?.key]);
 
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
   const [editingCustomerName, setEditingCustomerName] = useState<string>('');
@@ -326,6 +354,39 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
             </span>
           </button>
         </div>
+
+        {focusedVoucher && searchTerm.trim().toLowerCase() === focusedVoucher.voucherNo.trim().toLowerCase() && (
+          <div className="bg-teal-50 border border-teal-200 rounded-2xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 font-bold text-teal-900">
+              <Receipt className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>
+                မူရင်းစာသားမှ ချိတ်ဆက်ထားသော ဘောင်ချာ: <span className="font-mono font-black">{focusedVoucher.voucherNo}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {onOpenRawClipsModal && (
+                <button
+                  type="button"
+                  onClick={onOpenRawClipsModal}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <FileText className="w-3 h-3 text-amber-300" />
+                  <span>မူရင်းစာသားသို့ ပြန်မည်</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  onClearFocusedVoucher?.();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer"
+              >
+                အားလုံးပြန်ပြမည်
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -564,12 +625,19 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                       v.status !== 'cancelled' &&
                       v.items.some((it) => String(it.number || '').trim().padStart(2, '0') === winNum);
 
+                    const isFocusedMatch = Boolean(
+                      focusedVoucher?.voucherNo &&
+                      v.voucherNo.trim().toLowerCase() === focusedVoucher.voucherNo.trim().toLowerCase()
+                    );
+
                     return (
                     <tr
                       key={v.id}
                       onClick={() => setSelectedVoucher(v)}
                       className={`transition-colors cursor-pointer group ${
-                        isWinningVoucher
+                        isFocusedMatch
+                          ? 'bg-teal-50/90 ring-2 ring-inset ring-teal-500'
+                          : isWinningVoucher
                           ? 'bg-amber-50/80 hover:bg-amber-100/70'
                           : 'hover:bg-teal-50/40'
                       }`}
@@ -671,6 +739,23 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                               <Copy className="w-3.5 h-3.5" />
                             )}
                           </button>
+
+                          {onOpenRawClipForVoucher &&
+                            findRawClipForVoucher('2d', v.voucherNo, {
+                              roundId: v.roundId,
+                              customerName: v.customerName,
+                              clips: rawClips
+                            }) && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenRawClipForVoucher(v)}
+                                title="ဤဘောင်ချာ၏ မူရင်းစာသား/ဓာတ်ပုံသို့ သွားကြည့်မည်"
+                                className="px-2 py-1 text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3 h-3 shrink-0" />
+                                <span>မူရင်းစာ</span>
+                              </button>
+                            )}
 
                           {/* 3. Delete */}
                           <button
@@ -1030,7 +1115,7 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2 pt-1">
+              <div className="flex flex-wrap gap-2 pt-1">
                 {/* Copy for Chat */}
                 <button
                   type="button"
@@ -1049,6 +1134,27 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     </>
                   )}
                 </button>
+
+                {onOpenRawClipForVoucher &&
+                  findRawClipForVoucher('2d', selectedVoucher.voucherNo, {
+                    roundId: selectedVoucher.roundId,
+                    customerName: selectedVoucher.customerName,
+                    clips: rawClips
+                  }) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = selectedVoucher;
+                        setSelectedVoucher(null);
+                        onOpenRawClipForVoucher(target);
+                      }}
+                      className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
+                      title="ဤဘောင်ချာ၏ မူရင်းစာသား/ဓာတ်ပုံသို့ သွားကြည့်မည်"
+                    >
+                      <FileText className="w-4 h-4 shrink-0" />
+                      <span>မူရင်းစာ</span>
+                    </button>
+                  )}
 
                 {/* Optional Print */}
                 <button

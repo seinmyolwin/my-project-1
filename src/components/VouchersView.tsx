@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Receipt,
   Search,
@@ -22,20 +22,33 @@ import {
   Edit2,
   SlidersHorizontal,
   ChevronDown,
-  Star
+  Star,
+  FileText
 } from 'lucide-react';
 import { useLottery } from '../context/LotteryContext';
 import { Voucher, ForwardSlip } from '../types';
 import { cleanMasterAgentName } from '../utils/storage';
 import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { printVoucherSlip } from '../utils/printUtils';
+import { getRawClips, findRawClipForVoucher, RawBetClip } from '../utils/rawClipsUtils';
 
 interface VouchersViewProps {
   onOpenPrintVoucher: (voucher: Voucher) => void;
   onOpenForwardAllModal?: () => void;
+  focusedVoucher?: { voucherNo: string; key: number } | null;
+  onClearFocusedVoucher?: () => void;
+  onOpenRawClipsModal?: () => void;
+  onOpenRawClipForVoucher?: (voucher: Voucher) => void;
 }
 
-export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher, onOpenForwardAllModal }) => {
+export const VouchersView: React.FC<VouchersViewProps> = ({
+  onOpenPrintVoucher,
+  onOpenForwardAllModal,
+  focusedVoucher,
+  onClearFocusedVoucher,
+  onOpenRawClipsModal,
+  onOpenRawClipForVoucher
+}) => {
   const {
     activeRound,
     settings,
@@ -83,6 +96,22 @@ export const VouchersView: React.FC<VouchersViewProps> = ({ onOpenPrintVoucher, 
   };
 
   const [customerFilter, setCustomerFilter] = useState<string>('all');
+  const [rawClips, setRawClips] = useState<RawBetClip[]>(() => getRawClips());
+
+  useEffect(() => {
+    const syncClips = () => setRawClips(getRawClips());
+    window.addEventListener('shwe_raw_clips_updated', syncClips);
+    return () => window.removeEventListener('shwe_raw_clips_updated', syncClips);
+  }, []);
+
+  useEffect(() => {
+    if (focusedVoucher?.voucherNo) {
+      setActiveCategory('customer');
+      setCustomerFilter('all');
+      setFilterPaid('all');
+      setSearchQuery(focusedVoucher.voucherNo);
+    }
+  }, [focusedVoucher?.key]);
 
   const availableCustomers = useMemo(() => {
     return Array.from(new Set(activeRoundVouchers.map(v => v.customerName))).filter(Boolean).sort();
@@ -349,6 +378,39 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
             </div>
           )}
         </div>
+
+        {focusedVoucher && searchQuery.trim().toLowerCase() === focusedVoucher.voucherNo.trim().toLowerCase() && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 font-bold text-indigo-900">
+              <Receipt className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>
+                မူရင်းစာသားမှ ချိတ်ဆက်ထားသော ဘောင်ချာ: <span className="font-mono font-black">{focusedVoucher.voucherNo}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {onOpenRawClipsModal && (
+                <button
+                  type="button"
+                  onClick={onOpenRawClipsModal}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <FileText className="w-3 h-3 text-amber-300" />
+                  <span>မူရင်းစာသားသို့ ပြန်မည်</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  onClearFocusedVoucher?.();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer"
+              >
+                အားလုံးပြန်ပြမည်
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -584,11 +646,18 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                     return num === winNum || (toddSet?.has(num) ?? false);
                   });
 
+                const isFocusedMatch = Boolean(
+                  focusedVoucher?.voucherNo &&
+                  v.voucherNo.trim().toLowerCase() === focusedVoucher.voucherNo.trim().toLowerCase()
+                );
+
                 return (
                   <div
                     key={v.id}
                     className={`bg-white border rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-3 transition-all hover:border-slate-300 ${
-                      isWinningVoucher
+                      isFocusedMatch
+                        ? 'border-indigo-500 ring-2 ring-indigo-400 shadow-lg bg-indigo-50/30'
+                        : isWinningVoucher
                         ? 'border-amber-400 bg-amber-50/50 ring-1 ring-amber-300'
                         : 'border-slate-200'
                     }`}
@@ -754,6 +823,23 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                             <Copy className="w-3.5 h-3.5" />
                           )}
                         </button>
+
+                        {onOpenRawClipForVoucher &&
+                          findRawClipForVoucher('3d', v.voucherNo, {
+                            roundId: v.roundId,
+                            customerName: v.customerName,
+                            clips: rawClips
+                          }) && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenRawClipForVoucher(v)}
+                              className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="ဤဘောင်ချာ၏ မူရင်းစာသား/ဓာတ်ပုံသို့ သွားကြည့်မည်"
+                            >
+                              <FileText className="w-3 h-3 shrink-0" />
+                              <span>မူရင်းစာ</span>
+                            </button>
+                          )}
                       </div>
 
                       <div className="flex items-center gap-1">

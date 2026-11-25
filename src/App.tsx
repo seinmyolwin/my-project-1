@@ -49,7 +49,11 @@ import { QuickTitleModal } from './components/QuickTitleModal';
 import { QuickResultsBanner } from './components/QuickResultsBanner';
 import { TelegramOrdersHubModal } from './components/TelegramOrdersHubModal';
 import { CommandRulesModal } from './components/CommandRulesModal';
-import { RawTextClipsModal } from './components/RawTextClipsModal';
+import {
+  RawTextClipsModal,
+  LinkedVoucherNavigationTarget,
+  FocusedRawClipTarget
+} from './components/RawTextClipsModal';
 
 // Security & Setup Modals
 import { LoginForm } from './components/LoginForm';
@@ -209,6 +213,42 @@ function AppContent() {
   const [isTelegramHubOpen, setIsTelegramHubOpen] = useState(false);
   const [isCommandRulesOpen, setIsCommandRulesOpen] = useState(false);
   const [isRawClipsModalOpen, setIsRawClipsModalOpen] = useState(false);
+  const [focusedVoucherTarget, setFocusedVoucherTarget] = useState<{
+    category: '3d' | '2d' | 'football';
+    voucherNo: string;
+    key: number;
+  } | null>(null);
+  const [focusedClipTarget, setFocusedClipTarget] = useState<FocusedRawClipTarget | null>(null);
+
+  const handleNavigateToVoucher = useCallback((target: LinkedVoucherNavigationTarget) => {
+    setIsRawClipsModalOpen(false);
+    setFocusedClipTarget(null);
+    setDealerMode(target.category);
+    if (target.category === '3d') {
+      if (target.roundId) lottery3D.setActiveRoundId(target.roundId);
+      setActiveTab3D('vouchers');
+    } else if (target.category === '2d') {
+      if (target.roundId) lottery2D.setActiveRoundId(target.roundId);
+      setActiveTab2D('vouchers');
+    } else if (target.category === 'football') {
+      if (target.date) football.setActiveDate(target.date);
+      setActiveTabFB('slips_list');
+    }
+    setFocusedVoucherTarget({
+      category: target.category,
+      voucherNo: target.voucherNumber,
+      key: Date.now()
+    });
+  }, [lottery3D, lottery2D, football]);
+
+  const handleOpenRawClip = useCallback((target: Omit<FocusedRawClipTarget, 'key'>) => {
+    setDealerMode(target.category);
+    setFocusedClipTarget({
+      ...target,
+      key: Date.now()
+    });
+    setIsRawClipsModalOpen(true);
+  }, []);
 
   // Check if any modal is active
   const hasActiveModal =
@@ -418,7 +458,10 @@ function AppContent() {
         onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
         onOpenCommandRules={() => setIsCommandRulesOpen(true)}
         onLockApp={handleLockApp}
-        onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
+        onOpenRawClipsModal={() => {
+          setFocusedClipTarget(null);
+          setIsRawClipsModalOpen(true);
+        }}
       />
 
       {/* Main View Area with Mobile Swipe Gestures */}
@@ -441,7 +484,10 @@ function AppContent() {
                 onOpenForwardModal={handleOpenForwardModal}
                 onOpenRoundManager={handleOpenRoundManager}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
-                onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
+                onOpenRawClipsModal={() => {
+                  setFocusedClipTarget(null);
+                  setIsRawClipsModalOpen(true);
+                }}
                 onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
               />
             )}
@@ -461,6 +507,24 @@ function AppContent() {
               <VouchersView
                 onOpenPrintVoucher={(v) => setPrintingVoucher3D(v)}
                 onOpenForwardAllModal={() => handleOpenForwardModal(undefined, undefined, true)}
+                focusedVoucher={focusedVoucherTarget?.category === '3d' ? focusedVoucherTarget : null}
+                onClearFocusedVoucher={() => setFocusedVoucherTarget(null)}
+                onOpenRawClipsModal={() => {
+                  if (focusedVoucherTarget?.category === '3d' && focusedVoucherTarget.voucherNo) {
+                    handleOpenRawClip({ category: '3d', voucherNumber: focusedVoucherTarget.voucherNo });
+                  } else {
+                    setFocusedClipTarget(null);
+                    setIsRawClipsModalOpen(true);
+                  }
+                }}
+                onOpenRawClipForVoucher={(v) =>
+                  handleOpenRawClip({
+                    category: '3d',
+                    voucherNumber: v.voucherNo,
+                    roundId: v.roundId,
+                    customerName: v.customerName
+                  })
+                }
               />
             )}
           </>
@@ -475,7 +539,10 @@ function AppContent() {
                 onOpenForwardModal={handleOpenForwardModal}
                 onOpenRoundManager={handleOpenRoundManager}
                 onOpenCommandRules={() => setIsCommandRulesOpen(true)}
-                onOpenRawClipsModal={() => setIsRawClipsModalOpen(true)}
+                onOpenRawClipsModal={() => {
+                  setFocusedClipTarget(null);
+                  setIsRawClipsModalOpen(true);
+                }}
                 onOpenTelegramHub={() => setIsTelegramHubOpen(true)}
               />
             )}
@@ -495,6 +562,24 @@ function AppContent() {
               <TwoDVouchersView
                 onOpenPrintVoucher={(v) => setPrintingVoucher2D(v)}
                 onOpenForwardAllModal={() => handleOpenForwardModal(undefined, undefined, true)}
+                focusedVoucher={focusedVoucherTarget?.category === '2d' ? focusedVoucherTarget : null}
+                onClearFocusedVoucher={() => setFocusedVoucherTarget(null)}
+                onOpenRawClipsModal={() => {
+                  if (focusedVoucherTarget?.category === '2d' && focusedVoucherTarget.voucherNo) {
+                    handleOpenRawClip({ category: '2d', voucherNumber: focusedVoucherTarget.voucherNo });
+                  } else {
+                    setFocusedClipTarget(null);
+                    setIsRawClipsModalOpen(true);
+                  }
+                }}
+                onOpenRawClipForVoucher={(v) =>
+                  handleOpenRawClip({
+                    category: '2d',
+                    voucherNumber: v.voucherNo,
+                    roundId: v.roundId,
+                    customerName: v.customerName
+                  })
+                }
               />
             )}
           </>
@@ -515,7 +600,28 @@ function AppContent() {
             )}
 
             {activeTabFB === 'slips_list' && (
-              <FootballSlipsListView onOpenStatement={() => handleOpenStatements('football')} />
+              <FootballSlipsListView
+                onOpenStatement={() => handleOpenStatements('football')}
+                focusedSlip={focusedVoucherTarget?.category === 'football' ? focusedVoucherTarget : null}
+                onClearFocusedSlip={() => setFocusedVoucherTarget(null)}
+                onOpenRawClipsModal={() => {
+                  if (focusedVoucherTarget?.category === 'football' && focusedVoucherTarget.voucherNo) {
+                    handleOpenRawClip({ category: 'football', voucherNumber: focusedVoucherTarget.voucherNo });
+                  } else {
+                    setFocusedClipTarget(null);
+                    setIsRawClipsModalOpen(true);
+                  }
+                }}
+                onOpenRawClipForSlip={(s) =>
+                  handleOpenRawClip({
+                    category: 'football',
+                    voucherNumber: s.slipNo,
+                    date: s.roundDate,
+                    customerName: s.customerName,
+                    slipId: s.id
+                  })
+                }
+              />
             )}
           </>
         )}
@@ -527,6 +633,14 @@ function AppContent() {
       <VoucherPrintModal
         voucher={printingVoucher3D}
         onClose={() => setPrintingVoucher3D(null)}
+        onOpenRawClipForVoucher={(v) =>
+          handleOpenRawClip({
+            category: '3d',
+            voucherNumber: v.voucherNo,
+            roundId: v.roundId,
+            customerName: v.customerName
+          })
+        }
       />
 
       <ForwardSlipsModal
@@ -558,6 +672,14 @@ function AppContent() {
       <TwoDVoucherPrintModal
         voucher={printingVoucher2D}
         onClose={() => setPrintingVoucher2D(null)}
+        onOpenRawClipForVoucher={(v) =>
+          handleOpenRawClip({
+            category: '2d',
+            voucherNumber: v.voucherNo,
+            roundId: v.roundId,
+            customerName: v.customerName
+          })
+        }
       />
 
       <TwoDForwardModal
@@ -722,10 +844,15 @@ function AppContent() {
       {/* Copied Raw Texts Isolated Archive Modal */}
       <RawTextClipsModal
         isOpen={isRawClipsModalOpen}
-        onClose={() => setIsRawClipsModalOpen(false)}
+        onClose={() => {
+          setIsRawClipsModalOpen(false);
+          setFocusedClipTarget(null);
+        }}
         activeRoundName3D={lottery3D.activeRound ? (lottery3D.activeRound.name || `${lottery3D.activeRound.drawDate} (3D)`) : '3D ပွဲစဉ်'}
         activeRoundName2D={lottery2D.activeRound ? (lottery2D.activeRound.name || `${lottery2D.activeRound.drawDate} 2D`) : '2D ပွဲစဉ်'}
         currentDealerMode={dealerMode}
+        onNavigateToVoucher={handleNavigateToVoucher}
+        focusedClipRequest={focusedClipTarget}
       />
 
       {/* Offline Status Badge */}

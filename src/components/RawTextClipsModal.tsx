@@ -26,7 +26,8 @@ import {
   Image as ImageIcon,
   ZoomIn,
   Star,
-  Eye
+  Eye,
+  ExternalLink
 } from 'lucide-react';
 import {
   RawBetClip,
@@ -35,12 +36,15 @@ import {
   deleteRawClip,
   deleteRawClipsByRound,
   deleteRawClipsByDateRange,
-  clearRawClipsByCategory
+  clearRawClipsByCategory,
+  findRawClipForVoucher
 } from '../utils/rawClipsUtils';
 import { formatAmount, parseQuickBetText, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { parseTwoDBatchInput } from '../utils/twoDLotteryUtils';
 import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
+import { useFootball } from '../context/FootballContext';
+import { Voucher, TwoDVoucher, FootballSlip } from '../types';
 
 interface ClipColorTheme {
   sectionBox: string;
@@ -206,12 +210,51 @@ const hashText = (value: string): number => {
   return h;
 };
 
+export interface LinkedVoucherNavigationTarget {
+  category: '3d' | '2d' | 'football';
+  voucherNumber: string;
+  roundId?: string;
+  date?: string;
+  voucher3D?: Voucher;
+  voucher2D?: TwoDVoucher;
+  slipFB?: FootballSlip;
+}
+
+const getColumnChunks = <T,>(items: T[], cols: number): T[][] => {
+  const safeCols = Math.max(1, cols);
+  const total = items.length;
+  const baseSize = Math.floor(total / safeCols);
+  const remainder = total % safeCols;
+  const result: T[][] = [];
+  let cursor = 0;
+  for (let colIdx = 0; colIdx < safeCols; colIdx++) {
+    const size = baseSize + (colIdx < remainder ? 1 : 0);
+    if (size > 0) {
+      result.push(items.slice(cursor, cursor + size));
+      cursor += size;
+    }
+  }
+  return result;
+};
+
+export interface FocusedRawClipTarget {
+  category: '3d' | '2d' | 'football';
+  voucherNumber: string;
+  roundId?: string;
+  date?: string;
+  customerName?: string;
+  slipId?: string;
+  key: number;
+}
+
 interface RawTextClipsModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeRoundName3D?: string;
   activeRoundName2D?: string;
   currentDealerMode?: '3d' | '2d' | 'football';
+  onNavigateToVoucher?: (target: LinkedVoucherNavigationTarget) => void;
+  focusedClipRequest?: FocusedRawClipTarget | null;
 }
 
 const BUSINESS_META: Record<'3d' | '2d' | 'football', { title: string; short: string; headerBadge: string }> = {
@@ -237,10 +280,32 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   onClose,
   activeRoundName3D,
   activeRoundName2D,
-  currentDealerMode = '3d'
+  currentDealerMode = '3d',
+  onNavigateToVoucher,
+  focusedClipRequest
 }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
+  const football = useFootball();
+
+  const [colCount, setColCount] = useState<number>(() => {
+    if (typeof window === 'undefined') return 3;
+    if (window.innerWidth >= 1024) return 3;
+    if (window.innerWidth >= 768) return 2;
+    return 1;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateCols = () => {
+      if (window.innerWidth >= 1024) setColCount(3);
+      else if (window.innerWidth >= 768) setColCount(2);
+      else setColCount(1);
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
+  }, []);
 
   const activeCategory: '3d' | '2d' | 'football' = currentDealerMode;
   const businessMeta = BUSINESS_META[activeCategory];
@@ -254,6 +319,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [inspectingItem, setInspectingItem] = useState<{ clip: RawBetClip; serialNo: number } | null>(null);
+  const [highlightedClipId, setHighlightedClipId] = useState<string | null>(null);
 
   // Date-based Delete Modal State
   const [isDateDeleteOpen, setIsDateDeleteOpen] = useState(false);
@@ -276,20 +342,58 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     return () => window.removeEventListener('shwe_raw_clips_updated', handleUpdate);
   }, []);
 
-  // Refresh when opened & reset filters when switching business mode
+  // Refresh when opened; if opened via a voucher link, focus & open that exact clip
   useEffect(() => {
-    if (isOpen) {
-      setClips(getRawClips());
-      setInspectingItem(null);
+    if (!isOpen) return;
+    const latest = getRawClips();
+    setClips(latest);
+
+    if (focusedClipRequest && focusedClipRequest.category === activeCategory) {
+      const matched = findRawClipForVoucher(
+        focusedClipRequest.category,
+        focusedClipRequest.voucherNumber,
+        {
+          roundId: focusedClipRequest.roundId,
+          date: focusedClipRequest.date,
+          customerName: focusedClipRequest.customerName,
+          slipId: focusedClipRequest.slipId,
+          clips: latest
+        }
+      );
+      if (matched) {
+        setDateFilter('all');
+        setRoundFilter('all');
+        setCustomerFilter('all');
+        setSearchQuery('');
+        setGroupBy('customer');
+        setHighlightedClipId(matched.id);
+
+        const custKey = (matched.customerName && matched.customerName.trim() !== '')
+          ? matched.customerName.trim()
+          : 'အထွေထွေဝယ်သူ';
+        const customerSectionClips = latest
+          .filter((c) => {
+            if (c.category !== activeCategory) return false;
+            const k = (c.customerName && c.customerName.trim() !== '') ? c.customerName.trim() : 'အထွေထွေဝယ်သူ';
+            return k === custKey;
+          })
+          .sort((a, b) => a.timestamp - b.timestamp);
+        const idx = customerSectionClips.findIndex((c) => c.id === matched.id);
+        const serialNo = idx >= 0 ? idx + 1 : 1;
+        setInspectingItem({ clip: matched, serialNo });
+        return;
+      }
     }
-  }, [isOpen]);
+
+    setInspectingItem(null);
+    setHighlightedClipId(null);
+  }, [isOpen, focusedClipRequest?.key, activeCategory]);
 
   useEffect(() => {
     setDateFilter('all');
     setRoundFilter('all');
     setCustomerFilter('all');
     setSearchQuery('');
-    setInspectingItem(null);
     setIsAddingNew(false);
     setIsDateDeleteOpen(false);
     setDeleteFeedback(null);
@@ -390,11 +494,11 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
   const totalFilteredAmount = filteredClips.reduce((sum, c) => sum + getClipStakeAmount(c), 0);
 
-  // Group clips by Customer or Round, with newest vouchers always first (b.timestamp - a.timestamp)
+  // Group clips by Customer or Round, ordered sequentially 1..N (a.timestamp - b.timestamp)
   const groupedSections = useMemo(() => {
     const groups: Record<string, { label: string; subLabel?: string; clips: RawBetClip[] }> = {};
-    // Sort all filtered clips: newest bet vouchers on top
-    const sorted = [...filteredClips].sort((a, b) => b.timestamp - a.timestamp);
+    // Sort all filtered clips sequentially from #1 (oldest) to #N (newest)
+    const sorted = [...filteredClips].sort((a, b) => a.timestamp - b.timestamp);
 
     sorted.forEach(clip => {
       let key = '';
@@ -418,8 +522,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
     // Sort groups so the group with the most recent voucher appears at the top
     return Object.entries(groups).sort(([, aData], [, bData]) => {
-      const timeA = aData.clips[0]?.timestamp || 0;
-      const timeB = bData.clips[0]?.timestamp || 0;
+      const timeA = aData.clips[aData.clips.length - 1]?.timestamp || 0;
+      const timeB = bData.clips[bData.clips.length - 1]?.timestamp || 0;
       return timeB - timeA;
     });
   }, [filteredClips, groupBy]);
@@ -930,99 +1034,108 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                   </div>
 
                   <div className="text-[10px] text-emerald-300 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono font-bold">
-                    နောက်ဆုံးထိုးထားသော ဘောင်ချာများ အပေါ်ဆုံးတွင်ရှိပါသည်
+                    အစဉ်လိုက် ၁ မှ စ၍ ကော်လံအလိုက် စီထားပါသည်
                   </div>
                 </div>
 
-                {/* Incoming Chat-Message Style Stream in 2 or 3 Columns on Per-Person Dark Canvas */}
+                {/* Incoming Chat-Message Style Stream arranged top-to-bottom per column (1..5 left, 6..10 right) */}
                 <div className={`rounded-xl p-2.5 border grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2.5 items-start ${sectionTheme.darkCanvasBox}`}>
-                  {section.clips.map((clip, idx) => {
-                    const serialNo = section.clips.length - idx;
-                    const photos = clip.imageUrls && clip.imageUrls.length > 0
-                      ? clip.imageUrls
-                      : (clip.imageDataUrl ? [clip.imageDataUrl] : []);
-                    const hasPhotos = photos.length > 0;
-                    const hasText = Boolean(clip.rawText && clip.rawText.trim());
-                    const winInfo = clipWinMap.get(clip.id);
-                    const stakeAmount = getClipStakeAmount(clip);
+                  {getColumnChunks(
+                    section.clips.map((clip, idx) => ({ clip, serialNo: idx + 1 })),
+                    colCount
+                  ).map((columnItems, colIdx) => (
+                    <div key={colIdx} className="flex flex-col gap-2.5 min-w-0">
+                      {columnItems.map(({ clip, serialNo }) => {
+                        const photos = clip.imageUrls && clip.imageUrls.length > 0
+                          ? clip.imageUrls
+                          : (clip.imageDataUrl ? [clip.imageDataUrl] : []);
+                        const hasPhotos = photos.length > 0;
+                        const hasText = Boolean(clip.rawText && clip.rawText.trim());
+                        const winInfo = clipWinMap.get(clip.id);
+                        const stakeAmount = getClipStakeAmount(clip);
+                        const isHighlighted = highlightedClipId === clip.id;
 
-                    return (
-                      <div
-                        key={clip.id}
-                        className="flex items-start justify-between gap-2 min-w-0 w-full"
-                      >
-                        {/* Left-aligned: Serial Number + Raw Text Bubble */}
-                        <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                          <span
-                            className={`w-6 h-6 rounded-full border font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
-                              winInfo?.isWinner
-                                ? 'bg-amber-500/25 text-amber-300 border-amber-400'
-                                : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                        return (
+                          <div
+                            key={clip.id}
+                            className={`flex items-start justify-between gap-2 min-w-0 w-full rounded-xl p-1 -m-1 transition-all ${
+                              isHighlighted ? 'ring-2 ring-amber-400 bg-amber-500/15' : ''
                             }`}
-                            title={`အစဉ် ${serialNo}`}
                           >
-                            {serialNo}
-                          </span>
+                            {/* Left-aligned: Serial Number + Raw Text Bubble */}
+                            <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                              <span
+                                className={`w-6 h-6 rounded-full border font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
+                                  winInfo?.isWinner
+                                    ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                                    : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                                }`}
+                                title={`အစဉ် ${serialNo}`}
+                              >
+                                {serialNo}
+                              </span>
 
-                          {hasText ? (
-                            <div
-                              className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border w-fit max-w-full min-w-0 ${
-                                winInfo?.isWinner
-                                  ? 'bg-amber-950/40 border-amber-400/70'
-                                  : 'bg-zinc-900 border-zinc-800'
-                              }`}
-                            >
-                              {winInfo?.isWinner && (
-                                <div className="text-[10px] font-mono font-black text-amber-300 mb-0.5">
-                                  #{serialNo} ★ ပေါက်
+                              {hasText ? (
+                                <div
+                                  className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border w-fit max-w-full min-w-0 ${
+                                    winInfo?.isWinner
+                                      ? 'bg-amber-950/40 border-amber-400/70'
+                                      : 'bg-zinc-900 border-zinc-800'
+                                  }`}
+                                >
+                                  {winInfo?.isWinner && (
+                                    <div className="text-[10px] font-mono font-black text-amber-300 mb-0.5">
+                                      #{serialNo} ★ ပေါက်
+                                    </div>
+                                  )}
+                                  <pre className="text-emerald-300 font-mono text-[11px] leading-snug whitespace-pre-wrap break-words select-all">
+                                    {clip.rawText}
+                                  </pre>
+                                </div>
+                              ) : hasPhotos ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setInspectingItem({ clip, serialNo })}
+                                  className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border flex items-center gap-1.5 cursor-pointer transition-colors text-left w-fit max-w-full min-w-0 ${
+                                    winInfo?.isWinner
+                                      ? 'bg-amber-950/40 border-amber-400/70 text-amber-200'
+                                      : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-amber-300'
+                                  }`}
+                                >
+                                  <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span className="font-mono text-[11px] font-bold truncate">
+                                    [ဓာတ်ပုံ {photos.length} ပုံ]
+                                  </span>
+                                </button>
+                              ) : (
+                                <div className="rounded-2xl rounded-tl-xs px-3 py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[11px]">
+                                  -
                                 </div>
                               )}
-                              <pre className="text-emerald-300 font-mono text-[11px] leading-snug whitespace-pre-wrap break-words select-all">
-                                {clip.rawText}
-                              </pre>
                             </div>
-                          ) : hasPhotos ? (
-                            <button
-                              type="button"
-                              onClick={() => setInspectingItem({ clip, serialNo })}
-                              className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border flex items-center gap-1.5 cursor-pointer transition-colors text-left w-fit max-w-full min-w-0 ${
-                                winInfo?.isWinner
-                                  ? 'bg-amber-950/40 border-amber-400/70 text-amber-200'
-                                  : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-amber-300'
-                              }`}
-                            >
-                              <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                              <span className="font-mono text-[11px] font-bold truncate">
-                                [ဓာတ်ပုံ {photos.length} ပုံ]
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="rounded-2xl rounded-tl-xs px-3 py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[11px]">
-                              -
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Right-aligned: Stake Amount & Eye Detail Button */}
-                        <div className="flex items-center gap-1 shrink-0 pt-0.5 ml-auto">
-                          <span
-                            className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono font-bold text-[10px] whitespace-nowrap"
-                            title="ထိုးကြေး"
-                          >
-                            {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setInspectingItem({ clip, serialNo })}
-                            className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-amber-300 border border-zinc-700 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                            title="အသေးစိတ် ဖွင့်ကြည့်မည်"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            {/* Right-aligned: Stake Amount & Eye Detail Button */}
+                            <div className="flex items-center gap-1 shrink-0 pt-0.5 ml-auto">
+                              <span
+                                className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono font-bold text-[10px] whitespace-nowrap"
+                                title="ထိုးကြေး"
+                              >
+                                {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setInspectingItem({ clip, serialNo })}
+                                className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-amber-300 border border-zinc-700 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                                title="အသေးစိတ် ဖွင့်ကြည့်မည်"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               </div>
               );
@@ -1058,6 +1171,58 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           const winInfo = clipWinMap.get(clip.id);
           const stakeAmount = getClipStakeAmount(clip);
 
+          // Resolve matching real voucher / slip in the ledger so user can jump directly to it
+          const vNo = (clip.voucherNumber || '').trim();
+          const vNoLower = vNo.toLowerCase();
+          let linkedVoucher: LinkedVoucherNavigationTarget | null = null;
+          if (vNoLower) {
+            if (clip.category === '3d') {
+              const candidates = lottery3D.vouchers.filter((v) => v.voucherNo.trim().toLowerCase() === vNoLower);
+              const matched =
+                candidates.find((v) => clip.roundId && v.roundId === clip.roundId) ||
+                candidates.find((v) => v.customerName === clip.customerName) ||
+                candidates[0];
+              if (matched) {
+                linkedVoucher = {
+                  category: '3d',
+                  voucherNumber: matched.voucherNo,
+                  roundId: matched.roundId,
+                  voucher3D: matched
+                };
+              }
+            } else if (clip.category === '2d') {
+              const candidates = lottery2D.vouchers.filter((v) => v.voucherNo.trim().toLowerCase() === vNoLower);
+              const matched =
+                candidates.find((v) => clip.roundId && v.roundId === clip.roundId) ||
+                candidates.find((v) => v.customerName === clip.customerName) ||
+                candidates[0];
+              if (matched) {
+                linkedVoucher = {
+                  category: '2d',
+                  voucherNumber: matched.voucherNo,
+                  roundId: matched.roundId,
+                  voucher2D: matched
+                };
+              }
+            } else if (clip.category === 'football') {
+              const candidates = football.slips.filter(
+                (s) => s.slipNo.trim().toLowerCase() === vNoLower || `fb-${s.id}`.toLowerCase() === vNoLower
+              );
+              const matched =
+                candidates.find((s) => clip.date && s.roundDate === clip.date) ||
+                candidates.find((s) => s.customerName === clip.customerName) ||
+                candidates[0];
+              if (matched) {
+                linkedVoucher = {
+                  category: 'football',
+                  voucherNumber: matched.slipNo,
+                  date: matched.roundDate,
+                  slipFB: matched
+                };
+              }
+            }
+          }
+
           return (
             <div
               onClick={() => setInspectingItem(null)}
@@ -1077,9 +1242,26 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                     <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-xs font-mono font-black">
                       #{serialNo}
                     </span>
-                    <span className="px-2 py-0.5 bg-white text-amber-900 border border-amber-300 rounded-md text-xs font-black font-mono shadow-2xs">
-                      {clip.voucherNumber || `ဘောင်ချာ #${serialNo}`}
-                    </span>
+                    {linkedVoucher && onNavigateToVoucher ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInspectingItem(null);
+                          onNavigateToVoucher(linkedVoucher!);
+                        }}
+                        className="px-2.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 rounded-md text-xs font-black font-mono shadow-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                        title="ထိုးကြေးမှတ်တမ်းရှိ တကယ့်ဘောင်ချာသို့ တိုက်ရိုက်သွားကြည့်မည်"
+                      >
+                        <span className="underline decoration-indigo-200 underline-offset-2">
+                          {linkedVoucher.voucherNumber}
+                        </span>
+                        <ExternalLink className="w-3 h-3 shrink-0" />
+                      </button>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-white text-amber-900 border border-amber-300 rounded-md text-xs font-black font-mono shadow-2xs">
+                        {clip.voucherNumber || `ဘောင်ချာ #${serialNo}`}
+                      </span>
+                    )}
                     {winInfo?.isWinner && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
                         <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />

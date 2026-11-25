@@ -7,19 +7,22 @@ import {
   Receipt,
   Save,
   CheckCircle2,
-  Star
+  Star,
+  FileText
 } from 'lucide-react';
 import { Voucher } from '../types';
 import { useLottery } from '../context/LotteryContext';
 import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { printVoucherSlip } from '../utils/printUtils';
+import { findRawClipForVoucher } from '../utils/rawClipsUtils';
 
 interface VoucherPrintModalProps {
   voucher: Voucher | null;
   onClose: () => void;
+  onOpenRawClipForVoucher?: (voucher: Voucher) => void;
 }
 
-export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({ voucher, onClose }) => {
+export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({ voucher, onClose, onOpenRawClipForVoucher }) => {
   const { settings, activeRound } = useLottery();
   const [copied, setCopied] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
@@ -85,7 +88,7 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
       <div className={`bg-white border border-slate-200 rounded-3xl w-full ${isThreeCol ? 'max-w-lg' : 'max-w-md'} shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
         
         {/* Modal Header */}
-        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Receipt className="w-4 h-4 text-indigo-600" />
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
@@ -93,12 +96,32 @@ ${settings.voucherFooterMessage || 'ဘောင်ချာအား ပေါ�
               {isWinningVoucher && <Star className="w-4 h-4 fill-amber-400 text-amber-500 shrink-0" />}
             </h3>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onOpenRawClipForVoucher &&
+              findRawClipForVoucher('3d', voucher.voucherNo, {
+                roundId: voucher.roundId,
+                customerName: voucher.customerName
+              }) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenRawClipForVoucher(voucher);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  title="ဤဘောင်ချာ၏ မူရင်းစာသား/ဓာတ်ပုံသို့ သွားကြည့်မည်"
+                >
+                  <FileText className="w-3 h-3 shrink-0" />
+                  <span>မူရင်းစာ</span>
+                </button>
+              )}
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Auto-saved Notification Strip */}

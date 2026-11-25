@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   Search,
@@ -19,12 +19,23 @@ import { useFootball } from '../../context/FootballContext';
 import { FootballSlip } from '../../types';
 import { formatAmount } from '../../utils/lotteryUtils';
 import { printVoucherSlip } from '../../utils/printUtils';
+import { getRawClips, findRawClipForVoucher, RawBetClip } from '../../utils/rawClipsUtils';
 
 interface FootballSlipsListViewProps {
   onOpenStatement?: () => void;
+  focusedSlip?: { voucherNo: string; key: number } | null;
+  onClearFocusedSlip?: () => void;
+  onOpenRawClipsModal?: () => void;
+  onOpenRawClipForSlip?: (slip: FootballSlip) => void;
 }
 
-export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ onOpenStatement }) => {
+export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({
+  onOpenStatement,
+  focusedSlip,
+  onClearFocusedSlip,
+  onOpenRawClipsModal,
+  onOpenRawClipForSlip
+}) => {
   const {
     settings,
     activeDate,
@@ -40,6 +51,20 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOutcome, setFilterOutcome] = useState<'all' | 'won' | 'lost' | 'pending'>('all');
   const [selectedSlip, setSelectedSlip] = useState<FootballSlip | null>(null);
+  const [rawClips, setRawClips] = useState<RawBetClip[]>(() => getRawClips());
+
+  useEffect(() => {
+    const syncClips = () => setRawClips(getRawClips());
+    window.addEventListener('shwe_raw_clips_updated', syncClips);
+    return () => window.removeEventListener('shwe_raw_clips_updated', syncClips);
+  }, []);
+
+  useEffect(() => {
+    if (focusedSlip?.voucherNo) {
+      setFilterOutcome('all');
+      setSearchTerm(focusedSlip.voucherNo);
+    }
+  }, [focusedSlip?.key]);
 
   const filteredSlips = useMemo(() => {
     let list = activeDateSlips;
@@ -240,6 +265,39 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
         </div>
       </div>
 
+      {focusedSlip && searchTerm.trim().toLowerCase() === focusedSlip.voucherNo.trim().toLowerCase() && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 font-bold text-emerald-900">
+            <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              မူရင်းစာသားမှ ချိတ်ဆက်ထားသော ဘောင်ချာ: <span className="font-mono font-black">{focusedSlip.voucherNo}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {onOpenRawClipsModal && (
+              <button
+                type="button"
+                onClick={onOpenRawClipsModal}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+              >
+                <FileText className="w-3 h-3 text-amber-300" />
+                <span>မူရင်းစာသားသို့ ပြန်မည်</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                onClearFocusedSlip?.();
+              }}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer"
+            >
+              အားလုံးပြန်ပြမည်
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Slips Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {filteredSlips.length === 0 ? (
@@ -266,8 +324,20 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
-                {filteredSlips.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                {filteredSlips.map(s => {
+                  const isFocusedMatch = Boolean(
+                    focusedSlip?.voucherNo &&
+                    (s.slipNo.trim().toLowerCase() === focusedSlip.voucherNo.trim().toLowerCase() ||
+                      `FB-${s.id}`.toLowerCase() === focusedSlip.voucherNo.trim().toLowerCase())
+                  );
+                  return (
+                  <tr
+                    key={s.id}
+                    onClick={() => setSelectedSlip(s)}
+                    className={`transition-colors cursor-pointer ${
+                      isFocusedMatch ? 'bg-emerald-50/90 ring-2 ring-inset ring-emerald-500' : 'hover:bg-slate-50'
+                    }`}
+                  >
                     <td className="p-3.5 font-bold text-emerald-800">{s.slipNo}</td>
                     <td className="p-3.5 font-sans font-bold text-slate-900">{s.customerName}</td>
                     <td className="p-3.5 font-sans">
@@ -313,8 +383,8 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
                         </span>
                       )}
                     </td>
-                    <td className="p-3.5 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => setSelectedSlip(s)}
@@ -322,6 +392,23 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
                         >
                           <Printer className="w-4 h-4" />
                         </button>
+                        {onOpenRawClipForSlip &&
+                          findRawClipForVoucher('football', s.slipNo, {
+                            date: s.roundDate,
+                            customerName: s.customerName,
+                            slipId: s.id,
+                            clips: rawClips
+                          }) && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenRawClipForSlip(s)}
+                              className="px-2 py-1 text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                              title="ဤဘောင်ချာ၏ မူရင်းစာသား/ဓာတ်ပုံသို့ သွားကြည့်မည်"
+                            >
+                              <FileText className="w-3 h-3 shrink-0" />
+                              <span>မူရင်းစာ</span>
+                            </button>
+                          )}
                         <button
                           type="button"
                           onClick={() => {
@@ -336,7 +423,8 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -412,7 +500,7 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => printVoucherSlip('printable-voucher', 'ပစ်တိုင်းထောင် ဘေလ် - ' + selectedSlip.slipNo)}
@@ -421,6 +509,27 @@ export const FootballSlipsListView: React.FC<FootballSlipsListViewProps> = ({ on
                 <Printer className="w-4 h-4" />
                 <span>Print</span>
               </button>
+              {onOpenRawClipForSlip &&
+                findRawClipForVoucher('football', selectedSlip.slipNo, {
+                  date: selectedSlip.roundDate,
+                  customerName: selectedSlip.customerName,
+                  slipId: selectedSlip.id,
+                  clips: rawClips
+                }) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = selectedSlip;
+                      setSelectedSlip(null);
+                      onOpenRawClipForSlip(target);
+                    }}
+                    className="px-3.5 py-3 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="ဤဘောင်ချာ၏ မူရင်းစာသား/ဓာတ်ပုံသို့ သွားကြည့်မည်"
+                  >
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <span>မူရင်းစာ</span>
+                  </button>
+                )}
               <button
                 type="button"
                 onClick={() => setSelectedSlip(null)}

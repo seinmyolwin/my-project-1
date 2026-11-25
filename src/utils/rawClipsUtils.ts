@@ -306,3 +306,32 @@ export function clearAllRawClips(): void {
     console.error('Failed to clear raw clips:', err);
   }
 }
+
+export function findRawClipForVoucher(
+  category: '3d' | '2d' | 'football',
+  voucherNumber: string,
+  options?: { roundId?: string; date?: string; customerName?: string; slipId?: string; clips?: RawBetClip[] }
+): RawBetClip | null {
+  const vNoLower = (voucherNumber || '').trim().toLowerCase();
+  const fbFallback = options?.slipId ? `fb-${options.slipId}`.toLowerCase() : '';
+  if (!vNoLower && !fbFallback) return null;
+
+  const source = options?.clips || getRawClips();
+  const candidates = source.filter((c) => {
+    if (c.category !== category) return false;
+    const clipVNo = (c.voucherNumber || '').trim().toLowerCase();
+    return (vNoLower && clipVNo === vNoLower) || (fbFallback && clipVNo === fbFallback);
+  });
+
+  if (candidates.length === 0) return null;
+
+  return (
+    (options?.roundId ? candidates.find((c) => c.roundId === options.roundId) : undefined) ||
+    (options?.date ? candidates.find((c) => c.date === options.date) : undefined) ||
+    (options?.customerName
+      ? candidates.find((c) => (c.customerName || '').trim() === options.customerName?.trim())
+      : undefined) ||
+    candidates[0]
+  );
+}
+
