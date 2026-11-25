@@ -24,7 +24,8 @@ import {
   Send,
   Users,
   Edit2,
-  Star
+  Star,
+  Lock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -34,9 +35,8 @@ import { formatAmount, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { printStatementReport } from '../utils/printUtils';
 import { TwoDVoucher, Voucher, FootballSlip } from '../types';
 import { PeriodSettlementModal } from './PeriodSettlementModal';
-import { usePeriod } from '../context/PeriodContext';
+import { PeriodCloseReportModal } from './PeriodCloseReportModal';
 import { verifyOwnerPassword } from '../utils/securityUtils';
-import { getLocalDateString } from '../utils/moneyUtils';
 import {
   updateRawClipCustomerName,
   deleteRawClipsByVoucherNumber,
@@ -82,41 +82,6 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
 }) => {
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
-  const periodCtx = usePeriod();
-
-  /** Close the 2D week (Mon-Fri) that contains the most recent Friday, after owner PIN + confirmation. */
-  const handleClosePeriod2D = async () => {
-    const now = new Date();
-    const dow = now.getDay(); // 0 Sun .. 6 Sat
-    const back = (dow + 2) % 7; // days since last Friday
-    const fri = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
-    const mon = new Date(fri.getFullYear(), fri.getMonth(), fri.getDate() - 4);
-    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const periodStart = fmt(mon);
-    const periodEnd = fmt(fri);
-    if (periodEnd > getLocalDateString()) { window.alert('ဤကာလ ကုန်ဆုံးခါမှ ပိတ်နိုင်ပါသည်'); return; }
-    if (periodCtx.periodClosings.some(pc => pc.game === '2D' && pc.periodStart === periodStart)) {
-      window.alert('ဤကာလကို ပိတ်ပြီးသားဖြစ်ပါသည်'); return;
-    }
-    const pin = window.prompt('Owner PIN (၆ လုံး) ရိုက်ထည့်ပါ');
-    if (!pin || !verifyOwnerPassword(pin.trim())) { window.alert('PIN မမှန်ကန်ပါ'); return; }
-
-    const inRange = (d?: string) => !!d && d >= periodStart && d <= periodEnd;
-    const roundDate = new Map<string, string>(lottery2D.rounds.map(r => [r.id, r.drawDate]));
-    const vs = lottery2D.vouchers.filter(v =>
-      v.status !== 'cancelled' && !v.deletedAt && inRange(roundDate.get(v.roundId)));
-    const sales = vs.reduce((a, v) => a + (v.netPayable || 0), 0);
-    const payout = vs.reduce((a, v) => a + v.items.reduce((x, it) => x + (it.isWon ? (it.wonAmount || 0) : 0), 0), 0);
-    const profit = sales - payout;
-    const ok = window.confirm(`2D ကာလ ${periodStart} ~ ${periodEnd}\nရောင်းအား: ${sales}\nပေးရမည့် ပေါက်ငွေ: ${payout}\nအမြတ် (ခန့်မှန်း): ${profit}\n\nပိတ်ပြီးပါက ဤကာလ ပြင်ဆင်လို့ မရတော့ပါ။ ပိတ်မလား?`);
-    if (!ok) return;
-    try {
-      await periodCtx.closePeriod({ game: '2D', periodStart, periodEnd, totals: { sales, payout, profit } });
-      window.alert('ကာလ ပိတ်ပြီးပါပြီ');
-    } catch (err: any) {
-      window.alert(err?.message || 'ပိတ်၍ မရပါ');
-    }
-  };
   const football = useFootball();
 
   const [selectedMode, setSelectedMode] = useState<'all' | '3d' | '2d' | 'football'>(initialMode);
@@ -129,6 +94,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPeriodSettlementOpen, setIsPeriodSettlementOpen] = useState(false);
+  const [isPeriodCloseModalOpen, setIsPeriodCloseModalOpen] = useState(false);
 
   // Per-customer commission prompt state
   const [commissionRevision, setCommissionRevision] = useState(0);
@@ -628,16 +594,16 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               title="ထိုးသားကော် / အထက်ဒိုင်ကော် တစ်ဦးချင်းစီ၏ % သတ်မှတ်ရန်"
             >
               <Percent className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">ထိုးသား / အထက်ဒိုင်ကော်</span>
+              <span className="hidden sm:inline">ကော်</span>
             </button>
             <button
               type="button"
               onClick={() => setIsPeriodSettlementOpen(true)}
               className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              title="၅ ရက်စာ ဒိုင်ငယ်နှင့် အထက်ဒိုင် စာရင်းရှင်းတမ်း"
+              title="ထိုးသား / အထက်ဒိုင် တဦးချင်းရှင်းတမ်း"
             >
               <Users className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">၅ရက်စာ ရှင်းတမ်း</span>
+              <span className="hidden sm:inline">တဦးချင်းရှင်းတမ်း</span>
             </button>
             <button
               type="button"
@@ -648,16 +614,23 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Excel ထုတ်</span>
             </button>
-            {effectiveMode === '2d' && (
-              <button
-                type="button"
-                onClick={handleClosePeriod2D}
-                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="2D ကာလ (တနင်္လာ–သောကြာ) ပိတ်ရန်"
-              >
-                <span className="hidden sm:inline">2D ကာလပိတ်</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsPeriodCloseModalOpen(true)}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="ကာလပိတ် စာရင်းချုပ်ထုတ်ရန် နှင့် ပိတ်ပြီးသားမှတ်တမ်းကြည့်ရန်"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {effectiveMode === '2d'
+                  ? '2D ကာလပိတ်'
+                  : effectiveMode === '3d'
+                  ? '3D ကာလပိတ်'
+                  : effectiveMode === 'football'
+                  ? 'ဘောလုံး ကာလပိတ်'
+                  : 'ကာလပိတ်'}
+              </span>
+            </button>
             <button
               type="button"
               onClick={handlePrint}
@@ -1977,6 +1950,14 @@ ${inspectingVoucher.discountAmount > 0 ? `အောက်လက်ကော်: 
         isOpen={isPeriodSettlementOpen}
         onClose={() => setIsPeriodSettlementOpen(false)}
         modeFilter={effectiveMode}
+      />
+
+      <PeriodCloseReportModal
+        isOpen={isPeriodCloseModalOpen}
+        onClose={() => setIsPeriodCloseModalOpen(false)}
+        initialMode={effectiveMode}
+        statementStartDate={startDate}
+        statementEndDate={endDate}
       />
 
       <CustomerCommissionPromptModal

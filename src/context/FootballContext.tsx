@@ -26,7 +26,7 @@ import { getDeviceShortCode } from '../utils/deviceId';
 import { calculateSlipSettlement, exportFootballDataToExcel } from '../utils/footballUtils';
 import { generateSubmissionFingerprint, isDuplicateSubmission } from '../utils/transactionUtils';
 import { getLocalDateString, safeRound } from '../utils/moneyUtils';
-import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
+import { assertDateOpen, dateOfRound, isDateClosed } from '../utils/periodGuard';
 import {
   getUplineCommission,
   getUplineCommissionRates,
@@ -365,8 +365,9 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setSlips(prevSlips =>
       prevSlips.map(slip => {
-        // Never settle cancelled tickets
-        if (slip.status === 'cancelled') {
+        // Never settle cancelled tickets or tickets inside a closed period
+        const slipDate = slip.roundDate || (slip.createdAt || '').slice(0, 10);
+        if (slip.status === 'cancelled' || isDateClosed('FB', slipDate)) {
           return slip;
         }
 
@@ -566,6 +567,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [rawSlips]);
 
   const addForwardSlip = useCallback((slipData: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
+    assertDateOpen('FB', slipData.roundDate, 'ဒိုင်လွှဲထည့်ခြင်း');
     let finalSlipId = slipData.slipId;
     const anyData = slipData as any;
     if (!finalSlipId && anyData.slipNo) {
@@ -622,6 +624,10 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [forwardSlips, slips, settings.defaultCommissionRate]);
 
   const deleteForwardSlip = useCallback((id: string, reason: string = 'user-deleted') => {
+    const existingFwd = rawForwardSlips.find(f => f.id === id);
+    if (existingFwd) {
+      assertDateOpen('FB', existingFwd.roundDate || (existingFwd.createdAt || '').slice(0, 10), 'ဒိုင်လွှဲဖျက်ခြင်း');
+    }
     const nowIso = new Date().toISOString();
     const updated = rawForwardSlips.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f);
     saveMultipleAtomic({

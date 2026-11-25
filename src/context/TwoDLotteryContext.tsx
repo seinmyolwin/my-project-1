@@ -398,6 +398,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const deleteRound = useCallback((roundId: string, reason: string = 'round-deleted') => {
+    assertDateOpen('2D', dateOfRound('2D', roundId), 'ပွဲစဉ်ဖျက်ခြင်း');
     const nowIso = new Date().toISOString();
     const todayStr = getLocalDateString();
     const updatedRoundsRaw = rawRounds.map(r => r.id === roundId ? ({ ...r, deletedAt: nowIso, deletedReason: reason } as any) : r);
@@ -573,6 +574,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [activeRound, addVoucher, settings.language]);
 
   const updateVoucher = useCallback((id: string, data: Partial<TwoDVoucher>) => {
+    const existingVoucher = vouchers.find(v => v.id === id);
+    if (existingVoucher) {
+      assertDateOpen('2D', dateOfRound('2D', existingVoucher.roundId), 'ဘောင်ချာပြင်ဆင်ခြင်း');
+    }
     setVouchers(prev => {
       const target = prev.find(v => v.id === id);
       if (target && data.customerName && data.customerName !== target.customerName) {
@@ -596,7 +601,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
       return prev.map(v => (v.id === id ? { ...v, ...data } : v));
     });
-  }, []);
+  }, [vouchers]);
 
   const deleteVoucher = useCallback((id: string, reason: string = 'user-deleted') => {
     { const v = vouchers.find(x => x.id === id); if (v) assertDateOpen('2D', dateOfRound('2D', v.roundId), 'ဘောင်ချာဖျက်ခြင်း'); }
@@ -695,6 +700,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [forwardSlips, settings.defaultCommissionRate, activeRoundId, rounds]);
 
   const deleteForwardSlip = useCallback((id: string, reason: string = 'user-deleted') => {
+    const existingFwd = rawForwardSlips.find(f => f.id === id);
+    if (existingFwd) {
+      assertDateOpen('2D', dateOfRound('2D', existingFwd.roundId), 'ဒိုင်လွှဲဖျက်ခြင်း');
+    }
     const nowIso = new Date().toISOString();
     const updated = rawForwardSlips.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f);
     saveMultipleAtomic({
@@ -1005,6 +1014,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const clearWinningSettlement = useCallback(() => {
     if (!activeRound) return;
+    assertDateOpen('2D', activeRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
 
     setVouchers(prev =>
       prev.map(v => {

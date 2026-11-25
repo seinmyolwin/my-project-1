@@ -494,6 +494,53 @@ export type BookieMode = '3d' | '2d' | 'football';
 
 export type GameType = '2D' | '3D' | 'FB';
 
+export interface PeriodCloseRoundLine {
+  key: string;
+  date: string;
+  roundLabel: string;
+  winningResult?: string;
+  stake: number;
+  commission: number;
+  payout: number;
+  netBalance: number;
+}
+
+export interface PeriodClosePersonSummary {
+  name: string;
+  totalStake: number;
+  totalCommission: number;
+  totalPayout: number;
+  netBalance: number;
+  rounds: PeriodCloseRoundLine[];
+}
+
+export interface PeriodCloseGrandTotals {
+  totalReceivable: number;
+  totalPayable: number;
+  totalSales: number;
+  totalCustomerCommission: number;
+  totalForwarded: number;
+  totalForwardCommission: number;
+  totalMasterPayout: number;
+  totalPayout: number;
+  netProfit: number;
+  vouchersCount: number;
+  roundsCount: number;
+}
+
+export interface PeriodCloseReportSnapshot {
+  businessMode: BookieMode;
+  game: GameType;
+  businessLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  unsettledRoundsCount: number;
+  customers: PeriodClosePersonSummary[];
+  uplines: PeriodClosePersonSummary[];
+  grandTotals: PeriodCloseGrandTotals;
+}
+
 export interface PeriodClosing {
   id: string;
   game: GameType;
@@ -504,8 +551,15 @@ export interface PeriodClosing {
     sales: number;
     payout: number;
     profit: number;
+    commission?: number;
+    forwarded?: number;
+    forwardCommission?: number;
+    masterPayout?: number;
+    totalReceivable?: number;
+    totalPayable?: number;
   };
   contentHash: string;
+  reportSnapshot?: PeriodCloseReportSnapshot;
 }
 
 export interface PeriodReopenLog {
@@ -515,3 +569,4 @@ export interface PeriodReopenLog {
   reason: string;
   previousHash: string;
 }
+

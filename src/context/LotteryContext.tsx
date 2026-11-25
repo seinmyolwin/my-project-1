@@ -326,6 +326,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Cascade Round Deletion (Rule 6B)
   const deleteRound = useCallback((roundId: string, reason: string = 'user-deleted') => {
+    assertDateOpen('3D', dateOfRound('3D', roundId), 'ပွဲစဉ်ဖျက်ခြင်း');
     const nowIso = new Date().toISOString();
     // Tombstones only: nothing is physically removed (audit + merge safety)
     const updatedRounds = rawRounds.map(r =>
@@ -444,6 +445,10 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [activeRound, addVoucher, settings.defaultCustomerDiscount]);
 
   const updateVoucher = useCallback((id: string, data: Partial<Voucher>) => {
+    const existingVoucher = vouchers.find(v => v.id === id);
+    if (existingVoucher) {
+      assertDateOpen('3D', dateOfRound('3D', existingVoucher.roundId), 'ဘောင်ချာပြင်ဆင်ခြင်း');
+    }
     setVouchers(prev => {
       const target = prev.find(v => v.id === id);
       if (target && data.customerName && data.customerName !== target.customerName) {
@@ -467,7 +472,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return prev.map(v => (v.id === id ? { ...v, ...data } : v));
     });
-  }, []);
+  }, [vouchers]);
 
   const deleteVoucher = useCallback((id: string, reason: string = 'user-deleted') => {
     { const v = vouchers.find(x => x.id === id); if (v) assertDateOpen('3D', dateOfRound('3D', v.roundId), 'ဘောင်ချာဖျက်ခြင်း'); }
@@ -544,11 +549,15 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [activeRoundId, rounds, settings.defaultCommissionRate]);
 
   const deleteForwardSlip = useCallback((id: string, reason: string = 'user-deleted') => {
+    const existingFwd = rawForwardSlips.find(f => f.id === id);
+    if (existingFwd) {
+      assertDateOpen('3D', dateOfRound('3D', existingFwd.roundId), 'ဒိုင်လွှဲဖျက်ခြင်း');
+    }
     const nowIso = new Date().toISOString();
     setForwardSlips(prev =>
       prev.map(f => f.id === id ? { ...f, deletedAt: nowIso, deletedReason: reason } as any : f)
     );
-  }, []);
+  }, [rawForwardSlips]);
 
   const setNumberLimit = useCallback((num: string, limit: number) => {
     const formatted = num.padStart(3, '0');
@@ -860,6 +869,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const clearWinningSettlement = useCallback(() => {
     if (!activeRound) return;
+    assertDateOpen('3D', activeRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
 
     setVouchers(prev =>
       prev.map(v => {
