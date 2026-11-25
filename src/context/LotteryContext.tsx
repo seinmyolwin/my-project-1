@@ -44,6 +44,7 @@ import { runPhonePurgeMigration } from '../utils/migrationUtils';
 import { generateUUID } from '../utils/restorePoints';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
+import { getSettlementEditStatus } from '../utils/settlementWindowUtils';
 
 interface LotteryContextType {
   settings: AppSettings;
@@ -92,7 +93,7 @@ interface LotteryContextType {
   roundSummary: RoundSummary;
 
   settleWinningNumber: (winningNumber: string, multiplier?: number, toddMultiplier?: number) => void;
-  clearWinningSettlement: () => void;
+  clearWinningSettlement: (targetRoundId?: string) => void;
   exportToExcel: () => void;
   resetToSampleData: () => void;
   clearAllData: () => void;
@@ -141,7 +142,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setRounds(prev => {
         let changed = false;
         const updated = prev.map(r => {
-          if (r.status === 'settled') return r;
+          if (r.status === 'settled' || r.reopenedForEdit) return r;
           // Past date rounds (drawDate < today) with no result yet -> status = 'closed'
           if (r.drawDate < todayStr && r.status === 'open') {
             changed = true;
@@ -791,13 +792,27 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     assertDateOpen('3D', dateOfRound('3D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
     if (!activeRound) return;
 
+    if (activeRound.status === 'settled') {
+      const editStatus = getSettlementEditStatus(activeRound);
+      if (!editStatus.withinWindow) {
+        throw new Error('ပေါက်ဂဏန်း ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ပြင်ဆင်ခွင့် မရှိတော့ပါ');
+      }
+    }
+
     const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
     const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
     if (!Number.isFinite(toddMult) || toddMult < 0) {
       throw new Error('Todd ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     }
 
-    const fp = generateSubmissionFingerprint('3D_SETTLE_ROUND', { activeRoundId: activeRound.id, winningNum, mult, toddMult });
+    const fp = generateSubmissionFingerprint('3D_SETTLE_ROUND', {
+      activeRoundId: activeRound.id,
+      winningNum,
+      mult,
+      toddMult,
+      status: activeRound.status,
+      settledAt: activeRound.settledAt || ''
+    });
     if (isDuplicateSubmission(fp, 5000)) {
       return;
     }
@@ -807,8 +822,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
     const formattedNum = winningNum.padStart(3, '0');
+    const nowIso = new Date().toISOString();
 
-    const evalResult = evaluateWinnings(activeRoundVouchers, formattedNum, mult, toddMult);
     const toddSet = new Set(getToddWinningNumbers(formattedNum));
 
     setVouchers(prev =>
@@ -816,21 +831,20 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (v.roundId !== activeRound.id || v.status === 'cancelled' || (v as any).deletedAt) {
           return v;
         }
-        const winningItems = evalResult.winners.filter(w => w.voucherId === v.id);
-        if (winningItems.length > 0) {
-          const updatedItems = v.items.map(item => {
-            const itemNum = String(item.number || '').trim().padStart(3, '0');
-            if (itemNum === formattedNum) {
-              return { ...item, isWon: true, wonAmount: calculatePayout(item.amount, mult) };
-            }
-            if (toddMult > 0 && toddSet.has(itemNum)) {
-              return { ...item, isWon: true, wonAmount: calculatePayout(item.amount, toddMult) };
-            }
-            return { ...item, isWon: false, wonAmount: 0 };
-          });
-          return { ...v, status: 'settled', items: updatedItems };
-        }
-        return v;
+        let hasWin = false;
+        const updatedItems = v.items.map(item => {
+          const itemNum = String(item.number || '').trim().padStart(3, '0');
+          if (itemNum === formattedNum) {
+            hasWin = true;
+            return { ...item, isWon: true, wonAmount: calculatePayout(item.amount, mult) };
+          }
+          if (toddMult > 0 && toddSet.has(itemNum)) {
+            hasWin = true;
+            return { ...item, isWon: true, wonAmount: calculatePayout(item.amount, toddMult) };
+          }
+          return { ...item, isWon: false, wonAmount: 0 };
+        });
+        return { ...v, status: hasWin ? 'settled' : 'active', items: updatedItems };
       })
     );
 
@@ -854,7 +868,10 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               multiplier: mult,
               toddMultiplier: toddMult,
               commissionRate: settings.defaultCommissionRate ?? 0,
-              settledAt: new Date().toISOString()
+              firstSettledAt: r.firstSettledAt || r.settledAt || nowIso,
+              settledAt: nowIso,
+              lastEditedAt: (r.status === 'settled' || r.reopenedForEdit) ? nowIso : r.lastEditedAt,
+              reopenedForEdit: false
             }
           : r
       )
@@ -865,15 +882,23 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {
       // Safe fail
     }
-  }, [activeRound, activeRoundId, activeRoundVouchers, settings.defaultMultiplier, settings.defaultToddMultiplier, settings.defaultCommissionRate]);
+  }, [activeRound, activeRoundId, settings.defaultMultiplier, settings.defaultToddMultiplier, settings.defaultCommissionRate]);
 
-  const clearWinningSettlement = useCallback(() => {
-    if (!activeRound) return;
-    assertDateOpen('3D', activeRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
+  const clearWinningSettlement = useCallback((targetRoundId?: string) => {
+    const resolvedRound = rounds.find(r => r.id === (targetRoundId || activeRound?.id));
+    if (!resolvedRound) return;
+    assertDateOpen('3D', resolvedRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
+
+    if (resolvedRound.status === 'settled') {
+      const editStatus = getSettlementEditStatus(resolvedRound);
+      if (!editStatus.withinWindow) {
+        throw new Error('ပေါက်ဂဏန်း ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ဖွင့်လှစ်ခွင့် မရှိတော့ပါ');
+      }
+    }
 
     setVouchers(prev =>
       prev.map(v => {
-        if (v.roundId === activeRound.id) {
+        if (v.roundId === resolvedRound.id) {
           const newStatus = v.status === 'cancelled' ? 'cancelled' : 'active';
           return {
             ...v,
@@ -887,7 +912,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setForwardSlips(prev =>
       prev.map(f => {
-        if (f.roundId === activeRound.id) {
+        if (f.roundId === resolvedRound.id) {
           return { ...f, actualPayout: undefined };
         }
         return f;
@@ -896,17 +921,19 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setRounds(prev =>
       prev.map(r =>
-        r.id === activeRound.id
+        r.id === resolvedRound.id
           ? {
               ...r,
               status: 'open',
               winningNumber: undefined,
-              settledAt: undefined
+              firstSettledAt: r.firstSettledAt || r.settledAt,
+              settledAt: undefined,
+              reopenedForEdit: true
             }
           : r
       )
     );
-  }, [activeRound]);
+  }, [rounds, activeRound]);
 
   const exportToExcel = useCallback(() => {
     if (!activeRound) return;

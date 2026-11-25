@@ -44,6 +44,7 @@ import { generateUUID } from '../utils/restorePoints';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { createTombstone } from '../utils/tombstoneUtils';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
+import { getSettlementEditStatus } from '../utils/settlementWindowUtils';
 
 interface TwoDLotteryContextType {
   settings: TwoDAppSettings;
@@ -92,7 +93,7 @@ interface TwoDLotteryContextType {
   roundSummary: TwoDRoundSummary;
 
   settleWinningNumber: (winningNumber: string, multiplier?: number) => void;
-  clearWinningSettlement: () => void;
+  clearWinningSettlement: (targetRoundId?: string) => void;
   exportToExcel: (overrideRound?: TwoDDrawRound | any, overrideVouchers?: TwoDVoucher[], overrideSummary?: TwoDRoundSummary) => void;
   resetToSampleData: () => void;
   clearAllData: () => void;
@@ -165,7 +166,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         prev.forEach(r => {
           if (!deletedSet.has(r.id)) {
-            if (r.status === 'settled') {
+            if (r.status === 'settled' || r.reopenedForEdit) {
               map.set(r.id, r);
             } else if (r.drawDate < todayStr && r.status === 'open') {
               map.set(r.id, { ...r, status: 'closed' });
@@ -948,12 +949,26 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const settleWinningNumber = useCallback((winningNum: string, multiplier?: number) => {
     assertDateOpen('2D', dateOfRound('2D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
     if (!activeRound) return;
+
+    if (activeRound.status === 'settled') {
+      const editStatus = getSettlementEditStatus(activeRound);
+      if (!editStatus.withinWindow) {
+        throw new Error('ပေါက်ဂဏန်း ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ပြင်ဆင်ခွင့် မရှိတော့ပါ');
+      }
+    }
+
     if (!(Number(multiplier ?? activeRound.multiplier) > 0)) {
       throw new Error('ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     }
 
     // Duplicate Protection: Prevent duplicate settlement calls
-    const fp = generateSubmissionFingerprint('2D_SETTLE_ROUND', { activeRoundId: activeRound.id, winningNum, multiplier });
+    const fp = generateSubmissionFingerprint('2D_SETTLE_ROUND', {
+      activeRoundId: activeRound.id,
+      winningNum,
+      multiplier,
+      status: activeRound.status,
+      settledAt: activeRound.settledAt || ''
+    });
     if (isDuplicateSubmission(fp, 5000)) {
       console.warn('Duplicate 2D settlement attempt blocked!');
       return;
@@ -965,6 +980,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return;
     }
     const formattedNum = winningNum.padStart(2, '0');
+    const nowIso = new Date().toISOString();
 
     const evalResult = evaluateTwoDWinnings(activeRoundVouchers, formattedNum, mult);
 
@@ -979,7 +995,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Update forward slips with actualPayout (Master Agent Payout)
     setForwardSlips(prev =>
       prev.map(f => {
-        if (f.roundId === activeRound.id) {
+        if (f.roundId === activeRound.id && !(f as any).deletedAt) {
           let payout = 0;
           f.items.forEach(it => {
             if (it.number === formattedNum) payout += it.amount * mult;
@@ -999,7 +1015,10 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
               status: 'settled',
               winningNumber: formattedNum,
               multiplier: mult,
-              settledAt: new Date().toISOString()
+              firstSettledAt: r.firstSettledAt || r.settledAt || nowIso,
+              settledAt: nowIso,
+              lastEditedAt: (r.status === 'settled' || r.reopenedForEdit) ? nowIso : r.lastEditedAt,
+              reopenedForEdit: false
             }
           : r
       )
@@ -1010,15 +1029,23 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     } catch {
       // Safe fail
     }
-  }, [activeRound, activeRoundVouchers, settings.defaultMultiplier, settings.language]);
+  }, [activeRound, activeRoundId, activeRoundVouchers, settings.defaultMultiplier, settings.language]);
 
-  const clearWinningSettlement = useCallback(() => {
-    if (!activeRound) return;
-    assertDateOpen('2D', activeRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
+  const clearWinningSettlement = useCallback((targetRoundId?: string) => {
+    const resolvedRound = rounds.find(r => r.id === (targetRoundId || activeRound?.id));
+    if (!resolvedRound) return;
+    assertDateOpen('2D', resolvedRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
+
+    if (resolvedRound.status === 'settled') {
+      const editStatus = getSettlementEditStatus(resolvedRound);
+      if (!editStatus.withinWindow) {
+        throw new Error('ပေါက်ဂဏန်း ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ဖွင့်လှစ်ခွင့် မရှိတော့ပါ');
+      }
+    }
 
     setVouchers(prev =>
       prev.map(v => {
-        if (v.roundId === activeRound.id) {
+        if (v.roundId === resolvedRound.id) {
           const newStatus = v.status === 'cancelled' ? 'cancelled' : 'active';
           return {
             ...v,
@@ -1033,7 +1060,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Clear forward slips actualPayout
     setForwardSlips(prev =>
       prev.map(f => {
-        if (f.roundId === activeRound.id) {
+        if (f.roundId === resolvedRound.id) {
           return { ...f, actualPayout: undefined };
         }
         return f;
@@ -1042,17 +1069,19 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     setRounds(prev =>
       prev.map(r =>
-        r.id === activeRound.id
+        r.id === resolvedRound.id
           ? {
               ...r,
               status: 'open',
               winningNumber: undefined,
-              settledAt: undefined
+              firstSettledAt: r.firstSettledAt || r.settledAt,
+              settledAt: undefined,
+              reopenedForEdit: true
             }
           : r
       )
     );
-  }, [activeRound]);
+  }, [rounds, activeRound]);
 
   const exportToExcel = useCallback((overrideRound?: TwoDDrawRound | any, overrideVouchers?: TwoDVoucher[], overrideSummary?: TwoDRoundSummary) => {
     const validRound = (overrideRound && typeof overrideRound === 'object' && 'id' in overrideRound && 'drawDate' in overrideRound) ? (overrideRound as TwoDDrawRound) : undefined;
@@ -1142,6 +1171,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 mergedRound.status = existing.status;
                 mergedRound.winningNumber = existing.winningNumber || mergedRound.winningNumber;
                 mergedRound.settledAt = existing.settledAt || mergedRound.settledAt;
+                mergedRound.firstSettledAt = existing.firstSettledAt || mergedRound.firstSettledAt;
               }
             }
 

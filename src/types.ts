@@ -85,6 +85,9 @@ export interface DrawRound {
   toddMultiplier: number; // default 100 or 120 (e.g. 1000 ks bet wins 100,000 ks at 100x)
   commissionRate: number; // e.g. 10%
   settledAt?: string;
+  firstSettledAt?: string;
+  lastEditedAt?: string;
+  reopenedForEdit?: boolean;
 }
 
 export interface NumberLimit {
@@ -209,6 +212,9 @@ export interface TwoDDrawRound {
   multiplier: number; // default 80 (e.g. 1000 ks wins 80,000 ks)
   commissionRate: number; // e.g. 12%
   settledAt?: string;
+  firstSettledAt?: string;
+  lastEditedAt?: string;
+  reopenedForEdit?: boolean;
 }
 
 export interface TwoDBetItem {
