@@ -50,6 +50,8 @@ interface ClipColorTheme {
   cardBox: string;
   badge: string;
   dot: string;
+  darkSectionBox: string;
+  darkCanvasBox: string;
 }
 
 const COLOR_THEMES: ClipColorTheme[] = [
@@ -61,6 +63,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-indigo-50/90 border-indigo-200/90 border-l-4 border-l-indigo-500 hover:border-indigo-400',
     badge: 'bg-indigo-100 text-indigo-900 border-indigo-300',
     dot: 'bg-indigo-500',
+    darkSectionBox: 'bg-indigo-950/80 border-indigo-500/40 border-l-4 border-l-indigo-400',
+    darkCanvasBox: 'bg-indigo-950/60 border-indigo-500/25',
   },
   {
     sectionBox: 'bg-emerald-50/60 border-emerald-200 border-l-4 border-l-emerald-500',
@@ -70,6 +74,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-emerald-50/90 border-emerald-200/90 border-l-4 border-l-emerald-500 hover:border-emerald-400',
     badge: 'bg-emerald-100 text-emerald-900 border-emerald-300',
     dot: 'bg-emerald-500',
+    darkSectionBox: 'bg-emerald-950/80 border-emerald-500/40 border-l-4 border-l-emerald-400',
+    darkCanvasBox: 'bg-emerald-950/60 border-emerald-500/25',
   },
   {
     sectionBox: 'bg-amber-50/65 border-amber-200 border-l-4 border-l-amber-500',
@@ -79,6 +85,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-amber-50/90 border-amber-200/90 border-l-4 border-l-amber-500 hover:border-amber-400',
     badge: 'bg-amber-100 text-amber-900 border-amber-300',
     dot: 'bg-amber-500',
+    darkSectionBox: 'bg-amber-950/75 border-amber-500/40 border-l-4 border-l-amber-400',
+    darkCanvasBox: 'bg-amber-950/55 border-amber-500/25',
   },
   {
     sectionBox: 'bg-rose-50/60 border-rose-200 border-l-4 border-l-rose-500',
@@ -88,6 +96,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-rose-50/90 border-rose-200/90 border-l-4 border-l-rose-500 hover:border-rose-400',
     badge: 'bg-rose-100 text-rose-900 border-rose-300',
     dot: 'bg-rose-500',
+    darkSectionBox: 'bg-rose-950/80 border-rose-500/40 border-l-4 border-l-rose-400',
+    darkCanvasBox: 'bg-rose-950/60 border-rose-500/25',
   },
   {
     sectionBox: 'bg-sky-50/60 border-sky-200 border-l-4 border-l-sky-500',
@@ -97,6 +107,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-sky-50/90 border-sky-200/90 border-l-4 border-l-sky-500 hover:border-sky-400',
     badge: 'bg-sky-100 text-sky-900 border-sky-300',
     dot: 'bg-sky-500',
+    darkSectionBox: 'bg-sky-950/80 border-sky-500/40 border-l-4 border-l-sky-400',
+    darkCanvasBox: 'bg-sky-950/60 border-sky-500/25',
   },
   {
     sectionBox: 'bg-purple-50/60 border-purple-200 border-l-4 border-l-purple-500',
@@ -106,6 +118,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-purple-50/90 border-purple-200/90 border-l-4 border-l-purple-500 hover:border-purple-400',
     badge: 'bg-purple-100 text-purple-900 border-purple-300',
     dot: 'bg-purple-500',
+    darkSectionBox: 'bg-purple-950/80 border-purple-500/40 border-l-4 border-l-purple-400',
+    darkCanvasBox: 'bg-purple-950/60 border-purple-500/25',
   },
   {
     sectionBox: 'bg-teal-50/60 border-teal-200 border-l-4 border-l-teal-500',
@@ -115,6 +129,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-teal-50/90 border-teal-200/90 border-l-4 border-l-teal-500 hover:border-teal-400',
     badge: 'bg-teal-100 text-teal-900 border-teal-300',
     dot: 'bg-teal-500',
+    darkSectionBox: 'bg-teal-950/80 border-teal-500/40 border-l-4 border-l-teal-400',
+    darkCanvasBox: 'bg-teal-950/60 border-teal-500/25',
   },
   {
     sectionBox: 'bg-orange-50/60 border-orange-200 border-l-4 border-l-orange-500',
@@ -124,6 +140,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-orange-50/90 border-orange-200/90 border-l-4 border-l-orange-500 hover:border-orange-400',
     badge: 'bg-orange-100 text-orange-900 border-orange-300',
     dot: 'bg-orange-500',
+    darkSectionBox: 'bg-orange-950/75 border-orange-500/40 border-l-4 border-l-orange-400',
+    darkCanvasBox: 'bg-orange-950/55 border-orange-500/25',
   },
   {
     sectionBox: 'bg-cyan-50/60 border-cyan-200 border-l-4 border-l-cyan-500',
@@ -133,6 +151,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-cyan-50/90 border-cyan-200/90 border-l-4 border-l-cyan-500 hover:border-cyan-400',
     badge: 'bg-cyan-100 text-cyan-900 border-cyan-300',
     dot: 'bg-cyan-500',
+    darkSectionBox: 'bg-cyan-950/80 border-cyan-500/40 border-l-4 border-l-cyan-400',
+    darkCanvasBox: 'bg-cyan-950/60 border-cyan-500/25',
   },
   {
     sectionBox: 'bg-fuchsia-50/60 border-fuchsia-200 border-l-4 border-l-fuchsia-500',
@@ -142,6 +162,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-fuchsia-50/90 border-fuchsia-200/90 border-l-4 border-l-fuchsia-500 hover:border-fuchsia-400',
     badge: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300',
     dot: 'bg-fuchsia-500',
+    darkSectionBox: 'bg-fuchsia-950/80 border-fuchsia-500/40 border-l-4 border-l-fuchsia-400',
+    darkCanvasBox: 'bg-fuchsia-950/60 border-fuchsia-500/25',
   },
   {
     sectionBox: 'bg-lime-50/60 border-lime-200 border-l-4 border-l-lime-500',
@@ -151,6 +173,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-lime-50/90 border-lime-200/90 border-l-4 border-l-lime-500 hover:border-lime-400',
     badge: 'bg-lime-100 text-lime-900 border-lime-300',
     dot: 'bg-lime-500',
+    darkSectionBox: 'bg-lime-950/75 border-lime-500/40 border-l-4 border-l-lime-400',
+    darkCanvasBox: 'bg-lime-950/55 border-lime-500/25',
   },
   {
     sectionBox: 'bg-blue-50/60 border-blue-200 border-l-4 border-l-blue-500',
@@ -160,6 +184,8 @@ const COLOR_THEMES: ClipColorTheme[] = [
     cardBox: 'bg-blue-50/90 border-blue-200/90 border-l-4 border-l-blue-500 hover:border-blue-400',
     badge: 'bg-blue-100 text-blue-900 border-blue-300',
     dot: 'bg-blue-500',
+    darkSectionBox: 'bg-blue-950/80 border-blue-500/40 border-l-4 border-l-blue-400',
+    darkCanvasBox: 'bg-blue-950/60 border-blue-500/25',
   },
 ];
 
@@ -863,7 +889,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
               return (
               <div
                 key={groupKey}
-                className="bg-slate-900/70 border border-slate-800 rounded-xl p-2.5 space-y-2.5"
+                className={`border rounded-xl p-2.5 space-y-2.5 ${sectionTheme.darkSectionBox}`}
               >
                 {/* Section Header */}
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2 px-0.5 flex-wrap gap-2">
@@ -908,8 +934,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                   </div>
                 </div>
 
-                {/* Incoming Chat-Message Style Stream in 2 or 3 Columns on Black Canvas */}
-                <div className="bg-black/75 rounded-xl p-2.5 border border-slate-800/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2.5 items-start">
+                {/* Incoming Chat-Message Style Stream in 2 or 3 Columns on Per-Person Dark Canvas */}
+                <div className={`rounded-xl p-2.5 border grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2.5 items-start ${sectionTheme.darkCanvasBox}`}>
                   {section.clips.map((clip, idx) => {
                     const serialNo = section.clips.length - idx;
                     const photos = clip.imageUrls && clip.imageUrls.length > 0
@@ -923,22 +949,21 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                     return (
                       <div
                         key={clip.id}
-                        className="flex items-start gap-1.5 min-w-0"
+                        className="flex items-start justify-between gap-2 min-w-0 w-full"
                       >
-                        {/* Front: Serial Number Pill */}
-                        <span
-                          className={`w-6 h-6 rounded-full border font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
-                            winInfo?.isWinner
-                              ? 'bg-amber-500/25 text-amber-300 border-amber-400'
-                              : 'bg-zinc-800 text-zinc-200 border-zinc-700'
-                          }`}
-                          title={`အစဉ် ${serialNo}`}
-                        >
-                          {serialNo}
-                        </span>
+                        {/* Left-aligned: Serial Number + Raw Text Bubble */}
+                        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                          <span
+                            className={`w-6 h-6 rounded-full border font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
+                              winInfo?.isWinner
+                                ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                                : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                            }`}
+                            title={`အစဉ် ${serialNo}`}
+                          >
+                            {serialNo}
+                          </span>
 
-                        {/* Middle: Natural Chat Message Bubble (No Fixed Scrollbox) */}
-                        <div className="min-w-0 flex items-end gap-1.5 flex-wrap sm:flex-nowrap">
                           {hasText ? (
                             <div
                               className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border w-fit max-w-full min-w-0 ${
@@ -960,7 +985,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setInspectingItem({ clip, serialNo })}
-                              className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border flex items-center gap-1.5 cursor-pointer transition-colors text-left w-fit max-w-full ${
+                              className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border flex items-center gap-1.5 cursor-pointer transition-colors text-left w-fit max-w-full min-w-0 ${
                                 winInfo?.isWinner
                                   ? 'bg-amber-950/40 border-amber-400/70 text-amber-200'
                                   : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-amber-300'
@@ -976,24 +1001,24 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                               -
                             </div>
                           )}
+                        </div>
 
-                          {/* Back: Stake Amount & Eye Detail Button */}
-                          <div className="flex items-center gap-1 shrink-0 pb-0.5">
-                            <span
-                              className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono font-bold text-[10px] whitespace-nowrap"
-                              title="ထိုးကြေး"
-                            >
-                              {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setInspectingItem({ clip, serialNo })}
-                              className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-amber-300 border border-zinc-700 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                              title="အသေးစိတ် ဖွင့်ကြည့်မည်"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                        {/* Right-aligned: Stake Amount & Eye Detail Button */}
+                        <div className="flex items-center gap-1 shrink-0 pt-0.5 ml-auto">
+                          <span
+                            className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono font-bold text-[10px] whitespace-nowrap"
+                            title="ထိုးကြေး"
+                          >
+                            {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setInspectingItem({ clip, serialNo })}
+                            className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-amber-300 border border-zinc-700 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                            title="အသေးစိတ် ဖွင့်ကြည့်မည်"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     );
