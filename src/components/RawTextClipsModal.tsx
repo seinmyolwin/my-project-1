@@ -277,7 +277,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
   // Extract unique dates, rounds, and customers for filtering within this business
   const availableDates = useMemo(
-    () => Array.from(new Set(businessClips.map(c => c.date))).sort().reverse(),
+    () => Array.from(new Set(businessClips.map(c => c.date).filter(Boolean))).sort().reverse(),
     [businessClips]
   );
   const availableRounds = useMemo(
@@ -496,6 +496,15 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     lottery2D.vouchers
   ]);
 
+  const matchingDateDeleteCount = useMemo(() => {
+    if (!deleteStartDate || !deleteEndDate) return 0;
+    const safeStart = deleteStartDate <= deleteEndDate ? deleteStartDate : deleteEndDate;
+    const safeEnd = deleteStartDate <= deleteEndDate ? deleteEndDate : deleteStartDate;
+    return businessClips.filter(
+      (c) => typeof c.date === 'string' && c.date >= safeStart && c.date <= safeEnd
+    ).length;
+  }, [businessClips, deleteStartDate, deleteEndDate]);
+
   if (!isOpen) return null;
 
   const handleCopy = (clip: RawBetClip) => {
@@ -533,15 +542,6 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     setDeleteEndDate(defaultDate);
     setIsDateDeleteOpen(true);
   };
-
-  const matchingDateDeleteCount = useMemo(() => {
-    if (!deleteStartDate || !deleteEndDate) return 0;
-    const safeStart = deleteStartDate <= deleteEndDate ? deleteStartDate : deleteEndDate;
-    const safeEnd = deleteStartDate <= deleteEndDate ? deleteEndDate : deleteStartDate;
-    return businessClips.filter(
-      (c) => typeof c.date === 'string' && c.date >= safeStart && c.date <= safeEnd
-    ).length;
-  }, [businessClips, deleteStartDate, deleteEndDate]);
 
   const handleConfirmDateDelete = () => {
     if (!deleteStartDate || !deleteEndDate || matchingDateDeleteCount === 0) return;
