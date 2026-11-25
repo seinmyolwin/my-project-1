@@ -264,6 +264,36 @@ export function deleteRawClipsByDate(date: string): void {
   tombstoneRawClips(c => c.date === date, 'date-deleted');
 }
 
+export function deleteRawClipsByDateRange(
+  category: '3d' | '2d' | 'football',
+  startDate: string,
+  endDate: string
+): number {
+  const safeStart = startDate <= endDate ? startDate : endDate;
+  const safeEnd = startDate <= endDate ? endDate : startDate;
+  const all = readAllRawClips();
+  const count = all.filter(
+    (c: any) =>
+      c &&
+      !c.deletedAt &&
+      c.category === category &&
+      typeof c.date === 'string' &&
+      c.date >= safeStart &&
+      c.date <= safeEnd
+  ).length;
+  if (count > 0) {
+    tombstoneRawClips(
+      (c) =>
+        c.category === category &&
+        typeof c.date === 'string' &&
+        c.date >= safeStart &&
+        c.date <= safeEnd,
+      'date-range-deleted'
+    );
+  }
+  return count;
+}
+
 export function clearRawClipsByCategory(category: '3d' | '2d' | 'football'): void {
   tombstoneRawClips(c => c.category === category, 'category-cleared');
 }

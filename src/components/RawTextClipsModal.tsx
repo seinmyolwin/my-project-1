@@ -34,6 +34,7 @@ import {
   saveRawClip,
   deleteRawClip,
   deleteRawClipsByRound,
+  deleteRawClipsByDateRange,
   clearRawClipsByCategory
 } from '../utils/rawClipsUtils';
 import { formatAmount, parseQuickBetText, getToddWinningNumbers } from '../utils/lotteryUtils';
@@ -228,6 +229,12 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [inspectingItem, setInspectingItem] = useState<{ clip: RawBetClip; serialNo: number } | null>(null);
 
+  // Date-based Delete Modal State
+  const [isDateDeleteOpen, setIsDateDeleteOpen] = useState(false);
+  const [deleteStartDate, setDeleteStartDate] = useState('');
+  const [deleteEndDate, setDeleteEndDate] = useState('');
+  const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
+
   // Manual Add New Raw Text Form State
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [manualVoucherNo, setManualVoucherNo] = useState('');
@@ -258,6 +265,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     setSearchQuery('');
     setInspectingItem(null);
     setIsAddingNew(false);
+    setIsDateDeleteOpen(false);
+    setDeleteFeedback(null);
   }, [activeCategory]);
 
   // Strictly isolate clips to the current active business only
@@ -510,7 +519,44 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
       clearRawClipsByCategory(activeCategory);
       setClips(getRawClips());
       setInspectingItem(null);
+      setDeleteFeedback(`${businessMeta.title} မူရင်းစာသား အားလုံးကို ဖျက်သိမ်းပြီးပါပြီ ✓`);
+      setTimeout(() => setDeleteFeedback(null), 3500);
     }
+  };
+
+  const handleOpenDateDelete = () => {
+    const defaultDate =
+      dateFilter !== 'all'
+        ? dateFilter
+        : availableDates[0] || new Date().toLocaleDateString('en-CA');
+    setDeleteStartDate(defaultDate);
+    setDeleteEndDate(defaultDate);
+    setIsDateDeleteOpen(true);
+  };
+
+  const matchingDateDeleteCount = useMemo(() => {
+    if (!deleteStartDate || !deleteEndDate) return 0;
+    const safeStart = deleteStartDate <= deleteEndDate ? deleteStartDate : deleteEndDate;
+    const safeEnd = deleteStartDate <= deleteEndDate ? deleteEndDate : deleteStartDate;
+    return businessClips.filter(
+      (c) => typeof c.date === 'string' && c.date >= safeStart && c.date <= safeEnd
+    ).length;
+  }, [businessClips, deleteStartDate, deleteEndDate]);
+
+  const handleConfirmDateDelete = () => {
+    if (!deleteStartDate || !deleteEndDate || matchingDateDeleteCount === 0) return;
+    const safeStart = deleteStartDate <= deleteEndDate ? deleteStartDate : deleteEndDate;
+    const safeEnd = deleteStartDate <= deleteEndDate ? deleteEndDate : deleteStartDate;
+    const deletedCount = deleteRawClipsByDateRange(activeCategory, safeStart, safeEnd);
+    setClips(getRawClips());
+    setInspectingItem(null);
+    setIsDateDeleteOpen(false);
+    if (dateFilter !== 'all' && dateFilter >= safeStart && dateFilter <= safeEnd) {
+      setDateFilter('all');
+    }
+    const rangeLabel = safeStart === safeEnd ? safeStart : `${safeStart} ~ ${safeEnd}`;
+    setDeleteFeedback(`${rangeLabel} အတွင်း မူရင်းစာသား ${deletedCount} စောင် ဖျက်သိမ်းပြီးပါပြီ ✓`);
+    setTimeout(() => setDeleteFeedback(null), 3500);
   };
 
   const handleSaveManual = (e: React.FormEvent) => {
@@ -556,8 +602,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto">
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-7xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 text-white px-4 py-3 flex items-center justify-between border-b border-amber-900/40 shrink-0">
@@ -690,22 +736,49 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <div className="text-slate-600 text-[11px] font-bold font-mono">
               စုစုပေါင်း: <span className="text-emerald-700 font-black">{formatAmount(totalFilteredAmount, 'Ks')}</span> ({filteredClips.length} စောင်)
             </div>
             {businessClips.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearAll}
-                className="text-[10px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer hover:underline"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>အားလုံးဖျက်မည်</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleOpenDateDelete}
+                  className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[10px] font-bold text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="ရက်စွဲရွေးချယ်ပြီး မူရင်းစာသားများ ဖျက်ပစ်ရန်"
+                >
+                  <Calendar className="w-3 h-3" />
+                  <span>ရက်ရွေးဖျက်မည်</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  className="text-[10px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer hover:underline"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>အားလုံးဖျက်မည်</span>
+                </button>
+              </>
             )}
           </div>
         </div>
+
+        {deleteFeedback && (
+          <div className="bg-emerald-50 border-b border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-800 flex items-center justify-between shrink-0">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>{deleteFeedback}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setDeleteFeedback(null)}
+              className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Manual Add New Form Drawer */}
         {isAddingNew && (
@@ -770,13 +843,13 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           </form>
         )}
 
-        {/* Compact Content Body: Grouped by Customer or Round & Sorted Chronologically (Newest first) */}
-        <div className="p-2 sm:p-3 overflow-y-auto flex-1 bg-slate-100/60 space-y-3">
+        {/* Chat-Stream Content Body on Dark Background */}
+        <div className="p-2.5 sm:p-3 overflow-y-auto flex-1 bg-slate-950 space-y-3">
           {filteredClips.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400 space-y-2 max-w-sm mx-auto shadow-2xs">
-              <FileText className="w-10 h-10 mx-auto text-slate-300" />
-              <h4 className="text-xs font-bold text-slate-700">မူရင်းစာသားမှတ်တမ်းများ မရှိသေးပါ</h4>
-              <p className="text-[11px] text-slate-500">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400 space-y-2 max-w-sm mx-auto">
+              <FileText className="w-10 h-10 mx-auto text-slate-500" />
+              <h4 className="text-xs font-bold text-slate-200">မူရင်းစာသားမှတ်တမ်းများ မရှိသေးပါ</h4>
+              <p className="text-[11px] text-slate-400">
                 ဘောင်ချာများ အတည်ပြုပြီးပါက ဤနေရာတွင် အလိုအလျောက် သပ်သပ်ရပ်ရပ် စုစည်းသိမ်းဆည်းပေးမည် ဖြစ်ပါသည်။
               </p>
             </div>
@@ -786,19 +859,16 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                 groupBy === 'round'
                   ? getRoundTheme(groupKey, section.clips[0]?.roundId)
                   : getCustomerTheme(groupKey);
-              const headerDateBadge = section.subLabel
-                ? (dateBadgeMap.get(section.subLabel) || 'bg-white/80 text-slate-700 border-slate-300')
-                : '';
 
               return (
               <div
                 key={groupKey}
-                className={`border rounded-xl p-2.5 shadow-2xs space-y-2 transition-colors ${sectionTheme.sectionBox}`}
+                className="bg-slate-900/70 border border-slate-800 rounded-xl p-2.5 space-y-2.5"
               >
                 {/* Section Header */}
-                <div className={`flex items-center justify-between border-b pb-1.5 px-0.5 ${sectionTheme.sectionHeaderBorder}`}>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2 px-0.5 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs border ${sectionTheme.iconBox}`}>
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs border bg-slate-800 border-slate-700 text-amber-300">
                       {groupBy === 'round' ? (
                         <Layers className="w-3.5 h-3.5" />
                       ) : (
@@ -806,40 +876,40 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                       )}
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                      <h4 className="text-xs font-black text-slate-100 flex items-center gap-2">
                         <span className="flex items-center gap-1.5">
                           <span className={`w-2 h-2 rounded-full inline-block ${sectionTheme.dot}`} />
                           <span>{section.label}</span>
                         </span>
                         {section.subLabel && groupBy === 'round' && (
-                          <span className={`text-[10px] font-bold font-mono px-1.5 py-0.2 rounded border ${headerDateBadge}`}>
+                          <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded border bg-slate-800 text-slate-300 border-slate-700">
                             {section.subLabel}
                           </span>
                         )}
                       </h4>
                     </div>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${sectionTheme.countBadge}`}>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full font-mono bg-slate-800 text-slate-200 border border-slate-700">
                       {section.clips.length} စောင်
                     </span>
                     {(() => {
                       const winCount = section.clips.filter((c) => clipWinMap.get(c.id)?.isWinner).length;
                       if (winCount === 0) return null;
                       return (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/50 text-[10px] font-black">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
                           <span>{winCount} ပေါက်</span>
                         </span>
                       );
                     })()}
                   </div>
 
-                  <div className="text-[10px] text-emerald-800 bg-white/75 border border-emerald-200/80 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                    <span>နောက်ဆုံးထိုးထားသော ဘောင်ချာများ အပေါ်ဆုံးတွင်ရှိပါသည်</span>
+                  <div className="text-[10px] text-emerald-300 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono font-bold">
+                    နောက်ဆုံးထိုးထားသော ဘောင်ချာများ အပေါ်ဆုံးတွင်ရှိပါသည်
                   </div>
                 </div>
 
-                {/* Compact 3-Column Grid on Tablet & Desktop (md:grid-cols-3), Dark Background */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {/* Incoming Chat-Message Style Stream in 2 or 3 Columns on Black Canvas */}
+                <div className="bg-black/75 rounded-xl p-2.5 border border-slate-800/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2.5 items-start">
                   {section.clips.map((clip, idx) => {
                     const serialNo = section.clips.length - idx;
                     const photos = clip.imageUrls && clip.imageUrls.length > 0
@@ -853,31 +923,64 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                     return (
                       <div
                         key={clip.id}
-                        className={`rounded-lg border p-2 shadow-2xs flex flex-col gap-1.5 transition-colors bg-slate-900 ${
-                          winInfo?.isWinner
-                            ? 'border-amber-400 ring-1 ring-amber-400/80'
-                            : 'border-slate-800 hover:border-slate-700'
-                        }`}
+                        className="flex items-start gap-1.5 min-w-0"
                       >
-                        {/* Compact Top Row: Serial #, Stake Amount, Eye Icon */}
-                        <div className="flex items-center justify-between gap-1.5">
-                          <span
-                            className={`min-w-[1.5rem] h-6 px-1.5 rounded-md border font-mono font-black text-[11px] flex items-center justify-center gap-0.5 shrink-0 ${
-                              winInfo?.isWinner
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-400'
-                                : 'bg-slate-800 text-slate-200 border-slate-700'
-                            }`}
-                            title={`အစဉ် ${serialNo}`}
-                          >
-                            {winInfo?.isWinner && (
-                              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400 shrink-0" />
-                            )}
-                            <span>{serialNo}</span>
-                          </span>
+                        {/* Front: Serial Number Pill */}
+                        <span
+                          className={`w-6 h-6 rounded-full border font-mono font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
+                            winInfo?.isWinner
+                              ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                              : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                          }`}
+                          title={`အစဉ် ${serialNo}`}
+                        >
+                          {serialNo}
+                        </span>
 
-                          <div className="flex items-center gap-1 shrink-0">
+                        {/* Middle: Natural Chat Message Bubble (No Fixed Scrollbox) */}
+                        <div className="min-w-0 flex items-end gap-1.5 flex-wrap sm:flex-nowrap">
+                          {hasText ? (
+                            <div
+                              className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border w-fit max-w-full min-w-0 ${
+                                winInfo?.isWinner
+                                  ? 'bg-amber-950/40 border-amber-400/70'
+                                  : 'bg-zinc-900 border-zinc-800'
+                              }`}
+                            >
+                              {winInfo?.isWinner && (
+                                <div className="text-[10px] font-mono font-black text-amber-300 mb-0.5">
+                                  #{serialNo} ★ ပေါက်
+                                </div>
+                              )}
+                              <pre className="text-emerald-300 font-mono text-[11px] leading-snug whitespace-pre-wrap break-words select-all">
+                                {clip.rawText}
+                              </pre>
+                            </div>
+                          ) : hasPhotos ? (
+                            <button
+                              type="button"
+                              onClick={() => setInspectingItem({ clip, serialNo })}
+                              className={`rounded-2xl rounded-tl-xs px-3 py-1.5 border flex items-center gap-1.5 cursor-pointer transition-colors text-left w-fit max-w-full ${
+                                winInfo?.isWinner
+                                  ? 'bg-amber-950/40 border-amber-400/70 text-amber-200'
+                                  : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-amber-300'
+                              }`}
+                            >
+                              <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span className="font-mono text-[11px] font-bold truncate">
+                                [ဓာတ်ပုံ {photos.length} ပုံ]
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="rounded-2xl rounded-tl-xs px-3 py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[11px]">
+                              -
+                            </div>
+                          )}
+
+                          {/* Back: Stake Amount & Eye Detail Button */}
+                          <div className="flex items-center gap-1 shrink-0 pb-0.5">
                             <span
-                              className="px-2 py-0.5 rounded-md bg-emerald-950/90 border border-emerald-700/70 text-emerald-300 font-mono font-black text-[11px] whitespace-nowrap"
+                              className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono font-bold text-[10px] whitespace-nowrap"
                               title="ထိုးကြေး"
                             >
                               {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
@@ -885,36 +988,12 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setInspectingItem({ clip, serialNo })}
-                              className="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                              className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-amber-300 border border-zinc-700 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
                               title="အသေးစိတ် ဖွင့်ကြည့်မည်"
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        </div>
-
-                        {/* Compact Raw Text (Dark Background, Tight Line-Height) */}
-                        <div className="flex-1 min-w-0">
-                          {hasText ? (
-                            <pre className="bg-slate-950/90 text-emerald-300 font-mono text-[11px] px-2 py-1.5 rounded-md whitespace-pre-wrap leading-tight select-all border border-slate-800 break-words max-h-28 overflow-y-auto">
-                              {clip.rawText}
-                            </pre>
-                          ) : hasPhotos ? (
-                            <button
-                              type="button"
-                              onClick={() => setInspectingItem({ clip, serialNo })}
-                              className="w-full bg-slate-950/90 hover:bg-slate-800 text-amber-300 font-mono text-[11px] font-bold px-2 py-1.5 rounded-md border border-slate-800 hover:border-amber-400 flex items-center gap-1.5 cursor-pointer transition-colors text-left"
-                            >
-                              <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                              <span className="truncate">
-                                [ဓာတ်ပုံမှတ်တမ်း {photos.length} ပုံ]
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="bg-slate-950/90 text-slate-400 font-mono text-[11px] px-2 py-1 rounded-md border border-slate-800">
-                              -
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
@@ -1142,6 +1221,128 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                 alt="မူရင်း ဓာတ်ပုံမှတ်တမ်း"
                 className="max-w-full max-h-[82vh] object-contain rounded-xl border border-slate-700 shadow-2xl bg-black"
               />
+            </div>
+          </div>
+        )}
+
+        {/* Date Range Delete Confirmation Modal */}
+        {isDateDeleteOpen && (
+          <div
+            onClick={() => setIsDateDeleteOpen(false)}
+            className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden"
+            >
+              <div className="bg-rose-900 text-white px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 font-black text-sm">
+                  <Calendar className="w-4 h-4 text-rose-300" />
+                  <span>{businessMeta.title} — ရက်ရွေး၍ ဖျက်မည်</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDateDeleteOpen(false)}
+                  className="text-rose-200 hover:text-white cursor-pointer p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 text-xs">
+                {/* Quick Select Available Dates */}
+                {availableDates.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-700">
+                      သိမ်းထားသော ရက်စွဲတစ်ခုကို တိုက်ရိုက်ရွေးရန်:
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      {availableDates.map((d) => {
+                        const cnt = businessClips.filter((c) => c.date === d).length;
+                        const isSelected = deleteStartDate === d && deleteEndDate === d;
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => {
+                              setDeleteStartDate(d);
+                              setDeleteEndDate(d);
+                            }}
+                            className={`px-2 py-1 rounded-lg border font-mono text-[11px] font-bold cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-rose-600 text-white border-rose-700'
+                                : 'bg-slate-50 hover:bg-rose-50 text-slate-800 border-slate-200'
+                            }`}
+                          >
+                            {d} ({cnt})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Date Range Inputs */}
+                <div className="grid grid-cols-2 gap-2.5 pt-1 border-t border-slate-100">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">စတင်ရက် (မှ)</label>
+                    <input
+                      type="date"
+                      value={deleteStartDate}
+                      onChange={(e) => setDeleteStartDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold text-slate-900 focus:border-rose-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">ပြီးဆုံးရက် (အထိ)</label>
+                    <input
+                      type="date"
+                      value={deleteEndDate}
+                      onChange={(e) => setDeleteEndDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold text-slate-900 focus:border-rose-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Matching Count & Safety Notice */}
+                <div
+                  className={`rounded-xl p-2.5 border font-bold flex items-center gap-2 ${
+                    matchingDateDeleteCount > 0
+                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-500'
+                  }`}
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>
+                    {matchingDateDeleteCount > 0
+                      ? `ရွေးချယ်ထားသောရက်အတွင်း မူရင်းစာသား (${matchingDateDeleteCount}) စောင် ဖျက်ပစ်ပါမည်။`
+                      : 'ရွေးချယ်ထားသောရက်စွဲအတွင်း ဖျက်ရန် မူရင်းစာသား မရှိပါ။'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-500 font-bold">
+                  * {businessMeta.title} Raw Text Archive မှ မူရင်းစာသားများသာ ပျက်မည်ဖြစ်ပြီး ဘောင်ချာများနှင့် ဒိုင်စာရင်းများအပေါ် သက်ရောက်မှု မရှိပါ။
+                </p>
+              </div>
+
+              <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDateDeleteOpen(false)}
+                  className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                >
+                  မလုပ်တော့ပါ
+                </button>
+                <button
+                  type="button"
+                  disabled={matchingDateDeleteCount === 0}
+                  onClick={handleConfirmDateDelete}
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>အတည်ပြု ဖျက်မည် ({matchingDateDeleteCount})</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
