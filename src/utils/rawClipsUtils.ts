@@ -264,6 +264,10 @@ export function deleteRawClipsByDate(date: string): void {
   tombstoneRawClips(c => c.date === date, 'date-deleted');
 }
 
+export function clearRawClipsByCategory(category: '3d' | '2d' | 'football'): void {
+  tombstoneRawClips(c => c.category === category, 'category-cleared');
+}
+
 export function clearAllRawClips(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);

@@ -25,7 +25,8 @@ import {
   RefreshCw,
   Image as ImageIcon,
   ZoomIn,
-  Star
+  Star,
+  Eye
 } from 'lucide-react';
 import {
   RawBetClip,
@@ -33,7 +34,7 @@ import {
   saveRawClip,
   deleteRawClip,
   deleteRawClipsByRound,
-  clearAllRawClips
+  clearRawClipsByCategory
 } from '../utils/rawClipsUtils';
 import { formatAmount, parseQuickBetText, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { parseTwoDBatchInput } from '../utils/twoDLotteryUtils';
@@ -186,6 +187,24 @@ interface RawTextClipsModalProps {
   currentDealerMode?: '3d' | '2d' | 'football';
 }
 
+const BUSINESS_META: Record<'3d' | '2d' | 'football', { title: string; short: string; headerBadge: string }> = {
+  '3d': {
+    title: 'အိုးစည်လေး (3D)',
+    short: '3D',
+    headerBadge: 'bg-indigo-500/25 border-indigo-400/50 text-indigo-200',
+  },
+  '2d': {
+    title: 'ဇီးကွက် (2D)',
+    short: '2D',
+    headerBadge: 'bg-teal-500/25 border-teal-400/50 text-teal-200',
+  },
+  'football': {
+    title: 'ပစ်တိုင်းထောင် (Football)',
+    short: 'FB',
+    headerBadge: 'bg-emerald-500/25 border-emerald-400/50 text-emerald-200',
+  },
+};
+
 export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   isOpen,
   onClose,
@@ -196,19 +215,21 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const lottery3D = useLottery();
   const lottery2D = useTwoDLottery();
 
+  const activeCategory: '3d' | '2d' | 'football' = currentDealerMode;
+  const businessMeta = BUSINESS_META[activeCategory];
+
   const [clips, setClips] = useState<RawBetClip[]>(() => getRawClips());
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | '3d' | '2d' | 'football'>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [roundFilter, setRoundFilter] = useState<string>('all');
   const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [groupBy, setGroupBy] = useState<'customer' | 'round'>('customer');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [inspectingItem, setInspectingItem] = useState<{ clip: RawBetClip; serialNo: number } | null>(null);
 
   // Manual Add New Raw Text Form State
   const [isAddingNew, setIsAddingNew] = useState(false);
-  const [manualCategory, setManualCategory] = useState<'3d' | '2d' | 'football'>(currentDealerMode);
   const [manualVoucherNo, setManualVoucherNo] = useState('');
   const [manualCustomer, setManualCustomer] = useState('');
   const [manualText, setManualText] = useState('');
@@ -222,25 +243,41 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     return () => window.removeEventListener('shwe_raw_clips_updated', handleUpdate);
   }, []);
 
-  // Refresh when opened
+  // Refresh when opened & reset filters when switching business mode
   useEffect(() => {
     if (isOpen) {
       setClips(getRawClips());
+      setInspectingItem(null);
     }
   }, [isOpen]);
 
-  // Extract unique dates, rounds, and customers for filtering
+  useEffect(() => {
+    setDateFilter('all');
+    setRoundFilter('all');
+    setCustomerFilter('all');
+    setSearchQuery('');
+    setInspectingItem(null);
+    setIsAddingNew(false);
+  }, [activeCategory]);
+
+  // Strictly isolate clips to the current active business only
+  const businessClips = useMemo(
+    () => clips.filter(c => c.category === activeCategory),
+    [clips, activeCategory]
+  );
+
+  // Extract unique dates, rounds, and customers for filtering within this business
   const availableDates = useMemo(
-    () => Array.from(new Set(clips.map(c => c.date))).sort().reverse(),
-    [clips]
+    () => Array.from(new Set(businessClips.map(c => c.date))).sort().reverse(),
+    [businessClips]
   );
   const availableRounds = useMemo(
-    () => Array.from(new Set(clips.map(c => c.roundName))).filter(Boolean),
-    [clips]
+    () => Array.from(new Set(businessClips.map(c => c.roundName))).filter(Boolean),
+    [businessClips]
   );
   const availableCustomers = useMemo(
-    () => Array.from(new Set(clips.map(c => c.customerName))).filter(Boolean).sort(),
-    [clips]
+    () => Array.from(new Set(businessClips.map(c => c.customerName))).filter(Boolean).sort(),
+    [businessClips]
   );
 
   // Assign distinct color themes to customers, rounds, and dates so each is immediately distinguishable
@@ -281,9 +318,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     return COLOR_THEMES[idx];
   };
 
-  // Filtered clips
-  const filteredClips = clips.filter(c => {
-    if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
+  // Filtered clips (within current business only)
+  const filteredClips = businessClips.filter(c => {
     if (dateFilter !== 'all' && c.date !== dateFilter) return false;
     if (roundFilter !== 'all' && c.roundName !== roundFilter) return false;
     if (customerFilter !== 'all' && c.customerName !== customerFilter) return false;
@@ -298,7 +334,26 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     return true;
   });
 
-  const totalFilteredAmount = filteredClips.reduce((sum, c) => sum + (c.totalAmountPreview || 0), 0);
+  const getClipStakeAmount = (clip: RawBetClip): number => {
+    if (typeof clip.totalAmountPreview === 'number' && clip.totalAmountPreview > 0) {
+      return clip.totalAmountPreview;
+    }
+    if (clip.rawText && clip.rawText.trim()) {
+      if (clip.category === '3d') {
+        const parsed = parseQuickBetText(clip.rawText);
+        const sum = parsed.items.reduce((s, it) => s + (it.amount || 0), 0);
+        if (sum > 0) return sum;
+      } else if (clip.category === '2d') {
+        const parsed = parseTwoDBatchInput(clip.rawText);
+        const items = Array.isArray(parsed) ? parsed : parsed.items;
+        const sum = items.reduce((s, it) => s + (it.amount || 0), 0);
+        if (sum > 0) return sum;
+      }
+    }
+    return 0;
+  };
+
+  const totalFilteredAmount = filteredClips.reduce((sum, c) => sum + getClipStakeAmount(c), 0);
 
   // Group clips by Customer or Round, with newest vouchers always first (b.timestamp - a.timestamp)
   const groupedSections = useMemo(() => {
@@ -444,13 +499,17 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     if (window.confirm('ဤမူရင်းစာသားမှတ်တမ်းကို ဖျက်ပစ်ရန် သေချာပါသလား?')) {
       deleteRawClip(id);
       setClips(getRawClips());
+      if (inspectingItem?.clip.id === id) {
+        setInspectingItem(null);
+      }
     }
   };
 
   const handleClearAll = () => {
-    if (window.confirm('သိမ်းဆည်းထားသော မူရင်းစာသားမှတ်တမ်း အားလုံးကို အပြီးတိုင် ဖျက်ပစ်ရန် သေချာပါသလား?\n(ဒိုင်စာရင်းနှင့် ဘောင်ချာများအပေါ် သက်ရောက်မှု မရှိပါ)')) {
-      clearAllRawClips();
-      setClips([]);
+    if (window.confirm(`${businessMeta.title} အတွက် သိမ်းဆည်းထားသော မူရင်းစာသားမှတ်တမ်း အားလုံးကို အပြီးတိုင် ဖျက်ပစ်ရန် သေချာပါသလား?\n(အခြားလုပ်ငန်းများနှင့် ဒိုင်စာရင်း/ဘောင်ချာများအပေါ် သက်ရောက်မှု မရှိပါ)`)) {
+      clearRawClipsByCategory(activeCategory);
+      setClips(getRawClips());
+      setInspectingItem(null);
     }
   };
 
@@ -459,22 +518,33 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     if (!manualText.trim()) return;
 
     const lines = manualText.split('\n').filter(l => l.trim().length > 0);
-    const roundName = manualCategory === '3d'
+    const roundName = activeCategory === '3d'
       ? (activeRoundName3D || '3D ပွဲစဉ်')
-      : manualCategory === '2d'
+      : activeCategory === '2d'
       ? (activeRoundName2D || '2D ပွဲစဉ်')
       : 'ပစ်တိုင်းထောင်';
 
+    let computedTotal = 0;
+    if (activeCategory === '3d') {
+      const parsed = parseQuickBetText(manualText.trim());
+      computedTotal = parsed.items.reduce((s, it) => s + (it.amount || 0), 0);
+    } else if (activeCategory === '2d') {
+      const parsed = parseTwoDBatchInput(manualText.trim());
+      const items = Array.isArray(parsed) ? parsed : parsed.items;
+      computedTotal = items.reduce((s, it) => s + (it.amount || 0), 0);
+    }
+
     saveRawClip({
-      category: manualCategory,
-      roundId: `manual-${manualCategory}`,
+      category: activeCategory,
+      roundId: `manual-${activeCategory}`,
       roundName: roundName,
       date: new Date().toLocaleDateString('en-CA'),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      voucherNumber: manualVoucherNo.trim() || `ဘောင်ချာ (${clips.length + 1})`,
+      voucherNumber: manualVoucherNo.trim() || `ဘောင်ချာ (${businessClips.length + 1})`,
       customerName: manualCustomer.trim() || 'အထွေထွေ',
       rawText: manualText.trim(),
       itemCount: lines.length,
+      totalAmountPreview: computedTotal > 0 ? computedTotal : undefined,
       source: 'direct_paste'
     });
 
@@ -496,16 +566,19 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
               <FileText className="w-4 h-4 text-amber-300" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${businessMeta.headerBadge}`}>
+                  {businessMeta.title}
+                </span>
                 <h3 className="text-sm font-black tracking-tight text-amber-100">
                   မူရင်းစာသား သိမ်းဆည်းရာနေရာ (Raw Texts Archive)
                 </h3>
                 <span className="bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full font-mono">
-                  {clips.length} စောင်
+                  {businessClips.length} စောင်
                 </span>
               </div>
               <p className="text-[11px] text-amber-200/80">
-                ထိုးသားအမည်အလိုက် ခွဲခြားပြီး အချိန်အလိုက် ရှေ့နောက်စီစဉ်ထားသော မူရင်းစာသားမှတ်တမ်းများ
+                {businessMeta.title} သီးသန့် မူရင်းစာသားမှတ်တမ်းများ (အရင်ထိုး ၁ မှ နောက်ဆုံးထိုး အပေါ်ဆုံးစီထားသည်)
               </p>
             </div>
           </div>
@@ -529,30 +602,9 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           </div>
         </div>
 
-        {/* Filters Bar: Category, Group By, Search, Date, Round, Customer */}
+        {/* Filters Bar: Group By, Search, Date, Round, Customer (Isolated to Active Business) */}
         <div className="bg-slate-100/90 border-b border-slate-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Category Filter */}
-            <div className="flex items-center bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs">
-              {(['all', '3d', '2d', 'football'] as const).map(cat => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                    categoryFilter === cat
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {cat === 'all' && 'အားလုံး'}
-                  {cat === '3d' && '3D'}
-                  {cat === '2d' && '2D'}
-                  {cat === 'football' && 'FB'}
-                </button>
-              ))}
-            </div>
-
             {/* Group By Toggle: Customer vs Round */}
             <div className="flex items-center bg-white p-0.5 rounded-xl border border-amber-300/80 shadow-2xs">
               <button
@@ -642,7 +694,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
             <div className="text-slate-600 text-[11px] font-bold font-mono">
               စုစုပေါင်း: <span className="text-emerald-700 font-black">{formatAmount(totalFilteredAmount, 'Ks')}</span> ({filteredClips.length} စောင်)
             </div>
-            {clips.length > 0 && (
+            {businessClips.length > 0 && (
               <button
                 type="button"
                 onClick={handleClearAll}
@@ -660,16 +712,10 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           <form onSubmit={handleSaveManual} className="bg-amber-50/70 border-b border-amber-200 p-3 space-y-2 shrink-0">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">အမျိုးအစား</label>
-                <select
-                  value={manualCategory}
-                  onChange={(e) => setManualCategory(e.target.value as any)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-2 py-1 text-xs font-bold text-slate-900"
-                >
-                  <option value="3d">အိုးစည်လေး (3D)</option>
-                  <option value="2d">ဇီးကွက် (2D)</option>
-                  <option value="football">ပစ်တိုင်းထောင် (Football)</option>
-                </select>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">လုပ်ငန်းအမျိုးအစား</label>
+                <div className="w-full bg-slate-100 border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-black text-slate-800">
+                  {businessMeta.title}
+                </div>
               </div>
 
               <div>
@@ -792,189 +838,87 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
                   </div>
                 </div>
 
-                {/* Vouchers Grid: Compact, Auto-Height (No huge empty black spaces), Items-Start */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+                {/* Vouchers Vertical Stack: Clean Dark Boxes Only (Earliest = 1 at bottom, Latest = Top number) */}
+                <div className="flex flex-col gap-2">
                   {section.clips.map((clip, idx) => {
-                    const cardTheme =
-                      groupBy === 'customer'
-                        ? getRoundTheme(clip.roundName, clip.roundId)
-                        : getCustomerTheme(clip.customerName);
-                    const dateBadgeCls =
-                      dateBadgeMap.get(clip.date) || 'bg-white/80 text-slate-700 border-slate-300';
-
+                    const serialNo = section.clips.length - idx;
                     const photos = clip.imageUrls && clip.imageUrls.length > 0
                       ? clip.imageUrls
                       : (clip.imageDataUrl ? [clip.imageDataUrl] : []);
                     const hasPhotos = photos.length > 0;
                     const hasText = Boolean(clip.rawText && clip.rawText.trim());
-                    const sourceBadge = hasPhotos && !hasText
-                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
-                      : clip.source === 'telegram'
-                      ? { label: 'Telegram', cls: 'bg-sky-100 text-sky-800 border-sky-300' }
-                      : clip.source === 'batch_paste' || clip.source === 'direct_paste'
-                      ? { label: 'ကူးယူစာသား', cls: 'bg-amber-100 text-amber-900 border-amber-300' }
-                      : clip.source === 'manual'
-                      ? { label: 'လက်ရိုက်', cls: 'bg-white/90 text-slate-700 border-slate-300' }
-                      : hasPhotos
-                      ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
-                      : null;
-
                     const winInfo = clipWinMap.get(clip.id);
+                    const stakeAmount = getClipStakeAmount(clip);
 
                     return (
-                    <div
-                      key={clip.id}
-                      className={`border rounded-xl p-2 space-y-1.5 shadow-xs hover:shadow-sm transition-all ${
-                        winInfo?.isWinner
-                          ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/70'
-                          : `ring-1 ring-white/70 ${cardTheme.cardBox}`
-                      }`}
-                    >
-                      {/* Top Row: Voucher Badge, Customer/Round, Time, Category */}
-                      <div className="flex items-center justify-between text-[11px] gap-1">
-                        <div className="flex items-center gap-1.5 font-bold min-w-0">
-                          <span className="px-1.5 py-0.5 bg-white/90 text-amber-900 border border-amber-300/90 rounded-md text-[10px] font-black font-mono shrink-0 shadow-2xs">
-                            {clip.voucherNumber || `ဘောင်ချာ #${idx + 1}`}
-                          </span>
-                          {winInfo?.isWinner && (
-                            <span
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black shrink-0"
-                              title={`ပေါက်ဂဏန်း (${winInfo.winningNumber}) ပါဝင်သည်`}
+                      <div
+                        key={clip.id}
+                        className="flex items-start sm:items-center gap-2"
+                      >
+                        {/* Serial Number (1 = earliest at bottom, highest = latest at top) */}
+                        <span
+                          className={`min-w-[2rem] h-8 px-2 rounded-lg border font-mono font-black text-xs flex items-center justify-center shrink-0 shadow-2xs ${
+                            winInfo?.isWinner
+                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-400'
+                              : 'bg-white text-slate-800 border-slate-300'
+                          }`}
+                          title={`အစဉ် ${serialNo}`}
+                        >
+                          {serialNo}
+                        </span>
+
+                        {/* Dark Raw Text Box Only (Hidden: date, voucherNo, round, time, copy button, business tag) */}
+                        <div className="flex-1 min-w-0">
+                          {hasText ? (
+                            <pre
+                              className={`bg-slate-900 text-emerald-300 font-mono text-[11px] sm:text-xs px-3 py-2 rounded-lg whitespace-pre-wrap leading-snug select-all border break-words max-h-44 overflow-y-auto ${
+                                winInfo?.isWinner
+                                  ? 'border-amber-400 ring-1 ring-amber-400/70'
+                                  : 'border-slate-800'
+                              }`}
                             >
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
-                              <span>{winInfo.winningNumber}</span>
-                            </span>
-                          )}
-                          {sourceBadge && (
-                            <span className={`px-1.5 py-0.2 rounded border text-[9px] font-bold shrink-0 ${sourceBadge.cls}`}>
-                              {sourceBadge.label}
-                            </span>
-                          )}
-                          {groupBy === 'round' && clip.customerName && (
-                            <span className={`px-1.5 py-0.2 rounded-md border text-[10px] font-black truncate max-w-[115px] flex items-center gap-1 ${cardTheme.badge}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cardTheme.dot}`} />
-                              <span className="truncate">{clip.customerName}</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 text-[10px] font-mono text-slate-600 shrink-0">
-                          <span className={`px-1.5 py-0.2 rounded border text-[9px] font-bold flex items-center gap-0.5 ${dateBadgeCls}`}>
-                            <Calendar className="w-2.5 h-2.5 shrink-0" />
-                            <span>{clip.date}</span>
-                          </span>
-                          <span className="flex items-center gap-0.5 text-slate-600 font-bold">
-                            <Clock className="w-2.5 h-2.5 text-slate-500" />
-                            <span>{clip.time || new Date(clip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </span>
-                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
-                            clip.category === '3d' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' :
-                            clip.category === '2d' ? 'bg-teal-100 text-teal-800 border border-teal-300' :
-                            'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          }`}>
-                            {clip.category.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Round indicator if grouped by customer */}
-                      {groupBy === 'customer' && clip.roundName && (
-                        <div className="flex items-center gap-1 px-0.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold font-mono max-w-full ${cardTheme.badge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cardTheme.dot}`} />
-                            <Layers className="w-2.5 h-2.5 shrink-0 opacity-80" />
-                            <span className="truncate">{clip.roundName}</span>
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Photo Slip Display (when scanned/uploaded as image) */}
-                      {hasPhotos && (
-                        <div className={`grid gap-1.5 ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                          {photos.map((photoSrc, pIdx) => (
-                            <button
-                              key={pIdx}
-                              type="button"
-                              onClick={() => setPreviewImage(photoSrc)}
-                              className="group relative rounded-lg overflow-hidden border border-slate-300 bg-slate-900/95 hover:border-amber-500 transition-all cursor-pointer text-left"
-                              title="ဓာတ်ပုံ အကြီးချဲ့ကြည့်ရန် နှိပ်ပါ"
+                              {clip.rawText}
+                            </pre>
+                          ) : hasPhotos ? (
+                            <div
+                              onClick={() => setInspectingItem({ clip, serialNo })}
+                              className={`bg-slate-900 text-amber-300 font-mono text-xs px-3 py-2 rounded-lg border flex items-center gap-2 cursor-pointer hover:border-amber-400 transition-colors ${
+                                winInfo?.isWinner
+                                  ? 'border-amber-400 ring-1 ring-amber-400/70'
+                                  : 'border-slate-800'
+                              }`}
                             >
-                              <img
-                                src={photoSrc}
-                                alt={`${clip.voucherNumber || 'Slip'} ဓာတ်ပုံ ${pIdx + 1}`}
-                                className="w-full max-h-48 object-contain mx-auto bg-slate-950"
-                              />
-                              <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-slate-900/80 text-white text-[10px] font-bold flex items-center gap-1 opacity-90 group-hover:opacity-100 shadow-xs">
-                                <ZoomIn className="w-3 h-3 text-amber-300" />
-                                <span>အကြီးကြည့်မည်</span>
+                              <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span className="truncate">
+                                [ဓာတ်ပုံမှတ်တမ်း {photos.length} ပုံ]
                               </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Raw Text Box (Exact typed or copied/pasted text; hidden for photo-only clips) */}
-                      {hasText && (
-                        <pre className="bg-slate-900 text-emerald-300 font-mono text-[11px] px-2.5 py-1.5 rounded-lg whitespace-pre-wrap leading-snug select-all border border-slate-800 break-words max-h-40 overflow-y-auto">
-                          {clip.rawText}
-                        </pre>
-                      )}
-
-                      {/* Footer: Copy / View Photo Button & Trash */}
-                      <div className="flex items-center justify-between pt-0.5">
-                        {hasText ? (
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(clip)}
-                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                              copiedId === clip.id
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs'
-                            }`}
-                          >
-                            {copiedId === clip.id ? (
-                              <>
-                                <Check className="w-3 h-3 text-white" />
-                                <span>ကူးယူပြီး</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3 text-slate-500" />
-                                <span>စာသားကူးမည်</span>
-                              </>
-                            )}
-                          </button>
-                        ) : hasPhotos ? (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewImage(photos[0])}
-                            className="px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs"
-                          >
-                            <ImageIcon className="w-3 h-3 text-amber-600" />
-                            <span>ဓာတ်ပုံကြည့်မည်</span>
-                          </button>
-                        ) : (
-                          <span />
-                        )}
-
-                        <div className="flex items-center gap-1">
-                          {clip.totalAmountPreview !== undefined && clip.totalAmountPreview > 0 && (
-                            <span className="text-[10px] font-mono font-black text-slate-800 bg-white/80 border border-slate-200/80 px-1.5 py-0.2 rounded">
-                              {formatAmount(clip.totalAmountPreview, 'K')}
-                            </span>
+                            </div>
+                          ) : (
+                            <div className="bg-slate-900 text-slate-400 font-mono text-xs px-3 py-2 rounded-lg border border-slate-800">
+                              -
+                            </div>
                           )}
+                        </div>
+
+                        {/* Right Side: Stake Amount & Eye Detail Button */}
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <span
+                            className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-emerald-800 font-mono font-black text-[11px] sm:text-xs whitespace-nowrap shadow-2xs"
+                            title="ထိုးကြေး"
+                          >
+                            {stakeAmount > 0 ? formatAmount(stakeAmount, 'K') : '0 K'}
+                          </span>
                           <button
                             type="button"
-                            onClick={() => handleDelete(clip.id)}
-                            className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
-                            title="ဖျက်မည်"
+                            onClick={() => setInspectingItem({ clip, serialNo })}
+                            className="w-8 h-8 rounded-lg bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-300 hover:border-amber-400 flex items-center justify-center transition-colors cursor-pointer shadow-2xs active:scale-95"
+                            title="အသေးစိတ် ဖွင့်ကြည့်မည်"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Eye className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                    </div>
-                  );
+                    );
                   })}
                 </div>
               </div>
@@ -983,11 +927,204 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
           )}
         </div>
 
+        {/* Full Detail Inspection Modal (Opened via Eye Icon - Preserves all full voucher card details) */}
+        {inspectingItem && (() => {
+          const { clip, serialNo } = inspectingItem;
+          const cardTheme =
+            groupBy === 'customer'
+              ? getRoundTheme(clip.roundName, clip.roundId)
+              : getCustomerTheme(clip.customerName);
+          const dateBadgeCls =
+            dateBadgeMap.get(clip.date) || 'bg-white/80 text-slate-700 border-slate-300';
+          const photos = clip.imageUrls && clip.imageUrls.length > 0
+            ? clip.imageUrls
+            : (clip.imageDataUrl ? [clip.imageDataUrl] : []);
+          const hasPhotos = photos.length > 0;
+          const hasText = Boolean(clip.rawText && clip.rawText.trim());
+          const sourceBadge = hasPhotos && !hasText
+            ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
+            : clip.source === 'telegram'
+            ? { label: 'Telegram', cls: 'bg-sky-100 text-sky-800 border-sky-300' }
+            : clip.source === 'batch_paste' || clip.source === 'direct_paste'
+            ? { label: 'ကူးယူစာသား', cls: 'bg-amber-100 text-amber-900 border-amber-300' }
+            : clip.source === 'manual'
+            ? { label: 'လက်ရိုက်', cls: 'bg-white/90 text-slate-700 border-slate-300' }
+            : hasPhotos
+            ? { label: 'ဓာတ်ပုံ', cls: 'bg-purple-100 text-purple-800 border-purple-300' }
+            : null;
+          const winInfo = clipWinMap.get(clip.id);
+          const stakeAmount = getClipStakeAmount(clip);
+
+          return (
+            <div
+              onClick={() => setInspectingItem(null)}
+              className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className={`w-full max-w-lg rounded-2xl border p-4 space-y-3 shadow-2xl bg-white ${
+                  winInfo?.isWinner
+                    ? 'ring-2 ring-amber-400 border-amber-400'
+                    : cardTheme.cardBox
+                }`}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-xs font-mono font-black">
+                      #{serialNo}
+                    </span>
+                    <span className="px-2 py-0.5 bg-white text-amber-900 border border-amber-300 rounded-md text-xs font-black font-mono shadow-2xs">
+                      {clip.voucherNumber || `ဘောင်ချာ #${serialNo}`}
+                    </span>
+                    {winInfo?.isWinner && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                        <span>{winInfo.winningNumber}</span>
+                      </span>
+                    )}
+                    {sourceBadge && (
+                      <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${sourceBadge.cls}`}>
+                        {sourceBadge.label}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInspectingItem(null)}
+                    className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors cursor-pointer"
+                    title="ပိတ်မည်"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Metadata Row: Customer, Round, Date, Time, Category */}
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  {clip.customerName && (
+                    <span className={`px-2 py-0.5 rounded-md border font-black flex items-center gap-1 ${cardTheme.badge}`}>
+                      <User className="w-3 h-3 shrink-0" />
+                      <span>{clip.customerName}</span>
+                    </span>
+                  )}
+                  {clip.roundName && (
+                    <span className={`px-2 py-0.5 rounded-md border font-bold font-mono flex items-center gap-1 ${cardTheme.badge}`}>
+                      <Layers className="w-3 h-3 shrink-0" />
+                      <span>{clip.roundName}</span>
+                    </span>
+                  )}
+                  <span className={`px-2 py-0.5 rounded border font-mono font-bold flex items-center gap-1 ${dateBadgeCls}`}>
+                    <Calendar className="w-3 h-3 shrink-0" />
+                    <span>{clip.date}</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded border border-slate-200 bg-white text-slate-700 font-mono font-bold flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-slate-500" />
+                    <span>{clip.time || new Date(clip.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                    clip.category === '3d' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' :
+                    clip.category === '2d' ? 'bg-teal-100 text-teal-800 border border-teal-300' :
+                    'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}>
+                    {clip.category.toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Photos if present */}
+                {hasPhotos && (
+                  <div className={`grid gap-2 ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {photos.map((photoSrc, pIdx) => (
+                      <button
+                        key={pIdx}
+                        type="button"
+                        onClick={() => setPreviewImage(photoSrc)}
+                        className="group relative rounded-xl overflow-hidden border border-slate-300 bg-slate-900 hover:border-amber-500 transition-all cursor-pointer text-left"
+                        title="ဓာတ်ပုံ အကြီးချဲ့ကြည့်ရန် နှိပ်ပါ"
+                      >
+                        <img
+                          src={photoSrc}
+                          alt={`${clip.voucherNumber || 'Slip'} ဓာတ်ပုံ ${pIdx + 1}`}
+                          className="w-full max-h-56 object-contain mx-auto bg-slate-950"
+                        />
+                        <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-slate-900/80 text-white text-[10px] font-bold flex items-center gap-1 opacity-90 group-hover:opacity-100 shadow-xs">
+                          <ZoomIn className="w-3 h-3 text-amber-300" />
+                          <span>အကြီးကြည့်မည်</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Full Raw Text Box */}
+                {hasText && (
+                  <pre className="bg-slate-900 text-emerald-300 font-mono text-xs px-3 py-2.5 rounded-xl whitespace-pre-wrap leading-relaxed select-all border border-slate-800 break-words max-h-60 overflow-y-auto">
+                    {clip.rawText}
+                  </pre>
+                )}
+
+                {/* Footer Actions: Copy, View Photo, Stake Amount, Delete */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
+                  <div className="flex items-center gap-2">
+                    {hasText && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(clip)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          copiedId === clip.id
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs'
+                        }`}
+                      >
+                        {copiedId === clip.id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-white" />
+                            <span>ကူးယူပြီး</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-slate-600" />
+                            <span>စာသားကူးမည်</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {hasPhotos && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage(photos[0])}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-amber-600" />
+                        <span>ဓာတ်ပုံကြည့်မည်</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-black text-emerald-800 bg-white border border-emerald-300 px-2.5 py-1 rounded-lg">
+                      {formatAmount(stakeAmount, 'Ks')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(clip.id)}
+                      className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                      title="ဖျက်မည်"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>ဖျက်မည်</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Lightbox Preview for Archived Photo Slips */}
         {previewImage && (
           <div
             onClick={() => setPreviewImage(null)}
-            className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-xs flex items-center justify-center p-4"
+            className="fixed inset-0 z-70 bg-slate-950/90 backdrop-blur-xs flex items-center justify-center p-4"
           >
             <div
               onClick={(e) => e.stopPropagation()}
