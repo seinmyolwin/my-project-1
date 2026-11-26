@@ -996,7 +996,22 @@ export function loadStoredData<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(defaultValue) && Array.isArray(parsed) && parsed.length === 0) {
+        const backupRaw = localStorage.getItem(`${key}_backup`);
+        if (backupRaw) {
+          try {
+            const backupParsed = JSON.parse(backupRaw);
+            if (Array.isArray(backupParsed) && backupParsed.length > 0) {
+              console.warn(`[Storage] Primary "${key}" was empty []; recovered ${backupParsed.length} items from "${key}_backup".`);
+              return backupParsed as unknown as T;
+            }
+          } catch {
+            // ignore corrupted backup
+          }
+        }
+      }
+      return parsed;
     }
     // Secondary fallback to safety backup copy if primary was null
     const backupRaw = localStorage.getItem(`${key}_backup`);

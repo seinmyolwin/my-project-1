@@ -331,25 +331,36 @@ export async function getRestorePoint(id: string): Promise<RestorePoint | null> 
 }
 
 export async function listRestorePoints(): Promise<RestorePoint[]> {
-  let list: RestorePoint[] = [];
+  const byId = new Map<string, RestorePoint>();
 
-  // Try IndexedDB first
+  // 1. Collect from IndexedDB
   try {
     const fromIDB = await listFromIndexedDB();
-    if (fromIDB && fromIDB.length > 0) {
-      list = fromIDB;
+    if (Array.isArray(fromIDB)) {
+      for (const p of fromIDB) {
+        if (p && p.id) byId.set(p.id, p);
+      }
     }
   } catch {
-    // fallback
+    // ignore IDB errors
   }
 
-  // Fallback to LocalStorage if IndexedDB was empty or unavailable
-  if (list.length === 0) {
-    list = getLocalStorageRestorePoints();
+  // 2. Also collect from LocalStorage fallback and merge without dropping older points
+  try {
+    const fromLS = getLocalStorageRestorePoints();
+    for (const p of fromLS) {
+      if (p && p.id && !byId.has(p.id)) {
+        byId.set(p.id, p);
+      }
+    }
+  } catch {
+    // ignore
   }
 
   // Sort newest first
-  return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return Array.from(byId.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 }
 
 export async function deleteRestorePoint(id: string): Promise<void> {
@@ -607,6 +618,402 @@ export async function restoreFromRestorePoint(id: string): Promise<{
   }
 }
 
+export interface SnapshotDataSummary {
+  vouchers2D: number;
+  forwards2D: number;
+  vouchers3D: number;
+  forwards3D: number;
+  slipsFB: number;
+  forwardsFB: number;
+  totalLedgerRecords: number;
+}
+
+const countActiveArrayItems = (raw: string | undefined | null): number => {
+  if (!raw) return 0;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return 0;
+    return parsed.filter((item: any) => item && !item.deletedAt && item.status !== 'cancelled').length;
+  } catch {
+    return 0;
+  }
+};
+
+export function summarizeKeysMap(keys: Record<string, string | null | undefined>): SnapshotDataSummary {
+  const pickBestCount = (primaryKey: string) =>
+    Math.max(countActiveArrayItems(keys[primaryKey]), countActiveArrayItems(keys[`${primaryKey}_backup`]));
+
+  const vouchers2D = pickBestCount('2d_ledger_vouchers_v1');
+  const forwards2D = pickBestCount('2d_ledger_forward_slips_v1');
+  const vouchers3D = pickBestCount('3d_ledger_vouchers_v1');
+  const forwards3D = pickBestCount('3d_ledger_forward_slips_v1');
+  const slipsFB = pickBestCount('football_ledger_slips_v1');
+  const forwardsFB = pickBestCount('football_ledger_forward_slips_v1');
+
+  return {
+    vouchers2D,
+    forwards2D,
+    vouchers3D,
+    forwards3D,
+    slipsFB,
+    forwardsFB,
+    totalLedgerRecords: vouchers2D + forwards2D + vouchers3D + forwards3D + slipsFB + forwardsFB
+  };
+}
+
+export interface LocalPreRestoreSnapshot {
+  storageKey: string;
+  createdAt: string;
+  reason: string;
+  keyCount: number;
+  keys: Record<string, string>;
+  summary: SnapshotDataSummary;
+}
+
+export function listLocalEmergencySnapshots(): LocalPreRestoreSnapshot[] {
+  const storage = getStorage();
+  const out: LocalPreRestoreSnapshot[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (!k) continue;
+    if (
+      k.startsWith('pre_restore_snapshot_') ||
+      k.startsWith('pre_migration_snapshot') ||
+      k.startsWith('pre_phone_purge_snapshot')
+    ) {
+      const raw = storage.getItem(k);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const cleanKeys: Record<string, string> = {};
+          for (const [subK, subV] of Object.entries(parsed)) {
+            if (typeof subV === 'string') cleanKeys[subK] = subV;
+          }
+          const tsNum = Number(k.replace('pre_restore_snapshot_', ''));
+          const createdAt = !Number.isNaN(tsNum) && tsNum > 1e12
+            ? new Date(tsNum).toISOString()
+            : new Date().toISOString();
+          out.push({
+            storageKey: k,
+            createdAt,
+            reason: k.startsWith('pre_restore_snapshot_') ? 'pre-restore-snapshot' : k,
+            keyCount: Object.keys(cleanKeys).length,
+            keys: cleanKeys,
+            summary: summarizeKeysMap(cleanKeys)
+          });
+        }
+      } catch {
+        // ignore malformed snapshot
+      }
+    }
+  }
+  return out.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function restoreFromSnapshotKeys(
+  keysMap: Record<string, string>,
+  label: string
+): Promise<{ success: boolean; message: string; restoredKeys: number }> {
+  const storage = getStorage();
+  try {
+    await createRestorePoint('before-rollback', { source: 'emergency-snapshot', label });
+  } catch (err) {
+    console.warn('[Restore] Could not create before-rollback snapshot:', err);
+  }
+
+  let restoredKeys = 0;
+  for (const [k, v] of Object.entries(keysMap)) {
+    if (isInternalRestorePointKey(k)) continue;
+    if (k.startsWith('pre_restore_snapshot_')) continue;
+    if (typeof v === 'string') {
+      storage.setItem(k, v);
+      if (!k.endsWith('_backup') && (k.startsWith('3d_ledger_') || k.startsWith('2d_ledger_') || k.startsWith('football_ledger_'))) {
+        storage.setItem(`${k}_backup`, v);
+      }
+      restoredKeys++;
+    }
+  }
+
+  return {
+    success: true,
+    message: `${label} မှ ဒေတာ (${restoredKeys} keys) ကို အောင်မြင်စွာ ပြန်လည်သွင်းယူပြီးပါပြီ`,
+    restoredKeys
+  };
+}
+
+export interface BackupMirrorMismatch {
+  primaryKey: string;
+  backupKey: string;
+  primaryCount: number;
+  backupCount: number;
+}
+
+export function detectRecoverableBackupMirrors(): BackupMirrorMismatch[] {
+  const storage = getStorage();
+  const targetKeys = [
+    '2d_ledger_vouchers_v1',
+    '2d_ledger_forward_slips_v1',
+    '3d_ledger_vouchers_v1',
+    '3d_ledger_forward_slips_v1',
+    'football_ledger_slips_v1',
+    'football_ledger_forward_slips_v1'
+  ];
+  const mismatches: BackupMirrorMismatch[] = [];
+  for (const k of targetKeys) {
+    const bk = `${k}_backup`;
+    const primaryCount = countActiveArrayItems(storage.getItem(k));
+    const backupCount = countActiveArrayItems(storage.getItem(bk));
+    if (backupCount > primaryCount) {
+      mismatches.push({ primaryKey: k, backupKey: bk, primaryCount, backupCount });
+    }
+  }
+  return mismatches;
+}
+
+export async function recoverFromBackupMirrors(): Promise<{ success: boolean; restoredCount: number; message: string }> {
+  const storage = getStorage();
+  const mismatches = detectRecoverableBackupMirrors();
+  if (mismatches.length === 0) {
+    return { success: false, restoredCount: 0, message: '_backup ထဲတွင် ပိုနေသော ဒေတာမတွေ့ပါ' };
+  }
+  try {
+    await createRestorePoint('before-rollback', { source: 'backup-mirror-recovery' });
+  } catch {
+    // ignore
+  }
+  let restoredCount = 0;
+  for (const m of mismatches) {
+    const val = storage.getItem(m.backupKey);
+    if (val) {
+      storage.setItem(m.primaryKey, val);
+      restoredCount += m.backupCount - m.primaryCount;
+    }
+  }
+  return {
+    success: true,
+    restoredCount,
+    message: `_backup မှ မှတ်တမ်း ${restoredCount} ခုကို ပြန်လည်ရယူပြီးပါပြီ`
+  };
+}
+
+export interface LiveKeyBucketStats {
+  label: string;
+  key: string;
+  activeCount: number;
+  backupActiveCount: number;
+  tombstonedCount: number;
+}
+
+export interface UnsettledRoundWithData {
+  mode: '2d' | '3d';
+  roundId: string;
+  roundName: string;
+  drawDate: string;
+  status: string;
+  vouchersCount: number;
+  forwardsCount: number;
+}
+
+export interface LiveStorageDiagnostics {
+  buckets: LiveKeyBucketStats[];
+  totalActiveLedger: number;
+  totalTombstonedLedger: number;
+  rawClipsActiveCount: number;
+  rawClipsTombstonedCount: number;
+  unsettledRoundsWithData: UnsettledRoundWithData[];
+}
+
+const countTombstonedItems = (raw: string | undefined | null): number => {
+  if (!raw) return 0;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return 0;
+    return parsed.filter((item: any) => item && (Boolean(item.deletedAt) || item.status === 'cancelled')).length;
+  } catch {
+    return 0;
+  }
+};
+
+const parseArraySafe = (raw: string | null | undefined): any[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export function inspectLiveStorageState(): LiveStorageDiagnostics {
+  const storage = getStorage();
+  const defs: Array<{ key: string; label: string }> = [
+    { key: '2d_ledger_vouchers_v1', label: '2D ဘောင်ချာ' },
+    { key: '2d_ledger_forward_slips_v1', label: '2D အထက်တင်' },
+    { key: '3d_ledger_vouchers_v1', label: '3D ဘောင်ချာ' },
+    { key: '3d_ledger_forward_slips_v1', label: '3D အထက်တင်' },
+    { key: 'football_ledger_slips_v1', label: 'ဘောလုံး စလစ်' },
+    { key: 'football_ledger_forward_slips_v1', label: 'ဘောလုံး အထက်တင်' }
+  ];
+
+  let totalActiveLedger = 0;
+  let totalTombstonedLedger = 0;
+
+  const buckets: LiveKeyBucketStats[] = defs.map(({ key, label }) => {
+    const primaryRaw = storage.getItem(key);
+    const backupRaw = storage.getItem(`${key}_backup`);
+    const activeCount = countActiveArrayItems(primaryRaw);
+    const backupActiveCount = countActiveArrayItems(backupRaw);
+    const tombstonedCount = Math.max(countTombstonedItems(primaryRaw), countTombstonedItems(backupRaw));
+    totalActiveLedger += activeCount;
+    totalTombstonedLedger += tombstonedCount;
+    return { key, label, activeCount, backupActiveCount, tombstonedCount };
+  });
+
+  // Also include tombstoned rounds in totalTombstonedLedger
+  for (const rk of ['2d_ledger_rounds_v1', '3d_ledger_rounds_v1']) {
+    const tCount = countTombstonedItems(storage.getItem(rk));
+    totalTombstonedLedger += tCount;
+  }
+
+  const rawClipsStr = storage.getItem('shwe_mingalar_copied_raw_texts');
+  const rawClipsActiveCount = countActiveArrayItems(rawClipsStr);
+  const rawClipsTombstonedCount = countTombstonedItems(rawClipsStr);
+
+  // Detect rounds that already hold vouchers/forwardSlips but have no winningNumber yet (hidden in Statements)
+  const unsettledRoundsWithData: UnsettledRoundWithData[] = [];
+  const rounds2D = parseArraySafe(storage.getItem('2d_ledger_rounds_v1')).filter((r: any) => r && !r.deletedAt);
+  const vouchers2D = parseArraySafe(storage.getItem('2d_ledger_vouchers_v1')).filter((v: any) => v && !v.deletedAt && v.status !== 'cancelled');
+  const forwards2D = parseArraySafe(storage.getItem('2d_ledger_forward_slips_v1')).filter((f: any) => f && !f.deletedAt);
+
+  for (const r of rounds2D) {
+    if (!r.winningNumber || String(r.winningNumber).trim() === '') {
+      const vc = vouchers2D.filter((v: any) => v.roundId === r.id).length;
+      const fc = forwards2D.filter((f: any) => f.roundId === r.id).length;
+      if (vc > 0 || fc > 0) {
+        unsettledRoundsWithData.push({
+          mode: '2d',
+          roundId: r.id,
+          roundName: r.name || `${r.drawDate} 2D`,
+          drawDate: r.drawDate || '',
+          status: r.status || 'open',
+          vouchersCount: vc,
+          forwardsCount: fc
+        });
+      }
+    }
+  }
+
+  const rounds3D = parseArraySafe(storage.getItem('3d_ledger_rounds_v1')).filter((r: any) => r && !r.deletedAt);
+  const vouchers3D = parseArraySafe(storage.getItem('3d_ledger_vouchers_v1')).filter((v: any) => v && !v.deletedAt && v.status !== 'cancelled');
+  const forwards3D = parseArraySafe(storage.getItem('3d_ledger_forward_slips_v1')).filter((f: any) => f && !f.deletedAt);
+
+  for (const r of rounds3D) {
+    if (!r.winningNumber || String(r.winningNumber).trim() === '') {
+      const vc = vouchers3D.filter((v: any) => v.roundId === r.id).length;
+      const fc = forwards3D.filter((f: any) => f.roundId === r.id).length;
+      if (vc > 0 || fc > 0) {
+        unsettledRoundsWithData.push({
+          mode: '3d',
+          roundId: r.id,
+          roundName: r.name || `${r.drawDate} 3D`,
+          drawDate: r.drawDate || '',
+          status: r.status || 'open',
+          vouchersCount: vc,
+          forwardsCount: fc
+        });
+      }
+    }
+  }
+
+  return {
+    buckets,
+    totalActiveLedger,
+    totalTombstonedLedger,
+    rawClipsActiveCount,
+    rawClipsTombstonedCount,
+    unsettledRoundsWithData
+  };
+}
+
+export async function recoverTombstonedRecords(): Promise<{
+  success: boolean;
+  recoveredCount: number;
+  message: string;
+}> {
+  const storage = getStorage();
+  try {
+    await createRestorePoint('before-rollback', { source: 'tombstone-recovery' });
+  } catch {
+    // ignore
+  }
+
+  const keys = [
+    '2d_ledger_rounds_v1',
+    '2d_ledger_vouchers_v1',
+    '2d_ledger_forward_slips_v1',
+    '3d_ledger_rounds_v1',
+    '3d_ledger_vouchers_v1',
+    '3d_ledger_forward_slips_v1',
+    'football_ledger_slips_v1',
+    'football_ledger_forward_slips_v1'
+  ];
+
+  let recoveredCount = 0;
+  for (const k of keys) {
+    const primaryArr = parseArraySafe(storage.getItem(k));
+    const backupArr = parseArraySafe(storage.getItem(`${k}_backup`));
+    const mergedById = new Map<string, any>();
+    for (const item of [...backupArr, ...primaryArr]) {
+      if (item && item.id) mergedById.set(item.id, item);
+    }
+    const sourceArr = mergedById.size > 0 ? Array.from(mergedById.values()) : primaryArr;
+    let changed = false;
+    const restored = sourceArr.map((item: any) => {
+      if (!item) return item;
+      const isTomb = Boolean(item.deletedAt) || item.status === 'cancelled';
+      if (!isTomb) return item;
+      changed = true;
+      recoveredCount++;
+      const copy = { ...item };
+      delete copy.deletedAt;
+      delete copy.deletedReason;
+      delete copy.deletedBy;
+      if (copy.status === 'cancelled') {
+        copy.status = 'active';
+      }
+      return copy;
+    });
+
+    if (changed) {
+      const json = JSON.stringify(restored);
+      storage.setItem(k, json);
+      storage.setItem(`${k}_backup`, json);
+    }
+  }
+
+  // Also clear 2d_ledger_deleted_rounds_v1 if rounds were restored
+  const delRounds = parseArraySafe(storage.getItem('2d_ledger_deleted_rounds_v1'));
+  if (delRounds.length > 0 && recoveredCount > 0) {
+    storage.setItem('2d_ledger_deleted_rounds_v1', '[]');
+    storage.setItem('2d_ledger_deleted_rounds_v1_backup', '[]');
+  }
+
+  if (recoveredCount === 0) {
+    return {
+      success: false,
+      recoveredCount: 0,
+      message: 'ဖျက်မိထားသော (Tombstoned) မှတ်တမ်း မတွေ့ရှိပါ'
+    };
+  }
+
+  return {
+    success: true,
+    recoveredCount,
+    message: `ဖျက်မိထားသော မှတ်တမ်း ${recoveredCount} ခုကို အောင်မြင်စွာ ပြန်လည်ဖော်ယူပြီးပါပြီ`
+  };
+}
+
 // B3: Expose window.__restorePoints in production for emergency fallback
 if (typeof window !== 'undefined') {
   (window as any).__restorePoints = {
@@ -615,6 +1022,12 @@ if (typeof window !== 'undefined') {
     create: createRestorePoint,
     prune: pruneRestorePoints,
     getKeep: getRestorePointKeep,
-    setKeep: setRestorePointKeep
+    setKeep: setRestorePointKeep,
+    listLocalEmergencySnapshots,
+    detectRecoverableBackupMirrors,
+    recoverFromBackupMirrors,
+    inspectLiveStorageState,
+    recoverTombstonedRecords
   };
 }
+

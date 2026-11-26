@@ -14,7 +14,8 @@ import {
   Calendar,
   Trash2,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  History
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLottery } from '../context/LotteryContext';
@@ -24,17 +25,22 @@ import {
   getBackupFileName,
   exportSecureMasterBackup,
   restoreSecureMasterBackup,
+  inspectSecureMasterBackup,
+  executeSecureMasterRestoreV2,
   exportPeriodVouchersBackup,
   saveFileWithCustomLocation,
   shareFileDirectly,
   downloadFile
 } from '../utils/backupUtils';
+import type { BackupV2Inspection, RestoreMode } from '../utils/backupSyncV2';
+import { EmergencyRestoreExplorer } from './EmergencyRestoreExplorer';
+import { V2RestoreConfirmModal } from './V2RestoreConfirmModal';
 import { getStoredOwnerPin, verifyOwnerPin } from '../utils/securityUtils';
 import { getLocalDateStr, getDaysAgoStr } from '../utils/statementUtils';
 import { STORAGE_KEYS, saveStoredData } from '../utils/storage';
 import { cleanDuplicate2DVouchers, cleanDuplicate3DVouchers, cleanDuplicateFootballSlips } from '../utils/deduplicationUtils';
 import { importVouchersFromExcel } from '../utils/excelImportUtils';
-import { listRestorePoints, restoreFromRestorePoint, createRestorePoint } from '../utils/restorePoints';
+import { createRestorePoint } from '../utils/restorePoints';
 
 interface UnifiedBackupModalProps {
   isOpen: boolean;
@@ -74,11 +80,14 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
   const [isSaving, setIsSaving] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
 
-  // Restore Password Prompt State
+  // Restore Password Prompt & Interactive V2/Snapshot Explorer State
   const [pendingFileContent, setPendingFileContent] = useState<string | null>(null);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [restorePinInput, setRestorePinInput] = useState('');
   const [restorePinError, setRestorePinError] = useState<string | null>(null);
+  const [isRestoreExplorerOpen, setIsRestoreExplorerOpen] = useState(false);
+  const [v2Pending, setV2Pending] = useState<{ json: string; inspection: BackupV2Inspection } | null>(null);
+  const [isExecutingV2Restore, setIsExecutingV2Restore] = useState(false);
 
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMessage({ text, type });
@@ -217,38 +226,52 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
     showMsg(`"${filename}" အား စက်ထဲသို့ အောင်မြင်စွာ ဒေါင်းလုဒ်ဆွဲပြီးပါပြီ`);
   };
 
-  // Rollback / Restore handler via Restore Points (B1, B2)
-  const handleRestoreClick = async () => {
-    try {
-      const chooseFile = window.confirm('Backup ဖိုင် (.rhmg) ကို ရွေးချယ်သွင်းယူမည်လား?');
-      if (chooseFile) {
-        fileInputRef.current?.click();
-        return;
-      }
-
-      const points = await listRestorePoints();
-      if (points && points.length > 0) {
-        const latest = points[0];
-        const formattedDate = new Date(latest.createdAt).toLocaleString('my-MM') || latest.createdAt;
-        const confirmLatest = window.confirm(`နောက်ဆုံး restore point (${formattedDate}၊ အကြောင်းပြချက်: ${latest.reason}) ကို ပြန်ယူမလား?`);
-        if (confirmLatest) {
-          const confirmDestructive = window.confirm('လက်ရှိ ဒေတာ အားလုံး ပျက်သွားမည်။ သေချာပါသလား?');
-          if (confirmDestructive) {
-            const res = await restoreFromRestorePoint(latest.id);
-            showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
-            setTimeout(() => window.location.reload(), 1500);
-          }
-        }
+  const processBackupContent = async (content: string, pinToTry: string, isRetryFromPrompt: boolean = false) => {
+    const inspected = await inspectSecureMasterBackup(content, pinToTry);
+    if (inspected.requiresPin) {
+      setPendingFileContent(content);
+      if (!isRetryFromPrompt) {
+        setRestorePinInput('');
+        setRestorePinError(null);
       } else {
-        showMsg('စက်တွင်း Restore Point မှတ်တမ်း မရှိသေးပါ', 'error');
+        setRestorePinError(inspected.message);
       }
-    } catch (err: any) {
-      console.warn('Restore points check error:', err);
-      fileInputRef.current?.click();
+      setIsPasswordModalOpen(true);
+      return;
+    }
+    if (!inspected.success) {
+      if (isRetryFromPrompt) {
+        setRestorePinError(inspected.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ');
+      } else {
+        showMsg(inspected.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ', 'error');
+      }
+      return;
+    }
+
+    if (inspected.isV2 && inspected.v2Json && inspected.v2Inspection) {
+      setIsPasswordModalOpen(false);
+      setPendingFileContent(null);
+      setV2Pending({ json: inspected.v2Json, inspection: inspected.v2Inspection });
+      return;
+    }
+
+    // Legacy V1 / JSON fallback
+    const result = await restoreSecureMasterBackup(content, pinToTry);
+    if (result.success) {
+      setIsPasswordModalOpen(false);
+      setPendingFileContent(null);
+      showMsg(`${result.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+      setTimeout(() => window.location.reload(), 1500);
+    } else if (result.requiresPin) {
+      setPendingFileContent(content);
+      setRestorePinError(result.message);
+      setIsPasswordModalOpen(true);
+    } else {
+      showMsg(result.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ', 'error');
     }
   };
 
-  // Restore Master Backup File
+  // Restore Master Backup File (direct file picker — no window.confirm blocking)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -258,20 +281,7 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
       try {
         const content = event.target?.result as string;
         const currentPin = getStoredOwnerPin();
-
-        const result = await restoreSecureMasterBackup(content, currentPin);
-        if (result.success) {
-          showMsg(`${result.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
-          setTimeout(() => window.location.reload(), 1500);
-        } else if (result.requiresPin) {
-          // File is password-protected or password differed from this device: prompt user!
-          setPendingFileContent(content);
-          setRestorePinInput('');
-          setRestorePinError(null);
-          setIsPasswordModalOpen(true);
-        } else {
-          showMsg(result.message || 'ဖိုင်ဖတ်ရှုမှု မအောင်မြင်ပါ', 'error');
-        }
+        await processBackupContent(content, currentPin, false);
       } catch (err) {
         console.error(err);
         showMsg('ဖိုင်ဖတ်ရှုရာတွင် အမှားအယွင်း ရှိနေပါသည်', 'error');
@@ -289,15 +299,25 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
       setRestorePinError('Password သည် ဂဏန်း ၆ လုံး အတိအကျ ဖြစ်ရပါမည်');
       return;
     }
+    await processBackupContent(pendingFileContent, trimmedPin, true);
+  };
 
-    const result = await restoreSecureMasterBackup(pendingFileContent, trimmedPin);
-    if (result.success) {
-      setIsPasswordModalOpen(false);
-      setPendingFileContent(null);
-      showMsg(`${result.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      setRestorePinError(result.message || 'Password မှားယွင်းနေပါသည်');
+  const handleConfirmV2Restore = async (mode: RestoreMode) => {
+    if (!v2Pending) return;
+    setIsExecutingV2Restore(true);
+    try {
+      const res = await executeSecureMasterRestoreV2(v2Pending.json, mode);
+      if (res.success) {
+        setV2Pending(null);
+        showMsg(`${res.message}။ ဒေတာများ Update ပြုလုပ်ရန် ခေတ္တစောင့်ပါ...`);
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        showMsg(res.message, 'error');
+        setIsExecutingV2Restore(false);
+      }
+    } catch (err: any) {
+      showMsg(err?.message || 'Restore error', 'error');
+      setIsExecutingV2Restore(false);
     }
   };
 
@@ -654,17 +674,26 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
                 />
 
                 <div
-                  onClick={handleRestoreClick}
+                  onClick={() => fileInputRef.current?.click()}
                   className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-3 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/20 group"
                 >
                   <Upload className="w-5 h-5 mx-auto text-slate-400 group-hover:text-indigo-600 transition-colors mb-1" />
                   <div className="text-xs font-bold text-slate-800">
-                    .rhmg ဖိုင်အား ဤနေရာတွင် နှိပ်၍ ရွေးချယ်ပါ
+                    .rhmg / .json ဖိုင်အား ဤနေရာတွင် နှိပ်၍ ရွေးချယ်ပါ
                   </div>
                   <p className="text-[10px] text-slate-500">
                     ဖိုင် Password ရှိပါက ရိုက်ထည့်နိုင်ပြီး စာရင်းဒေတာအားလုံး ၁၀၀% အပြည့်အစုံ ပြန်သွင်းပေးမည်
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRestoreExplorerOpen(true)}
+                  className="w-full p-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <History className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>စက်တွင်း Restore Points / Snapshots များ စစ်ဆေးပြန်ယူမည်</span>
+                </button>
               </div>
 
               {/* Action 3: Import from Excel */}
@@ -980,6 +1009,20 @@ export const UnifiedBackupModal: React.FC<UnifiedBackupModalProps> = ({ isOpen, 
           </div>
         </div>
       )}
+
+      <EmergencyRestoreExplorer
+        isOpen={isRestoreExplorerOpen}
+        onClose={() => setIsRestoreExplorerOpen(false)}
+        onRestored={(msg) => showMsg(msg)}
+      />
+
+      <V2RestoreConfirmModal
+        isOpen={!!v2Pending}
+        inspection={v2Pending?.inspection || null}
+        isRestoring={isExecutingV2Restore}
+        onCancel={() => setV2Pending(null)}
+        onConfirm={handleConfirmV2Restore}
+      />
     </div>
   );
 };

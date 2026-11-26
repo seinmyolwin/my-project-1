@@ -27,7 +27,8 @@ import {
   ZoomIn,
   Star,
   Eye,
-  ExternalLink
+  ExternalLink,
+  ArchiveRestore
 } from 'lucide-react';
 import {
   RawBetClip,
@@ -39,6 +40,10 @@ import {
   clearRawClipsByCategory,
   findRawClipForVoucher
 } from '../utils/rawClipsUtils';
+import {
+  findMissingVouchersFromRawClips,
+  rebuildVouchersFromRawClips
+} from '../utils/rawClipRecovery';
 import { formatAmount, parseQuickBetText, getToddWinningNumbers } from '../utils/lotteryUtils';
 import { parseTwoDBatchInput } from '../utils/twoDLotteryUtils';
 import { useLottery } from '../context/LotteryContext';
@@ -333,6 +338,11 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
   const [manualCustomer, setManualCustomer] = useState('');
   const [manualText, setManualText] = useState('');
 
+  // Missing Ledger Voucher Reconstruction State
+  const [confirmRebuildMissing, setConfirmRebuildMissing] = useState(false);
+  const [isRebuildingMissing, setIsRebuildingMissing] = useState(false);
+  const [rebuildFeedback, setRebuildFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Sync clips on update events
   useEffect(() => {
     const handleUpdate = () => {
@@ -397,6 +407,8 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     setIsAddingNew(false);
     setIsDateDeleteOpen(false);
     setDeleteFeedback(null);
+    setConfirmRebuildMissing(false);
+    setRebuildFeedback(null);
   }, [activeCategory]);
 
   // Strictly isolate clips to the current active business only
@@ -404,6 +416,12 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     () => clips.filter(c => c.category === activeCategory),
     [clips, activeCategory]
   );
+
+  // Detect raw clips in active business whose customer vouchers are missing from ledger
+  const missingRawScan = useMemo(() => {
+    if (!isOpen || (activeCategory !== '2d' && activeCategory !== '3d')) return null;
+    return findMissingVouchersFromRawClips(activeCategory);
+  }, [isOpen, activeCategory, clips, lottery2D.vouchers, lottery3D.vouchers]);
 
   // Extract unique dates, rounds, and customers for filtering within this business
   const availableDates = useMemo(
@@ -731,6 +749,32 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
     setClips(getRawClips());
   };
 
+  const handleRebuildMissingVouchers = async () => {
+    if (activeCategory !== '2d' && activeCategory !== '3d') return;
+    setIsRebuildingMissing(true);
+    setRebuildFeedback(null);
+    try {
+      const res = await rebuildVouchersFromRawClips({ category: activeCategory });
+      if (res.success) {
+        setRebuildFeedback({
+          type: 'success',
+          text: `${res.message}။ စာမျက်နှာ ပြန်လည်ဖွင့်နေပါသည်...`
+        });
+        setConfirmRebuildMissing(false);
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        setRebuildFeedback({ type: 'error', text: res.message });
+        setIsRebuildingMissing(false);
+      }
+    } catch (err: any) {
+      setRebuildFeedback({
+        type: 'error',
+        text: err?.message || 'ဘောင်ချာပြန်သွင်းရာတွင် အမှားရှိပါသည်'
+      });
+      setIsRebuildingMissing(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto">
       <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-7xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
@@ -907,6 +951,84 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
             >
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+
+        {rebuildFeedback && (
+          <div
+            className={`border-b px-3 py-1.5 text-xs font-bold flex items-center justify-between shrink-0 ${
+              rebuildFeedback.type === 'error'
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              {rebuildFeedback.type === 'error' ? (
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              )}
+              <span>{rebuildFeedback.text}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setRebuildFeedback(null)}
+              className="hover:opacity-75 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {missingRawScan && missingRawScan.totalParseableClips > 0 && (
+          <div className="bg-amber-50 border-b border-amber-300 px-3 py-2 text-xs text-amber-950 shrink-0 space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-bold">
+                <ArchiveRestore className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Ledger ထဲတွင် ပျောက်နေသော မူရင်းစာသား ထိုးသားဘောင်ချာ{' '}
+                  <span className="font-black text-amber-900">
+                    {missingRawScan.totalParseableClips} စောင် ({formatAmount(missingRawScan.totalAmount, 'Ks')})
+                  </span>{' '}
+                  တွေ့ရှိထားပါသည်
+                </span>
+              </div>
+              {!confirmRebuildMissing && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmRebuildMissing(true)}
+                  disabled={isRebuildingMissing}
+                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-black text-[11px] cursor-pointer shrink-0 shadow-2xs"
+                >
+                  မူရင်းစာသားမှ ပျောက်နေသော ထိုးသားဘောင်ချာ {missingRawScan.totalParseableClips} စောင် စာရင်းထဲ ပြန်သွင်းမည်
+                </button>
+              )}
+            </div>
+            {confirmRebuildMissing && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-amber-200">
+                <span className="text-[11px] font-bold text-amber-900">
+                  ဤမူရင်းစာသားများမှ {businessMeta.title} ထိုးသားဘောင်ချာ {missingRawScan.totalParseableClips} စောင်ကို Ledger ထဲသို့ ပြန်သွင်းရန် သေချာပါသလား? (မှတ်ချက် — အထက်တင်ကြေး စလစ်များ မပါဝင်ပါ)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRebuildMissing(false)}
+                    disabled={isRebuildingMissing}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold text-[11px] cursor-pointer"
+                  >
+                    မလုပ်တော့ပါ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRebuildMissingVouchers}
+                    disabled={isRebuildingMissing}
+                    className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] cursor-pointer"
+                  >
+                    {isRebuildingMissing ? 'ပြန်သွင်းနေသည်...' : 'အတည်ပြု ပြန်သွင်းမည်'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

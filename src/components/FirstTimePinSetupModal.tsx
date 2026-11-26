@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Lock, CheckCircle2, Layers, ArrowRight, KeyRound, Sparkles, Play, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Lock, CheckCircle2, Layers, ArrowRight, KeyRound, Sparkles, Play, Trash2, AlertTriangle, History } from 'lucide-react';
 import { saveOwnerPin, saveEnabledModes, EnabledModes } from '../utils/securityUtils';
 import { AppLogo } from './AppLogo';
+import {
+  listRestorePoints,
+  summarizeKeysMap,
+  listLocalEmergencySnapshots,
+  detectRecoverableBackupMirrors
+} from '../utils/restorePoints';
+import { EmergencyRestoreExplorer } from './EmergencyRestoreExplorer';
 
 interface FirstTimePinSetupModalProps {
   isOpen: boolean;
@@ -16,12 +23,44 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
   const [confirmPin, setConfirmPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [recoverableRecordsCount, setRecoverableRecordsCount] = useState(0);
+  const [isRestoreExplorerOpen, setIsRestoreExplorerOpen] = useState(false);
+
   // Selected Modes Setup
   const [modes, setModes] = useState<EnabledModes>({
     '3d': true,
     '2d': true,
     'football': true
   });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    (async () => {
+      try {
+        const [points, snaps, mirrors] = await Promise.all([
+          listRestorePoints(),
+          Promise.resolve(listLocalEmergencySnapshots()),
+          Promise.resolve(detectRecoverableBackupMirrors())
+        ]);
+        let maxCount = 0;
+        for (const p of points) {
+          const sum = summarizeKeysMap(p.keys || {});
+          if (sum.totalLedgerRecords > maxCount) maxCount = sum.totalLedgerRecords;
+        }
+        for (const s of snaps) {
+          if (s.summary.totalLedgerRecords > maxCount) maxCount = s.summary.totalLedgerRecords;
+        }
+        for (const m of mirrors) {
+          maxCount = Math.max(maxCount, m.backupCount);
+        }
+        if (active) setRecoverableRecordsCount(maxCount);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { active = false; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -80,6 +119,26 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
         {/* Form Body */}
         <div className="p-3.5 sm:p-4 space-y-3 overflow-y-auto text-xs">
           
+          {recoverableRecordsCount > 0 && (
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-2.5 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-amber-950 font-black text-xs">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>စက်တွင်း၌ ယခင်စာရင်းဒေတာ ({recoverableRecordsCount} ခု) Restore Point တွေ့ရှိထားပါသည်!</span>
+              </div>
+              <p className="text-[11px] text-amber-900 leading-snug">
+                အောက်ပါ "စတင်အသုံးပြုမည်" ခလုတ်ကို မနှိပ်မီ ယခင်ဒေတာများကို အရင်စစ်ဆေးပြန်ယူနိုင်ပါသည်။
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsRestoreExplorerOpen(true)}
+                className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>ယခင် Restore Points များမှ ပြန်ယူမည်</span>
+              </button>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl p-2.5 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0"></span>
@@ -271,6 +330,11 @@ export const FirstTimePinSetupModal: React.FC<FirstTimePinSetupModalProps> = ({
 
         </div>
       </div>
+
+      <EmergencyRestoreExplorer
+        isOpen={isRestoreExplorerOpen}
+        onClose={() => setIsRestoreExplorerOpen(false)}
+      />
     </div>
   );
 };

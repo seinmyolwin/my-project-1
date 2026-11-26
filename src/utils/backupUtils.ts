@@ -8,7 +8,14 @@ export const TELEGRAM_STORAGE_KEYS = {
 };
 
 import { encryptBackupV2, decryptBackupV2, isV2Payload } from './cryptoBackup';
-import { exportPayloadV2Full, restoreV2Flow } from './backupSyncV2';
+import {
+  exportPayloadV2Full,
+  restoreV2Flow,
+  inspectBackupV2,
+  executeRestoreV2,
+  type BackupV2Inspection,
+  type RestoreMode
+} from './backupSyncV2';
 
 /** Removes customer phone numbers and bot tokens from any backup data (recursive, JSON strings included). */
 const scrubForBackup = (value: any): any => {
@@ -364,6 +371,128 @@ export interface RestoreResult {
   };
 }
 
+export interface InspectBackupResult {
+  success: boolean;
+  requiresPin?: boolean;
+  message: string;
+  isV2?: boolean;
+  v2Json?: string;
+  v2Inspection?: BackupV2Inspection;
+}
+
+export async function inspectSecureMasterBackup(rawFileContent: string, ownerPin: string = ''): Promise<InspectBackupResult> {
+  try {
+    const trimmed = rawFileContent.trim();
+    if (trimmed.includes(CIPHER_HEADER) && trimmed.includes(CIPHER_FOOTER)) {
+      const lines = trimmed.split('\n');
+      let payloadLine = '';
+      let headerChecksum = '';
+
+      for (const line of lines) {
+        if (line.startsWith('Checksum:')) {
+          headerChecksum = line.replace('Checksum:', '').trim();
+        } else if (!line.startsWith('-----') && !line.includes(':') && line.trim().length > 20) {
+          payloadLine = line.trim();
+        }
+      }
+
+      if (!payloadLine) {
+        const startIdx = trimmed.indexOf(CIPHER_HEADER) + CIPHER_HEADER.length;
+        const endIdx = trimmed.indexOf(CIPHER_FOOTER);
+        const body = trimmed.substring(startIdx, endIdx);
+        const candidates = body.split('\n').map(l => l.trim()).filter(l => l.includes('::'));
+        if (candidates.length > 0) payloadLine = candidates[0];
+      }
+
+      if (!payloadLine) {
+        return { success: false, message: 'ဖိုင်အတွင်းမှ Encrypted Data ရှာမတွေ့ပါ' };
+      }
+
+      let decryptedJson = '';
+      let decryptionSuccess = false;
+
+      if (isV2Payload(payloadLine)) {
+        const pinsToTry = Array.from(new Set([ownerPin, 'NO_PIN', ''].filter(p => p !== undefined)));
+        for (const candidatePin of pinsToTry) {
+          try {
+            const test = await decryptBackupV2(payloadLine, candidatePin || 'NO_PIN');
+            if (generateChecksum(test) === headerChecksum) {
+              decryptedJson = test;
+              decryptionSuccess = true;
+              break;
+            }
+          } catch {
+            // continue trying
+          }
+        }
+      } else {
+        if (ownerPin) {
+          try {
+            const test = decryptLegacyPayload(payloadLine, ownerPin);
+            if (generateChecksum(test) === headerChecksum) {
+              decryptedJson = test;
+              decryptionSuccess = true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (!decryptionSuccess) {
+          try {
+            const test = decryptLegacyPayload(payloadLine, '');
+            if (generateChecksum(test) === headerChecksum) {
+              decryptedJson = test;
+              decryptionSuccess = true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      if (!decryptionSuccess) {
+        return {
+          success: false,
+          requiresPin: true,
+          message: ownerPin
+            ? 'ရိုက်ထည့်ထားသော Password မှားယွင်းနေပါသည်! Backup ဖိုင် ထုတ်ယူစဉ်က သတ်မှတ်ခဲ့သော Password (ဂဏန်း ၆ လုံး) အား ပြန်လည်စစ်ဆေးပါ'
+            : 'ဤ Backup ဖိုင်သည် Password ဖြင့် လုံခြုံစွာ ကာကွယ်ထားပါသည်! ကျေးဇူးပြု၍ ဖိုင်၏ Password (ဂဏန်း ၆ လုံး) ရိုက်ထည့်ပေးပါ'
+        };
+      }
+
+      const parsed = JSON.parse(decryptedJson);
+      if (parsed && parsed.manifest && parsed.manifest.schemaVersion === 2) {
+        const v2Inspection = await inspectBackupV2(decryptedJson);
+        if (!v2Inspection.ok) {
+          return { success: false, message: v2Inspection.errorMessage || 'Backup v2 error' };
+        }
+        return {
+          success: true,
+          isV2: true,
+          v2Json: decryptedJson,
+          v2Inspection,
+          message: 'Backup v2 ဖိုင် ဖတ်ရှုပြီးပါပြီ'
+        };
+      }
+      return { success: true, isV2: false, message: 'V1 / Legacy backup detected' };
+    }
+    return { success: true, isV2: false, message: 'JSON / Legacy backup detected' };
+  } catch (err: any) {
+    return { success: false, message: `ဖိုင်ဖတ်ရှုမှု အမှားအယွင်း: ${err?.message || 'မသိရသော အမှား'}` };
+  }
+}
+
+export async function executeSecureMasterRestoreV2(
+  v2Json: string,
+  mode: RestoreMode
+): Promise<RestoreResult> {
+  try {
+    return await executeRestoreV2(v2Json, mode);
+  } catch (err: any) {
+    return { success: false, message: `Restore အမှားအယွင်း: ${err?.message || 'မသိရသော အမှား'}` };
+  }
+}
+
 /**
  * Restores 100% of ALL system data from encrypted .rhmg file (or legacy JSON backup)
  * Prompts cleanly for PIN if password-protected, never drops vouchers, and ensures safe restore.
@@ -402,14 +531,18 @@ export async function restoreSecureMasterBackup(rawFileContent: string, ownerPin
       let decryptionSuccess = false;
 
       if (isV2Payload(payloadLine)) {
-        try {
-          const test = await decryptBackupV2(payloadLine, ownerPin || 'NO_PIN');
-          if (generateChecksum(test) === headerChecksum) {
-            decryptedJson = test;
-            decryptionSuccess = true;
+        const pinsToTry = Array.from(new Set([ownerPin, 'NO_PIN', ''].filter(p => p !== undefined)));
+        for (const candidatePin of pinsToTry) {
+          try {
+            const test = await decryptBackupV2(payloadLine, candidatePin || 'NO_PIN');
+            if (generateChecksum(test) === headerChecksum) {
+              decryptedJson = test;
+              decryptionSuccess = true;
+              break;
+            }
+          } catch {
+            // wrong passphrase or altered file
           }
-        } catch {
-          // wrong passphrase or altered file
         }
       } else {
         // Legacy archive (read-only compatibility)

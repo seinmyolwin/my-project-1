@@ -178,38 +178,90 @@ export function previewRestore(entities: Record<string, string>): RestorePreview
 
 export type RestoreMode = 'fresh' | 'merge' | 'replace';
 
+import { summarizeKeysMap, type SnapshotDataSummary } from './restorePoints';
+
 export function applyRestore(entities: Record<string, string>, mode: RestoreMode): number {
   let written = 0;
   for (const k of Object.keys(entities)) {
+    let valToWrite: string | null = null;
     if (RECORD_ARRAY_KEYS.has(k) && mode === 'merge') {
       const { merged } = mergeRecords(parseArr(readRaw(k)), parseArr(entities[k]));
-      localStorage.setItem(k, JSON.stringify(merged));
+      valToWrite = JSON.stringify(merged);
     } else if (mode === 'merge' && readRaw(k) !== null) {
       continue; // settings/limits/blocked/active ids: keep local values in merge mode
     } else {
-      localStorage.setItem(k, entities[k]);
+      valToWrite = entities[k];
     }
-    written++;
+    if (valToWrite !== null) {
+      localStorage.setItem(k, valToWrite);
+      localStorage.setItem(`${k}_backup`, valToWrite);
+      written++;
+    }
   }
   return written;
 }
 
-/** Full restore flow with owner confirmations. Returns a human message. */
-export async function restoreV2Flow(json: string, passphrase: string): Promise<{ success: boolean; message: string }> {
+export interface BackupV2Inspection {
+  ok: boolean;
+  errorMessage?: string;
+  manifest?: any;
+  entities?: Record<string, string>;
+  preview?: RestorePreview;
+  counts?: SnapshotDataSummary;
+  isOlderSequence?: boolean;
+  lastImportedSequence?: number;
+}
+
+export async function inspectBackupV2(json: string): Promise<BackupV2Inspection> {
+  const { manifest, entities } = parseV2Plaintext(json);
+  const hashNow = await computeSha256Digest(JSON.stringify(entities));
+  if (manifest.totalsHash && hashNow !== manifest.totalsHash) {
+    return { ok: false, errorMessage: 'Backup ဒေတာ hash မကိုက်ညီပါ (ဖိုင် ပြင်ထားနိုင်သည်)' };
+  }
+  const shortCode = String(manifest.deviceShortCode || 'UNKNOWN');
+  const last = Number(readRaw(lastImportedKey(shortCode)) || '0');
+  const preview = previewRestore(entities);
+  const counts = summarizeKeysMap(entities);
+  return {
+    ok: true,
+    manifest,
+    entities,
+    preview,
+    counts,
+    isOlderSequence: Number(manifest.exportSequence) < last,
+    lastImportedSequence: last
+  };
+}
+
+export async function executeRestoreV2(
+  json: string,
+  mode: RestoreMode
+): Promise<{ success: boolean; message: string }> {
   const { manifest, entities } = parseV2Plaintext(json);
   const hashNow = await computeSha256Digest(JSON.stringify(entities));
   if (manifest.totalsHash && hashNow !== manifest.totalsHash) {
     return { success: false, message: 'Backup ဒေတာ hash မကိုက်ညီပါ (ဖိုင် ပြင်ထားနိုင်သည်)' };
   }
-
   const shortCode = String(manifest.deviceShortCode || 'UNKNOWN');
   const last = Number(readRaw(lastImportedKey(shortCode)) || '0');
-  if (typeof window !== 'undefined' && manifest.exportSequence < last) {
-    const ok = window.confirm(`ဤဖိုင်သည် ဟောင်းသော backup ဖြစ်နိုင်ပါသည် (sequence ${manifest.exportSequence} < ${last})။ ဆက်လုပ်မလား?`);
+  await createRestorePoint('before-import', { source: 'backup-v2', mode });
+  const written = applyRestore(entities, mode);
+  localStorage.setItem(lastImportedKey(shortCode), String(Math.max(last, Number(manifest.exportSequence) || 0)));
+  return { success: true, message: `Backup v2 (${mode}) ပြန်သွင်းပြီးပါပြီ — ${written} ခု` };
+}
+
+/** Full restore flow with owner confirmations. Returns a human message. */
+export async function restoreV2Flow(json: string, _passphrase: string): Promise<{ success: boolean; message: string }> {
+  const inspected = await inspectBackupV2(json);
+  if (!inspected.ok || !inspected.manifest || !inspected.preview || !inspected.entities) {
+    return { success: false, message: inspected.errorMessage || 'Backup v2 ဖိုင် မှားယွင်းနေပါသည်' };
+  }
+  const { manifest, preview: pv, isOlderSequence, lastImportedSequence } = inspected;
+  if (typeof window !== 'undefined' && isOlderSequence) {
+    const ok = window.confirm(`ဤဖိုင်သည် ဟောင်းသော backup ဖြစ်နိုင်ပါသည် (sequence ${manifest.exportSequence} < ${lastImportedSequence})။ ဆက်လုပ်မလား?`);
     if (!ok) return { success: false, message: 'ဖျက်သိမ်းလိုက်ပါသည်' };
   }
 
-  const pv = previewRestore(entities);
   const summary = `ဝင်မယ်: ${pv.added} | ထပ်ပြီးသား: ${pv.same} | ပြင်မယ်: ${pv.updated} | ပိတ်ပြီးသား ကာလ (မထိ): ${pv.protectedCount} | ဖျက်ထားသော မှတ်တမ်း: ${pv.tombstones}`;
 
   let mode: RestoreMode;
@@ -224,10 +276,7 @@ export async function restoreV2Flow(json: string, passphrase: string): Promise<{
     return { success: false, message: 'ပယ်ဖျက်ပါသည်' };
   }
 
-  await createRestorePoint('before-import', { source: 'backup-v2', mode });
-  const written = applyRestore(entities, mode);
-  localStorage.setItem(lastImportedKey(shortCode), String(Math.max(last, Number(manifest.exportSequence) || 0)));
-  return { success: true, message: `Backup v2 (${mode}) ပြန်သွင်းပြီးပါပြီ — ${written} ခု` };
+  return executeRestoreV2(json, mode);
 }
 
 // ---------- B2: auto-backup at period close ----------

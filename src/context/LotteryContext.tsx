@@ -116,9 +116,21 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [migrationDone, setMigrationDone] = useState(false);
 
   useEffect(() => {
+    let active = true;
     runIdMigration()
       .then(() => runPhonePurgeMigration())
-      .then(() => setMigrationDone(true));
+      .catch((err) => {
+        console.error('[LotteryContext] Migration error (continuing boot safely):', err);
+      })
+      .finally(() => {
+        if (!active) return;
+        // Reload potentially migrated data so state stays synchronized with localStorage
+        setRounds(loadStoredData(STORAGE_KEYS.ROUNDS, INITIAL_ROUNDS));
+        setVouchers(loadStoredData<Voucher[]>(STORAGE_KEYS.VOUCHERS, []));
+        setForwardSlips(loadStoredData<ForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS, []));
+        setMigrationDone(true);
+      });
+    return () => { active = false; };
   }, []);
 
   // 1. Core State
@@ -240,34 +252,41 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadStoredData(STORAGE_KEYS.BLOCKED, INITIAL_BLOCKED)
   );
 
-  // Sync to localStorage
+  // Sync to localStorage (only after migrations settle so pre-migration state never overwrites migrated keys)
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.SETTINGS, settings);
-  }, [settings]);
+  }, [settings, migrationDone]);
 
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.ROUNDS, rawRounds);
-  }, [rounds]);
+  }, [rounds, migrationDone]);
 
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.ACTIVE_ROUND_ID, activeRoundId);
-  }, [activeRoundId]);
+  }, [activeRoundId, migrationDone]);
 
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.VOUCHERS, rawVouchers);
-  }, [vouchers]);
+  }, [vouchers, migrationDone]);
 
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.FORWARD_SLIPS, rawForwardSlips);
-  }, [forwardSlips]);
+  }, [forwardSlips, migrationDone]);
 
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.LIMITS, limits);
-  }, [limits]);
+  }, [limits, migrationDone]);
 
   useEffect(() => {
+    if (!migrationDone) return;
     saveStoredData(STORAGE_KEYS.BLOCKED, blockedNumbers);
-  }, [blockedNumbers]);
+  }, [blockedNumbers, migrationDone]);
 
   const activeRound = useMemo(() => {
     return rounds.find(r => r.id === activeRoundId) || rounds[0];
