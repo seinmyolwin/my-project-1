@@ -1143,7 +1143,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 </span>
               </div>
               <div className={`rounded-2xl p-3.5 border shadow-xs text-white ${downlineSettlementData.netBalance >= 0 ? 'bg-emerald-900 border-emerald-700' : 'bg-rose-950 border-rose-800'}`}>
-                <span className="text-[11px] font-bold text-emerald-200 block mb-1">
+                <span className={`text-[11px] font-bold block mb-1 ${downlineSettlementData.netBalance >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
                   {downlineSettlementData.netBalance >= 0 ? 'ရှင်းရန် (ရရန်ငွေ)' : 'ရှင်းရန် (ပေးရန်ငွေ)'}
                 </span>
                 <span className="text-base sm:text-lg font-mono font-black text-white">
@@ -1171,9 +1171,25 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                   {formatAmount(uplineSettlementData.totalPayout)} {currency}
                 </span>
               </div>
-              <div className={`rounded-2xl p-3.5 border shadow-xs text-white ${uplineSettlementData.netBalance >= 0 ? 'bg-emerald-900 border-emerald-700' : 'bg-rose-950 border-rose-800'}`}>
-                <span className="text-[11px] font-bold text-emerald-200 block mb-1">
-                  {uplineSettlementData.netBalance >= 0 ? 'အထက်ဒိုင်သို့ ပေးရန်' : 'အထက်ဒိုင်မှ ရရန်'}
+              <div className={`rounded-2xl p-3.5 border shadow-xs text-white ${
+                uplineSettlementData.netBalance < 0
+                  ? 'bg-emerald-900 border-emerald-700'
+                  : uplineSettlementData.netBalance > 0
+                  ? 'bg-rose-950 border-rose-800'
+                  : 'bg-slate-800 border-slate-700'
+              }`}>
+                <span className={`text-[11px] font-bold block mb-1 ${
+                  uplineSettlementData.netBalance < 0
+                    ? 'text-emerald-200'
+                    : uplineSettlementData.netBalance > 0
+                    ? 'text-rose-200'
+                    : 'text-slate-300'
+                }`}>
+                  {uplineSettlementData.netBalance < 0
+                    ? 'အထက်ဒိုင်မှ ရရန်'
+                    : uplineSettlementData.netBalance > 0
+                    ? 'အထက်ဒိုင်သို့ ပေးရန်'
+                    : 'အထက်ဒိုင် (ရ/ပေး မရှိ)'}
                 </span>
                 <span className="text-base sm:text-lg font-mono font-black text-white">
                   {formatAmount(Math.abs(uplineSettlementData.netBalance))} {currency}
@@ -1336,20 +1352,37 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
               </div>
 
               {/* Final Net Balance */}
-              <div className={`p-3.5 rounded-xl border-2 flex items-center justify-between text-sm font-black ${
-                (settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance) >= 0
+              {(() => {
+                const netBal =
+                  settlementType === 'downline'
+                    ? downlineSettlementData.netBalance
+                    : uplineSettlementData.netBalance;
+                const isReceivable = settlementType === 'downline' ? netBal >= 0 : netBal < 0;
+                const isPayable = settlementType === 'downline' ? netBal < 0 : netBal > 0;
+                const boxCls = isReceivable
                   ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
-                  : 'bg-rose-50 border-rose-500 text-rose-900'
-              }`}>
-                <span>
-                  {settlementType === 'downline'
-                    ? ((downlineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး ရရန်ငွေ:' : 'နောက်ဆုံး ပေးရန်ငွေ:')
-                    : ((uplineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး အထက်ဒိုင်သို့ ပေးရန်:' : 'နောက်ဆုံး အထက်ဒိုင်မှ ရရန်:')}
-                </span>
-                <span className="font-mono text-base font-black">
-                  {formatAmount(Math.abs(settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance), currency)}
-                </span>
-              </div>
+                  : isPayable
+                  ? 'bg-rose-50 border-rose-500 text-rose-900'
+                  : 'bg-slate-100 border-slate-300 text-slate-800';
+                const label =
+                  settlementType === 'downline'
+                    ? isReceivable
+                      ? 'နောက်ဆုံး ရရန်ငွေ:'
+                      : 'နောက်ဆုံး ပေးရန်ငွေ:'
+                    : isReceivable
+                    ? 'နောက်ဆုံး အထက်ဒိုင်မှ ရရန်:'
+                    : isPayable
+                    ? 'နောက်ဆုံး အထက်ဒိုင်သို့ ပေးရန်:'
+                    : 'နောက်ဆုံး ရှင်းလင်းပြီး (ရ/ပေး မရှိ):';
+                return (
+                  <div className={`p-3.5 rounded-xl border-2 flex items-center justify-between text-sm font-black ${boxCls}`}>
+                    <span>{label}</span>
+                    <span className="font-mono text-base font-black">
+                      {formatAmount(Math.abs(netBal), currency)}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
