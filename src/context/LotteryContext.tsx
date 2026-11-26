@@ -44,7 +44,6 @@ import { runPhonePurgeMigration } from '../utils/migrationUtils';
 import { generateUUID } from '../utils/restorePoints';
 import { getDeviceShortCode } from '../utils/deviceId';
 import { assertDateOpen, dateOfRound } from '../utils/periodGuard';
-import { getSettlementEditStatus } from '../utils/settlementWindowUtils';
 
 interface LotteryContextType {
   settings: AppSettings;
@@ -808,15 +807,8 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   ]);
 
   const settleWinningNumber = useCallback((winningNum: string, _multiplier?: number, _toddMultiplier?: number) => {
-    assertDateOpen('3D', dateOfRound('3D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
     if (!activeRound) return;
-
-    if (activeRound.status === 'settled') {
-      const editStatus = getSettlementEditStatus(activeRound);
-      if (!editStatus.withinWindow) {
-        throw new Error('ပေါက်ဂဏန်း ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ပြင်ဆင်ခွင့် မရှိတော့ပါ');
-      }
-    }
+    assertDateOpen('3D', activeRound.drawDate || dateOfRound('3D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
 
     const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
     const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
@@ -907,13 +899,6 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const resolvedRound = rounds.find(r => r.id === (targetRoundId || activeRound?.id));
     if (!resolvedRound) return;
     assertDateOpen('3D', resolvedRound.drawDate, 'ပေါက်ဂဏန်း ပယ်ဖျက်ခြင်း');
-
-    if (resolvedRound.status === 'settled') {
-      const editStatus = getSettlementEditStatus(resolvedRound);
-      if (!editStatus.withinWindow) {
-        throw new Error('ပေါက်ဂဏန်း ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ဖွင့်လှစ်ခွင့် မရှိတော့ပါ');
-      }
-    }
 
     setVouchers(prev =>
       prev.map(v => {

@@ -19,12 +19,11 @@ import {
   Clock
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
+import { usePeriod } from '../../context/PeriodContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
 import { evaluateTwoDWinnings, normalizeTwoDMultiplier, parseExcelToRoundData2D } from '../../utils/twoDLotteryUtils';
 import { getLocalDateString } from '../../utils/moneyUtils';
-import { isDateClosed } from '../../utils/periodGuard';
-import { getSettlementEditStatus } from '../../utils/settlementWindowUtils';
 import {
   SingleRoundFinancialBreakdown,
   calculateTwoDSingleRoundStatement
@@ -59,6 +58,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     setActiveRoundId,
     importRoundWithVouchers
   } = useTwoDLottery();
+  const { isPeriodClosed: checkPeriodClosed } = usePeriod();
 
   const isMyanmar = settings.language === 'my';
 
@@ -133,16 +133,8 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
   }, [rounds]);
 
   const isSettled = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
-
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 30000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const editStatus = useMemo(() => getSettlementEditStatus(activeRound, nowMs), [activeRound, nowMs]);
-  const isPeriodClosed = isDateClosed('2D', activeRound?.drawDate || '');
-  const canEditSettled = !isPeriodClosed && editStatus.withinWindow;
+  const isPeriodClosed = checkPeriodClosed('2D', activeRound?.drawDate || '');
+  const canEditSettled = !isPeriodClosed;
   const isLockedSettled = isSettled && !canEditSettled;
 
   const [isTestingMode, setIsTestingMode] = useState(false);
@@ -187,11 +179,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
   // Open password dialog for confirming official winning number
   const handleOpenConfirm = () => {
     if (isLockedSettled) {
-      setConfirmError(
-        isPeriodClosed
-          ? 'ဤကာလ ပိတ်ပြီးဖြစ်သောကြောင့် ပြင်ဆင်၍ မရတော့ပါ'
-          : 'ပိတ်သိမ်းပြီး ၂ နာရီ ကျော်လွန်သွားပြီဖြစ်၍ ပြန်လည်ပြင်ဆင်ခွင့် မရှိတော့ပါ'
-      );
+      setConfirmError('ရှင်းတမ်းထဲတွင် ကာလပိတ်ပြီးဖြစ်သောကြောင့် ပြင်ဆင်၍ မရတော့ပါ');
       return;
     }
     const cleanNum = convertMyanmarToEnglishDigits(winningInput).replace(/\D/g, '').slice(0, 2);
@@ -235,7 +223,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
         setIsEnteringPassword(false);
         setConfirmPassword('');
         setConfirmError(null);
-        setSettledSuccessMsg('ပွဲစဉ်အား ပြန်လည်ပြင်ဆင်ရန် ဖွင့်လှစ်ပြီးပါပြီ (မူလပိတ်ချိန်မှ ၂ နာရီအတွင်း ပြင်ဆင်နိုင်ပါသည်)');
+        setSettledSuccessMsg('ပွဲစဉ်အား ပြန်လည်ပြင်ဆင်ရန် ဖွင့်လှစ်ပြီးပါပြီ (ရှင်းတမ်းထဲမှ ကာလပိတ် မနှိပ်မချင်း ပြင်ဆင်နိုင်ပါသည်)');
         setTimeout(() => setSettledSuccessMsg(null), 6000);
       } catch (err: any) {
         setConfirmError(err?.message || 'ပြန်လည်ဖွင့်လှစ်၍ မရပါ');
@@ -559,32 +547,28 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
               className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>{isMyanmar ? `ပေါက်ဂဏန်း ပြန်ဖွင့်/ပြင်မည် (${editStatus.remainingFormatted})` : 'Reopen / Edit Result'}</span>
+              <span>{isMyanmar ? 'ပေါက်ဂဏန်း ပြန်ဖွင့်/ပြင်မည်' : 'Reopen / Edit Result'}</span>
             </button>
           )}
           {isLockedSettled && (
             <div className="px-3.5 py-2 bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-slate-500" />
-              <span>
-                {isPeriodClosed
-                  ? 'ကာလပိတ်ပြီး (ပြင်ဆင်၍မရပါ)'
-                  : '၂ နာရီကျော်လွန်ပြီး (ပြင်ဆင်ခွင့်ပိတ်)'}
-              </span>
+              <span>ကာလပိတ်ပြီး (ပြင်ဆင်၍မရပါ)</span>
             </div>
           )}
         </div>
 
-        {/* 2-Hour Edit Window / Reopened Banner */}
+        {/* Period-Open Edit Window / Reopened Banner */}
         {isSettled && canEditSettled && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
             <span className="flex items-center gap-2 font-bold">
               <Clock className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                ပိတ်သိမ်းပြီး ၂ နာရီအတွင်း ပေါက်ဂဏန်းပြင်ဆင်ခြင်း သို့မဟုတ် ပွဲစဉ်ပြန်ဖွင့်ခြင်း ပြုလုပ်နိုင်ပါသည် (ပိုင်ရှင် Password လိုအပ်ပါသည်)
+                ရှင်းတမ်းထဲမှ ကာလပိတ် မနှိပ်သေးသမျှ ပေါက်ဂဏန်းပြင်ဆင်ခြင်း သို့မဟုတ် ပွဲစဉ်ပြန်ဖွင့်ခြင်းကို ပိုင်ရှင် Password ဖြင့် ပြုလုပ်နိုင်ပါသည်
               </span>
             </span>
-            <span className="px-2.5 py-0.5 bg-amber-200/70 text-amber-950 font-black rounded-lg font-mono">
-              ကျန်ရှိချိန်: {editStatus.remainingFormatted}
+            <span className="px-2.5 py-0.5 bg-amber-200/70 text-amber-950 font-black rounded-lg">
+              ကာလမပိတ်သေး (ပြင်ဆင်နိုင်)
             </span>
           </div>
         )}
@@ -596,11 +580,6 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                 ပြန်လည်ပြင်ဆင်ရန် ဖွင့်လှစ်ထားသော ပွဲစဉ်ဖြစ်ပါသည် — စာရင်း/ဘောင်ချာများ ပြင်ဆင်ပြီးပါက ပေါက်ဂဏန်း ပြန်လည်အတည်ပြုပေးပါ
               </span>
             </span>
-            {editStatus.withinWindow && (
-              <span className="px-2.5 py-0.5 bg-sky-200/70 text-sky-950 font-black rounded-lg font-mono">
-                မူလ ၂ နာရီအတွင်း ကျန်ရှိချိန်: {editStatus.remainingFormatted}
-              </span>
-            )}
           </div>
         )}
 

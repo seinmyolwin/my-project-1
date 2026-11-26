@@ -12,11 +12,10 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useTwoDLottery } from '../../context/TwoDLotteryContext';
+import { usePeriod } from '../../context/PeriodContext';
 import { TwoDDrawRound } from '../../types';
 import { getLocalDateString } from '../../utils/moneyUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
-import { isDateClosed } from '../../utils/periodGuard';
-import { getSettlementEditStatus } from '../../utils/settlementWindowUtils';
 
 interface TwoDRoundManagerModalProps {
   isOpen: boolean;
@@ -36,20 +35,13 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
     forwardSlips,
     settings
   } = useTwoDLottery();
+  const { isPeriodClosed: checkPeriodClosed } = usePeriod();
 
   const isMyanmar = settings.language === 'my';
 
   const [dateStr, setDateStr] = useState(getLocalDateString());
   const [session, setSession] = useState<'morning' | 'evening'>('morning');
   const [multiplier, setMultiplier] = useState(String(settings.defaultMultiplier ?? ''));
-
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    if (!isOpen) return;
-    setNowMs(Date.now());
-    const timer = setInterval(() => setNowMs(Date.now()), 30000);
-    return () => clearInterval(timer);
-  }, [isOpen]);
 
   const [reopenTargetRound, setReopenTargetRound] = useState<TwoDDrawRound | null>(null);
   const [reopenPassword, setReopenPassword] = useState('');
@@ -68,9 +60,8 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
   const activeRound = rounds.find(r => r.id === activeRoundId) || rounds[0];
 
   const handleRequestReopenSettled = (round: TwoDDrawRound) => {
-    const editStatus = getSettlementEditStatus(round, nowMs);
-    const closedPeriod = isDateClosed('2D', round.drawDate);
-    if (closedPeriod || !editStatus.withinWindow) return;
+    const closedPeriod = checkPeriodClosed('2D', round.drawDate);
+    if (closedPeriod) return;
     setReopenTargetRound(round);
     setReopenPassword('');
     setReopenError(null);
@@ -240,29 +231,24 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
                   </button>
                 )}
                 {activeRound.status === 'settled' && (() => {
-                  const editStatus = getSettlementEditStatus(activeRound, nowMs);
-                  const closedPeriod = isDateClosed('2D', activeRound.drawDate);
-                  if (!closedPeriod && editStatus.withinWindow) {
+                  const closedPeriod = checkPeriodClosed('2D', activeRound.drawDate);
+                  if (!closedPeriod) {
                     return (
                       <button
                         type="button"
                         onClick={() => handleRequestReopenSettled(activeRound)}
                         className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                        title="၂ နာရီအတွင်း ပိုင်ရှင် Password ဖြင့် ပြန်ဖွင့်ပြင်ဆင်ရန်"
+                        title="ကာလမပိတ်သေးသမျှ ပိုင်ရှင် Password ဖြင့် ပြန်ဖွင့်ပြင်ဆင်ရန်"
                       >
                         <Unlock className="w-3.5 h-3.5" />
-                        <span>{isMyanmar ? `ပြန်ဖွင့်ပြင်မည် (${editStatus.remainingFormatted})` : 'Reopen (2h)'}</span>
+                        <span>{isMyanmar ? 'ပြန်ဖွင့်ပြင်မည်' : 'Reopen / Edit'}</span>
                       </button>
                     );
                   }
                   return (
                     <div className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-3 py-1.5 rounded-xl border border-amber-300 flex items-center gap-1">
                       <Lock className="w-3.5 h-3.5" />
-                      <span>
-                        {closedPeriod
-                          ? 'ကာလပိတ်ပြီး (ပြင်၍မရပါ)'
-                          : '၂ နာရီကျော်လွန်ပြီး (ပြင်ဆင်ခွင့်ပိတ်)'}
-                      </span>
+                      <span>ကာလပိတ်ပြီး (ပြင်၍မရပါ)</span>
                     </div>
                   );
                 })()}
@@ -483,24 +469,23 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
                       </button>
                     )}
                     {r.status === 'settled' && (() => {
-                      const editStatus = getSettlementEditStatus(r, nowMs);
-                      const closedPeriod = isDateClosed('2D', r.drawDate);
-                      if (!closedPeriod && editStatus.withinWindow) {
+                      const closedPeriod = checkPeriodClosed('2D', r.drawDate);
+                      if (!closedPeriod) {
                         return (
                           <button
                             type="button"
                             onClick={() => handleRequestReopenSettled(r)}
                             className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded-lg border border-amber-300 cursor-pointer"
-                            title="၂ နာရီအတွင်း Password ဖြင့် ပြန်ဖွင့်ပြင်ဆင်မည်"
+                            title="ကာလမပိတ်သေးသမျှ Password ဖြင့် ပြန်ဖွင့်ပြင်ဆင်မည်"
                           >
-                            ပြန်ဖွင့် ({editStatus.remainingFormatted})
+                            ပြန်ဖွင့်ပြင်မည်
                           </button>
                         );
                       }
                       return (
                         <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg border border-slate-200 inline-flex items-center gap-1">
                           <Lock className="w-3 h-3" />
-                          <span>{closedPeriod ? 'ကာလပိတ်' : '၂နာရီကျော်'}</span>
+                          <span>ကာလပိတ်ပြီး</span>
                         </span>
                       );
                     })()}
