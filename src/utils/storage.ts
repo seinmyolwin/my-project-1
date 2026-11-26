@@ -1020,12 +1020,17 @@ export function loadStoredData<T>(key: string, defaultValue: T): T {
 
 export function saveStoredData<T>(key: string, data: T): boolean {
   const previousPrimary = localStorage.getItem(key);
-  const previousBackup = localStorage.getItem(`${key}_backup`);
 
   try {
     const str = JSON.stringify(data);
     localStorage.setItem(key, str);
-    localStorage.setItem(`${key}_backup`, str);
+    try {
+      localStorage.setItem(`${key}_backup`, str);
+    } catch (backupErr) {
+      // On tablets with tight 5MB localStorage quota, failing to write the secondary _backup copy
+      // must NOT roll back a valid primary save.
+      console.warn(`Backup copy skipped for ${key} (storage quota tight):`, backupErr);
+    }
     return true;
   } catch (err) {
     console.error(`Failed to save ${key} to storage. Rolling back to previous state:`, err);
@@ -1034,11 +1039,6 @@ export function saveStoredData<T>(key: string, data: T): boolean {
         localStorage.setItem(key, previousPrimary);
       } else {
         localStorage.removeItem(key);
-      }
-      if (previousBackup !== null) {
-        localStorage.setItem(`${key}_backup`, previousBackup);
-      } else {
-        localStorage.removeItem(`${key}_backup`);
       }
     } catch (rollbackErr) {
       console.error(`Rollback failed for ${key}:`, rollbackErr);
@@ -1049,45 +1049,54 @@ export function saveStoredData<T>(key: string, data: T): boolean {
 
 /**
  * Atomically saves multiple key-value pairs to localStorage.
- * If any single key write fails (e.g. storage limit, browser error),
- * ALL keys are immediately rolled back to their exact previous state (ACID transaction).
+ * If any single primary key write fails (e.g. storage limit, browser error),
+ * ALL primary keys are immediately rolled back to their exact previous state (ACID transaction).
  */
 export function saveBatchTransactional(updates: Record<string, any>): boolean {
-  const snapshots: Record<string, { primary: string | null; backup: string | null }> = {};
+  const snapshots: Record<string, string | null> = {};
+  const serialized: Record<string, string> = {};
 
-  // 1. Take snapshot of all target keys
-  for (const key of Object.keys(updates)) {
-    snapshots[key] = {
-      primary: localStorage.getItem(key),
-      backup: localStorage.getItem(`${key}_backup`)
-    };
-  }
-
-  // 2. Attempt atomic updates
-  const writtenKeys: string[] = [];
+  // 1. Serialize & snapshot all primary target keys first
   try {
     for (const [key, value] of Object.entries(updates)) {
-      const str = JSON.stringify(value);
+      snapshots[key] = localStorage.getItem(key);
+      serialized[key] = JSON.stringify(value);
+    }
+  } catch (err) {
+    console.error('Atomic batch save serialization failed:', err);
+    return false;
+  }
+
+  // 2. Attempt atomic primary updates
+  const writtenKeys: string[] = [];
+  try {
+    for (const [key, str] of Object.entries(serialized)) {
       localStorage.setItem(key, str);
-      localStorage.setItem(`${key}_backup`, str);
       writtenKeys.push(key);
     }
-    return true;
   } catch (err) {
-    console.error('Atomic batch save failed! Reverting all modified storage keys...', err);
-    // 3. Rollback all modified keys to exact previous snapshot
+    console.error('Atomic batch save failed! Reverting all modified primary keys...', err);
     for (const key of writtenKeys) {
-      const snap = snapshots[key];
-      if (snap) {
-        if (snap.primary !== null) localStorage.setItem(key, snap.primary);
+      const prev = snapshots[key];
+      try {
+        if (prev !== null) localStorage.setItem(key, prev);
         else localStorage.removeItem(key);
-
-        if (snap.backup !== null) localStorage.setItem(`${key}_backup`, snap.backup);
-        else localStorage.removeItem(`${key}_backup`);
+      } catch {
+        // ignore rollback error
       }
     }
     return false;
   }
+
+  // 3. Best-effort update of secondary _backup copies without ever rolling back valid primary writes
+  for (const [key, str] of Object.entries(serialized)) {
+    try {
+      localStorage.setItem(`${key}_backup`, str);
+    } catch (backupErr) {
+      console.warn(`Backup copy skipped in batch for ${key} (storage quota tight):`, backupErr);
+    }
+  }
+  return true;
 }
 
 export const saveMultipleAtomic = saveBatchTransactional;

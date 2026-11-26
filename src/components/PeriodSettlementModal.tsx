@@ -408,11 +408,19 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           const comm = resolvedVouch.amount;
           const winningNum = round?.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
 
+          const isFrozen3D = !!round && (round.status === 'settled' || round.status === 'closed' || !!round.winningNumber);
+          const effStraight3D = isFrozen3D && typeof round?.multiplier === 'number' && round.multiplier > 0
+            ? round.multiplier
+            : straightMult3D;
+          const effTodd3D = isFrozen3D && typeof round?.toddMultiplier === 'number' && round.toddMultiplier >= 0
+            ? round.toddMultiplier
+            : toddMult3D;
+
           let payout = 0;
           const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
           if (winningNum && winningNum.length === 3) {
-            const evalRes = evaluateWinnings([v], winningNum, straightMult3D, toddMult3D);
+            const evalRes = evaluateWinnings([v], winningNum, effStraight3D, effTodd3D);
             evalRes.winners.forEach((w) => {
               payout += w.wonPayout;
               wonBets.push({ num: w.betNumber, amt: w.betAmount, wonAmt: w.wonPayout });
@@ -420,7 +428,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           } else if (v.items && Array.isArray(v.items)) {
             v.items.forEach((it: any) => {
               if (it.isWon) {
-                const itemMult = it.betType === 'rumble' ? toddMult3D : straightMult3D;
+                const itemMult = it.betType === 'rumble' ? effTodd3D : effStraight3D;
                 const won = it.wonAmount || (it.amount * itemMult);
                 payout += won;
                 wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
@@ -674,7 +682,15 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           if (rec.winningResult && /^\d{3}$/.test(rec.winningResult.trim())) {
             const win3D = rec.winningResult.trim().padStart(3, '0');
             winningNumbers.push(win3D);
-            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, straightMult3D, toddMult3D);
+            const round3D = lottery3D.rounds.find(r => r.id === rec.rawRoundId);
+            const isFrozen3D = !!round3D && (round3D.status === 'settled' || round3D.status === 'closed' || !!round3D.winningNumber);
+            const effStraight3D = isFrozen3D && typeof round3D?.multiplier === 'number' && round3D.multiplier > 0
+              ? round3D.multiplier
+              : straightMult3D;
+            const effTodd3D = isFrozen3D && typeof round3D?.toddMultiplier === 'number' && round3D.toddMultiplier >= 0
+              ? round3D.toddMultiplier
+              : toddMult3D;
+            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, effStraight3D, effTodd3D);
 
             const toddSet = new Set(getToddWinningNumbers(win3D));
             targetForwards.forEach((f: any) => {
@@ -684,9 +700,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 if (amt <= 0) return;
                 let won = 0;
                 if (num === win3D) {
-                  won = straightMult3D > 0 ? amt * straightMult3D : 0;
+                  won = effStraight3D > 0 ? amt * effStraight3D : 0;
                 } else if (toddSet.has(num)) {
-                  won = toddMult3D > 0 ? amt * toddMult3D : 0;
+                  won = effTodd3D > 0 ? amt * effTodd3D : 0;
                 }
                 if (won > 0 || num === win3D || toddSet.has(num)) {
                   const existing = winningBets.find(x => x.num === num);

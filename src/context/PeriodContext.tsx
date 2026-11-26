@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { PeriodClosing, GameType } from '../types';
 import { STORAGE_KEYS, loadStoredData, saveStoredData } from '../utils/storage';
 import { generateUUID, createRestorePoint } from '../utils/restorePoints';
@@ -21,7 +21,12 @@ export const PeriodProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loadStoredData(STORAGE_KEYS.PERIOD_CLOSINGS, [])
   );
 
+  const didMountClosingsRef = useRef(false);
   useEffect(() => {
+    if (!didMountClosingsRef.current) {
+      didMountClosingsRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.PERIOD_CLOSINGS, periodClosings);
   }, [periodClosings]);
 

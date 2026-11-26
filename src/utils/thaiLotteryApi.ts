@@ -35,14 +35,15 @@ export function generateUpToDate2DRounds(
 ): TwoDDrawRound[] {
   const today = new Date();
   const rounds: TwoDDrawRound[] = [];
-  const START_DATE = '2026-10-05';
   const todayLocalStr = getLocalDateString(today);
+  const startBoundary = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 45, 12, 0, 0);
+  const startDateStr = toDateStr(startBoundary);
 
   const current = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
 
   while (true) {
     const dateStr = toDateStr(current);
-    if (dateStr < START_DATE) {
+    if (dateStr < startDateStr) {
       break;
     }
 

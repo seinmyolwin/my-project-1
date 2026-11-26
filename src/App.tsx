@@ -62,6 +62,8 @@ import { PinPromptModal } from './components/PinPromptModal';
 import { getStoredEnabledModes, isFirstTimePinSetup, EnabledModes } from './utils/securityUtils';
 import { useDoubleBackToExit } from './hooks/useDoubleBackToExit';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { runIdMigration, healMigratedReferencesAndBackups } from './utils/idMigration';
+import { runPhonePurgeMigration } from './utils/migrationUtils';
 
 const TABS_3D: ('sales' | 'ledger' | 'winning' | 'vouchers')[] = [
   'sales',
@@ -877,17 +879,62 @@ function AppContent() {
 }
 
 
+function MigrationGate({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await runIdMigration();
+      } catch (err) {
+        console.warn('[MigrationGate] runIdMigration warning:', err);
+      }
+      try {
+        await runPhonePurgeMigration();
+      } catch (err) {
+        console.warn('[MigrationGate] runPhonePurgeMigration warning:', err);
+      }
+      try {
+        await healMigratedReferencesAndBackups();
+      } catch (err) {
+        console.warn('[MigrationGate] healMigratedReferencesAndBackups warning:', err);
+      }
+      if (active) setReady(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 shadow-sm text-center space-y-1">
+          <div className="text-sm font-black text-slate-800">ရွှေမင်္ဂလာ စာရင်းစနစ်</div>
+          <div className="text-xs text-slate-500">ဒေတာများ စစ်ဆေးပြင်ဆင်နေပါသည်...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
-    <PeriodProvider>
-      <LotteryProvider>
-        <TwoDLotteryProvider>
-          <FootballProvider>
-            <AppContent />
-          </FootballProvider>
-        </TwoDLotteryProvider>
-      </LotteryProvider>
-    </PeriodProvider>
+    <MigrationGate>
+      <PeriodProvider>
+        <LotteryProvider>
+          <TwoDLotteryProvider>
+            <FootballProvider>
+              <AppContent />
+            </FootballProvider>
+          </TwoDLotteryProvider>
+        </LotteryProvider>
+      </PeriodProvider>
+    </MigrationGate>
   );
 }
+
 

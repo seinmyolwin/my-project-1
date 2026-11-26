@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import {
   TwoDDrawRound,
@@ -36,7 +36,7 @@ import {
   getAllRoundCustomerCommissions,
   COMMISSION_UPDATED_EVENT
 } from '../utils/commissionUtils';
-import { calculateTwoDSingleRoundStatement, getVoucherGrossTurnover } from '../utils/statementUtils';
+import { calculateTwoDSingleRoundStatement } from '../utils/statementUtils';
 import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
 import { merge2DVouchersNoDuplicates } from '../utils/deduplicationUtils';
 import { triggerRibbonsCelebration } from '../utils/audioUtils';
@@ -129,8 +129,12 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const storedMap = new Map<string, TwoDDrawRound>();
     stored.forEach(r => {
       if (!deletedSet.has(r.id)) {
-        let mult = normalizeTwoDMultiplier(r.multiplier || settings.defaultMultiplier);
-        storedMap.set(r.id, { ...r, multiplier: mult });
+        if (r.status === 'settled' || r.status === 'closed' || (r.multiplier && r.multiplier > 0)) {
+          storedMap.set(r.id, r);
+        } else {
+          const mult = normalizeTwoDMultiplier(r.multiplier || settings.defaultMultiplier);
+          storedMap.set(r.id, { ...r, multiplier: mult });
+        }
       }
     });
 
@@ -166,7 +170,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         prev.forEach(r => {
           if (!deletedSet.has(r.id)) {
-            if (r.status === 'settled' || r.reopenedForEdit) {
+            if (r.status === 'settled' || r.status === 'closed' || !!r.winningNumber || r.reopenedForEdit) {
               map.set(r.id, r);
             } else if (r.drawDate < todayStr && r.status === 'open') {
               map.set(r.id, { ...r, status: 'closed' });
@@ -251,41 +255,13 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [rawVouchers, setVouchers] = useState<TwoDVoucher[]>(() => {
     const loaded = loadStoredData<TwoDVoucher[]>(STORAGE_KEYS.VOUCHERS_2D, []);
-    if (!loaded || !Array.isArray(loaded)) return [];
-    return loaded.map(v => {
-      const gross = getVoucherGrossTurnover(v);
-      if (gross > 0 && (v.subtotal !== gross || (v.subtotal % 50 !== 0))) {
-        const disc = v.discountPercent ? Math.round((gross * v.discountPercent) / 100) : (v.discountAmount || 0);
-        return {
-          ...v,
-          subtotal: gross,
-          discountAmount: disc,
-          netPayable: gross - disc
-        };
-      }
-      return v;
-    });
+    return Array.isArray(loaded) ? loaded : [];
   });
   const vouchers = useMemo(() => rawVouchers.filter(v => !(v as any).deletedAt && v.status !== 'cancelled'), [rawVouchers]);
 
   const [rawForwardSlips, setForwardSlips] = useState<TwoDForwardSlip[]>(() => {
     const loaded = loadStoredData<TwoDForwardSlip[]>(STORAGE_KEYS.FORWARD_SLIPS_2D, []);
-    if (!Array.isArray(loaded)) return [];
-    try {
-      if (localStorage.getItem('forward_all_2d_cleanup_v1') !== 'true') {
-        const cleaned = loaded.filter(
-          (f) => f.notes !== 'ရှိသမျှအကွက်အားလုံး အထက်ဒိုင်တင်ခြင်း' && f.notes !== 'Forwarded all bets'
-        );
-        if (cleaned.length !== loaded.length) {
-          saveStoredData(STORAGE_KEYS.FORWARD_SLIPS_2D, cleaned);
-        }
-        localStorage.setItem('forward_all_2d_cleanup_v1', 'true');
-        return cleaned;
-      }
-    } catch {
-      // ignore
-    }
-    return loaded;
+    return Array.isArray(loaded) ? loaded : [];
   });
   const forwardSlips = useMemo(() => rawForwardSlips.filter(f => !(f as any).deletedAt), [rawForwardSlips]);
 
@@ -297,38 +273,72 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     loadStoredData(STORAGE_KEYS.BLOCKED_2D, INITIAL_2D_BLOCKED)
   );
 
-  // Sync to localStorage
+  // Sync to localStorage ONLY after initial mount (prevents clobbering _backup on startup)
+  const mountedSettingsRef = useRef(false);
   useEffect(() => {
+    if (!mountedSettingsRef.current) {
+      mountedSettingsRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.SETTINGS_2D, settings);
   }, [settings]);
 
+  const mountedRoundsRef = useRef(false);
   useEffect(() => {
+    if (!mountedRoundsRef.current) {
+      mountedRoundsRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.ROUNDS_2D, rawRounds);
-  }, [rounds]);
+  }, [rawRounds]);
 
+  const mountedActiveIdRef = useRef(false);
   useEffect(() => {
+    if (!mountedActiveIdRef.current) {
+      mountedActiveIdRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.ACTIVE_ROUND_ID_2D, activeRoundId);
   }, [activeRoundId]);
 
+  const mountedVouchersRef = useRef(false);
   useEffect(() => {
+    if (!mountedVouchersRef.current) {
+      mountedVouchersRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.VOUCHERS_2D, rawVouchers);
-  }, [vouchers]);
+  }, [rawVouchers]);
 
+  const mountedForwardsRef = useRef(false);
   useEffect(() => {
+    if (!mountedForwardsRef.current) {
+      mountedForwardsRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.FORWARD_SLIPS_2D, rawForwardSlips);
-  }, [forwardSlips]);
+  }, [rawForwardSlips]);
 
+  const mountedLimitsRef = useRef(false);
   useEffect(() => {
+    if (!mountedLimitsRef.current) {
+      mountedLimitsRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.LIMITS_2D, limits);
   }, [limits]);
 
+  const mountedBlockedRef = useRef(false);
   useEffect(() => {
+    if (!mountedBlockedRef.current) {
+      mountedBlockedRef.current = true;
+      return;
+    }
     saveStoredData(STORAGE_KEYS.BLOCKED_2D, blockedNumbers);
   }, [blockedNumbers]);
 
-  const visibleRounds = useMemo(() => {
-    return rounds.filter(r => r.drawDate >= '2026-10-05');
-  }, [rounds]);
+  // All non-deleted rounds are visible regardless of drawDate (never hide historical rounds)
+  const visibleRounds = rounds;
 
   const activeRound = useMemo(() => {
     return visibleRounds.find(r => r.id === activeRoundId) || visibleRounds[0];
@@ -1198,7 +1208,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const importRoundWithVouchers = useCallback((roundData: Omit<TwoDDrawRound, 'id'>, importedVouchers: TwoDVoucher[]) => {
     const existingRound = rounds.find(r => r.drawDate === roundData.drawDate && (!roundData.session || r.session === roundData.session));
-    const targetRoundId = existingRound ? existingRound.id : `2d-round-imp-${Date.now()}`;
+    const targetRoundId = existingRound ? existingRound.id : generateUUID();
 
     if (!existingRound) {
       const newRound: TwoDDrawRound = {
@@ -1209,9 +1219,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     setActiveRoundIdState(targetRoundId);
 
-    const stampedVouchers = importedVouchers.map((v, idx) => ({
+    const stampedVouchers = importedVouchers.map((v) => ({
       ...v,
-      id: v.id || `v-2d-imp-${targetRoundId}-${idx}-${Date.now()}`,
+      id: v.id || generateUUID(),
       roundId: targetRoundId
     }));
 
