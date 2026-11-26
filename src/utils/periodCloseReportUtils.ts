@@ -365,20 +365,13 @@ export function buildPeriodCloseReport(
         }
       } else if (mode === '3d') {
         const win3D = b.rawRound?.winningNumber ? String(b.rawRound.winningNumber).trim().padStart(3, '0') : undefined;
-        const isFrozen3D = !!b.rawRound && (b.rawRound.status === 'settled' || b.rawRound.status === 'closed' || !!b.rawRound.winningNumber);
-        const rStraightMult3D = isFrozen3D && typeof b.rawRound?.multiplier === 'number' && b.rawRound.multiplier > 0
-          ? b.rawRound.multiplier
-          : straightMult3D;
-        const rToddMult3D = isFrozen3D && typeof b.rawRound?.toddMultiplier === 'number' && b.rawRound.toddMultiplier >= 0
-          ? b.rawRound.toddMultiplier
-          : toddMult3D;
         if (win3D && win3D.length === 3) {
-          const evalRes = evaluateWinnings([v], win3D, rStraightMult3D, rToddMult3D);
+          const evalRes = evaluateWinnings([v], win3D, straightMult3D, toddMult3D);
           payout = evalRes.totalPayout;
         } else if (Array.isArray(v.items)) {
           v.items.forEach((it: any) => {
             if (it.isWon) {
-              const itemMult = it.betType === 'rumble' ? rToddMult3D : rStraightMult3D;
+              const itemMult = it.betType === 'rumble' ? toddMult3D : straightMult3D;
               payout += it.wonAmount || ((Number(it.amount) || 0) * itemMult);
             }
           });
@@ -510,15 +503,8 @@ export function buildPeriodCloseReport(
           }
         } else if (mode === '3d') {
           const win3D = b.rawRound?.winningNumber ? String(b.rawRound.winningNumber).trim().padStart(3, '0') : undefined;
-          const isFrozen3D = !!b.rawRound && (b.rawRound.status === 'settled' || b.rawRound.status === 'closed' || !!b.rawRound.winningNumber);
-          const rStraightMult3D = isFrozen3D && typeof b.rawRound?.multiplier === 'number' && b.rawRound.multiplier > 0
-            ? b.rawRound.multiplier
-            : straightMult3D;
-          const rToddMult3D = isFrozen3D && typeof b.rawRound?.toddMultiplier === 'number' && b.rawRound.toddMultiplier >= 0
-            ? b.rawRound.toddMultiplier
-            : toddMult3D;
           if (win3D && win3D.length === 3) {
-            masterPayout = calculate3DForwardMasterPayout(agentForwards, win3D, rStraightMult3D, rToddMult3D);
+            masterPayout = calculate3DForwardMasterPayout(agentForwards, win3D, straightMult3D, toddMult3D);
           }
         } else {
           // Football per-agent master payout

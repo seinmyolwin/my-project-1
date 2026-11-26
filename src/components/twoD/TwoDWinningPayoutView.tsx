@@ -1358,7 +1358,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                             {formatAmount(totalWon, settings.currency)}
                           </td>
                           <td className="p-3 text-center">
-                            <span className="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-200 font-sans font-bold text-[11px] rounded-md">
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-sans font-bold text-[11px] rounded-md">
                               {isMyanmar ? 'ရှင်းပေးရန်' : 'Payable'}
                             </span>
                           </td>

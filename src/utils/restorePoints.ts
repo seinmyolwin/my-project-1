@@ -252,50 +252,11 @@ function getLocalStorageRestorePoints(): RestorePoint[] {
 }
 
 function saveLocalStorageRestorePoints(points: RestorePoint[]): void {
-  const storage = getStorage();
-  // Cap localStorage fallback to at most 2 points to avoid exhausting tablet 5MB quota
-  let candidate = points.slice(0, 2);
-  while (candidate.length >= 0) {
-    try {
-      if (candidate.length === 0) {
-        storage.removeItem(RESTORE_POINTS_LOCAL_KEY);
-      } else {
-        storage.setItem(RESTORE_POINTS_LOCAL_KEY, JSON.stringify(candidate));
-      }
-      return;
-    } catch (err) {
-      if (candidate.length === 0) {
-        console.warn('[RestorePoints] LocalStorage save failed:', err);
-        return;
-      }
-      candidate = candidate.slice(0, candidate.length - 1);
-    }
-  }
-}
-
-/**
- * Offloads any legacy bloated restore_points_v1 from localStorage into IndexedDB
- * so tablets immediately reclaim localStorage quota without losing existing restore points.
- */
-export async function offloadLocalRestorePointsToIndexedDB(): Promise<void> {
   try {
-    const localList = getLocalStorageRestorePoints();
-    if (localList.length === 0) return;
-
-    let allSaved = true;
-    for (const point of localList) {
-      const ok = await saveToIndexedDB(point);
-      if (!ok) {
-        allSaved = false;
-        break;
-      }
-    }
-    if (allSaved) {
-      const storage = getStorage();
-      storage.removeItem(RESTORE_POINTS_LOCAL_KEY);
-    }
-  } catch {
-    // ignore if IndexedDB is unavailable
+    const storage = getStorage();
+    storage.setItem(RESTORE_POINTS_LOCAL_KEY, JSON.stringify(points));
+  } catch (err) {
+    console.warn('[RestorePoints] LocalStorage save failed:', err);
   }
 }
 
@@ -370,32 +331,25 @@ export async function getRestorePoint(id: string): Promise<RestorePoint | null> 
 }
 
 export async function listRestorePoints(): Promise<RestorePoint[]> {
-  const byId = new Map<string, RestorePoint>();
+  let list: RestorePoint[] = [];
 
-  // 1. IndexedDB points
+  // Try IndexedDB first
   try {
     const fromIDB = await listFromIndexedDB();
-    if (Array.isArray(fromIDB)) {
-      fromIDB.forEach(p => {
-        if (p?.id) byId.set(p.id, p);
-      });
+    if (fromIDB && fromIDB.length > 0) {
+      list = fromIDB;
     }
   } catch {
     // fallback
   }
 
-  // 2. Merge any LocalStorage fallback points not yet in IndexedDB
-  const localList = getLocalStorageRestorePoints();
-  localList.forEach(p => {
-    if (p?.id && !byId.has(p.id)) {
-      byId.set(p.id, p);
-    }
-  });
+  // Fallback to LocalStorage if IndexedDB was empty or unavailable
+  if (list.length === 0) {
+    list = getLocalStorageRestorePoints();
+  }
 
   // Sort newest first
-  return Array.from(byId.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function deleteRestorePoint(id: string): Promise<void> {
@@ -407,8 +361,8 @@ export async function deleteRestorePoint(id: string): Promise<void> {
 /**
  * Creates a byte-for-byte full localStorage restore point.
  * Reads every key raw string without modification, calculates SHA-256 hash per key,
- * saves to IndexedDB (falling back to localStorage ONLY if IndexedDB is unavailable),
- * and verifies immediately via hash comparison.
+ * saves to IndexedDB (with localStorage fallback), and verifies immediately via hash comparison.
+ * If any byte/hash mismatch occurs, the point is deleted immediately and an error is thrown.
  */
 export async function createRestorePoint(
   reason: 'manual' | 'before-import' | 'before-migration' | 'before-rollback' | 'before-period-close' | 'auto',
@@ -489,18 +443,13 @@ export async function createRestorePoint(
     redactedKeys
   };
 
-  // 1. Save to IndexedDB FIRST (keeps 5MB tablet localStorage completely free of snapshot bloat)
-  const savedToIDB = await saveToIndexedDB(record);
+  // 1. Save to LocalStorage fallback
+  const localList = getLocalStorageRestorePoints();
+  localList.unshift(record);
+  saveLocalStorageRestorePoints(localList);
 
-  // 2. Only fall back to LocalStorage if IndexedDB is unavailable/failed
-  if (!savedToIDB) {
-    const localList = getLocalStorageRestorePoints();
-    localList.unshift(record);
-    saveLocalStorageRestorePoints(localList);
-  } else {
-    // Reclaim any legacy bloated localStorage restore points once IndexedDB is active
-    await offloadLocalRestorePointsToIndexedDB();
-  }
+  // 2. Save to IndexedDB
+  await saveToIndexedDB(record);
 
   // 3. Immediately read back and verify: Byte-for-byte SHA-256 hash comparison!
   // If mismatch occurs, throw error and delete the corrupted point immediately.

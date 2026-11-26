@@ -408,19 +408,11 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           const comm = resolvedVouch.amount;
           const winningNum = round?.winningNumber ? round.winningNumber.padStart(3, '0') : undefined;
 
-          const isFrozen3D = !!round && (round.status === 'settled' || round.status === 'closed' || !!round.winningNumber);
-          const effStraight3D = isFrozen3D && typeof round?.multiplier === 'number' && round.multiplier > 0
-            ? round.multiplier
-            : straightMult3D;
-          const effTodd3D = isFrozen3D && typeof round?.toddMultiplier === 'number' && round.toddMultiplier >= 0
-            ? round.toddMultiplier
-            : toddMult3D;
-
           let payout = 0;
           const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
           if (winningNum && winningNum.length === 3) {
-            const evalRes = evaluateWinnings([v], winningNum, effStraight3D, effTodd3D);
+            const evalRes = evaluateWinnings([v], winningNum, straightMult3D, toddMult3D);
             evalRes.winners.forEach((w) => {
               payout += w.wonPayout;
               wonBets.push({ num: w.betNumber, amt: w.betAmount, wonAmt: w.wonPayout });
@@ -428,7 +420,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           } else if (v.items && Array.isArray(v.items)) {
             v.items.forEach((it: any) => {
               if (it.isWon) {
-                const itemMult = it.betType === 'rumble' ? effTodd3D : effStraight3D;
+                const itemMult = it.betType === 'rumble' ? toddMult3D : straightMult3D;
                 const won = it.wonAmount || (it.amount * itemMult);
                 payout += won;
                 wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
@@ -682,15 +674,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           if (rec.winningResult && /^\d{3}$/.test(rec.winningResult.trim())) {
             const win3D = rec.winningResult.trim().padStart(3, '0');
             winningNumbers.push(win3D);
-            const round3D = lottery3D.rounds.find(r => r.id === rec.rawRoundId);
-            const isFrozen3D = !!round3D && (round3D.status === 'settled' || round3D.status === 'closed' || !!round3D.winningNumber);
-            const effStraight3D = isFrozen3D && typeof round3D?.multiplier === 'number' && round3D.multiplier > 0
-              ? round3D.multiplier
-              : straightMult3D;
-            const effTodd3D = isFrozen3D && typeof round3D?.toddMultiplier === 'number' && round3D.toddMultiplier >= 0
-              ? round3D.toddMultiplier
-              : toddMult3D;
-            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, effStraight3D, effTodd3D);
+            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, straightMult3D, toddMult3D);
 
             const toddSet = new Set(getToddWinningNumbers(win3D));
             targetForwards.forEach((f: any) => {
@@ -700,9 +684,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 if (amt <= 0) return;
                 let won = 0;
                 if (num === win3D) {
-                  won = effStraight3D > 0 ? amt * effStraight3D : 0;
+                  won = straightMult3D > 0 ? amt * straightMult3D : 0;
                 } else if (toddSet.has(num)) {
-                  won = effTodd3D > 0 ? amt * effTodd3D : 0;
+                  won = toddMult3D > 0 ? amt * toddMult3D : 0;
                 }
                 if (won > 0 || num === win3D || toddSet.has(num)) {
                   const existing = winningBets.find(x => x.num === num);
@@ -1159,7 +1143,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                 </span>
               </div>
               <div className={`rounded-2xl p-3.5 border shadow-xs text-white ${downlineSettlementData.netBalance >= 0 ? 'bg-emerald-900 border-emerald-700' : 'bg-rose-950 border-rose-800'}`}>
-                <span className={`text-[11px] font-bold block mb-1 ${downlineSettlementData.netBalance >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+                <span className="text-[11px] font-bold text-emerald-200 block mb-1">
                   {downlineSettlementData.netBalance >= 0 ? 'ရှင်းရန် (ရရန်ငွေ)' : 'ရှင်းရန် (ပေးရန်ငွေ)'}
                 </span>
                 <span className="text-base sm:text-lg font-mono font-black text-white">
@@ -1187,25 +1171,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                   {formatAmount(uplineSettlementData.totalPayout)} {currency}
                 </span>
               </div>
-              <div className={`rounded-2xl p-3.5 border shadow-xs text-white ${
-                uplineSettlementData.netBalance < 0
-                  ? 'bg-emerald-900 border-emerald-700'
-                  : uplineSettlementData.netBalance > 0
-                  ? 'bg-rose-950 border-rose-800'
-                  : 'bg-slate-800 border-slate-700'
-              }`}>
-                <span className={`text-[11px] font-bold block mb-1 ${
-                  uplineSettlementData.netBalance < 0
-                    ? 'text-emerald-200'
-                    : uplineSettlementData.netBalance > 0
-                    ? 'text-rose-200'
-                    : 'text-slate-300'
-                }`}>
-                  {uplineSettlementData.netBalance < 0
-                    ? 'အထက်ဒိုင်မှ ရရန်'
-                    : uplineSettlementData.netBalance > 0
-                    ? 'အထက်ဒိုင်သို့ ပေးရန်'
-                    : 'အထက်ဒိုင် (ရ/ပေး မရှိ)'}
+              <div className={`rounded-2xl p-3.5 border shadow-xs text-white ${uplineSettlementData.netBalance >= 0 ? 'bg-emerald-900 border-emerald-700' : 'bg-rose-950 border-rose-800'}`}>
+                <span className="text-[11px] font-bold text-emerald-200 block mb-1">
+                  {uplineSettlementData.netBalance >= 0 ? 'အထက်ဒိုင်သို့ ပေးရန်' : 'အထက်ဒိုင်မှ ရရန်'}
                 </span>
                 <span className="text-base sm:text-lg font-mono font-black text-white">
                   {formatAmount(Math.abs(uplineSettlementData.netBalance))} {currency}
@@ -1368,37 +1336,20 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
               </div>
 
               {/* Final Net Balance */}
-              {(() => {
-                const netBal =
-                  settlementType === 'downline'
-                    ? downlineSettlementData.netBalance
-                    : uplineSettlementData.netBalance;
-                const isReceivable = settlementType === 'downline' ? netBal >= 0 : netBal < 0;
-                const isPayable = settlementType === 'downline' ? netBal < 0 : netBal > 0;
-                const boxCls = isReceivable
+              <div className={`p-3.5 rounded-xl border-2 flex items-center justify-between text-sm font-black ${
+                (settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance) >= 0
                   ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
-                  : isPayable
-                  ? 'bg-rose-50 border-rose-500 text-rose-900'
-                  : 'bg-slate-100 border-slate-300 text-slate-800';
-                const label =
-                  settlementType === 'downline'
-                    ? isReceivable
-                      ? 'နောက်ဆုံး ရရန်ငွေ:'
-                      : 'နောက်ဆုံး ပေးရန်ငွေ:'
-                    : isReceivable
-                    ? 'နောက်ဆုံး အထက်ဒိုင်မှ ရရန်:'
-                    : isPayable
-                    ? 'နောက်ဆုံး အထက်ဒိုင်သို့ ပေးရန်:'
-                    : 'နောက်ဆုံး ရှင်းလင်းပြီး (ရ/ပေး မရှိ):';
-                return (
-                  <div className={`p-3.5 rounded-xl border-2 flex items-center justify-between text-sm font-black ${boxCls}`}>
-                    <span>{label}</span>
-                    <span className="font-mono text-base font-black">
-                      {formatAmount(Math.abs(netBal), currency)}
-                    </span>
-                  </div>
-                );
-              })()}
+                  : 'bg-rose-50 border-rose-500 text-rose-900'
+              }`}>
+                <span>
+                  {settlementType === 'downline'
+                    ? ((downlineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး ရရန်ငွေ:' : 'နောက်ဆုံး ပေးရန်ငွေ:')
+                    : ((uplineSettlementData.netBalance >= 0) ? 'နောက်ဆုံး အထက်ဒိုင်သို့ ပေးရန်:' : 'နောက်ဆုံး အထက်ဒိုင်မှ ရရန်:')}
+                </span>
+                <span className="font-mono text-base font-black">
+                  {formatAmount(Math.abs(settlementType === 'downline' ? downlineSettlementData.netBalance : uplineSettlementData.netBalance), currency)}
+                </span>
+              </div>
             </div>
           </div>
 

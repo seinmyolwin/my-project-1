@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import {
   FootballMatch,
@@ -116,60 +116,30 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
   const leagues = useMemo(() => rawLeagues.filter(l => !(l as any).deletedAt), [rawLeagues]);
 
-  // Sync to localStorage ONLY after initial mount (prevents clobbering _backup on startup)
-  const mountedSettingsRef = useRef(false);
+  // Sync to localStorage
   useEffect(() => {
-    if (!mountedSettingsRef.current) {
-      mountedSettingsRef.current = true;
-      return;
-    }
     saveStoredData(STORAGE_KEYS.SETTINGS_FOOTBALL, settings);
   }, [settings]);
 
-  const mountedMatchesRef = useRef(false);
   useEffect(() => {
-    if (!mountedMatchesRef.current) {
-      mountedMatchesRef.current = true;
-      return;
-    }
     saveStoredData(STORAGE_KEYS.MATCHES_FOOTBALL, rawMatches);
-  }, [rawMatches]);
+  }, [matches]);
 
-  const mountedActiveDateRef = useRef(false);
   useEffect(() => {
-    if (!mountedActiveDateRef.current) {
-      mountedActiveDateRef.current = true;
-      return;
-    }
     saveStoredData(STORAGE_KEYS.ACTIVE_DATE_FOOTBALL, activeDate);
   }, [activeDate]);
 
-  const mountedSlipsRef = useRef(false);
   useEffect(() => {
-    if (!mountedSlipsRef.current) {
-      mountedSlipsRef.current = true;
-      return;
-    }
     saveStoredData(STORAGE_KEYS.SLIPS_FOOTBALL, rawSlips);
-  }, [rawSlips]);
+  }, [slips]);
 
-  const mountedForwardsRef = useRef(false);
   useEffect(() => {
-    if (!mountedForwardsRef.current) {
-      mountedForwardsRef.current = true;
-      return;
-    }
     saveStoredData(STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL, rawForwardSlips);
-  }, [rawForwardSlips]);
+  }, [forwardSlips]);
 
-  const mountedLeaguesRef = useRef(false);
   useEffect(() => {
-    if (!mountedLeaguesRef.current) {
-      mountedLeaguesRef.current = true;
-      return;
-    }
     saveStoredData(STORAGE_KEYS.LEAGUES_FOOTBALL, rawLeagues);
-  }, [rawLeagues]);
+  }, [leagues]);
 
   // Combined sorted list of all unique team names across leagues
   const allTeams = useMemo(() => {
@@ -389,31 +359,32 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return acc;
     }, {} as { [id: string]: FootballMatch });
 
+    let settledCount = 0;
     let anyWon = false;
-    const settledSlipMap = new Map<string, FootballSlip>();
+    const settledSlipIds = new Set<string>();
 
     setSlips(prevSlips =>
       prevSlips.map(slip => {
         // Never settle cancelled tickets or tickets inside a closed period
         const slipDate = slip.roundDate || (slip.createdAt || '').slice(0, 10);
-        if (slip.status === 'cancelled' || (slip as any).deletedAt || isDateClosed('FB', slipDate)) {
+        if (slip.status === 'cancelled' || isDateClosed('FB', slipDate)) {
           return slip;
         }
 
         const res = calculateSlipSettlement(slip, matchesMap);
         if (res.outcome !== 'pending') {
+          settledCount++;
           if (res.outcome === 'won' || res.outcome === 'half_won') {
             anyWon = true;
           }
-          const updatedSlip: FootballSlip = {
+          settledSlipIds.add(slip.id);
+          return {
             ...slip,
             status: 'settled',
             outcome: res.outcome,
             actualPayout: res.actualPayout,
             selections: res.evaluatedSelections
           };
-          settledSlipMap.set(slip.id, updatedSlip);
-          return updatedSlip;
         }
 
         // If match was deleted or score was reset/invalidated, revert to active and reset payout
@@ -427,26 +398,22 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       })
     );
 
-    // Update associated forward slips to settled using newly computed payouts
-    if (settledSlipMap.size > 0) {
-      const settledByNo = new Map<string, FootballSlip>();
-      settledSlipMap.forEach(s => {
-        if (s.slipNo) settledByNo.set(s.slipNo, s);
-      });
+    // Update associated forward slips to settled
+    if (settledSlipIds.size > 0) {
       setForwardSlips(prevFwds =>
         prevFwds.map(fwd => {
-          const parentSlip =
-            (fwd.slipId ? settledSlipMap.get(fwd.slipId) : undefined) ||
-            (fwd.slipNo ? settledByNo.get(fwd.slipNo) : undefined);
-
-          if (parentSlip) {
+          const parentSlip = slips.find(s => (fwd.slipId && s.id === fwd.slipId) || (fwd.slipNo && s.slipNo === fwd.slipNo));
+          const isMatch = parentSlip && settledSlipIds.has(parentSlip.id);
+          
+          if (isMatch) {
+            // Calculate forward payout based on parent slip's payout multiplier
             let fwdPayout = 0;
             if (parentSlip.stakeAmount > 0) {
               const multiplier = (parentSlip.actualPayout || 0) / parentSlip.stakeAmount;
               fwdPayout = safeRound(fwd.stakeAmount * multiplier);
             }
-            return {
-              ...fwd,
+            return { 
+              ...fwd, 
               status: 'settled' as const,
               actualPayout: fwdPayout
             };

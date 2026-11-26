@@ -986,9 +986,8 @@ export const PeriodCloseReportModal: React.FC<PeriodCloseReportModalProps> = ({
 
                     <div className="space-y-3">
                       {displayedReport.uplines.map((up, uIdx) => {
-                        // For upline: netBalance > 0 means we pay upline (ပေးရန်); < 0 means upline pays us (ရရန်)
-                        const weOweUpline = up.netBalance > 0;
-                        const uplineOwesUs = up.netBalance < 0;
+                        // For upline: netBalance >= 0 means we pay upline (ပေးရန်); < 0 means upline pays us (ရရန်)
+                        const weOweUpline = up.netBalance >= 0;
                         return (
                           <div
                             key={up.name}
@@ -1002,16 +1001,10 @@ export const PeriodCloseReportModal: React.FC<PeriodCloseReportModalProps> = ({
                                 className={`px-2 py-0.5 rounded-lg text-[11px] font-black ${
                                   weOweUpline
                                     ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                                    : uplineOwesUs
-                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                    : 'bg-slate-100 text-slate-700 border border-slate-300'
+                                    : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                                 }`}
                               >
-                                {weOweUpline
-                                  ? 'အထက်ဒိုင်သို့ ပေးရန်: '
-                                  : uplineOwesUs
-                                  ? 'အထက်ဒိုင်မှ ရရန်: '
-                                  : 'ရှင်းပြီး: '}
+                                {weOweUpline ? 'အထက်ဒိုင်သို့ ပေးရန်: ' : 'အထက်ဒိုင်မှ ရရန်: '}
                                 {formatAmount(Math.abs(up.netBalance), displayedReport.currency)}
                               </span>
                             </div>
@@ -1055,14 +1048,10 @@ export const PeriodCloseReportModal: React.FC<PeriodCloseReportModalProps> = ({
                                       </td>
                                       <td
                                         className={`py-1.5 px-2.5 text-right font-black ${
-                                          r.netBalance > 0
-                                            ? 'text-rose-700'
-                                            : r.netBalance < 0
-                                            ? 'text-emerald-700'
-                                            : 'text-slate-500'
+                                          r.netBalance >= 0 ? 'text-rose-700' : 'text-emerald-700'
                                         }`}
                                       >
-                                        {r.netBalance > 0 ? 'ပေး ' : r.netBalance < 0 ? 'ရ ' : ''}
+                                        {r.netBalance >= 0 ? 'ပေး ' : 'ရ '}
                                         {formatAmount(Math.abs(r.netBalance), '')}
                                       </td>
                                     </tr>
@@ -1080,14 +1069,10 @@ export const PeriodCloseReportModal: React.FC<PeriodCloseReportModalProps> = ({
                                     </td>
                                     <td
                                       className={`py-1.5 px-2.5 text-right ${
-                                        weOweUpline
-                                          ? 'text-rose-800'
-                                          : uplineOwesUs
-                                          ? 'text-emerald-800'
-                                          : 'text-slate-600'
+                                        weOweUpline ? 'text-rose-800' : 'text-emerald-800'
                                       }`}
                                     >
-                                      {weOweUpline ? 'ပေးရန် ' : uplineOwesUs ? 'ရရန် ' : 'ရှင်းပြီး '}
+                                      {weOweUpline ? 'ပေးရန် ' : 'ရရန် '}
                                       {formatAmount(Math.abs(up.netBalance), '')}
                                     </td>
                                   </tr>

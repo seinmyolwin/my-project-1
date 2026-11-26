@@ -67,12 +67,14 @@ export type StatementPeriodPreset = 'all' | 'today' | 'two_days' | 'three_days' 
  */
 export function getVoucherGrossTurnover(v: any): number {
   if (!v) return 0;
-
-  // 1. If v.items exists and has valid items, sum items directly without mutating valid amounts
+  
+  // 1. If v.items exists and has valid items, sum items directly
   if (v.items && Array.isArray(v.items) && v.items.length > 0) {
     const itemsSum = v.items.reduce((sum: number, it: any) => sum + (Number(it?.amount) || 0), 0);
     if (itemsSum > 0) {
-      return Math.round(itemsSum);
+      const roundedItems = Math.round(itemsSum);
+      if (roundedItems % 50 === 0) return roundedItems;
+      return Math.round(roundedItems / 50) * 50;
     }
   }
 
@@ -84,20 +86,17 @@ export function getVoucherGrossTurnover(v: any): number {
 
   const roundedAmt = Math.round(rawAmt);
 
-  // If items are absent and subtotal clearly matches an already-saved gross or zero-discount ticket, keep it exact
-  if (roundedAmt % 50 === 0 || !v.discountPercent || v.discountAmount > 0 || v.subtotal !== v.netPayable) {
-    return roundedAmt;
-  }
+  // If already a clean whole multiple of 50 or 100, return it
+  if (roundedAmt % 50 === 0) return roundedAmt;
 
-  // 3. Only when items are absent AND subtotal appears stored as a discounted net amount (e.g. 33,181 with discountAmount=0):
-  const discPercent = Number(v.discountPercent);
-  if (discPercent > 0 && discPercent < 100) {
-    const recovered = roundedAmt / (1 - discPercent / 100);
-    const cleanGross = Math.round(recovered / 50) * 50;
-    return cleanGross > 0 ? cleanGross : roundedAmt;
-  }
+  // 3. If rawAmt is NOT a multiple of 50 (e.g. 33,181), it was stored as a discounted net amount!
+  // Recover original gross turnover before discount (e.g. 33,181 / (1 - 0.12) = 37,700)
+  const discPercent = Number(v.discountPercent) || 12;
+  const rate = discPercent > 0 && discPercent < 100 ? discPercent : 12;
+  const recovered = roundedAmt / (1 - rate / 100);
+  const cleanGross = Math.round(recovered / 50) * 50;
 
-  return roundedAmt;
+  return cleanGross > 0 ? cleanGross : Math.round(roundedAmt / 50) * 50;
 }
 
 // Local date string helper (YYYY-MM-DD) based on user's timezone
@@ -615,17 +614,12 @@ export function generateStatementRecords(
         const uplineRate = typeof data.lottery3D.settings?.defaultCommissionRate === 'number'
           ? data.lottery3D.settings.defaultCommissionRate
           : 0;
-        const isRoundFrozen = round.status === 'settled' || round.status === 'closed' || !!round.winningNumber;
-        const straightMult = isRoundFrozen && typeof round.multiplier === 'number' && round.multiplier > 0
-          ? round.multiplier
-          : (typeof data.lottery3D.settings?.defaultMultiplier === 'number'
-            ? data.lottery3D.settings.defaultMultiplier
-            : (typeof round.multiplier === 'number' ? round.multiplier : 0));
-        const toddMult = isRoundFrozen && typeof round.toddMultiplier === 'number' && round.toddMultiplier >= 0
-          ? round.toddMultiplier
-          : (typeof data.lottery3D.settings?.defaultToddMultiplier === 'number'
-            ? data.lottery3D.settings.defaultToddMultiplier
-            : (typeof round.toddMultiplier === 'number' ? round.toddMultiplier : 0));
+        const straightMult = typeof data.lottery3D.settings?.defaultMultiplier === 'number'
+          ? data.lottery3D.settings.defaultMultiplier
+          : 0;
+        const toddMult = typeof data.lottery3D.settings?.defaultToddMultiplier === 'number'
+          ? data.lottery3D.settings.defaultToddMultiplier
+          : 0;
 
         let totalTurnover = 0;
         let totalAgentCommission = 0;
@@ -1171,17 +1165,12 @@ export function calculateThreeDSingleRoundStatement(
   const uplineRate = typeof settings?.defaultCommissionRate === 'number'
     ? settings.defaultCommissionRate
     : 0;
-  const isRoundFrozen = !!round && (round.status === 'settled' || round.status === 'closed' || !!round.winningNumber);
-  const straightMult = isRoundFrozen && typeof round?.multiplier === 'number' && round.multiplier > 0
-    ? round.multiplier
-    : (typeof multiplier === 'number' && multiplier > 0
-      ? multiplier
-      : (typeof settings?.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0));
-  const toddMult = isRoundFrozen && typeof round?.toddMultiplier === 'number' && round.toddMultiplier >= 0
-    ? round.toddMultiplier
-    : (typeof toddMultiplier === 'number' && toddMultiplier >= 0
-      ? toddMultiplier
-      : (typeof settings?.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0));
+  const straightMult = typeof settings?.defaultMultiplier === 'number'
+    ? settings.defaultMultiplier
+    : (typeof multiplier === 'number' ? multiplier : 0);
+  const toddMult = typeof settings?.defaultToddMultiplier === 'number'
+    ? settings.defaultToddMultiplier
+    : (typeof toddMultiplier === 'number' ? toddMultiplier : 0);
 
   let totalTurnover = 0;
   let totalAgentCommission = 0;

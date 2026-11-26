@@ -120,8 +120,10 @@ export const TwoDRoundManagerModal: React.FC<TwoDRoundManagerModalProps> = ({ is
       return;
     }
 
-    if (!dateStr) {
-      alert(isMyanmar ? 'ပွဲစဉ်ရက်စွဲ ထည့်သွင်းပါ' : 'Please select a draw date');
+    if (dateStr < '2026-10-05') {
+      alert(isMyanmar
+        ? '၂၀၂၆-၁၀-၀၅ မတိုင်မီ ရက်စွဲများအတွက် ပွဲစဉ်အသစ် ဖန်တီး၍ မရပါတည်း။'
+        : 'Cannot create draw rounds before 2026-10-05');
       return;
     }
 

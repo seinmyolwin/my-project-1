@@ -36,7 +36,8 @@ export async function runPhonePurgeMigration(): Promise<boolean> {
     try {
       await createRestorePoint('before-migration', { action: 'phone-purge' });
     } catch (rpErr) {
-      console.warn('[Migration] Restore point before phone purge skipped/warned:', rpErr);
+      console.error('[Migration] CRITICAL: restore point before phone purge failed! Aborting.', rpErr);
+      return false;
     }
 
     const updates: Record<string, any> = {};

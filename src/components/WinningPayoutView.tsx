@@ -76,21 +76,11 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
 
   useEffect(() => {
     setWinningInput(activeRound?.winningNumber || '');
-    const isFrozen = activeRound?.status === 'settled' || activeRound?.status === 'closed' || !!activeRound?.winningNumber;
-    const effMult = isFrozen && typeof activeRound?.multiplier === 'number' && activeRound.multiplier > 0
-      ? activeRound.multiplier
-      : (typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0);
-    const effTodd = isFrozen && typeof activeRound?.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
-      ? activeRound.toddMultiplier
-      : (typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0);
-    setMultiplierInput(String(effMult));
-    setToddMultiplierInput(String(effTodd));
+    setMultiplierInput(String(typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0));
+    setToddMultiplierInput(String(typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0));
   }, [
     activeRound?.id,
-    activeRound?.status,
     activeRound?.winningNumber,
-    activeRound?.multiplier,
-    activeRound?.toddMultiplier,
     settings.defaultMultiplier,
     settings.defaultToddMultiplier
   ]);
@@ -315,15 +305,10 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     return winningInput.trim();
   }, [isTestingMode, testedWinningNumber, isWinningConfirmed, confirmedWinningNumber, winningInput, isSettled, activeRound?.winningNumber]);
 
-  // Evaluate winners using round's frozen multipliers when settled/closed, or Settings when open/reopened
+  // Evaluate winners based on Settings winning multipliers strictly
   const winningResults = useMemo(() => {
-    const isFrozen = activeRound?.status === 'settled' || activeRound?.status === 'closed' || !!activeRound?.winningNumber;
-    const mult = isFrozen && typeof activeRound?.multiplier === 'number' && activeRound.multiplier > 0
-      ? activeRound.multiplier
-      : (typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0);
-    const toddMult = isFrozen && typeof activeRound?.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
-      ? activeRound.toddMultiplier
-      : (typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0);
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
     const num = activeEvalNumber.trim();
 
     if (!num || num.length !== 3) {
@@ -331,7 +316,7 @@ export const WinningPayoutView: React.FC<WinningPayoutViewProps> = ({ onOpenStat
     }
 
     return evaluateWinnings(activeRoundVouchers, num, mult, toddMult);
-  }, [activeRound, activeRoundVouchers, activeEvalNumber, settings.defaultMultiplier, settings.defaultToddMultiplier]);
+  }, [activeRoundVouchers, activeEvalNumber, settings.defaultMultiplier, settings.defaultToddMultiplier]);
 
   // Copy Winning Message for Customer
   const handleCopyWinningMessage = (winner: any) => {
@@ -361,13 +346,8 @@ ${settings.shopName} (${settings.shopPhone})`;
 
   // Single-Round Financial Statement Breakdown (Strictly isolated for this 3D round & per-customer rates)
   const singleRoundStatement: SingleRoundFinancialBreakdown = useMemo(() => {
-    const isFrozen = activeRound?.status === 'settled' || activeRound?.status === 'closed' || !!activeRound?.winningNumber;
-    const mult = isFrozen && typeof activeRound?.multiplier === 'number' && activeRound.multiplier > 0
-      ? activeRound.multiplier
-      : (typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0);
-    const toddMult = isFrozen && typeof activeRound?.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
-      ? activeRound.toddMultiplier
-      : (typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0);
+    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
     return calculateThreeDSingleRoundStatement({
       round: activeRound,
       vouchers: activeRoundVouchers,
