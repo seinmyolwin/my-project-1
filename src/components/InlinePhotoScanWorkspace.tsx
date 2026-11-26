@@ -70,7 +70,7 @@ export const InlinePhotoScanWorkspace: React.FC<InlinePhotoScanWorkspaceProps> =
   mode,
   isMyanmar,
   currency,
-  defaultAmount = 1000,
+  defaultAmount = 0,
   activeImageSrc,
   onImageChange,
   rawText,
@@ -992,10 +992,10 @@ export const InlinePhotoScanWorkspace: React.FC<InlinePhotoScanWorkspaceProps> =
                   </div>
 
                   {liveParsePreview.warnings.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-1.5 text-[11px] text-amber-900 space-y-0.5 max-h-20 overflow-y-auto">
+                    <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 text-[11px] font-bold text-amber-900 space-y-1 max-h-28 overflow-y-auto">
                       {liveParsePreview.warnings.map((w: string, i: number) => (
-                        <div key={i} className="flex items-start gap-1">
-                          <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                        <div key={i} className="flex items-start gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
                           <span>{w}</span>
                         </div>
                       ))}

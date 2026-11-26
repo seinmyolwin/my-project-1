@@ -242,7 +242,7 @@ export interface ParseTwoDBatchResult {
 
 export function parseTwoDBatchInput(
   text: string,
-  defaultAmount: number = 1000
+  defaultAmount: number = 0
 ): TwoDBetItem[] | ParseTwoDBatchResult {
   const warnings: string[] = [];
   const items: TwoDBetItem[] = [];
@@ -261,122 +261,175 @@ export function parseTwoDBatchInput(
   cleanText = cleanText.replace(/=\s*[\r\n]+\s*/g, '=');
 
   // 3. Split lines by newlines, semicolons, or 2+ consecutive spaces (e.g. "3b300   45 67 78 65r500")
-  const lines = cleanText.split(/[\r\n;]+/).flatMap(seg => {
-    // If a segment contains multiple items like "52@200 43@300" or "52@200, 43@300", split them
+  const rawSegments = cleanText.split(/[\r\n;]+/).flatMap(seg => {
+    // Only split after @amount (e.g. "52@200, 43@300"), keeping "23, 45, 56 100@200" intact
     if (/@\d+/.test(seg)) {
-      return seg.split(/(?<=\d)\s*,\s*|(?<=@\d+)\s+/).map(s => s.trim()).filter(Boolean);
+      return seg.split(/(?<=@\d+)\s*,\s*|(?<=@\d+)\s+/).map(s => s.trim()).filter(Boolean);
     }
     return seg.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
   });
 
+  // Strip trailing text, customer names, short names/initials after bet numbers or bet amounts
+  // while preserving legitimate bet keywords inside/after bets (e.g. အာ, အပါ, ထိပ်/ထိတ်, ခွေအာ, ခွေပူးအာ, r, R, b, h, t)
+  const stripTrailingNonBetText = (input: string): string => {
+    const s = input.trim();
+    if (!s) return '';
+
+    // Standalone text-only lines with no digits: keep only if it contains a valid no-digit 2D pattern keyword
+    if (!/\d/.test(s)) {
+      if (/(?:အပူး|ပါဝါ|နက္ခတ်|ညီကို|စုံစုံ|မမ|စုံမ|မစုံ)/.test(s)) {
+        return s;
+      }
+      return '';
+    }
+
+    let lastDigitIdx = -1;
+    for (let i = s.length - 1; i >= 0; i--) {
+      if (s[i] >= '0' && s[i] <= '9') {
+        lastDigitIdx = i;
+        break;
+      }
+    }
+    if (lastDigitIdx === -1) return s;
+
+    const upToLastDigit = s.slice(0, lastDigitIdx + 1);
+    const afterLastDigit = s.slice(lastDigitIdx + 1);
+    if (!afterLastDigit.trim()) {
+      return upToLastDigit;
+    }
+
+    const trailingDigitsMatch = upToLastDigit.match(/(\d+)$/);
+    const lastDigitGroup = trailingDigitsMatch ? trailingDigitsMatch[1] : '';
+
+    // 1. Khway keywords after digits (e.g. "1234 ခွေ ကိုမောင်", "1234 ခွေပူးအာ Mg")
+    const khwayMatch = afterLastDigit.match(
+      /^[\s,\-./=]*(?:ခွေပူး\s*(?:r|R|အာ)|ပါခွေ\s*(?:r|R|အာ)|ခွေ\s*(?:r|R|အာ)\s*ပူး|ခွေပူး|ပါခွေ|ခွေ\s*(?:r|R|အာ)|ခွေ)(?=$|[\s,.;:\-=/()])/i
+    );
+    if (khwayMatch) {
+      return (upToLastDigit + khwayMatch[0]).trim();
+    }
+
+    // 2. Single-digit quick keywords (only valid when preceded by a single digit 0-9, e.g. "5 ထိတ် ကိုမောင်", "5 အပါ Mg", "3b ကိုမောင်")
+    if (lastDigitGroup.length === 1) {
+      const singleDigitKwMatch = afterLastDigit.match(
+        /^[\s,\-./=]*(?:ရှေ့ပိတ်|ရှေ့စီး|နောက်ပိတ်|နောက်စီး|ထိပ်|ထိတ်|ပိတ်|နောက်|အပါ|ပါ|ဘရိတ်|ဘ|[bBhHtT])(?=$|[\s,.;:\-=/()])/i
+      );
+      if (singleDigitKwMatch) {
+        return (upToLastDigit + singleDigitKwMatch[0]).trim();
+      }
+    }
+
+    // 3. Rumble suffix after numbers/amounts (e.g. "12-34-56 r ကိုမောင်", "12 34 500 R Mg", "12 34 500 အာ ကိုမောင်")
+    const rumbleMatch = afterLastDigit.match(
+      /^[\s,\-./=]*(?:ပတ်လည်|ပတ်|အာ|r|R)(?=$|[\s,.;:\-=/()])/i
+    );
+    if (rumbleMatch) {
+      return (upToLastDigit + rumbleMatch[0]).trim();
+    }
+
+    // 4. Everything else after the last digit is trailing text / name / short name -> drop it
+    return upToLastDigit;
+  };
+
+  // Merge numbers-only segments with an immediately following amount-only segment
+  // e.g. "23/45/76\n500", "12-34-56-\n100/200", "23, 45, 56\nr500 ကိုမောင်"
+  const isNumbersOnlySegment = (s: string): boolean => {
+    const trimmed = s.trim();
+    if (!trimmed) return false;
+    if (/(?:ခွေ|အပူး|ပါဝါ|နက္ခတ်|ညီကို|အပါ|ပါ|ထိပ်|ထိတ်|ပိတ်|ရှေ့|နောက်|ဘရိတ်|စုံ|မ|[bBhHtT])/.test(trimmed)) {
+      return false;
+    }
+    if (/\d{3,}|@\d+|(?:r|R|အာ|ပတ်လည်|ပတ်)\s*\d+/.test(trimmed)) {
+      return false;
+    }
+    return /^(?:\d{1,2}[\s,\-./=]*)+(?:r|R|အာ|ပတ်လည်|ပတ်|@)?[\s,\-./=]*$/i.test(trimmed) && /\d/.test(trimmed);
+  };
+
+  const isAmountOnlySegment = (s: string): boolean => {
+    const trimmed = s.replace(/[.,\-=/]+$/, '').trim();
+    if (!trimmed) return false;
+    return (
+      /^\d{3,}$/.test(trimmed) ||
+      /^\d{3,}\s*(?:\/|@|r|R|အာ)\s*\d+$/.test(trimmed) ||
+      /^(?:r|R|အာ|ပတ်လည်|ပတ်|@)\s*\d+$/i.test(trimmed)
+    );
+  };
+
+  const lines: string[] = [];
+  let pendingNumSegments: string[] = [];
+  for (const rawSeg of rawSegments) {
+    const seg = stripTrailingNonBetText(rawSeg);
+    if (!seg) continue;
+    if (isNumbersOnlySegment(seg)) {
+      pendingNumSegments.push(seg);
+    } else if (pendingNumSegments.length > 0 && isAmountOnlySegment(seg)) {
+      lines.push([...pendingNumSegments, seg].join(' '));
+      pendingNumSegments = [];
+    } else {
+      if (pendingNumSegments.length > 0) {
+        lines.push(...pendingNumSegments);
+        pendingNumSegments = [];
+      }
+      lines.push(seg);
+    }
+  }
+  if (pendingNumSegments.length > 0) {
+    lines.push(...pendingNumSegments);
+  }
+
+  const pushSplitDirectReverse = (numStr: string, directAmt: number, revAmt: number) => {
+    // 1. Direct bet (ဒဲ့)
+    items.push({
+      id: `batch-${generateUUID()}`,
+      number: numStr,
+      amount: directAmt,
+      isRumble: false,
+      betType: 'straight',
+      originalInput: `${numStr} ဒဲ့ (${directAmt})`
+    });
+
+    // 2. Reverse bet (အာ)
+    const revs = getTwoDReversal(numStr);
+    const reverseNum = revs.length > 1 ? revs[1] : revs[0];
+    if (reverseNum !== numStr) {
+      items.push({
+        id: `batch-${generateUUID()}`,
+        number: reverseNum,
+        amount: revAmt,
+        isRumble: true,
+        betType: 'rumble',
+        originalInput: `${numStr} အာ (${reverseNum} = ${revAmt})`
+      });
+    } else {
+      items.push({
+        id: `batch-${generateUUID()}`,
+        number: numStr,
+        amount: revAmt,
+        isRumble: true,
+        betType: 'rumble',
+        originalInput: `${numStr} အာ (${revAmt})`
+      });
+    }
+  };
+
   function processSingleLine(rawInputLine: string) {
-    const line = rawInputLine.replace(/[.,]+$/, '').trim();
+    const trimmedInput = rawInputLine.replace(/[.,\-=/]+$/, '').trim();
+    if (!trimmedInput) return;
+
+    // Split independent comma-separated clauses ONLY when EVERY clause has its own explicit bet amount
+    const commaSegments = trimmedInput.split(',').map(s => s.trim()).filter(Boolean);
+    if (
+      commaSegments.length > 1 &&
+      commaSegments.every(seg => /\d{3,}|(?:r|R|အာ|ပတ်လည်|ပတ်|@)\s*\d+/i.test(seg))
+    ) {
+      commaSegments.forEach(seg => processSingleLine(seg));
+      return;
+    }
+
+    const line = stripTrailingNonBetText(trimmedInput).replace(/[.,\-=/]+$/, '').trim();
     if (!line) return;
 
-    // Pattern 0A: Direct @ Reverse ratio pattern (e.g. "31-38=500@200", "86=400@200", "23 45 500@200")
-    // Extracts direct numbers for direct amount (before @) and their reversals (အာ) for reverse amount (after @)
-    const atRatioMatch = line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*@\s*(\d+)\s*$/) ||
-                         line.match(/^(.+?)\s+(\d+)\s*@\s*(\d+)\s*$/);
-    if (atRatioMatch) {
-      const numbersRaw = atRatioMatch[1].trim();
-      const directAmt = parseInt(atRatioMatch[2], 10);
-      const revAmt = parseInt(atRatioMatch[3], 10);
-
-      if (!isNaN(directAmt) && directAmt > 0 && !isNaN(revAmt) && revAmt > 0) {
-        const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
-        const validTokens: string[] = [];
-
-        for (const tok of numTokens) {
-          if (/^\d{1,2}$/.test(tok)) {
-            validTokens.push(tok.padStart(2, '0'));
-          } else {
-            warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
-          }
-        }
-
-        if (validTokens.length > 0) {
-          validTokens.forEach((numStr) => {
-            // 1. Direct bet (ဒဲ့)
-            items.push({
-              id: `batch-${generateUUID()}`,
-              number: numStr,
-              amount: directAmt,
-              isRumble: false,
-              betType: 'straight',
-              originalInput: `${numStr} ဒဲ့ (${directAmt})`
-            });
-
-            // 2. Reverse bet (အာ)
-            const revs = getTwoDReversal(numStr);
-            const reverseNum = revs.length > 1 ? revs[1] : revs[0];
-            if (reverseNum !== numStr) {
-              items.push({
-                id: `batch-${generateUUID()}`,
-                number: reverseNum,
-                amount: revAmt,
-                isRumble: true,
-                betType: 'rumble',
-                originalInput: `${numStr} အာ (${reverseNum} = ${revAmt})`
-              });
-            } else {
-              items.push({
-                id: `batch-${generateUUID()}`,
-                number: numStr,
-                amount: revAmt,
-                isRumble: true,
-                betType: 'rumble',
-                originalInput: `${numStr} အာ (${revAmt})`
-              });
-            }
-          });
-          return;
-        }
-      }
-    }
-
-    // Pattern 0B: Single or Multi number with @ only (e.g. "20@1000", "20 @ 1000", "31-38@500") -> Rumble / R / အာ
-    const singleAtMatch = line.match(/^(.+?)\s*@\s*(\d+)\s*$/);
-    if (singleAtMatch) {
-      const numbersRaw = singleAtMatch[1].trim();
-      const rAmt = parseInt(singleAtMatch[2], 10);
-
-      if (!isNaN(rAmt) && rAmt > 0) {
-        const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
-        const validTokens: string[] = [];
-
-        for (const tok of numTokens) {
-          if (/^\d{1,2}$/.test(tok)) {
-            validTokens.push(tok.padStart(2, '0'));
-          } else {
-            warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
-          }
-        }
-
-        if (validTokens.length > 0) {
-          const groupId = `r2d-batch-${generateUUID()}`;
-          validTokens.forEach((numStr) => {
-            const revs = getTwoDReversal(numStr);
-            revs.forEach(r => {
-              items.push({
-                id: `batch-${generateUUID()}`,
-                number: r,
-                amount: rAmt,
-                isRumble: true,
-                betType: 'rumble',
-                groupId,
-                originalNumber: numStr,
-                originalAmount: rAmt,
-                permutations: revs,
-                originalInput: `${numStr} R`
-              });
-            });
-          });
-          return;
-        }
-      }
-    }
-
-    // Pattern 0C: Chained equals (single or multi-segment: e.g. "52=57=58=500", "12=10=500=43=42=500", "52=7000r3000")
+    // Pattern 0C: Chained equals (single or multi-segment: e.g. "52=57=58=500", "12=34=500=56=78=300", "52=7000r3000")
     if (line.includes('=')) {
       const eqTokens = line.split('=').map(t => t.trim()).filter(Boolean);
       if (eqTokens.length >= 2) {
@@ -389,10 +442,9 @@ export function parseTwoDBatchInput(
 
         for (let idx = 0; idx < eqTokens.length; idx++) {
           const tok = eqTokens[idx];
-          const isLast = idx === eqTokens.length - 1;
 
-          // Match direct+reverse split amount token (e.g. "7000r3000", "7000/3000", "7000@3000")
-          const splitAmtMatch = tok.match(/^(\d{3,})\s*(?:r|R|\/|@)\s*(\d+)$/);
+          // Match direct+reverse split amount token (e.g. "7000r3000", "7000/3000", "7000@3000", "7000R3000", "7000အာ3000")
+          const splitAmtMatch = tok.match(/^(\d{3,})\s*(?:\/|@|r|R|အာ)\s*(\d+)$/);
           if (splitAmtMatch && numBuffer.length > 0) {
             const directAmt = parseInt(splitAmtMatch[1], 10);
             const revAmt = parseInt(splitAmtMatch[2], 10);
@@ -401,10 +453,12 @@ export function parseTwoDBatchInput(
               numBuffer = [];
               continue;
             }
+            isCleanChain = false;
+            break;
           }
 
-          // Match single amount (>= 3 digits mid-chain, or >= 1 digits at the very end when preceded by numbers)
-          if (/^\d{3,}$/.test(tok) || (isLast && numBuffer.length > 0 && /^\d+$/.test(tok) && parseInt(tok, 10) > 0)) {
+          // Match single amount (MUST be >= 3 digits so 2-digit numbers like "90" are never misread as amounts)
+          if (/^\d{3,}$/.test(tok)) {
             if (numBuffer.length === 0) {
               isCleanChain = false;
               break;
@@ -415,11 +469,18 @@ export function parseTwoDBatchInput(
               numBuffer = [];
               continue;
             }
+            isCleanChain = false;
+            break;
           }
 
-          // Match 1-2 digit 2D number
+          // Match 1-2 digit 2D number(s) (allowing internal separators like "12-34" or "12/34")
           if (/^\d{1,2}$/.test(tok)) {
             numBuffer.push(tok.padStart(2, '0'));
+            continue;
+          }
+          const subNumParts = tok.replace(/[\-,./\s]+/g, ' ').split(' ').filter(Boolean);
+          if (subNumParts.length > 0 && subNumParts.every(n => /^\d{1,2}$/.test(n))) {
+            subNumParts.forEach(n => numBuffer.push(n.padStart(2, '0')));
             continue;
           }
 
@@ -427,7 +488,7 @@ export function parseTwoDBatchInput(
           break;
         }
 
-        if (isCleanChain && numBuffer.length === 0 && plannedOps.length > 0) {
+        if (isCleanChain && plannedOps.length > 0) {
           plannedOps.forEach(op => {
             if (op.kind === 'straight') {
               op.nums.forEach(numStr => {
@@ -442,105 +503,130 @@ export function parseTwoDBatchInput(
               });
             } else {
               op.nums.forEach(numStr => {
+                pushSplitDirectReverse(numStr, op.directAmt, op.revAmt);
+              });
+            }
+          });
+          if (numBuffer.length > 0) {
+            if (defaultAmount > 0) {
+              numBuffer.forEach(numStr => {
                 items.push({
                   id: `batch-${generateUUID()}`,
                   number: numStr,
-                  amount: op.directAmt,
+                  amount: defaultAmount,
                   isRumble: false,
                   betType: 'straight',
-                  originalInput: `${numStr} ဒဲ့ (${op.directAmt})`
+                  originalInput: `${numStr} ဒဲ့ (${defaultAmount})`
                 });
-                const revs = getTwoDReversal(numStr);
-                const reverseNum = revs.length > 1 ? revs[1] : revs[0];
-                items.push({
-                  id: `batch-${generateUUID()}`,
-                  number: reverseNum,
-                  amount: op.revAmt,
-                  isRumble: true,
-                  betType: 'rumble',
-                  originalInput: `${numStr} အာ (${reverseNum} = ${op.revAmt})`
-                });
-              });
-            }
-          });
-          return;
-        }
-      }
-    }
-
-    // Pattern 0: Direct / Reverse ratio pattern (e.g. "23 45 26 800/200", "52=7000r3000", "52 7000r3000")
-    // Note: [rR] separator requires >=3 digits before r so regular "34 r 200" stays symmetric R 200
-    const slashRatioMatch =
-      line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d+)\s*\/\s*(\d+)\s*$/) ||
-      line.match(/^(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/) ||
-      line.match(/^(.+?)\s*(?:=|:|-|\s)\s*(\d{3,})\s*[rR]\s*(\d+)\s*$/);
-    if (slashRatioMatch) {
-      const numbersRaw = slashRatioMatch[1].trim();
-      const directAmt = parseInt(slashRatioMatch[2], 10);
-      const revAmt = parseInt(slashRatioMatch[3], 10);
-
-      if (!isNaN(directAmt) && directAmt > 0 && !isNaN(revAmt) && revAmt > 0) {
-        // Extract all number tokens
-        const numTokens = numbersRaw.replace(/[=:\-,;*+]/g, ' ').split(/\s+/).filter(Boolean);
-        const validTokens: string[] = [];
-
-        for (const tok of numTokens) {
-          if (/^\d{1,2}$/.test(tok)) {
-            validTokens.push(tok.padStart(2, '0'));
-          } else {
-            warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
-          }
-        }
-
-        if (validTokens.length > 0) {
-          validTokens.forEach((numStr) => {
-            // 1. Direct bet (e.g. 23 = 800)
-            items.push({
-              id: `batch-${generateUUID()}`,
-              number: numStr,
-              amount: directAmt,
-              isRumble: false,
-              betType: 'straight',
-              originalInput: `${numStr} ဒဲ့ (${directAmt})`
-            });
-
-            // 2. Reverse / အာ bet (e.g. 32 = 200)
-            const revs = getTwoDReversal(numStr);
-            const reverseNum = revs.length > 1 ? revs[1] : revs[0];
-            if (reverseNum !== numStr) {
-              items.push({
-                id: `batch-${generateUUID()}`,
-                number: reverseNum,
-                amount: revAmt,
-                isRumble: true,
-                betType: 'rumble',
-                originalInput: `${numStr} အာ (${reverseNum} = ${revAmt})`
               });
             } else {
-              // If double number (e.g. 22), add reversal with revAmt
-              items.push({
-                id: `batch-${generateUUID()}`,
-                number: numStr,
-                amount: revAmt,
-                isRumble: true,
-                betType: 'rumble',
-                originalInput: `${numStr} အာ (${revAmt})`
-              });
+              warnings.push(`[${numBuffer.join(', ')}] ထိုးကြေးပမာဏ မပါရှိပါ`);
             }
-          });
+          }
           return;
         }
       }
     }
 
-    // Pattern 0.5: Combined Head + Tail (e.g. "4 ထိပ် 500 ပိတ် 200" or "4ထိပ် 500 2ပိတ် 200")
-    const headTailCombined = line.match(/^(\d)\s*(?:ထိပ်|ရှေ့စီး|ရှေ့ပိတ်|h|H)\s*(\d+)\s*(?:(\d)\s*)?(?:နောက်ပိတ်|နောက်စီး|ပိတ်|t|T)\s*(\d+)(?:\s+(.*))?$/i);
+    // Pattern 0A: Unified Direct / Reverse split ratio pattern
+    // Supports "/", "@", "R", "r", "အာ" between amounts (3+ digits on left), e.g.:
+    // "12-34-56 100/200", "12-34-56 100@200", "12-34-56 100R200", "12-34-56 100r200", "12-34-56 100အာ200", "23 45 500/50"
+    const splitRatioMatch = line.match(
+      /^(.+?)\s*(?:=|:|-|,|\.|\/|\s)\s*(\d{3,})\s*(?:\/|@|r|R|အာ)\s*(\d+)\s*$/
+    );
+    if (splitRatioMatch) {
+      const numbersRaw = splitRatioMatch[1].trim();
+      const directAmt = parseInt(splitRatioMatch[2], 10);
+      const revAmt = parseInt(splitRatioMatch[3], 10);
+      const numTokens = numbersRaw.replace(/[=:\-,./;*+]/g, ' ').split(/\s+/).filter(Boolean);
+
+      if (numTokens.some(tok => /^\d{3,}$/.test(tok))) {
+        warnings.push(`[${line}] ထိုးကြေးပုံစံ မရှင်းလင်းပါ`);
+        return;
+      }
+
+      if (isNaN(directAmt) || directAmt <= 0 || isNaN(revAmt) || revAmt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
+
+      const validTokens: string[] = [];
+      for (const tok of numTokens) {
+        if (/^\d{1,2}$/.test(tok)) {
+          validTokens.push(tok.padStart(2, '0'));
+        } else {
+          warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+        }
+      }
+
+      if (validTokens.length > 0) {
+        validTokens.forEach((numStr) => {
+          pushSplitDirectReverse(numStr, directAmt, revAmt);
+        });
+        return;
+      }
+      return;
+    }
+
+    // Pattern 0B: Single or Multi number with @ only (e.g. "20@1000", "12@500", "31-38@500") -> Symmetric Rumble / R / အာ
+    const singleAtMatch = line.match(/^(.+?)\s*@\s*(\d+)\s*$/);
+    if (singleAtMatch) {
+      const numbersRaw = singleAtMatch[1].trim();
+      const rAmt = parseInt(singleAtMatch[2], 10);
+
+      if (isNaN(rAmt) || rAmt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
+
+      const numTokens = numbersRaw.replace(/[=:\-,./;*+]/g, ' ').split(/\s+/).filter(Boolean);
+      const validTokens: string[] = [];
+
+      for (const tok of numTokens) {
+        if (/^\d{1,2}$/.test(tok)) {
+          validTokens.push(tok.padStart(2, '0'));
+        } else {
+          warnings.push(`[${tok}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+        }
+      }
+
+      if (validTokens.length > 0) {
+        const groupId = `r2d-batch-${generateUUID()}`;
+        validTokens.forEach((numStr) => {
+          const revs = getTwoDReversal(numStr);
+          revs.forEach(r => {
+            items.push({
+              id: `batch-${generateUUID()}`,
+              number: r,
+              amount: rAmt,
+              isRumble: true,
+              betType: 'rumble',
+              groupId,
+              originalNumber: numStr,
+              originalAmount: rAmt,
+              permutations: revs,
+              originalInput: `${numStr} R`
+            });
+          });
+        });
+        return;
+      }
+      return;
+    }
+
+    // Pattern 0.5: Combined Head + Tail (e.g. "4 ထိပ် 500 ပိတ် 200" or "4ထိတ် 500 2ပိတ် 200")
+    const headTailCombined = line.match(/^(\d)\s*(?:ထိပ်|ထိတ်|ရှေ့စီး|ရှေ့ပိတ်|h|H)\s*(\d+)\s*(?:(\d)\s*)?(?:နောက်ပိတ်|နောက်စီး|ပိတ်|t|T)\s*(\d+)(?:\s+(.*))?$/i);
     if (headTailCombined) {
       const headDigit = parseInt(headTailCombined[1], 10);
       const headAmt = parseInt(headTailCombined[2], 10);
       const tailDigit = headTailCombined[3] !== undefined ? parseInt(headTailCombined[3], 10) : headDigit;
       const tailAmt = parseInt(headTailCombined[4], 10);
       const remainder = (headTailCombined[5] || '').trim();
+
+      if (headAmt <= 0 || tailAmt <= 0 || isNaN(headAmt) || isNaN(tailAmt)) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
 
       if (headDigit >= 0 && headDigit <= 9 && headAmt > 0) {
         getTwoDHeadNumbers(headDigit).forEach(num => {
@@ -579,6 +665,11 @@ export function parseTwoDBatchInput(
       const amt = amtStr && parseInt(amtStr, 10) > 0 ? parseInt(amtStr, 10) : defaultAmount;
       const remainder = (breakPatternMatch[3] || '').trim();
 
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
+
       getTwoDBreakNumbers(brkDigit).forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -600,6 +691,10 @@ export function parseTwoDBatchInput(
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         const generated = getTwoDKhwayPuuRumble(rawDigits);
         const groupId = `r2d-batch-${generateUUID()}`;
         generated.forEach((num) => {
@@ -626,6 +721,10 @@ export function parseTwoDBatchInput(
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         const generated = getTwoDKhwayRumble(rawDigits);
         const groupId = `r2d-batch-${generateUUID()}`;
         generated.forEach((num) => {
@@ -652,6 +751,10 @@ export function parseTwoDBatchInput(
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         const generated = getTwoDKhwayPuu(rawDigits);
         generated.forEach((num) => {
           items.push({
@@ -671,6 +774,10 @@ export function parseTwoDBatchInput(
       if (nums && nums.length >= 1) {
         const rawDigits = nums[0];
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         const generated = getTwoDKhway(rawDigits);
         generated.forEach((num) => {
           items.push({
@@ -688,6 +795,10 @@ export function parseTwoDBatchInput(
     if (/အပူး/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       TWO_D_DOUBLES.forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -703,6 +814,10 @@ export function parseTwoDBatchInput(
     if (/ပါဝါ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       TWO_D_POWER.forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -718,6 +833,10 @@ export function parseTwoDBatchInput(
     if (/နက္ခတ်/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       TWO_D_NATKHAT.forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -733,6 +852,10 @@ export function parseTwoDBatchInput(
     if (/ညီကို/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       TWO_D_BROTHERS.forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -750,6 +873,10 @@ export function parseTwoDBatchInput(
       if (nums && nums.length >= 1) {
         const targetDigit = nums[0].slice(-1);
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         getTwoDIncludesNumbers(targetDigit).forEach(num => {
           items.push({
             id: `batch-${generateUUID()}`,
@@ -762,12 +889,16 @@ export function parseTwoDBatchInput(
       }
     }
 
-    // Pattern: "5 ထိပ် 1000", "ထိပ် 5 1000", "1 ရှေ့ပိတ် 1000", "5h1000"
-    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်|(?:\b\d+\s*[hH]\b|\b[hH]\s*\d+\b|\b[hH]\b))/i.test(line)) {
+    // Pattern: "5 ထိပ် 1000", "5 ထိတ် 1000", "ထိပ် 5 1000", "1 ရှေ့ပိတ် 1000", "5h1000"
+    if (/(?:ရှေ့ပိတ်|ရှေ့စီး|ထိပ်|ထိတ်|(?:\b\d+\s*[hH]\b|\b[hH]\s*\d+\b|\b[hH]\b))/i.test(line)) {
       const nums = line.match(/\d+/g);
       if (nums && nums.length >= 1) {
         const headDigit = parseInt(nums[0].slice(-1), 10);
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         getTwoDHeadNumbers(headDigit).forEach(num => {
           items.push({
             id: `batch-${generateUUID()}`,
@@ -786,6 +917,10 @@ export function parseTwoDBatchInput(
       if (nums && nums.length >= 1) {
         const tailDigit = parseInt(nums[0].slice(-1), 10);
         const amt = nums.length > 1 ? parseInt(nums[1], 10) : defaultAmount;
+        if (!amt || isNaN(amt) || amt <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
         getTwoDTailNumbers(tailDigit).forEach(num => {
           items.push({
             id: `batch-${generateUUID()}`,
@@ -802,6 +937,10 @@ export function parseTwoDBatchInput(
     if (/စုံစုံ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       getTwoDEvenEven().forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -815,6 +954,10 @@ export function parseTwoDBatchInput(
     if (/မမ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       getTwoDOddOdd().forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -828,6 +971,10 @@ export function parseTwoDBatchInput(
     if (/စုံမ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       getTwoDEvenOdd().forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -841,6 +988,10 @@ export function parseTwoDBatchInput(
     if (/မစုံ/i.test(line)) {
       const amtMatch = line.match(/\d+/g);
       const amt = amtMatch ? parseInt(amtMatch[amtMatch.length - 1], 10) : defaultAmount;
+      if (!amt || isNaN(amt) || amt <= 0) {
+        warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+        return;
+      }
       getTwoDOddEven().forEach(num => {
         items.push({
           id: `batch-${generateUUID()}`,
@@ -852,50 +1003,44 @@ export function parseTwoDBatchInput(
       return;
     }
 
-    // Segment parsing for comma/space or multi-number R patterns like "47 40 70r500" or "41 43 45 47 49r250"
-    const commaSegments = line.split(',').map(s => s.trim()).filter(Boolean);
-    const isIndependentSegments = commaSegments.length > 1 && commaSegments.every(seg => {
-      const numMatch = seg.match(/\d+/g);
-      return numMatch && numMatch.length >= 2;
-    });
+    // Standard Rumble or Straight parsing for the line
+    const isRumble = /(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(line);
 
-    const segmentsToProcess = isIndependentSegments ? commaSegments : [line];
+    if (isRumble) {
+      // Extract all numbers and the last amount if present
+      // e.g. "47 40 70r500", "41 43 45 47 49r250", "15r1500", "12-34-56- r 500"
+      const allNums = line.match(/\d+/g);
+      if (allNums && allNums.length >= 1) {
+        let betAmount = defaultAmount;
+        let numTokens: string[] = [];
 
-    for (const segment of segmentsToProcess) {
-      // Check if segment or whole line has r/R/အာ/ပတ်လည်/ပတ်
-      const isRumble = /(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(segment);
-      
-      if (isRumble) {
-        // Extract all numbers and the last amount if present
-        // e.g. "47 40 70r500" -> numbers: [47, 40, 70], amt: 500
-        // e.g. "41 43 45 47 49r250" -> numbers: [41, 43, 45, 47, 49], amt: 250
-        // e.g. "15r1500" -> numbers: [15], amt: 1500
-        const allNums = segment.match(/\d+/g);
-        if (allNums && allNums.length >= 1) {
-          let betAmount = defaultAmount;
-          let numTokens: string[] = [];
+        const lastNum = allNums[allNums.length - 1];
+        const parsedLast = parseInt(lastNum, 10);
 
-          // If the last token is an amount (>= 3 digits or explicitly specified after r), separate it
-          // Check if the last token in segment has amount
-          const lastNum = allNums[allNums.length - 1];
-          const parsedLast = parseInt(lastNum, 10);
+        if (allNums.length >= 2 && (lastNum.length >= 3 || /(?:r|R|အာ|ပတ်လည်|ပတ်)\s*\d+\s*$/i.test(line))) {
+          betAmount = parsedLast;
+          numTokens = allNums.slice(0, allNums.length - 1);
+        } else {
+          numTokens = allNums;
+        }
 
-          // If more than 1 number and last number is amount (or specifically if segment ends with amount after r)
-          if (allNums.length >= 2 && (parsedLast >= 100 || segment.match(/(?:r|R|အာ|ပတ်လည်|ပတ်)\s*\d+/))) {
-            betAmount = parsedLast;
-            numTokens = allNums.slice(0, allNums.length - 1);
-          } else if (allNums.length === 1) {
-            numTokens = allNums;
+        if (!betAmount || isNaN(betAmount) || betAmount <= 0) {
+          warnings.push(`[${line}] ထိုးကြေးပမာဏ မပါရှိပါ`);
+          return;
+        }
+
+        const validNums: string[] = [];
+        numTokens.forEach(token => {
+          if (/^\d{1,2}$/.test(token)) {
+            validNums.push(token.padStart(2, '0'));
           } else {
-            // If all numbers are 2 digits (e.g. 77 00), wait, if no amount specified at end, use defaultAmount
-            numTokens = allNums;
+            warnings.push(`[${token}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
           }
+        });
 
-          // Generate permutations for ALL collected number tokens in this segment
+        if (validNums.length > 0) {
           const groupId = `r2d-batch-${generateUUID()}`;
-          numTokens.forEach(token => {
-            if (!/^\d{1,2}$/.test(token)) return;
-            const numStr = token.padStart(2, '0');
+          validNums.forEach(numStr => {
             const revs = getTwoDReversal(numStr);
             revs.forEach(r => {
               items.push({
@@ -912,50 +1057,61 @@ export function parseTwoDBatchInput(
               });
             });
           });
-          continue;
         }
+        return;
       }
+    }
 
-      const cleanSeg = segment.replace(/(?:r|R|အာ|ပတ်လည်|ပတ်)/gi, ' ');
-      const rawTokens = cleanSeg.replace(/[=:\-_/,*+]/g, ' ').split(/\s+/).filter(Boolean);
+    // Straight / multi-amount straight parsing
+    // Treat "-", ",", ".", "=", "/" between/after 2-digit numbers strictly as separators
+    const cleanSeg = line.replace(/(?:r|R|အာ|ပတ်လည်|ပတ်)/gi, ' ');
+    const rawTokens = cleanSeg.replace(/[=:\-_.,/*+]/g, ' ').split(/\s+/).filter(Boolean);
 
-      if (rawTokens.length === 0) continue;
+    if (rawTokens.length === 0) return;
 
-      let betAmount = defaultAmount;
-      let rawNumberTokens: string[] = [];
+    let numBuffer: string[] = [];
+    let emittedAnyGroup = false;
 
-      if (rawTokens.length === 1) {
-        rawNumberTokens.push(rawTokens[0]);
-      } else {
-        const lastToken = rawTokens[rawTokens.length - 1];
-        const parsedAmt = parseInt(lastToken, 10);
-
-        if (!isNaN(parsedAmt) && parsedAmt > 0 && lastToken.length >= 3 && !/^\d{2}$/.test(lastToken)) {
-          betAmount = parsedAmt;
-          rawNumberTokens = rawTokens.slice(0, rawTokens.length - 1);
-        } else if (!isNaN(parsedAmt) && parsedAmt > 0 && rawTokens.length > 1) {
-          betAmount = parsedAmt;
-          rawNumberTokens = rawTokens.slice(0, rawTokens.length - 1);
+    for (const token of rawTokens) {
+      if (/^\d{1,2}$/.test(token)) {
+        numBuffer.push(token.padStart(2, '0'));
+      } else if (/^\d{3,}$/.test(token)) {
+        const parsedAmt = parseInt(token, 10);
+        if (numBuffer.length > 0 && !isNaN(parsedAmt) && parsedAmt > 0) {
+          numBuffer.forEach(numStr => {
+            items.push({
+              id: `batch-${generateUUID()}`,
+              number: numStr,
+              amount: parsedAmt,
+              isRumble: false,
+              betType: 'straight',
+              originalInput: numStr
+            });
+          });
+          numBuffer = [];
+          emittedAnyGroup = true;
         } else {
-          rawNumberTokens = rawTokens;
-        }
-      }
-
-      for (const token of rawNumberTokens) {
-        if (!/^\d{1,2}$/.test(token)) {
           warnings.push(`[${token}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
-          continue;
         }
+      } else {
+        warnings.push(`[${token}] သည် 2D (00-99) ဂဏန်းမဟုတ်ပါ`);
+      }
+    }
 
-        const numStr = token.padStart(2, '0');
-        items.push({
-          id: `batch-${generateUUID()}`,
-          number: numStr,
-          amount: betAmount,
-          isRumble: false,
-          betType: 'straight',
-          originalInput: numStr
+    if (numBuffer.length > 0) {
+      if (defaultAmount > 0 && !emittedAnyGroup) {
+        numBuffer.forEach(numStr => {
+          items.push({
+            id: `batch-${generateUUID()}`,
+            number: numStr,
+            amount: defaultAmount,
+            isRumble: false,
+            betType: 'straight',
+            originalInput: numStr
+          });
         });
+      } else {
+        warnings.push(`[${numBuffer.join(', ')}] ထိုးကြေးပမာဏ မပါရှိပါ`);
       }
     }
   }

@@ -131,7 +131,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
   // Batch text entry modal
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [batchText, setBatchText] = useState('');
-  const [batchDefaultAmount, setBatchDefaultAmount] = useState('1000');
+  const [batchDefaultAmount, setBatchDefaultAmount] = useState('');
 
   // Real-time Telegram Order status counts (Pending vs Approved vs Rejected)
   const [telegramCounts, setTelegramCounts] = useState<{ pending: number; approved: number; rejected: number }>({
@@ -227,19 +227,22 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const cleanText = editedText.trim();
     if (!cleanText) return;
 
-    const defAmt = parseFloat(batchDefaultAmount) || 1000;
+    const defAmt = parseFloat(batchDefaultAmount) || 0;
     const result = parseTwoDBatchInput(cleanText, defAmt);
     const parsed: TwoDBetItem[] = Array.isArray(result) ? result : (result as any).items;
     const warnings: string[] = (result as any).warnings || [];
 
-    if (warnings && warnings.length > 0) {
-      showToast(warnings.join(', '), 'warning');
-    }
-
     if (parsed.length === 0) {
       playWarningSound();
-      showToast(isMyanmar ? 'ဖတ်ရှု၍ရသော 2D ဂဏန်းမရှိပါ' : 'No valid 2D bets found', 'error');
+      const warnMsg = warnings.length > 0
+        ? warnings.slice(0, 3).join(', ')
+        : (isMyanmar ? 'ထိုးကြေးပမာဏ မပါရှိပါ သို့မဟုတ် ဖတ်ရှု၍ရသော 2D ဂဏန်းမရှိပါ' : 'Missing amount or no valid 2D bets found');
+      showToast(warnMsg, 'warning');
       return;
+    }
+
+    if (warnings && warnings.length > 0) {
+      showToast(warnings.slice(0, 3).join(', '), 'warning');
     }
 
     const blocked = parsed.filter(p => isNumberBlocked(p.number));
@@ -373,11 +376,12 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     // Check if user typed special pattern keywords (Break '3b300', '3b400', '3b', '3ဘရိတ်', Head/Tail '4 ထိပ် 500 ပိတ် 200', Multi-command, etc.)
-    const isSpecialPattern = /[bB]|ဘရိတ်|ထိပ်|ပိတ်|h|t|အပါ|\bပါ\b|စုံစုံ|မမ|စုံမ|မစုံ|ပါဝါ|နက္ခတ်|ညီကို/i.test(rawInput) ||
+    const isSpecialPattern = /[bB]|ဘရိတ်|ထိပ်|ထိတ်|ပိတ်|h|t|အပါ|\bပါ\b|စုံစုံ|မမ|စုံမ|မစုံ|ပါဝါ|နက္ခတ်|ညီကို/i.test(rawInput) ||
                             (/\s{2,}/.test(rawInput)) ||
+                            (/\d{3,}\s*(?:\/|@|r|R|အာ)\s*\d+/.test(rawInput)) ||
                             (/(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(rawInput) && /\d{2}\s+\d{2}/.test(rawInput));
     if (isSpecialPattern) {
-      const defAmt = parseFloat(amountInput) || 1000;
+      const defAmt = parseFloat(amountInput) || 1;
       const parsedRes = parseTwoDBatchInput(rawInput, defAmt);
       const list = Array.isArray(parsedRes) ? parsedRes : (parsedRes as any).items;
       if (list && list.length > 0) {
@@ -389,7 +393,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const hasRInInput = enabledButtons.rumble && /r|R|အာ|ပတ်လည်|ပတ်/i.test(rawInput);
     const hasR = !hasStraightKeyword && ((enabledButtons.rumble && isRumble) || hasRInInput);
     const cleanForNumbers = rawInput.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
-    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-./*+]/g, ' ').split(/\s+/).filter(Boolean);
 
     // If last token is 3+ digits (like 500, 1000) and there are prior tokens, treat as amount
     if (rawTokens.length > 1) {
@@ -532,16 +536,20 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
       }
     }
 
-    // Direct pattern syntax support (Break '3b300', '3b400', '3b', '3ဘရိတ် 300', Head/Tail '4 ထိပ် 500 ပိတ် 200', multi-rumble '45 67 78 65r500', multi-clauses)
-    const isSpecialPattern = /[bB]|ဘရိတ်|ထိပ်|ပိတ်|အပါ|\bပါ\b|စုံစုံ|မမ|စုံမ|မစုံ|ပါဝါ|နက္ခတ်|ညီကို/.test(rawInput) ||
+    // Direct pattern syntax support (Break '3b300', Head/Tail, split '100/200', '100@200', '100R200', '100အာ200', equals chains, etc.)
+    const isSpecialPattern = /[bB]|ဘရိတ်|ထိပ်|ထိတ်|ပိတ်|အပါ|\bပါ\b|စုံစုံ|မမ|စုံမ|မစုံ|ပါဝါ|နက္ခတ်|ညီကို/.test(rawInput) ||
                             (/\s{2,}/.test(rawInput)) ||
+                            (/\d{3,}\s*(?:\/|@|r|R|အာ)\s*\d+/.test(rawInput)) ||
+                            (/\d{1,2}\s*@\s*\d+/.test(rawInput)) ||
+                            (/=/.test(rawInput)) ||
                             (/(?:r|R|အာ|ပတ်လည်|ပတ်)/i.test(rawInput) && /\d{2}\s+\d{2}/.test(rawInput)) ||
                             (/\d{1,2}\s*\/\s*\d{1,2}/.test(rawInput));
 
     if (isSpecialPattern) {
-      const defAmt = parseFloat(convertMyanmarToEnglishDigits(amountInput).trim()) || 1000;
+      const defAmt = parseFloat(convertMyanmarToEnglishDigits(amountInput).trim()) || 0;
       const parsedRes = parseTwoDBatchInput(rawInput, defAmt);
       const parsedList = Array.isArray(parsedRes) ? parsedRes : (parsedRes as any).items;
+      const parsedWarnings: string[] = (parsedRes as any).warnings || [];
 
       if (parsedList && parsedList.length > 0) {
         const newItems: TwoDBetItem[] = [];
@@ -574,7 +582,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         if (newItems.length > 0) {
           playAddSound();
           const newIds = newItems.map(i => i.id);
-          const hasAmountInsideInput = /\d{2,}$/.test(rawInput) && !/\b\d{2}$/.test(rawInput.trim());
+          const hasAmountInsideInput = /\d{3,}$/.test(rawInput) || /\d{3,}\s*(?:\/|@|r|R|အာ)\s*\d+/.test(rawInput);
           const patternTypedLine = (hasAmountInsideInput || !amountInput.trim())
             ? rawInput
             : `${rawInput}=${defAmt}`;
@@ -596,10 +604,21 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
 
           const totalAmt = newItems.reduce((sum, it) => sum + it.amount, 0);
           showToast(
-            isMyanmar ? `ဂဏန်း [${newItems.length} ကွက်] ${formatAmount(totalAmt, settings.currency)} စာရင်းသွင်းပြီးပါပြီ` : `Added ${newItems.length} bets (${formatAmount(totalAmt, settings.currency)})`,
-            'success'
+            isMyanmar
+              ? (parsedWarnings.length > 0
+                  ? `ဂဏန်း [${newItems.length} ကွက်] သွင်းပြီး (${parsedWarnings[0]})`
+                  : `ဂဏန်း [${newItems.length} ကွက်] ${formatAmount(totalAmt, settings.currency)} စာရင်းသွင်းပြီးပါပြီ`)
+              : `Added ${newItems.length} bets (${formatAmount(totalAmt, settings.currency)})`,
+            parsedWarnings.length > 0 ? 'warning' : 'success'
           );
         }
+        return;
+      }
+
+      if (parsedWarnings.length > 0) {
+        playWarningSound();
+        showToast(parsedWarnings.slice(0, 2).join(', '), 'warning');
+        amountInputRef.current?.focus();
         return;
       }
     }
@@ -609,7 +628,10 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     const effectiveRumble = hasStraightKeyword ? false : ((enabledButtons.rumble && isRumble) || hasRInInput);
 
     const cleanForNumbers = rawInput.replace(/ဒဲ့|တဲ့|တည့်|အာ|ပတ်လည်|ပတ်|r|R/gi, ' ');
-    const rawTokens = cleanForNumbers.replace(/[,;:=_\-/*+]/g, ' ').split(/\s+/).filter(Boolean);
+    const rawTokens = cleanForNumbers.replace(/[,;:=_\-./*+]/g, ' ').split(/\s+/).filter(Boolean);
+    while (rawTokens.length > 0 && !/^\d+$/.test(rawTokens[rawTokens.length - 1])) {
+      rawTokens.pop();
+    }
 
     if (rawTokens.length === 0) {
       playWarningSound();
@@ -621,15 +643,17 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     let amt = parseFloat(convertMyanmarToEnglishDigits(amountInput).trim());
     let usedInlineAmount = false;
 
-    // Check if amount is specified inline (e.g. "22,33,22,44, 500" or "၁၃,၂၄,၃၆,၄၆,၂၇,၈၄, ၁၀၀၀")
+    // Check if amount is specified inline (requires 3+ digits so 2-digit numbers like 56 are never misread as 56 Kyats)
     if (isNaN(amt) || amt <= 0) {
       if (rawTokens.length > 1) {
         const lastToken = rawTokens[rawTokens.length - 1];
-        const parsedLast = parseFloat(lastToken);
-        if (!isNaN(parsedLast) && parsedLast > 0) {
-          amt = parsedLast;
-          rawTokens.pop();
-          usedInlineAmount = true;
+        if (lastToken.length >= 3 && /^\d+$/.test(lastToken)) {
+          const parsedLast = parseFloat(lastToken);
+          if (!isNaN(parsedLast) && parsedLast > 0) {
+            amt = parsedLast;
+            rawTokens.pop();
+            usedInlineAmount = true;
+          }
         }
       }
     } else {
@@ -1215,18 +1239,22 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
     }
 
     const originalBatchText = batchText.trim();
-    const defAmt = parseFloat(batchDefaultAmount) || 1000;
+    const defAmt = parseFloat(batchDefaultAmount) || 0;
     const result = parseTwoDBatchInput(batchText, defAmt);
     const parsed = Array.isArray(result) ? result : (result as any).items;
-    const warnings = (result as any).warnings || [];
-    if (warnings && warnings.length > 0) {
-      showToast(warnings.join(', '), 'warning');
-    }
+    const warnings: string[] = (result as any).warnings || [];
 
     if (parsed.length === 0) {
       playWarningSound();
-      showToast(isMyanmar ? 'ဖတ်ရှု၍ရသော 2D ဂဏန်းမရှိပါ' : 'No valid 2D bets found', 'error');
+      const warnMsg = warnings.length > 0
+        ? warnings.slice(0, 3).join(', ')
+        : (isMyanmar ? 'ထိုးကြေးပမာဏ မပါရှိပါ သို့မဟုတ် ဖတ်ရှု၍ရသော 2D ဂဏန်းမရှိပါ' : 'Missing amount or no valid 2D bets found');
+      showToast(warnMsg, 'warning');
       return;
+    }
+
+    if (warnings && warnings.length > 0) {
+      showToast(warnings.slice(0, 3).join(', '), 'warning');
     }
 
     const blocked = parsed.filter(p => isNumberBlocked(p.number));
@@ -1640,7 +1668,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
         mode="2d"
         isMyanmar={isMyanmar}
         currency={settings.currency}
-        defaultAmount={parseFloat(batchDefaultAmount) || 1000}
+        defaultAmount={parseFloat(batchDefaultAmount) || 0}
         activeImageSrc={workspacePhotoSrc}
         onImageChange={(src) => {
           setWorkspacePhotoSrc(src);
@@ -2355,15 +2383,16 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="text-slate-600 font-bold">
-                  {isMyanmar ? 'ပုံမှန်ထိုးကြေး (မပါရှိပါက သတ်မှတ်မည့်ငွေ)' : 'Default amount'}:
+                  {isMyanmar ? 'ပုံမှန်ထိုးကြေး (အလွတ်ထားပါက ထိုးကြေးမပါလျှင် သတိပေးမည်)' : 'Default amount (optional)'}:
                 </span>
                 <input
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={batchDefaultAmount}
+                  placeholder="မသတ်မှတ်"
                   onChange={(e) => setBatchDefaultAmount(e.target.value.replace(/\D/g, ''))}
                   onFocus={(e) => {
                     const target = e.currentTarget;
@@ -2375,7 +2404,7 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                     target.select();
                     setTimeout(() => target.select(), 20);
                   }}
-                  className="w-24 h-8 px-2 text-right text-xs font-bold rounded-lg border border-slate-300"
+                  className="w-28 h-8 px-2 text-right text-xs font-bold rounded-lg border border-slate-300"
                 />
               </div>
 
@@ -2383,14 +2412,45 @@ export const TwoDQuickSaleEntry: React.FC<TwoDQuickSaleEntryProps> = ({
                 rows={6}
                 value={batchText}
                 onChange={(e) => setBatchText(e.target.value)}
-                placeholder={`ဥပမာ-\n၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀\n၃၄ ၄၆ ၃၇ ၁၀၀၀/၅၀၀\n1234 ခွေ 500\n1234 ခွေပူး 500\n1234 ခွေအာ 500\n24 1000\n24R 500\nအပူး 1000\n5 ဘရိတ် 2000`}
+                placeholder={`ဥပမာ-\n12-34-56 100/200 (သို့) 100@200, 100R200, 100အာ200\n23, 45, 56, 78 500\n12.34.56.78. 500\n23=56=78=90= 500\n1234 ခွေ 500\n24R 500\nအပူး 1000\n5 ဘရိတ် 2000`}
                 className="w-full p-3 font-mono text-sm rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
               ></textarea>
+
+              {batchText.trim() && (() => {
+                const defAmt = parseFloat(batchDefaultAmount) || 0;
+                const previewRes = parseTwoDBatchInput(batchText, defAmt);
+                const previewItems = Array.isArray(previewRes) ? previewRes : (previewRes as any).items || [];
+                const previewWarnings: string[] = (previewRes as any).warnings || [];
+                const previewTotal = previewItems.reduce((s: number, it: any) => s + (it.amount || 0), 0);
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <span className="font-bold text-slate-700">
+                        ဖတ်ယူရရှိမည့် အကွက်: <strong className="text-teal-700 font-mono">{previewItems.length} ကွက်</strong>
+                      </span>
+                      <span className="font-mono font-black text-emerald-700">
+                        {formatAmount(previewTotal, settings.currency)}
+                      </span>
+                    </div>
+                    {previewWarnings.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-300 rounded-xl p-2 text-[11px] font-bold text-amber-900 space-y-0.5 max-h-24 overflow-y-auto">
+                        {previewWarnings.map((w, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5">
+                            <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                            <span>{w}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-1">
                 <span>
                   {isMyanmar
-                    ? 'အထူးကွန်မန်း: ၂၃ ၄၅ ၂၆ ၈၀၀/၂၀၀ (ဒဲ့ ၈၀၀၊ အာ ၂၀၀ အလိုအလျောက်ယူသည်)'
-                    : 'Format: 23 45 26 800/200 (Direct 800, Reverse 200)'}
+                    ? 'ဒဲ့/အာ ခွဲယူ: 100/200, 100@200, 100R200, 100r200, 100အာ200'
+                    : 'Split Direct/Reverse: 100/200, 100@200, 100R200, 100r200'}
                 </span>
                 <button
                   type="button"

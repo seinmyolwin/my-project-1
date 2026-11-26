@@ -158,6 +158,7 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   const [rawBatchInputText, setRawBatchInputText] = useState('');
   const [isEditingRawText, setIsEditingRawText] = useState(false);
   const [latestDraftIndices, setLatestDraftIndices] = useState<number[]>([]);
+  const [voucherParseWarnings, setVoucherParseWarnings] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -263,12 +264,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
     const clean = convertMyanmarToEnglishDigits(text || '').trim();
     if (!clean || clean === '[Photo Slip]') {
       const initialCat = resolveAutoCategory('', preferredCategory);
-      return { items: [], detectedCategory: initialCat };
+      return { items: [], detectedCategory: initialCat, warnings: [] as string[] };
     }
 
-    // First attempt 2D parsing (unified with Quick Sale Entry Batch Paste)
-    const parsed2D = parseTwoDBatchInput(clean, 1000);
+    // First attempt 2D parsing (unified with Quick Sale Entry Batch Paste — never auto-fill 1000)
+    const parsed2D = parseTwoDBatchInput(clean, 0);
     const itemList2D = Array.isArray(parsed2D) ? parsed2D : ((parsed2D as any)?.items || []);
+    const warnings2D: string[] = (parsed2D as any)?.warnings || [];
 
     // Second attempt 3D parsing (unified with Quick Sale Entry Batch Paste)
     const { items: items3D } = parseQuickBetText(clean);
@@ -325,7 +327,11 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       detectedCat = '3d';
     }
 
-    return { items: resultItems, detectedCategory: detectedCat };
+    return {
+      items: resultItems,
+      detectedCategory: detectedCat,
+      warnings: detectedCat === '2d' ? warnings2D : []
+    };
   };
 
   const ensureOrderParsed = (ord: TelegramIncomingOrder): TelegramIncomingOrder => {
@@ -357,8 +363,9 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     // Auto-resolve business type using settings enabledModes and order numbers
     const autoCat = resolveAutoCategory(rawText, order.category, order.parsedItems);
-    const { items: parsedList, detectedCategory } = handleParseTextToItems(rawText, autoCat);
+    const { items: parsedList, detectedCategory, warnings } = handleParseTextToItems(rawText, autoCat);
     setVoucherCategory(detectedCategory || autoCat);
+    setVoucherParseWarnings(warnings || []);
 
     if (parsedList.length > 0) {
       setVoucherItems(parsedList);
@@ -390,7 +397,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
   };
 
   const handleReparseRawText = () => {
-    const { items: parsedList, detectedCategory } = handleParseTextToItems(rawBatchInputText, voucherCategory);
+    const { items: parsedList, detectedCategory, warnings } = handleParseTextToItems(rawBatchInputText, voucherCategory);
+    setVoucherParseWarnings(warnings || []);
     if (parsedList.length > 0) {
       setVoucherItems(parsedList);
       setLatestDraftIndices(parsedList.map((_, i) => i));
@@ -398,7 +406,11 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       playSuccessSound();
     } else {
       playWarningSound();
-      alert('⚠️ ရိုက်ထည့်ထားသော စာသားမှ ဂဏန်းနှင့် ထိုးကြေး ဖတ်ယူ၍ မရပါ (ဥပမာ- 23 63 15 21 29r300 သို့မဟုတ် 123 456 1000)');
+      alert(
+        warnings && warnings.length > 0
+          ? `⚠️ ${warnings.join('\n')}`
+          : '⚠️ ရိုက်ထည့်ထားသော စာသားမှ ဂဏန်းနှင့် ထိုးကြေး ဖတ်ယူ၍ မရပါ (ဥပမာ- 23 63 15 21 29r300 သို့မဟုတ် 123 456 1000)'
+      );
     }
   };
 
@@ -892,10 +904,19 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
       : 'အထွေထွေ';
 
     const effectiveCategory = resolveAutoCategory(order.rawText, order.category, order.parsedItems);
-    const { items: freshlyParsed } = handleParseTextToItems(order.rawText, effectiveCategory);
+    const { items: freshlyParsed, warnings: parseWarnings } = handleParseTextToItems(order.rawText, effectiveCategory);
     const effectiveParsedItems = (freshlyParsed && freshlyParsed.length > 0)
       ? freshlyParsed
       : (order.parsedItems && order.parsedItems.length > 0 ? order.parsedItems : []);
+
+    if (effectiveParsedItems.length === 0) {
+      playWarningSound();
+      const warnDetail = parseWarnings && parseWarnings.length > 0
+        ? parseWarnings.join('\n')
+        : 'ထိုးကြေးပမာဏ မပါရှိပါ သို့မဟုတ် ဂဏန်းဖတ်၍မရပါ';
+      alert(`⚠️ ${warnDetail}\n\n"ဘောင်ချာသွင်းမည်" ကိုနှိပ်၍ ထိုးကြေး ထည့်သွင်းစစ်ဆေးပါ။`);
+      return;
+    }
 
     const effectiveTotal = effectiveParsedItems.reduce((s, it) => s + (it.amount || 0), 0);
 
@@ -1831,7 +1852,8 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                         onChange={(e) => {
                           const cat = e.target.value as any;
                           setVoucherCategory(cat);
-                          const { items } = handleParseTextToItems(rawBatchInputText, cat);
+                          const { items, warnings } = handleParseTextToItems(rawBatchInputText, cat);
+                          setVoucherParseWarnings(warnings || []);
                           if (items.length > 0) {
                             setVoucherItems(items);
                             setLatestDraftIndices(items.map((_, i) => i));
@@ -1900,6 +1922,17 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
                       </div>
                     )}
                   </div>
+
+                  {voucherParseWarnings.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-xs font-bold text-amber-900 space-y-1">
+                      {voucherParseWarnings.map((w, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <span>{w}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Quick Add Single Item Row */}
                   <div className="bg-sky-50 p-3 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">

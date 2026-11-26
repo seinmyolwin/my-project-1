@@ -20,7 +20,8 @@ import {
   HelpCircle,
   CheckCircle2,
   RotateCcw,
-  Info
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import {
   CommandRule,
@@ -103,7 +104,7 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
   // Parsers for each module
   const result2d = useMemo(() => {
     if (!input2d.trim()) return { items: [], warnings: [], totalAmount: 0 };
-    const result = parseTwoDBatchInput(input2d, 1000);
+    const result = parseTwoDBatchInput(input2d, 0);
     const items = Array.isArray(result) ? result : (result as any).items || [];
     const warnings = (result as any).warnings || [];
     const totalAmount = items.reduce((sum: number, it: any) => sum + (it.amount || 0), 0);
@@ -428,6 +429,17 @@ export const CommandRulesModal: React.FC<CommandRulesModalProps> = ({
                           </table>
                         )}
                       </div>
+
+                      {result2d.warnings && result2d.warnings.length > 0 && (
+                        <div className="mt-2 bg-amber-50 border border-amber-300 rounded-xl p-2 text-[11px] font-bold text-amber-900 space-y-0.5 max-h-24 overflow-y-auto">
+                          {result2d.warnings.map((w: string, idx: number) => (
+                            <div key={idx} className="flex items-start gap-1.5">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                              <span>{w}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2 border-t border-slate-200/60 space-y-2">
