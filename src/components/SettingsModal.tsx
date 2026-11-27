@@ -359,7 +359,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const roundId = recordId.replace('3d-', '');
         if (roundId.startsWith('orphaned-')) {
           const orphanDate = roundId.replace('orphaned-', '');
-          const toDelete = lottery3D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          const allRoundIds3D = new Set(lottery3D.rounds.map(r => r.id));
+          const toDelete = lottery3D.vouchers.filter(v => (!v.roundId || !allRoundIds3D.has(v.roundId)) && (v.createdAt || '').slice(0, 10) === orphanDate);
           toDelete.forEach(v => lottery3D.deleteVoucher(v.id));
         } else {
           lottery3D.deleteRound(roundId);
@@ -368,7 +369,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const roundId = recordId.replace('2d-', '');
         if (roundId.startsWith('orphaned-')) {
           const orphanDate = roundId.replace('orphaned-', '');
-          const toDelete = lottery2D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          const allRoundIds2D = new Set(lottery2D.rounds.map(r => r.id));
+          const toDelete = lottery2D.vouchers.filter(v => (!v.roundId || !allRoundIds2D.has(v.roundId)) && (v.createdAt || '').slice(0, 10) === orphanDate);
           toDelete.forEach(v => lottery2D.deleteVoucher(v.id));
         } else {
           lottery2D.deleteRound(roundId);

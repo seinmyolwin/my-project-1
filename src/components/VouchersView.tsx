@@ -441,7 +441,10 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                 {displayForwardSlips.map((s) => {
                   const isSettledRound = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
                   const winNum = isSettledRound ? activeRound!.winningNumber!.trim().padStart(3, '0') : '';
-                  const toddSet = winNum.length === 3 && (settings.defaultToddMultiplier ?? 0) > 0
+                  const effToddMult = typeof activeRound?.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
+                    ? activeRound.toddMultiplier
+                    : (settings.defaultToddMultiplier ?? 0);
+                  const toddSet = winNum.length === 3 && effToddMult > 0
                     ? new Set(getToddWinningNumbers(winNum))
                     : null;
                   const isWinningForward = isSettledRound && s.items.some((item) => {
@@ -635,7 +638,10 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
               displayVouchers.map((v) => {
                 const isSettledRound = activeRound?.status === 'settled' && !!activeRound?.winningNumber;
                 const winNum = isSettledRound ? activeRound!.winningNumber!.trim().padStart(3, '0') : '';
-                const toddSet = winNum.length === 3 && (settings.defaultToddMultiplier ?? 0) > 0
+                const effToddMult = typeof activeRound?.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
+                  ? activeRound.toddMultiplier
+                  : (settings.defaultToddMultiplier ?? 0);
+                const toddSet = winNum.length === 3 && effToddMult > 0
                   ? new Set(getToddWinningNumbers(winNum))
                   : null;
                 const isWinningVoucher =
@@ -929,7 +935,10 @@ ${s.notes ? `မှတ်ချက်: ${s.notes}\n` : ''}`;
                         const winNum = isSettledRound ? activeRound!.winningNumber!.trim().padStart(3, '0') : '';
                         const itemNum = String(item.number || '').trim().padStart(3, '0');
                         const isStraightHit = !!winNum && winNum === itemNum;
-                        const isToddHit = !isStraightHit && !!winNum && (settings.defaultToddMultiplier ?? 0) > 0 && getToddWinningNumbers(winNum).includes(itemNum);
+                        const effToddMult = typeof activeRound?.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
+                          ? activeRound.toddMultiplier
+                          : (settings.defaultToddMultiplier ?? 0);
+                        const isToddHit = !isStraightHit && !!winNum && effToddMult > 0 && getToddWinningNumbers(winNum).includes(itemNum);
                         const isHit = isStraightHit || isToddHit;
                         return (
                           <div

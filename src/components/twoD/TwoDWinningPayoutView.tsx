@@ -23,7 +23,7 @@ import { usePeriod } from '../../context/PeriodContext';
 import { formatAmount, convertMyanmarToEnglishDigits } from '../../utils/lotteryUtils';
 import { verifyOwnerPassword } from '../../utils/securityUtils';
 import { evaluateTwoDWinnings, normalizeTwoDMultiplier, parseExcelToRoundData2D } from '../../utils/twoDLotteryUtils';
-import { getLocalDateString } from '../../utils/moneyUtils';
+import { getLocalDateString, safeRound } from '../../utils/moneyUtils';
 import {
   SingleRoundFinancialBreakdown,
   calculateTwoDSingleRoundStatement
@@ -314,13 +314,13 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     let totalSoldForWinNum = 0;
     activeRoundVouchers.forEach(v => {
       v.items.forEach(it => {
-        if (it.number === targetNum) totalSoldForWinNum += it.amount;
+        if (String(it.number || '').trim().padStart(2, '0') === targetNum) totalSoldForWinNum += it.amount;
       });
     });
     let totalForwardedForWinNum = 0;
     activeRoundForwardSlips.forEach(f => {
       f.items.forEach(it => {
-        if (it.number === targetNum) totalForwardedForWinNum += it.amount;
+        if (String(it.number || '').trim().padStart(2, '0') === targetNum) totalForwardedForWinNum += it.amount;
       });
     });
     const totalPayout = mult > 0 ? totalSoldForWinNum * mult : 0;
@@ -399,13 +399,13 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
     let totalSoldForNum = 0;
     activeRoundVouchers.forEach(v => {
       v.items.forEach(it => {
-        if (it.number === cleanNum) totalSoldForNum += it.amount;
+        if (String(it.number || '').trim().padStart(2, '0') === cleanNum) totalSoldForNum += it.amount;
       });
     });
     let totalForwardedForNum = 0;
     activeRoundForwardSlips.forEach(f => {
       f.items.forEach(it => {
-        if (it.number === cleanNum) totalForwardedForNum += it.amount;
+        if (String(it.number || '').trim().padStart(2, '0') === cleanNum) totalForwardedForNum += it.amount;
       });
     });
     const retainedAmount = Math.max(0, totalSoldForNum - totalForwardedForNum);
@@ -419,64 +419,53 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
   }, [activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, multiplierInput, activeRound?.multiplier, settings.defaultMultiplier]);
 
   const previewRoundSummary = useMemo(() => {
-    let totalSales = 0;
-    let totalDiscount = 0;
-    let netRevenue = 0;
-
-    activeRoundVouchers.forEach(v => {
-      totalSales += v.subtotal;
-      totalDiscount += v.discountAmount;
-      netRevenue += v.netPayable;
+    const cleanEvalNum = activeEvalNumber ? activeEvalNumber.trim().padStart(2, '0') : '';
+    const parsedMult = parseFloat(multiplierInput);
+    const mult = normalizeTwoDMultiplier(
+      !Number.isNaN(parsedMult)
+        ? parsedMult
+        : (typeof activeRound?.multiplier === 'number' ? activeRound.multiplier : settings.defaultMultiplier)
+    );
+    const stmt = calculateTwoDSingleRoundStatement({
+      round: activeRound || null,
+      vouchers: activeRoundVouchers,
+      forwardSlips: activeRoundForwardSlips as any,
+      winningNumber: cleanEvalNum && /^\d{2}$/.test(cleanEvalNum) ? cleanEvalNum : undefined,
+      multiplier: mult,
+      settings,
+      globalRates: getCustomerCommissionRates('2d'),
+      roundRates: getAllRoundCustomerCommissions(),
+      uplineGlobalRates: getUplineCommissionRates('2d'),
+      uplineRoundRates: getAllRoundUplineCommissions()
     });
-
-    let totalForwarded = 0;
-    let forwardedCommission = 0;
-    activeRoundForwardSlips.forEach(f => {
-      totalForwarded += f.totalAmount;
-      forwardedCommission += f.commissionAmount;
-    });
-
-    let totalForwardedForWinNum = 0;
-    if (activeEvalNumber) {
-      activeRoundForwardSlips.forEach(f => {
-        f.items.forEach(it => {
-          if (it.number === activeEvalNumber) totalForwardedForWinNum += it.amount;
-        });
-      });
-    }
-    const winningAgg = activeEvalNumber ? aggregates[activeEvalNumber] : undefined;
-    const totalSoldForWinNum = winningAgg ? winningAgg.totalSold : 0;
-    const retainedAmt = Math.max(0, totalSoldForWinNum - totalForwardedForWinNum);
-    const mult = normalizeTwoDMultiplier(parseFloat(multiplierInput) || settings.defaultMultiplier);
-    const retainedPayout = mult > 0 ? retainedAmt * mult : 0;
-
-    const netPaid = totalForwarded - forwardedCommission;
-    const netProfit = netRevenue - netPaid - retainedPayout;
 
     return {
-      totalSales,
-      totalVouchers: activeRoundVouchers.length,
-      totalDiscount,
-      netRevenue,
-      totalForwarded,
-      forwardedCommission,
-      totalPayout: twoDWinningResults.totalPayout,
-      retainedPayout,
-      winningNumber: activeEvalNumber,
-      totalWinnersCount: twoDWinningResults.totalWinnersCount,
-      netProfit,
-      isProfit: netProfit >= 0
+      totalSales: stmt.turnover,
+      totalVouchers: stmt.vouchersCount,
+      totalDiscount: stmt.agentCommission,
+      netRevenue: safeRound(stmt.turnover - stmt.agentCommission),
+      totalForwarded: stmt.totalForwarded,
+      forwardedCommission: stmt.forwardCommission,
+      totalPayout: stmt.totalPayout,
+      retainedPayout: stmt.retainedPayout,
+      winningNumber: cleanEvalNum,
+      totalWinnersCount: stmt.winnersCount,
+      netProfit: stmt.netProfit,
+      isProfit: stmt.isProfit
     };
-  }, [activeRoundVouchers, activeRoundForwardSlips, twoDWinningResults, activeEvalNumber]);
+  }, [activeRound, activeRoundVouchers, activeRoundForwardSlips, activeEvalNumber, multiplierInput, settings, commissionRevision]);
 
   const currentWinningNumber = (isTestingMode || (isWinningConfirmed && !isSettled))
     ? activeEvalNumber
     : (isSettled ? (activeRound?.winningNumber || '') : activeEvalNumber);
 
+  const parsedCurrMult = parseFloat(multiplierInput);
   const currentMultiplier = normalizeTwoDMultiplier(
     isSettled && !isTestingMode
-      ? (activeRound?.multiplier || settings.defaultMultiplier)
-      : (parseFloat(multiplierInput) || settings.defaultMultiplier)
+      ? (typeof activeRound?.multiplier === 'number' ? activeRound.multiplier : settings.defaultMultiplier)
+      : (!Number.isNaN(parsedCurrMult)
+          ? parsedCurrMult
+          : (typeof activeRound?.multiplier === 'number' ? activeRound.multiplier : settings.defaultMultiplier))
   );
 
   const isShowingOnTheFly = isTestingMode || (isWinningConfirmed && !isSettled);
@@ -488,22 +477,34 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
   const currentIsProfit = isShowingOnTheFly ? previewRoundSummary.isProfit : roundSummary.isProfit;
 
   // Winning items filtered from active vouchers on-the-fly or settled
+  const normalizedCurrentWinNum = currentWinningNumber ? currentWinningNumber.trim().padStart(2, '0') : '';
+  const hasValidWinNum = /^\d{2}$/.test(normalizedCurrentWinNum);
+
   const winningTickets = useMemo(() => {
     if (isShowingOnTheFly) {
       return twoDWinningResults.settledVouchers.filter(v => v.items.some(item => item.isWon));
     }
+    if (hasValidWinNum) {
+      return activeRoundVouchers.filter(v =>
+        v.items.some(item => String(item.number || '').trim().padStart(2, '0') === normalizedCurrentWinNum)
+      );
+    }
     return activeRoundVouchers.filter(v => v.items.some(item => item.isWon));
-  }, [isShowingOnTheFly, activeRoundVouchers, twoDWinningResults]);
+  }, [isShowingOnTheFly, hasValidWinNum, normalizedCurrentWinNum, activeRoundVouchers, twoDWinningResults]);
 
   const maxStake = useMemo(() => {
     let max = 0;
     winningTickets.forEach(voucher => {
-      const winItems = voucher.items.filter(i => i.isWon || i.number === currentWinningNumber);
+      const winItems = voucher.items.filter(i =>
+        hasValidWinNum
+          ? String(i.number || '').trim().padStart(2, '0') === normalizedCurrentWinNum
+          : i.isWon
+      );
       const totalStake = winItems.reduce((sum, i) => sum + i.amount, 0);
       if (totalStake > max) max = totalStake;
     });
     return max;
-  }, [winningTickets, currentWinningNumber]);
+  }, [winningTickets, hasValidWinNum, normalizedCurrentWinNum]);
 
   // Single-Round Financial Statement Breakdown (Strictly isolated for this round)
   const singleRoundStatement: SingleRoundFinancialBreakdown = useMemo(() => {
@@ -1034,7 +1035,7 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                     {isTestingMode ? '🧪 အစမ်းတွက်ချက် စစ်ဆေးမှု (Preview)' : '✓ အတည်ပြုပြီး ရှင်းတမ်း'}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
-                    ပေါက်ဂဏန်း: {currentWinningNumber || '--'} ({multiplierInput || (currentMultiplier * 10)} ဆ)
+                    ပေါက်ဂဏန်း: {currentWinningNumber || '--'} ({multiplierInput || currentMultiplier} ဆ)
                   </span>
                 </div>
                 <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
@@ -1303,14 +1304,18 @@ export const TwoDWinningPayoutView: React.FC<TwoDWinningPayoutViewProps> = ({ on
                       <th className="p-3">ဖုန်းနံပါတ်</th>
                       <th className="p-3 text-center">ပေါက်ဂဏန်း</th>
                       <th className="p-3 text-right">ထိုးကြေး</th>
-                      <th className="p-3 text-right">အလျော်ငွေ (@{multiplierInput || (currentMultiplier * 10)} ဆ)</th>
+                      <th className="p-3 text-right">အလျော်ငွေ (@{multiplierInput || currentMultiplier} ဆ)</th>
                       <th className="p-3 text-center">အခြေအနေ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {winningTickets.map(voucher => {
-                      const winItems = voucher.items.filter(i => i.isWon || i.number === currentWinningNumber);
-                      const totalWon = winItems.reduce((sum, i) => sum + (i.wonAmount || (i.amount * currentMultiplier)), 0);
+                      const winItems = voucher.items.filter(i =>
+                        hasValidWinNum
+                          ? String(i.number || '').trim().padStart(2, '0') === normalizedCurrentWinNum
+                          : i.isWon
+                      );
+                      const totalWon = winItems.reduce((sum, i) => sum + (hasValidWinNum ? (i.amount * currentMultiplier) : (i.wonAmount || (i.amount * currentMultiplier))), 0);
                       const totalStake = winItems.reduce((sum, i) => sum + i.amount, 0);
 
                       return (

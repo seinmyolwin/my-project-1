@@ -487,17 +487,14 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const addVoucher = useCallback((voucherData: Omit<TwoDVoucher, 'id' | 'voucherNo' | 'createdAt'>) => {
     assertDateOpen('2D', dateOfRound('2D', voucherData.roundId), 'ဘောင်ချာထည့်ခြင်း');
-    if (!(Number(activeRound?.multiplier) > 0)) {
-      throw new Error('ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
-    }
-    // 1. Check active round status
+    // 1. Check target round status
     const targetRound = rounds.find(r => r.id === voucherData.roundId);
     if (!targetRound || targetRound.status !== 'open' || is2DRoundClosed(targetRound)) {
       throw new Error('ထီပွဲစဉ် ပိတ်သွားပြီဖြစ်သဖြင့် စာရင်း ထည့်သွင်း၍ မရတော့ပါ');
     }
 
-    // 2. Check settings multiplier & commission
-    if (!targetRound.multiplier || targetRound.multiplier <= 0 || targetRound.commissionRate === undefined) {
+    // 2. Check target round multiplier & commission
+    if (!(Number(targetRound.multiplier) > 0) || targetRound.commissionRate === undefined) {
       throw new Error('ပေါက်ကြေး သို့မဟုတ် ကော်မရှင် သတ်မှတ်ထားခြင်း မရှိသေးပါ (Settings တွင် ပြင်ဆင်ပါ)');
     }
 
@@ -547,8 +544,8 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       id: generateUUID(),
       voucherNo: `${shortCode}-V-${pad}`,
       createdAt: new Date().toISOString(),
-      lowerCommissionRate: settings.defaultCommissionRate,
-      payoutMultiplier: settings.defaultMultiplier,
+      lowerCommissionRate: settings.defaultCustomerDiscount ?? 0,
+      payoutMultiplier: targetRound.multiplier,
       snapshotSource: 'created'
     };
     setVouchers(prev => [newVoucher, ...prev]);
@@ -629,7 +626,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
           remainingRawClips = parsed.map((c: any) =>
-            ((c.voucherNumber === target.voucherNo || c.voucherNumber === target.id || c.voucherNumber === id) && !c.deletedAt)
+            ((!c.category || c.category === '2d') && (c.voucherNumber === target.voucherNo || c.voucherNumber === target.id || c.voucherNumber === id) && !c.deletedAt)
               ? ({ ...c, deletedAt: nowIso, deletedReason: reason })
               : c
           );
@@ -928,7 +925,9 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       vouchers: activeRoundVouchers,
       forwardSlips: activeRoundForwardSlips as any,
       winningNumber: activeRound?.winningNumber,
-      multiplier: activeRound?.multiplier || settings.defaultMultiplier,
+      multiplier: normalizeTwoDMultiplier(
+        typeof activeRound?.multiplier === 'number' ? activeRound.multiplier : settings.defaultMultiplier
+      ),
       settings,
       globalRates: getCustomerCommissionRates('2d'),
       roundRates: getAllRoundCustomerCommissions(),
@@ -959,7 +958,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!activeRound) return;
     assertDateOpen('2D', activeRound.drawDate || dateOfRound('2D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
 
-    if (!(Number(multiplier ?? activeRound.multiplier) > 0)) {
+    if (!(Number(multiplier ?? activeRound.multiplier ?? settings.defaultMultiplier) > 0)) {
       throw new Error('ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     }
 
@@ -976,7 +975,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return;
     }
 
-    let mult = multiplier || activeRound.multiplier || settings.defaultMultiplier;
+    let mult = normalizeTwoDMultiplier(multiplier ?? activeRound.multiplier ?? settings.defaultMultiplier);
     if (mult <= 0) {
       alert(settings.language === 'my' ? 'Settings တွင် ပေါက်ကြေးအဆ (Multiplier) ဦးစွာ သတ်မှတ်ပါ' : 'Please configure multiplier in settings');
       return;
@@ -1000,7 +999,7 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (f.roundId === activeRound.id && !(f as any).deletedAt) {
           let payout = 0;
           f.items.forEach(it => {
-            if (it.number === formattedNum) payout += it.amount * mult;
+            if (String(it.number || '').trim().padStart(2, '0') === formattedNum) payout += it.amount * mult;
           });
           return { ...f, actualPayout: payout };
         }
@@ -1082,17 +1081,46 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const validRound = (overrideRound && typeof overrideRound === 'object' && 'id' in overrideRound && 'drawDate' in overrideRound) ? (overrideRound as TwoDDrawRound) : undefined;
     const targetRound = validRound || activeRound;
     if (!targetRound) return;
-    const targetVouchers = validRound ? (overrideVouchers || activeRoundVouchers) : activeRoundVouchers;
-    const targetSummary = validRound ? (overrideSummary || roundSummary) : roundSummary;
+    const isSameActive = targetRound.id === activeRound?.id;
+    const targetVouchers = overrideVouchers || (isSameActive ? activeRoundVouchers : vouchers.filter(v => v.roundId === targetRound.id && v.status !== 'cancelled' && !v.deletedAt));
+    const targetForwards = isSameActive ? activeRoundForwardSlips : forwardSlips.filter(f => f.roundId === targetRound.id);
+    const targetSummary = overrideSummary || (isSameActive ? roundSummary : (() => {
+      const stmt = calculateTwoDSingleRoundStatement({
+        round: targetRound,
+        vouchers: targetVouchers,
+        forwardSlips: targetForwards as any,
+        winningNumber: targetRound.winningNumber,
+        multiplier: normalizeTwoDMultiplier(typeof targetRound.multiplier === 'number' ? targetRound.multiplier : settings.defaultMultiplier),
+        settings,
+        globalRates: getCustomerCommissionRates('2d'),
+        roundRates: getAllRoundCustomerCommissions(),
+        uplineGlobalRates: getUplineCommissionRates('2d'),
+        uplineRoundRates: getAllRoundUplineCommissions()
+      });
+      return {
+        totalSales: stmt.turnover,
+        totalVouchers: stmt.vouchersCount,
+        totalDiscount: stmt.agentCommission,
+        netRevenue: safeRound(stmt.turnover - stmt.agentCommission),
+        totalForwarded: stmt.totalForwarded,
+        forwardedCommission: stmt.forwardCommission,
+        totalPayout: stmt.totalPayout,
+        retainedPayout: stmt.retainedPayout,
+        winningNumber: targetRound.winningNumber,
+        totalWinnersCount: stmt.winnersCount,
+        netProfit: stmt.netProfit,
+        isProfit: stmt.isProfit
+      };
+    })());
     exportTwoDLotteryToExcel(
       targetRound,
       aggregates,
       targetVouchers,
-      activeRoundForwardSlips,
+      targetForwards,
       targetSummary,
       settings.shopName
     );
-  }, [activeRound, aggregates, activeRoundVouchers, activeRoundForwardSlips, roundSummary, settings.shopName]);
+  }, [activeRound, aggregates, activeRoundVouchers, activeRoundForwardSlips, vouchers, forwardSlips, roundSummary, settings]);
 
   const resetToSampleData = useCallback(() => {
     setSettingsState(DEFAULT_2D_SETTINGS);

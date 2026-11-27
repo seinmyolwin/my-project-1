@@ -36,6 +36,7 @@ import {
   COMMISSION_UPDATED_EVENT
 } from '../utils/commissionUtils';
 import { getResolvedVoucherCommission, getResolvedForwardCommission } from '../utils/statementUtils';
+import { TELEGRAM_STORAGE_KEYS } from '../utils/backupUtils';
 
 
 interface FootballContextType {
@@ -251,11 +252,29 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
     });
 
+    const updatedSlipMap = new Map<string, FootballSlip>();
+    const updatedSlipByNo = new Map<string, FootballSlip>();
+    updatedSlips.forEach(s => {
+      updatedSlipMap.set(s.id, s);
+      if (s.slipNo) updatedSlipByNo.set(s.slipNo, s);
+    });
+
     const updatedFwds = rawForwardSlips.map(fwd => {
-      const isMatch = (fwd.slipId && settledSlipIds.has(fwd.slipId)) ||
-                      (fwd.slipNo && updatedSlips.some(s => s.slipNo === fwd.slipNo && settledSlipIds.has(s.id)));
-      if (isMatch) {
-        return { ...fwd, status: 'settled' as const };
+      const parentSlip =
+        (fwd.slipId ? updatedSlipMap.get(fwd.slipId) : undefined) ||
+        (fwd.slipNo ? updatedSlipByNo.get(fwd.slipNo) : undefined);
+      if (!parentSlip) return fwd;
+      if (parentSlip.status === 'settled' && settledSlipIds.has(parentSlip.id)) {
+        let fwdPayout = 0;
+        const pStake = Number(parentSlip.stakeAmount) || 0;
+        if (pStake > 0) {
+          const mult = (parentSlip.actualPayout || 0) / pStake;
+          fwdPayout = safeRound((fwd.stakeAmount || 0) * mult);
+        }
+        return { ...fwd, status: 'settled' as const, actualPayout: fwdPayout };
+      }
+      if (parentSlip.status === 'active') {
+        return { ...fwd, status: 'active' as const, actualPayout: undefined };
       }
       return fwd;
     });
@@ -390,7 +409,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, {} as { [id: string]: FootballMatch });
 
     let anyWon = false;
-    const settledSlipMap = new Map<string, FootballSlip>();
+    const evaluatedSlipMap = new Map<string, FootballSlip>();
 
     setSlips(prevSlips =>
       prevSlips.map(slip => {
@@ -412,49 +431,57 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             actualPayout: res.actualPayout,
             selections: res.evaluatedSelections
           };
-          settledSlipMap.set(slip.id, updatedSlip);
+          evaluatedSlipMap.set(slip.id, updatedSlip);
           return updatedSlip;
         }
 
         // If match was deleted or score was reset/invalidated, revert to active and reset payout
-        return {
+        const revertedSlip: FootballSlip = {
           ...slip,
           status: 'active',
           outcome: 'pending',
           actualPayout: undefined,
           selections: res.evaluatedSelections
         };
+        evaluatedSlipMap.set(slip.id, revertedSlip);
+        return revertedSlip;
       })
     );
 
-    // Update associated forward slips to settled using newly computed payouts
-    if (settledSlipMap.size > 0) {
-      const settledByNo = new Map<string, FootballSlip>();
-      settledSlipMap.forEach(s => {
-        if (s.slipNo) settledByNo.set(s.slipNo, s);
-      });
-      setForwardSlips(prevFwds =>
-        prevFwds.map(fwd => {
-          const parentSlip =
-            (fwd.slipId ? settledSlipMap.get(fwd.slipId) : undefined) ||
-            (fwd.slipNo ? settledByNo.get(fwd.slipNo) : undefined);
+    // Always synchronize associated forward slips (settle or revert to active when scores change/reset)
+    const evaluatedByNo = new Map<string, FootballSlip>();
+    evaluatedSlipMap.forEach(s => {
+      if (s.slipNo) evaluatedByNo.set(s.slipNo, s);
+    });
+    setForwardSlips(prevFwds =>
+      prevFwds.map(fwd => {
+        if ((fwd as any).deletedAt) return fwd;
+        const parentSlip =
+          (fwd.slipId ? evaluatedSlipMap.get(fwd.slipId) : undefined) ||
+          (fwd.slipNo ? evaluatedByNo.get(fwd.slipNo) : undefined);
 
-          if (parentSlip) {
-            let fwdPayout = 0;
-            if (parentSlip.stakeAmount > 0) {
-              const multiplier = (parentSlip.actualPayout || 0) / parentSlip.stakeAmount;
-              fwdPayout = safeRound(fwd.stakeAmount * multiplier);
-            }
-            return {
-              ...fwd,
-              status: 'settled' as const,
-              actualPayout: fwdPayout
-            };
+        if (!parentSlip) return fwd;
+
+        if (parentSlip.status === 'settled') {
+          let fwdPayout = 0;
+          if (parentSlip.stakeAmount > 0) {
+            const multiplier = (parentSlip.actualPayout || 0) / parentSlip.stakeAmount;
+            fwdPayout = safeRound(fwd.stakeAmount * multiplier);
           }
-          return fwd;
-        })
-      );
-    }
+          return {
+            ...fwd,
+            status: 'settled' as const,
+            actualPayout: fwdPayout
+          };
+        }
+
+        return {
+          ...fwd,
+          status: 'active' as const,
+          actualPayout: undefined
+        };
+      })
+    );
 
     if (anyWon) {
       try {
@@ -487,8 +514,12 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [settleMatches]);
 
   const deleteMatch = useCallback((id: string, reason: string) => {
-    setMatches(prev => prev.map(m => m.id === id ? { ...m, ...createTombstone(reason) } : m));
-  }, []);
+    setMatches(prev => {
+      const updated = prev.map(m => m.id === id ? { ...m, ...createTombstone(reason) } : m);
+      settleMatches(updated);
+      return updated;
+    });
+  }, [settleMatches]);
 
   const setMatchScore = useCallback((id: string, homeScore: number, awayScore: number) => {
     setMatches(prev => {
@@ -555,19 +586,42 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: generateUUID(),
       slipNo: `${shortCode}-V-${pad}`,
       createdAt: new Date().toISOString(),
-      lowerCommissionRate: settings.defaultCommissionRate,
+      lowerCommissionRate: settings.defaultCustomerDiscount ?? 0,
       payoutOdds: slipData.combinedOdds,
       snapshotSource: 'created'
     };
     setSlips(prev => [newSlip, ...prev]);
     return newSlip;
-  }, [slips, settings.defaultCommissionRate]);
+  }, [slips, settings.defaultCustomerDiscount]);
 
   const updateSlip = useCallback((id: string, data: Partial<FootballSlip>) => {
+    const existingSlip = rawSlips.find(s => s.id === id);
+    if (existingSlip) {
+      assertDateOpen('FB', existingSlip.roundDate || (existingSlip.createdAt || '').slice(0, 10), 'ဘောင်ချာပြင်ဆင်ခြင်း');
+    }
+    if (existingSlip && data.customerName && data.customerName !== existingSlip.customerName) {
+      try {
+        const rawStored = localStorage.getItem('shwe_mingalar_copied_raw_texts');
+        if (rawStored) {
+          const parsed = JSON.parse(rawStored);
+          if (Array.isArray(parsed)) {
+            const updatedClips = parsed.map((c: any) =>
+              ((!c.category || c.category === 'football') && (c.voucherNumber === existingSlip.slipNo || c.voucherNumber === id))
+                ? { ...c, customerName: data.customerName }
+                : c
+            );
+            localStorage.setItem('shwe_mingalar_copied_raw_texts', JSON.stringify(updatedClips));
+            window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
     setSlips(prev =>
       prev.map(s => (s.id === id ? { ...s, ...data } : s))
     );
-  }, []);
+  }, [rawSlips]);
 
   const deleteSlip = useCallback((id: string, reason: string = 'user-deleted') => {
     { const sl = rawSlips.find(x => x.id === id); if (sl) assertDateOpen('FB', sl.roundDate, 'ဘောင်ချာဖျက်ခြင်း'); }
@@ -577,6 +631,11 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const nowIso = new Date().toISOString();
 
     const updatedSlips = rawSlips.map(s => s.id === id ? { ...s, status: 'cancelled', deletedAt: nowIso, deletedReason: reason } as any : s);
+    const updatedForwardSlips = rawForwardSlips.map(f =>
+      ((f.slipId === id || (target.slipNo && f.slipNo === target.slipNo)) && !(f as any).deletedAt)
+        ? ({ ...f, deletedAt: nowIso, deletedReason: reason } as any)
+        : f
+    );
 
     let remainingRawClips: any[] = [];
     try {
@@ -584,20 +643,47 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (rawStored) {
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
-          remainingRawClips = parsed.map((c: any) => c.voucherNumber === target.slipNo ? ({ ...c, deletedAt: nowIso }) : c);
+          remainingRawClips = parsed.map((c: any) =>
+            ((!c.category || c.category === 'football') && (c.voucherNumber === target.slipNo || c.voucherNumber === id || c.voucherNumber === `FB-${id}`) && !c.deletedAt)
+              ? ({ ...c, deletedAt: nowIso, deletedReason: reason })
+              : c
+          );
         }
       }
     } catch {
       // ignore
     }
 
-    saveMultipleAtomic({
+    let updatedTelegramOrders: any[] = [];
+    const toSave: Record<string, any> = {
       [STORAGE_KEYS.SLIPS_FOOTBALL]: updatedSlips,
+      [STORAGE_KEYS.FORWARD_SLIPS_FOOTBALL]: updatedForwardSlips,
       'shwe_mingalar_copied_raw_texts': remainingRawClips
-    });
+    };
+    try {
+      const tgStored = localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS);
+      if (tgStored) {
+        const parsed = JSON.parse(tgStored);
+        if (Array.isArray(parsed)) {
+          updatedTelegramOrders = parsed.map((o: any) => {
+            if (o.voucherId === id || (target.slipNo && o.notes && o.notes.includes(target.slipNo))) {
+              return { ...o, status: 'pending_review', voucherId: undefined };
+            }
+            return o;
+          });
+          toSave[TELEGRAM_STORAGE_KEYS.ORDERS] = updatedTelegramOrders;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    saveMultipleAtomic(toSave);
+    window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
 
     setSlips(updatedSlips);
-  }, [rawSlips]);
+    setForwardSlips(updatedForwardSlips);
+  }, [rawSlips, rawForwardSlips]);
 
   const addForwardSlip = useCallback((slipData: Omit<FootballForwardSlip, 'id' | 'slipNo' | 'createdAt'>) => {
     assertDateOpen('FB', slipData.roundDate, 'ဒိုင်လွှဲထည့်ခြင်း');
@@ -750,7 +836,7 @@ export const FootballProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let totalForwarded = 0;
     let forwardedCommission = 0;
     activeDateForwardSlips.forEach(f => {
-      totalForwarded += f.stakeAmount;
+      totalForwarded += (f.stakeAmount || (f as any).totalAmount || 0);
       const resolvedFwd = getResolvedForwardCommission({
         forwardSlip: f,
         mode: 'football',

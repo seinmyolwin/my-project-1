@@ -368,7 +368,7 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const parsed = JSON.parse(tgStored);
         if (Array.isArray(parsed)) {
           toSave[TELEGRAM_STORAGE_KEYS.ORDERS] = parsed.map((o: any) =>
-            o.voucherId && deletedVoucherIds.has(o.voucherId) ? { ...o, status: 'pending', voucherId: undefined } : o);
+            o.voucherId && deletedVoucherIds.has(o.voucherId) ? { ...o, status: 'pending_review', voucherId: undefined } : o);
         }
       }
     } catch {
@@ -507,12 +507,31 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
           const updatedRawClips = parsed.map((c: any) =>
-            ((c.voucherNumber === target.voucherNo || c.voucherNumber === id) && !c.deletedAt)
+            ((!c.category || c.category === '3d') && (c.voucherNumber === target.voucherNo || c.voucherNumber === id) && !c.deletedAt)
               ? { ...c, deletedAt: nowIso, deletedReason: reason }
               : c
           );
           localStorage.setItem('shwe_mingalar_copied_raw_texts', JSON.stringify(updatedRawClips));
           window.dispatchEvent(new CustomEvent('shwe_raw_clips_updated'));
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Reset linked Telegram orders back to pending_review so they can be re-processed if needed
+    try {
+      const tgStored = localStorage.getItem(TELEGRAM_STORAGE_KEYS.ORDERS);
+      if (tgStored) {
+        const parsed = JSON.parse(tgStored);
+        if (Array.isArray(parsed)) {
+          const updatedOrders = parsed.map((o: any) => {
+            if (o.voucherId === id || (o.notes && target.voucherNo && o.notes.includes(target.voucherNo))) {
+              return { ...o, status: 'pending_review', voucherId: undefined };
+            }
+            return o;
+          });
+          localStorage.setItem(TELEGRAM_STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
         }
       }
     } catch {
@@ -643,7 +662,10 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Aggregates calculation
   const aggregates = useMemo(() => {
-    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
+    const isFrozen = activeRound?.status === 'settled' || activeRound?.status === 'closed' || !!activeRound?.winningNumber;
+    const mult = isFrozen && typeof activeRound?.multiplier === 'number' && activeRound.multiplier > 0
+      ? activeRound.multiplier
+      : (typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0);
     const agg: { [num: string]: NumberAggregate } = {};
 
     activeRoundVouchers.forEach(v => {
@@ -806,12 +828,16 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     commissionRevision
   ]);
 
-  const settleWinningNumber = useCallback((winningNum: string, _multiplier?: number, _toddMultiplier?: number) => {
+  const settleWinningNumber = useCallback((winningNum: string, customMultiplier?: number, customToddMultiplier?: number) => {
     if (!activeRound) return;
     assertDateOpen('3D', activeRound.drawDate || dateOfRound('3D', activeRoundId), 'ပေါက်ဂဏန်း သတ်မှတ်ခြင်း');
 
-    const mult = typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0;
-    const toddMult = typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0;
+    const mult = typeof customMultiplier === 'number' && customMultiplier > 0
+      ? customMultiplier
+      : (typeof settings.defaultMultiplier === 'number' ? settings.defaultMultiplier : 0);
+    const toddMult = typeof customToddMultiplier === 'number' && customToddMultiplier >= 0
+      ? customToddMultiplier
+      : (typeof settings.defaultToddMultiplier === 'number' ? settings.defaultToddMultiplier : 0);
     if (!Number.isFinite(toddMult) || toddMult < 0) {
       throw new Error('Todd ပေါက်ကြေးအဆ သတ်မှတ်ထားခြင်း မရှိပါ — Settings တွင် သတ်မှတ်ပါ');
     }
@@ -941,14 +967,21 @@ export const LotteryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const exportToExcel = useCallback(() => {
     if (!activeRound) return;
+    const isFrozen = activeRound.status === 'settled' || activeRound.status === 'closed' || !!activeRound.winningNumber;
+    const mult = isFrozen && typeof activeRound.multiplier === 'number' && activeRound.multiplier > 0
+      ? activeRound.multiplier
+      : (settings.defaultMultiplier ?? 0);
+    const toddMult = isFrozen && typeof activeRound.toddMultiplier === 'number' && activeRound.toddMultiplier >= 0
+      ? activeRound.toddMultiplier
+      : (settings.defaultToddMultiplier ?? 0);
     exportLotteryDataToExcel(
       activeRound,
       activeRoundVouchers,
       activeRoundForwardSlips,
       aggregates as any,
       activeRound.winningNumber,
-      settings.defaultMultiplier ?? 0,
-      settings.defaultToddMultiplier ?? 0
+      mult,
+      toddMult
     );
   }, [activeRound, aggregates, activeRoundVouchers, activeRoundForwardSlips, settings.defaultMultiplier, settings.defaultToddMultiplier]);
 

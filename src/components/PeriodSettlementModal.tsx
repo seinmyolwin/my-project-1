@@ -21,10 +21,10 @@ import { useLottery } from '../context/LotteryContext';
 import { useTwoDLottery } from '../context/TwoDLotteryContext';
 import { useFootball } from '../context/FootballContext';
 import { formatAmount, evaluateWinnings, calculate3DForwardMasterPayout, getToddWinningNumbers } from '../utils/lotteryUtils';
+import { normalizeTwoDMultiplier } from '../utils/twoDLotteryUtils';
 import {
   getLocalDateStr,
   getDaysAgoStr,
-  generateStatementRecords,
   getResolvedVoucherCommission,
   getResolvedForwardCommission
 } from '../utils/statementUtils';
@@ -55,12 +55,6 @@ const getMyanmarShortDay = (dateStr: string): string => {
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const days = ['နွေ', 'လာ', 'ဂါ', 'ဟူး', 'တေး', 'ကြာ', 'နေ'];
   return days[d.getDay()] || '';
-};
-
-const replaceZeegwetWithWeekday = (dateStr: string, label: string): string => {
-  const dayShort = getMyanmarShortDay(dateStr);
-  if (!dayShort) return label;
-  return label.includes('ဇီးကွက်') ? label.replace('ဇီးကွက်', dayShort) : label;
 };
 
 export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ isOpen, onClose, modeFilter = 'all' }) => {
@@ -169,6 +163,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         if (d >= startDate && d <= endDate) keys.push(`2d-${r.id}`);
       });
       lottery2D.vouchers.forEach((v: any) => {
+        if (v.deletedAt || v.status === 'cancelled') return;
         const d = (v.createdAt || '').slice(0, 10);
         if (d >= startDate && d <= endDate && !v.roundId) {
           const k = `2d-orphaned-${d}`;
@@ -181,6 +176,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         if (d >= startDate && d <= endDate) keys.push(`3d-${r.id}`);
       });
       lottery3D.vouchers.forEach((v: any) => {
+        if (v.deletedAt || v.status === 'cancelled') return;
         const d = (v.createdAt || '').slice(0, 10);
         if (d >= startDate && d <= endDate && !v.roundId) {
           const k = `3d-orphaned-${d}`;
@@ -189,7 +185,16 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       });
     } else {
       football.slips.forEach((s: any) => {
+        if (s.deletedAt || s.status === 'cancelled') return;
         const d = s.roundDate || (s.createdAt || '').slice(0, 10);
+        if (d >= startDate && d <= endDate) {
+          const k = `football-${d}`;
+          if (!keys.includes(k)) keys.push(k);
+        }
+      });
+      football.forwardSlips.forEach((f: any) => {
+        if ((f as any).deletedAt) return;
+        const d = f.roundDate || (f.createdAt || '').slice(0, 10);
         if (d >= startDate && d <= endDate) {
           const k = `football-${d}`;
           if (!keys.includes(k)) keys.push(k);
@@ -240,18 +245,18 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   const uplineNames = useMemo(() => {
     const set = new Set<string>();
     if (modeFilter === 'all' || modeFilter === '3d') {
-      lottery3D.forwardSlips.forEach((f) => {
-        if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
+      lottery3D.forwardSlips.forEach((f: any) => {
+        if (!f.deletedAt && f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
       });
     }
     if (modeFilter === 'all' || modeFilter === '2d') {
-      lottery2D.forwardSlips.forEach((f) => {
-        if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
+      lottery2D.forwardSlips.forEach((f: any) => {
+        if (!f.deletedAt && f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
       });
     }
     if (modeFilter === 'all' || modeFilter === 'football') {
-      football.forwardSlips.forEach((f) => {
-        if (f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
+      football.forwardSlips.forEach((f: any) => {
+        if (!f.deletedAt && f.masterAgentName && f.masterAgentName.trim()) set.add(f.masterAgentName.trim());
       });
     }
     if (modeFilter === 'all') {
@@ -466,23 +471,30 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           });
           const amt = resolvedVouch.gross;
           const comm = resolvedVouch.amount;
-          const winningNum = round?.winningNumber;
-          const mult = round?.multiplier || lottery2D.settings.defaultMultiplier || 80;
+          const winningNum = round?.winningNumber ? String(round.winningNumber).trim().padStart(2, '0') : undefined;
+          const hasValidWin2D = !!winningNum && /^\d{2}$/.test(winningNum);
+          const mult = normalizeTwoDMultiplier(
+            typeof round?.multiplier === 'number' ? round.multiplier : lottery2D.settings.defaultMultiplier
+          );
 
           let payout = 0;
           const wonBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
 
           if (v.items && Array.isArray(v.items)) {
             v.items.forEach((it: any) => {
-              const isHit = it.isWon || (winningNum && it.number === winningNum);
+              const itNum = String(it.number || '').trim().padStart(2, '0');
+              const isHit = hasValidWin2D ? itNum === winningNum : Boolean(it.isWon);
               if (isHit) {
-                const won = it.wonAmount || (it.amount * mult);
+                const betAmt = Number(it.amount) || 0;
+                const won = hasValidWin2D
+                  ? (mult > 0 ? betAmt * mult : 0)
+                  : (it.wonAmount || (betAmt * mult));
                 payout += won;
-                wonBets.push({ num: it.number, amt: it.amount, wonAmt: won });
+                wonBets.push({ num: itNum, amt: betAmt, wonAmt: won });
               }
             });
           }
-          if (payout === 0 && v.winningPayout) {
+          if (!hasValidWin2D && payout === 0 && v.winningPayout) {
             payout = v.winningPayout;
           }
 
@@ -569,7 +581,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
   }, [modeFilter, selectedTarget, startDate, endDate, perModeRates, dirtyModes, customerCommissionsByMode, commissionRevision, lottery3D.vouchers, lottery3D.rounds, lottery3D.settings, lottery2D.vouchers, lottery2D.rounds, lottery2D.settings, football.slips, football.settings]);
 
   // ---------------------------------------------------------------------------
-  // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS via generateStatementRecords)
+  // SETTLEMENT COMPUTATION FOR UPLINE (FORWARD SLIPS — ALL ROUNDS IN RANGE)
   // ---------------------------------------------------------------------------
   const uplineSettlementData = useMemo(() => {
     if (!selectedTarget) {
@@ -582,26 +594,6 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         activeModes: [] as CommissionBusinessMode[]
       };
     }
-
-    const dataSources = {
-      lottery2D: {
-        rounds: lottery2D.rounds,
-        vouchers: lottery2D.vouchers,
-        forwardSlips: lottery2D.forwardSlips,
-        settings: lottery2D.settings
-      },
-      lottery3D: {
-        rounds: lottery3D.rounds,
-        vouchers: lottery3D.vouchers,
-        forwardSlips: lottery3D.forwardSlips,
-        settings: lottery3D.settings
-      },
-      football: {
-        slips: football.slips,
-        forwardSlips: football.forwardSlips,
-        settings: football.settings
-      }
-    };
 
     const effectiveUplineByMode: ScopedCommissionRates = {
       '2d': { ...uplineCommissionsByMode['2d'], [selectedTarget]: perModeRates['2d'] },
@@ -621,13 +613,6 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       }
     }
 
-    const records = generateStatementRecords(dataSources, modeFilter, startDate, endDate, {
-      globalRatesByMode: customerCommissionsByMode,
-      roundRates: getAllRoundCustomerCommissions(),
-      uplineGlobalRatesByMode: effectiveUplineByMode,
-      uplineRoundRates: effectiveUplineRoundRates
-    });
-
     let totalForwarded = 0;
     let totalCommission = 0;
     let totalPayout = 0;
@@ -646,28 +631,35 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
 
     const straightMult3D = typeof lottery3D.settings.defaultMultiplier === 'number' ? lottery3D.settings.defaultMultiplier : 0;
     const toddMult3D = typeof lottery3D.settings.defaultToddMultiplier === 'number' ? lottery3D.settings.defaultToddMultiplier : 0;
+    const defaultMult2D = normalizeTwoDMultiplier(lottery2D.settings.defaultMultiplier);
     const uplineRate3D = typeof lottery3D.settings.defaultCommissionRate === 'number' ? lottery3D.settings.defaultCommissionRate : 0;
     const uplineRate2D = typeof lottery2D.settings.defaultCommissionRate === 'number' ? lottery2D.settings.defaultCommissionRate : 0;
     const uplineRateFB = typeof football.settings.defaultCommissionRate === 'number' ? football.settings.defaultCommissionRate : 0;
 
-    records.forEach((rec) => {
-      const forwards = rec.forwardList || [];
-      const targetForwards = forwards.filter((f: any) => !(f as any).deletedAt && f.masterAgentName?.trim() === selectedTarget);
-      const defaultRecUplineRate =
-        rec.mode === '3d' ? uplineRate3D : rec.mode === '2d' ? uplineRate2D : uplineRateFB;
+    // 1. 3D Forward Slips (all rounds in range, settled or open)
+    if (modeFilter === 'all' || modeFilter === '3d') {
+      lottery3D.rounds.forEach((round3D) => {
+        const rDate = (round3D.drawDate || '').slice(0, 10);
+        if (rDate < startDate || rDate > endDate) return;
 
-      if (targetForwards.length > 0) {
-        activeModesSet.add(rec.mode);
+        const targetForwards = lottery3D.forwardSlips.filter(
+          (f: any) => f.roundId === round3D.id && !f.deletedAt && f.masterAgentName?.trim() === selectedTarget
+        );
+        if (targetForwards.length === 0) return;
+
+        activeModesSet.add('3d');
+        const roundKey3D = `3d-${round3D.id}`;
         let recAgentForwarded = 0;
         let recAgentCommission = 0;
+
         targetForwards.forEach((f: any) => {
-          const amt = f.totalAmount || 0;
+          const amt = Number(f.totalAmount ?? f.stakeAmount ?? 0) || 0;
           recAgentForwarded += amt;
           const resolvedFwd = getResolvedForwardCommission({
             forwardSlip: f,
-            mode: rec.mode,
-            roundKey: rec.id,
-            defaultUplineRate: defaultRecUplineRate,
+            mode: '3d',
+            roundKey: roundKey3D,
+            defaultUplineRate: uplineRate3D,
             uplineGlobalRatesByMode: effectiveUplineByMode,
             uplineRoundRates: effectiveUplineRoundRates
           });
@@ -677,34 +669,113 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
         let recAgentPayout = 0;
         const winningNumbers: string[] = [];
         const winningBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+        const win3D = round3D.winningNumber ? String(round3D.winningNumber).trim().padStart(3, '0') : undefined;
 
-        if (rec.mode === '3d') {
-          if (rec.winningResult && /^\d{3}$/.test(rec.winningResult.trim())) {
-            const win3D = rec.winningResult.trim().padStart(3, '0');
-            winningNumbers.push(win3D);
-            const round3D = lottery3D.rounds.find(r => r.id === rec.rawRoundId);
-            const isFrozen3D = !!round3D && (round3D.status === 'settled' || round3D.status === 'closed' || !!round3D.winningNumber);
-            const effStraight3D = isFrozen3D && typeof round3D?.multiplier === 'number' && round3D.multiplier > 0
-              ? round3D.multiplier
-              : straightMult3D;
-            const effTodd3D = isFrozen3D && typeof round3D?.toddMultiplier === 'number' && round3D.toddMultiplier >= 0
-              ? round3D.toddMultiplier
-              : toddMult3D;
-            recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, effStraight3D, effTodd3D);
+        if (win3D && /^\d{3}$/.test(win3D)) {
+          winningNumbers.push(win3D);
+          const isFrozen3D = round3D.status === 'settled' || round3D.status === 'closed' || !!round3D.winningNumber;
+          const effStraight3D = isFrozen3D && typeof round3D.multiplier === 'number' && round3D.multiplier > 0
+            ? round3D.multiplier
+            : straightMult3D;
+          const effTodd3D = isFrozen3D && typeof round3D.toddMultiplier === 'number' && round3D.toddMultiplier >= 0
+            ? round3D.toddMultiplier
+            : toddMult3D;
+          recAgentPayout = calculate3DForwardMasterPayout(targetForwards, win3D, effStraight3D, effTodd3D);
 
-            const toddSet = new Set(getToddWinningNumbers(win3D));
-            targetForwards.forEach((f: any) => {
-              (f.items || []).forEach((it: any) => {
-                const num = String(it.number || '').trim().padStart(3, '0');
-                const amt = Number(it.amount) || 0;
-                if (amt <= 0) return;
-                let won = 0;
-                if (num === win3D) {
-                  won = effStraight3D > 0 ? amt * effStraight3D : 0;
-                } else if (toddSet.has(num)) {
-                  won = effTodd3D > 0 ? amt * effTodd3D : 0;
+          const toddSet = new Set(getToddWinningNumbers(win3D));
+          targetForwards.forEach((f: any) => {
+            (f.items || []).forEach((it: any) => {
+              const num = String(it.number || '').trim().padStart(3, '0');
+              const amt = Number(it.amount) || 0;
+              if (amt <= 0) return;
+              let won = 0;
+              if (num === win3D) {
+                won = effStraight3D > 0 ? amt * effStraight3D : 0;
+              } else if (toddSet.has(num)) {
+                won = effTodd3D > 0 ? amt * effTodd3D : 0;
+              }
+              if (won > 0 || num === win3D || toddSet.has(num)) {
+                const existing = winningBets.find(x => x.num === num);
+                if (existing) {
+                  existing.amt += amt;
+                  existing.wonAmt += won;
+                } else {
+                  winningBets.push({ num, amt, wonAmt: won });
                 }
-                if (won > 0 || num === win3D || toddSet.has(num)) {
+              }
+            });
+          });
+        }
+
+        totalForwarded += recAgentForwarded;
+        totalCommission += recAgentCommission;
+        totalPayout += recAgentPayout;
+
+        const winDisplay = win3D || (round3D.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး');
+        items.push({
+          date: rDate,
+          mode: 'အိုးစည်လေး',
+          refNo: round3D.name || `${rDate} ထီဖွင့်ပွဲ`,
+          amount: recAgentForwarded,
+          commission: recAgentCommission,
+          payout: recAgentPayout,
+          winningNumbers,
+          winningBets,
+          summary: `ရလဒ်: ${winDisplay} (တင်ကြေး: ${recAgentForwarded}, ပေါက်ကြေးရရန်: ${recAgentPayout})`
+        });
+      });
+    }
+
+    // 2. 2D Forward Slips (all rounds in range, settled or open)
+    if (modeFilter === 'all' || modeFilter === '2d') {
+      lottery2D.rounds.forEach((round2D) => {
+        const rDate = (round2D.drawDate || '').slice(0, 10);
+        if (rDate < startDate || rDate > endDate) return;
+
+        const targetForwards = lottery2D.forwardSlips.filter(
+          (f: any) => f.roundId === round2D.id && !f.deletedAt && f.masterAgentName?.trim() === selectedTarget
+        );
+        if (targetForwards.length === 0) return;
+
+        activeModesSet.add('2d');
+        const roundKey2D = `2d-${round2D.id}`;
+        let recAgentForwarded = 0;
+        let recAgentCommission = 0;
+
+        targetForwards.forEach((f: any) => {
+          const amt = Number(f.totalAmount ?? f.stakeAmount ?? 0) || 0;
+          recAgentForwarded += amt;
+          const resolvedFwd = getResolvedForwardCommission({
+            forwardSlip: f,
+            mode: '2d',
+            roundKey: roundKey2D,
+            defaultUplineRate: uplineRate2D,
+            uplineGlobalRatesByMode: effectiveUplineByMode,
+            uplineRoundRates: effectiveUplineRoundRates
+          });
+          recAgentCommission += resolvedFwd.amount;
+        });
+
+        let recAgentPayout = 0;
+        const winningNumbers: string[] = [];
+        const winningBets: Array<{ num: string; amt: number; wonAmt: number }> = [];
+        const win2D = round2D.winningNumber ? String(round2D.winningNumber).trim().padStart(2, '0') : undefined;
+
+        if (win2D && /^\d{2}$/.test(win2D)) {
+          winningNumbers.push(win2D);
+          const mult2D = normalizeTwoDMultiplier(
+            typeof round2D.multiplier === 'number' ? round2D.multiplier : defaultMult2D
+          );
+
+          let exact2DPayout = 0;
+          targetForwards.forEach((f: any) => {
+            if (Array.isArray(f.items) && f.items.length > 0) {
+              f.items.forEach((it: any) => {
+                const num = String(it.number || '').trim().padStart(2, '0');
+                const amt = Number(it.amount) || 0;
+                if (amt > 0 && num === win2D) {
+                  const won = mult2D > 0 ? amt * mult2D : 0;
+                  exact2DPayout += won;
                   const existing = winningBets.find(x => x.num === num);
                   if (existing) {
                     existing.amt += amt;
@@ -714,73 +785,137 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
                   }
                 }
               });
-            });
-          }
-        } else if (rec.mode === '2d') {
-          if (rec.winningResult && /^\d{2}$/.test(rec.winningResult.trim())) {
-            const win2D = rec.winningResult.trim().padStart(2, '0');
-            winningNumbers.push(win2D);
-            const round2D = lottery2D.rounds.find(r => r.id === rec.rawRoundId);
-            const mult2D = round2D?.multiplier || lottery2D.settings.defaultMultiplier || 80;
-
-            let exact2DPayout = 0;
-            let hasItemList = false;
-            targetForwards.forEach((f: any) => {
-              if (Array.isArray(f.items) && f.items.length > 0) {
-                hasItemList = true;
-                f.items.forEach((it: any) => {
-                  const num = String(it.number || '').trim().padStart(2, '0');
-                  const amt = Number(it.amount) || 0;
-                  if (amt > 0 && num === win2D) {
-                    const won = mult2D > 0 ? amt * mult2D : 0;
-                    exact2DPayout += won;
-                    const existing = winningBets.find(x => x.num === num);
-                    if (existing) {
-                      existing.amt += amt;
-                      existing.wonAmt += won;
-                    } else {
-                      winningBets.push({ num, amt, wonAmt: won });
-                    }
-                  }
-                });
-              }
-            });
-
-            if (hasItemList) {
-              recAgentPayout = Math.round(exact2DPayout);
-            } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
-              recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
+            } else if (typeof f.actualPayout === 'number' && f.actualPayout > 0) {
+              exact2DPayout += f.actualPayout;
             }
-          } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
-            recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
-          }
-        } else if (rec.totalForwarded > 0 && rec.masterPayout > 0) {
-          recAgentPayout = Math.round((recAgentForwarded / rec.totalForwarded) * rec.masterPayout);
+          });
+          recAgentPayout = Math.round(exact2DPayout);
         }
 
         totalForwarded += recAgentForwarded;
         totalCommission += recAgentCommission;
         totalPayout += recAgentPayout;
 
-        const dayShort = getMyanmarShortDay(rec.date);
-        const sessionLabel = rec.session === 'morning' ? 'မနက်' : rec.session === 'evening' ? 'ညနေ' : '';
-        const uplineModeLabel = rec.mode === '2d'
-          ? (dayShort ? (sessionLabel ? `${dayShort} (${sessionLabel})` : dayShort) : (sessionLabel || '၂ လုံး'))
-          : replaceZeegwetWithWeekday(rec.date, rec.modeLabel);
+        const dayShort = getMyanmarShortDay(rDate);
+        const sessionLabel = round2D.session === 'morning' ? 'မနက်' : round2D.session === 'evening' ? 'ညနေ' : '';
+        const uplineModeLabel = dayShort
+          ? (sessionLabel ? `${dayShort} (${sessionLabel})` : dayShort)
+          : (sessionLabel || '၂ လုံး');
+        const winDisplay = win2D || (round2D.status === 'settled' ? 'ပေါက်မဲမရှိ' : 'မထွက်သေး');
 
         items.push({
-          date: rec.date,
+          date: rDate,
           mode: uplineModeLabel,
-          refNo: rec.name,
+          refNo: round2D.name || `${rDate} ${round2D.session === 'morning' ? 'မနက် (12:01)' : 'ညနေ (04:30)'}`,
           amount: recAgentForwarded,
           commission: recAgentCommission,
           payout: recAgentPayout,
           winningNumbers,
           winningBets,
-          summary: `ရလဒ်: ${rec.winningResult} (တင်ကြေး: ${recAgentForwarded}, ပေါက်ကြေးရရန်: ${recAgentPayout})`
+          summary: `ရလဒ်: ${winDisplay} (တင်ကြေး: ${recAgentForwarded}, ပေါက်ကြေးရရန်: ${recAgentPayout})`
         });
-      }
-    });
+      });
+    }
+
+    // 3. Football Forward Slips (grouped by roundDate, exact per-slip parent match)
+    if (modeFilter === 'all' || modeFilter === 'football') {
+      const activeDaySlipsMap = new Map<string, any[]>();
+      football.slips.forEach((s: any) => {
+        if (s.status === 'cancelled' || s.deletedAt) return;
+        const d = s.roundDate || (s.createdAt || '').slice(0, 10);
+        if (d < startDate || d > endDate) return;
+        if (!activeDaySlipsMap.has(d)) activeDaySlipsMap.set(d, []);
+        activeDaySlipsMap.get(d)!.push(s);
+      });
+
+      const activeDayAllFwdsMap = new Map<string, any[]>();
+      const targetDayFwdsMap = new Map<string, any[]>();
+      football.forwardSlips.forEach((f: any) => {
+        if (f.deletedAt) return;
+        const d = f.roundDate || (f.createdAt || '').slice(0, 10);
+        if (d < startDate || d > endDate) return;
+        if (!activeDayAllFwdsMap.has(d)) activeDayAllFwdsMap.set(d, []);
+        activeDayAllFwdsMap.get(d)!.push(f);
+        if (f.masterAgentName?.trim() === selectedTarget) {
+          if (!targetDayFwdsMap.has(d)) targetDayFwdsMap.set(d, []);
+          targetDayFwdsMap.get(d)!.push(f);
+        }
+      });
+
+      Array.from(targetDayFwdsMap.keys()).sort().forEach((d) => {
+        const targetForwards = targetDayFwdsMap.get(d) || [];
+        if (targetForwards.length === 0) return;
+
+        activeModesSet.add('football');
+        const roundKeyFB = `football-${d}`;
+        const daySlips = activeDaySlipsMap.get(d) || [];
+        const dayAllFwds = activeDayAllFwdsMap.get(d) || [];
+
+        let recAgentForwarded = 0;
+        let recAgentCommission = 0;
+        let exactFBTotal = 0;
+
+        targetForwards.forEach((f: any) => {
+          const fStake = Number(f.stakeAmount ?? f.totalAmount ?? 0) || 0;
+          recAgentForwarded += fStake;
+          const resolvedFwd = getResolvedForwardCommission({
+            forwardSlip: f,
+            mode: 'football',
+            roundKey: roundKeyFB,
+            defaultUplineRate: uplineRateFB,
+            uplineGlobalRatesByMode: effectiveUplineByMode,
+            uplineRoundRates: effectiveUplineRoundRates
+          });
+          recAgentCommission += resolvedFwd.amount;
+
+          const parentSlip = daySlips.find((s: any) => s.id === f.slipId || (f.slipNo && s.slipNo === f.slipNo));
+          if (parentSlip) {
+            const sStake = Number(parentSlip.stakeAmount) || Number(parentSlip.netPayable) || 0;
+            const isSettledOrEvaluated =
+              parentSlip.status === 'settled' ||
+              parentSlip.outcome === 'won' ||
+              parentSlip.outcome === 'half_won' ||
+              parentSlip.outcome === 'draw' ||
+              parentSlip.outcome === 'half_lost' ||
+              parentSlip.outcome === 'lost';
+            const parentActPayout = !isSettledOrEvaluated
+              ? 0
+              : typeof parentSlip.actualPayout === 'number'
+              ? parentSlip.actualPayout
+              : parentSlip.outcome === 'won' || parentSlip.outcome === 'half_won'
+              ? (parentSlip.potentialPayout || 0)
+              : 0;
+            const totalFwdOnParent = dayAllFwds
+              .filter((fw: any) => fw.slipId === parentSlip.id || (fw.slipNo && fw.slipNo === parentSlip.slipNo))
+              .reduce((sum: number, fw: any) => sum + (Number(fw.stakeAmount ?? fw.totalAmount ?? 0) || 0), 0);
+            const cappedFactor = totalFwdOnParent > sStake && totalFwdOnParent > 0 ? sStake / totalFwdOnParent : 1;
+            exactFBTotal += sStake > 0 ? parentActPayout * (fStake / sStake) * cappedFactor : 0;
+          } else if (typeof f.actualPayout === 'number') {
+            exactFBTotal += f.actualPayout;
+          }
+        });
+
+        const recAgentPayout = Math.round(exactFBTotal);
+        totalForwarded += recAgentForwarded;
+        totalCommission += recAgentCommission;
+        totalPayout += recAgentPayout;
+
+        const hasOpenSlips = daySlips.some((s: any) => s.status !== 'settled');
+        const winDisplay = hasOpenSlips ? 'ဖွင့်လှစ်ဆဲ' : 'ရှင်းပြီး';
+
+        items.push({
+          date: d,
+          mode: 'ပစ်တိုင်းထောင်',
+          refNo: `${d} ဘောလုံးစာရင်း (${daySlips.length} စောင်)`,
+          amount: recAgentForwarded,
+          commission: recAgentCommission,
+          payout: recAgentPayout,
+          winningNumbers: [],
+          winningBets: [],
+          summary: `ရလဒ်: ${winDisplay} (တင်ကြေး: ${recAgentForwarded}, ပေါက်ကြေးရရန်: ${recAgentPayout})`
+        });
+      });
+    }
 
     const netBalance = (totalForwarded - totalCommission) - totalPayout;
     const activeModes: CommissionBusinessMode[] =
@@ -796,7 +931,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       items: items.sort((a, b) => b.date.localeCompare(a.date)),
       activeModes
     };
-  }, [modeFilter, selectedTarget, startDate, endDate, perModeRates, dirtyModes, customerCommissionsByMode, uplineCommissionsByMode, commissionRevision, lottery2D.rounds, lottery2D.vouchers, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.vouchers, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
+  }, [modeFilter, selectedTarget, startDate, endDate, perModeRates, dirtyModes, uplineCommissionsByMode, commissionRevision, lottery2D.rounds, lottery2D.forwardSlips, lottery2D.settings, lottery3D.rounds, lottery3D.forwardSlips, lottery3D.settings, football.slips, football.forwardSlips, football.settings]);
 
   const activeModesForControls: CommissionBusinessMode[] = useMemo(() => {
     if (modeFilter !== 'all') return [modeFilter];

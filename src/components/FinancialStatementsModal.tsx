@@ -156,67 +156,23 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
       }
 
       if (vNo) {
-        deleteRawClipsByVoucherNumber(vNo);
+        deleteRawClipsByVoucherNumber(vNo, selectedRecord?.mode);
       }
       deleteRawClip(vId);
-
-      if (selectedRecord) {
-        const updatedList = (selectedRecord.vouchersList || []).filter((item: any) => item.id !== vId);
-        const updatedTurnover = updatedList.reduce((sum: number, item: any) => sum + getVoucherGrossTurnover(item), 0);
-        const updatedPayout = updatedList.reduce((sum: number, item: any) => sum + (item.totalPayout || item.actualPayout || 0), 0);
-        const fallbackDownline =
-          selectedRecord.mode === '2d'
-            ? (lottery2D.settings.defaultCustomerDiscount ?? 0)
-            : selectedRecord.mode === '3d'
-            ? (lottery3D.settings.defaultCustomerDiscount ?? 0)
-            : (football.settings?.defaultCustomerDiscount ?? 0);
-        const updatedCommission = updatedList.reduce((sum: number, item: any) => {
-          return sum + getResolvedVoucherCommission({
-            voucher: item,
-            mode: selectedRecord.mode,
-            roundKey: selectedRecord.id,
-            defaultDownlineRate: fallbackDownline,
-            globalRatesByMode,
-            roundRates
-          }).amount;
-        }, 0);
-        const updatedNetSales = updatedTurnover - selectedRecord.totalForwarded - updatedCommission;
-        const updatedNetProfit = updatedNetSales + selectedRecord.masterPayout + selectedRecord.forwardCommission - updatedPayout;
-
-        setSelectedRecord({
-          ...selectedRecord,
-          vouchersList: updatedList,
-          vouchersCount: updatedList.length,
-          turnover: updatedTurnover,
-          agentCommission: updatedCommission,
-          netSales: updatedNetSales,
-          totalPayout: updatedPayout,
-          netProfit: updatedNetProfit,
-          isProfit: updatedNetProfit >= 0
-        });
-      }
     } else if (type === 'edit') {
       const newName = editCustomerName.trim() || 'အထွေထွေ';
       if (selectedRecord?.mode === '2d') {
         lottery2D.updateVoucher(vId, { customerName: newName });
       } else if (selectedRecord?.mode === '3d') {
         lottery3D.updateVoucher(vId, { customerName: newName });
+      } else if (selectedRecord?.mode === 'football') {
+        football.updateSlip(vId, { customerName: newName });
       }
 
       if (vNo) {
-        updateRawClipCustomerName(vNo, newName);
+        updateRawClipCustomerName(vNo, newName, selectedRecord?.mode);
       }
-      updateRawClipCustomerName(vId, newName);
-
-      if (selectedRecord) {
-        const updatedList = (selectedRecord.vouchersList || []).map((item: any) =>
-          item.id === vId ? { ...item, customerName: newName } : item
-        );
-        setSelectedRecord({
-          ...selectedRecord,
-          vouchersList: updatedList
-        });
-      }
+      updateRawClipCustomerName(vId, newName, selectedRecord?.mode);
     }
 
     setVoucherActionModal(null);
@@ -359,11 +315,13 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
     prevIsOpenRef.current = isOpen;
   }, [isOpen, statementRecords]);
 
-  // Keep selectedRecord in sync whenever statementRecords recalculates after commission updates
+  // Keep selectedRecord in sync whenever statementRecords recalculates after commission/voucher/slip updates
   React.useEffect(() => {
     if (selectedRecord) {
       const updated = statementRecords.find((r) => r.id === selectedRecord.id);
-      if (updated && updated !== selectedRecord) {
+      if (!updated) {
+        setSelectedRecord(null);
+      } else if (updated !== selectedRecord) {
         setSelectedRecord(updated);
       }
     }
@@ -517,7 +475,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         const roundId = recordId.replace('3d-', '');
         if (roundId.startsWith('orphaned-')) {
           const orphanDate = roundId.replace('orphaned-', '');
-          const toDelete = lottery3D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          const allRoundIds3D = new Set(lottery3D.rounds.map((r) => r.id));
+          const toDelete = lottery3D.vouchers.filter(
+            (v) => (v.createdAt || '').slice(0, 10) === orphanDate && (!v.roundId || !allRoundIds3D.has(v.roundId))
+          );
           toDelete.forEach(v => lottery3D.deleteVoucher(v.id));
         } else {
           lottery3D.deleteRound(roundId);
@@ -526,7 +487,10 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
         const roundId = recordId.replace('2d-', '');
         if (roundId.startsWith('orphaned-')) {
           const orphanDate = roundId.replace('orphaned-', '');
-          const toDelete = lottery2D.vouchers.filter(v => (v.createdAt || '').slice(0, 10) === orphanDate);
+          const allRoundIds2D = new Set(lottery2D.rounds.map((r) => r.id));
+          const toDelete = lottery2D.vouchers.filter(
+            (v) => (v.createdAt || '').slice(0, 10) === orphanDate && (!v.roundId || !allRoundIds2D.has(v.roundId))
+          );
           toDelete.forEach(v => lottery2D.deleteVoucher(v.id));
         } else {
           lottery2D.deleteRound(roundId);
@@ -1387,11 +1351,21 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       const itemsStr = v.items ? v.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : (v.matchesSummary || v.description || '-');
                       const is3DRec = selectedRecord.mode === '3d';
                       const winNum = selectedRecord.winningResult ? String(selectedRecord.winningResult).trim() : '';
-                      const toddSet = is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0
+                      const recRound3D = is3DRec ? lottery3D.rounds.find(r => r.id === selectedRecord.rawRoundId) : undefined;
+                      const effTodd3D = recRound3D && (recRound3D.status === 'settled' || recRound3D.status === 'closed' || !!recRound3D.winningNumber) && typeof recRound3D.toddMultiplier === 'number' && recRound3D.toddMultiplier >= 0
+                        ? recRound3D.toddMultiplier
+                        : (lottery3D.settings.defaultToddMultiplier ?? 0);
+                      const toddSet = is3DRec && /^\d{3}$/.test(winNum) && effTodd3D > 0
                         ? new Set(getToddWinningNumbers(winNum))
                         : null;
+                      const isValidNumericWin = (is3DRec && /^\d{3}$/.test(winNum)) || (selectedRecord.mode === '2d' && /^\d{2}$/.test(winNum));
                       const hasWonItem = v.items
-                        ? v.items.some((it: any) => it.isWon || it.number === winNum || (toddSet?.has(String(it.number || '').trim()) ?? false))
+                        ? v.items.some((it: any) => {
+                            const itNum = String(it.number || '').trim();
+                            return isValidNumericWin
+                              ? (itNum === winNum || (toddSet?.has(itNum) ?? false))
+                              : !!it.isWon;
+                          })
                         : (v.status === 'settled' && (v.outcome === 'won' || v.outcome === 'half_won'));
                       const fallbackRate = selectedRecord.mode === '3d'
                         ? (lottery3D.settings.defaultCustomerDiscount ?? 0)
@@ -1535,7 +1509,11 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       const itemsStr = f.items ? f.items.map((it: any) => `${it.number}=${it.amount}`).join(', ') : '-';
                       const isSettled2D3D = selectedRecord.status === 'settled' && (selectedRecord.mode === '3d' || selectedRecord.mode === '2d');
                       const winNum = selectedRecord.winningResult ? String(selectedRecord.winningResult).trim() : '';
-                      const toddSet = selectedRecord.mode === '3d' && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0
+                      const recRound3D = selectedRecord.mode === '3d' ? lottery3D.rounds.find(r => r.id === selectedRecord.rawRoundId) : undefined;
+                      const effTodd3D = recRound3D && (recRound3D.status === 'settled' || recRound3D.status === 'closed' || !!recRound3D.winningNumber) && typeof recRound3D.toddMultiplier === 'number' && recRound3D.toddMultiplier >= 0
+                        ? recRound3D.toddMultiplier
+                        : (lottery3D.settings.defaultToddMultiplier ?? 0);
+                      const toddSet = selectedRecord.mode === '3d' && /^\d{3}$/.test(winNum) && effTodd3D > 0
                         ? new Set(getToddWinningNumbers(winNum))
                         : null;
                       const fwdWon = isSettled2D3D && !!winNum && Array.isArray(f.items) && f.items.some((it: any) => {
@@ -1574,7 +1552,7 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-bold font-mono text-indigo-900 block">
-                              {formatAmount(f.totalAmount, currency)}
+                              {formatAmount(f.totalAmount ?? f.stakeAmount ?? 0, currency)}
                             </span>
                             <span className="text-[9px] text-emerald-700 font-mono">
                               (ကော် {resolvedFwdComm.rate}% • +{formatAmount(resolvedFwdComm.amount, currency)})
@@ -1724,10 +1702,15 @@ export const FinancialStatementsModal: React.FC<FinancialStatementsModalProps> =
                       {inspectingVoucher.items.map((it: any, idx: number) => {
                         const winNum = selectedRecord?.winningResult ? String(selectedRecord.winningResult).trim() : '';
                         const is3DRec = selectedRecord?.mode === '3d';
+                        const recRound3D = is3DRec ? lottery3D.rounds.find(r => r.id === selectedRecord?.rawRoundId) : undefined;
+                        const effTodd3D = recRound3D && (recRound3D.status === 'settled' || recRound3D.status === 'closed' || !!recRound3D.winningNumber) && typeof recRound3D.toddMultiplier === 'number' && recRound3D.toddMultiplier >= 0
+                          ? recRound3D.toddMultiplier
+                          : (lottery3D.settings.defaultToddMultiplier ?? 0);
                         const itNum = String(it.number || '').trim();
                         const isStraightWin = !!winNum && itNum === winNum;
-                        const isToddWin = !isStraightWin && is3DRec && /^\d{3}$/.test(winNum) && (lottery3D.settings.defaultToddMultiplier ?? 0) > 0 && getToddWinningNumbers(winNum).includes(itNum);
-                        const isWin = it.isWon || isStraightWin || isToddWin;
+                        const isToddWin = !isStraightWin && is3DRec && /^\d{3}$/.test(winNum) && effTodd3D > 0 && getToddWinningNumbers(winNum).includes(itNum);
+                        const isValidNumericWin = (is3DRec && /^\d{3}$/.test(winNum)) || (selectedRecord?.mode === '2d' && /^\d{2}$/.test(winNum));
+                        const isWin = isValidNumericWin ? (isStraightWin || isToddWin) : !!it.isWon;
                         return (
                           <tr key={idx} className={isWin ? (isToddWin ? 'bg-indigo-50/80 font-bold' : 'bg-amber-50/80 font-bold') : ''}>
                             <td className="py-1.5 px-2.5 text-slate-400 font-mono">{idx + 1}</td>

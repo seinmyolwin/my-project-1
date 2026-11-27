@@ -18,6 +18,7 @@ import {
   calculate3DForwardMasterPayout,
   formatAmount
 } from './lotteryUtils';
+import { normalizeTwoDMultiplier } from './twoDLotteryUtils';
 import {
   getCustomerCommissionRatesByMode,
   getAllRoundCustomerCommissions,
@@ -320,7 +321,7 @@ export function buildPeriodCloseReport(
 
   const straightMult3D = typeof data.lottery3D.settings?.defaultMultiplier === 'number' ? data.lottery3D.settings.defaultMultiplier : 0;
   const toddMult3D = typeof data.lottery3D.settings?.defaultToddMultiplier === 'number' ? data.lottery3D.settings.defaultToddMultiplier : 0;
-  const defaultMult2D = typeof data.lottery2D.settings?.defaultMultiplier === 'number' ? data.lottery2D.settings.defaultMultiplier : 80;
+  const defaultMult2D = normalizeTwoDMultiplier(data.lottery2D.settings?.defaultMultiplier);
 
   let totalSales = 0;
   let totalCustomerCommission = 0;
@@ -349,7 +350,7 @@ export function buildPeriodCloseReport(
       let payout = 0;
       if (mode === '2d') {
         const win2D = b.rawRound?.winningNumber ? String(b.rawRound.winningNumber).trim().padStart(2, '0') : undefined;
-        const mult = b.rawRound?.multiplier || defaultMult2D;
+        const mult = normalizeTwoDMultiplier(typeof b.rawRound?.multiplier === 'number' ? b.rawRound.multiplier : defaultMult2D);
         if (win2D && Array.isArray(v.items)) {
           v.items.forEach((it: any) => {
             if (String(it.number || '').trim().padStart(2, '0') === win2D) {
@@ -472,7 +473,7 @@ export function buildPeriodCloseReport(
         let fwdAmt = 0;
         let fwdComm = 0;
         agentForwards.forEach((f) => {
-          const amt = Number(f.totalAmount ?? f.stakeAmount ?? 0) || 0;
+          const amt = Number(f.stakeAmount ?? f.totalAmount ?? 0) || 0;
           fwdAmt += amt;
           const resolvedFwd = getResolvedForwardCommission({
             forwardSlip: f,
@@ -488,7 +489,7 @@ export function buildPeriodCloseReport(
         let masterPayout = 0;
         if (mode === '2d') {
           const win2D = b.rawRound?.winningNumber ? String(b.rawRound.winningNumber).trim().padStart(2, '0') : undefined;
-          const mult2D = b.rawRound?.multiplier || defaultMult2D;
+          const mult2D = normalizeTwoDMultiplier(typeof b.rawRound?.multiplier === 'number' ? b.rawRound.multiplier : defaultMult2D);
           if (win2D && win2D.length === 2) {
             let exactPayout = 0;
             let hasItems = false;
@@ -521,20 +522,37 @@ export function buildPeriodCloseReport(
             masterPayout = calculate3DForwardMasterPayout(agentForwards, win3D, rStraightMult3D, rToddMult3D);
           }
         } else {
-          // Football per-agent master payout
-          let explicitTotal = 0;
-          let hasExplicit = false;
+          // Football per-agent master payout: compute per forward slip against its parent slip (matching statementUtils)
+          let exactTotal = 0;
           agentForwards.forEach((f) => {
-            if (typeof f.actualPayout === 'number' && f.actualPayout > 0) {
-              hasExplicit = true;
-              explicitTotal += f.actualPayout;
+            const parentSlip = b.vouchers.find((s: any) => s.id === f.slipId || (f.slipNo && s.slipNo === f.slipNo));
+            if (parentSlip) {
+              const sStake = Number(parentSlip.stakeAmount) || Number(parentSlip.netPayable) || 0;
+              const isSettledOrEvaluated =
+                parentSlip.status === 'settled' ||
+                parentSlip.outcome === 'won' ||
+                parentSlip.outcome === 'half_won' ||
+                parentSlip.outcome === 'draw' ||
+                parentSlip.outcome === 'half_lost' ||
+                parentSlip.outcome === 'lost';
+              const parentActPayout = !isSettledOrEvaluated
+                ? 0
+                : typeof parentSlip.actualPayout === 'number'
+                ? parentSlip.actualPayout
+                : parentSlip.outcome === 'won' || parentSlip.outcome === 'half_won'
+                ? (parentSlip.potentialPayout || 0)
+                : 0;
+              const totalFwdOnParent = b.forwards
+                .filter((fw) => fw.slipId === parentSlip.id || (fw.slipNo && fw.slipNo === parentSlip.slipNo))
+                .reduce((sum, fw) => sum + (Number(fw.stakeAmount ?? fw.totalAmount ?? 0) || 0), 0);
+              const cappedFactor = totalFwdOnParent > sStake && totalFwdOnParent > 0 ? sStake / totalFwdOnParent : 1;
+              const fStake = Number(f.stakeAmount ?? f.totalAmount ?? 0) || 0;
+              exactTotal += sStake > 0 ? parentActPayout * (fStake / sStake) * cappedFactor : 0;
+            } else if (typeof f.actualPayout === 'number') {
+              exactTotal += f.actualPayout;
             }
           });
-          if (hasExplicit) {
-            masterPayout = Math.round(explicitTotal);
-          } else if (bucketTotalForwarded > 0 && bucketTotalMasterPayoutFB > 0) {
-            masterPayout = Math.round((fwdAmt / bucketTotalForwarded) * bucketTotalMasterPayoutFB);
-          }
+          masterPayout = Math.round(exactTotal);
         }
 
         totalForwarded += fwdAmt;

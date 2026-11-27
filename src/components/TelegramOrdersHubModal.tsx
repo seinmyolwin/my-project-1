@@ -629,9 +629,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     saveRawClip({
       category: effectiveCategory,
-      roundId: activeRoundObj?.id || `round-${effectiveCategory}`,
-      roundName: activeRoundObj ? (activeRoundObj.name || `${activeRoundObj.drawDate} (${effectiveCategory.toUpperCase()})`) : `${effectiveCategory.toUpperCase()} ပွဲစဉ်`,
-      date: activeRoundObj?.drawDate || new Date().toLocaleDateString('en-CA'),
+      roundId: activeRoundObj?.id || (effectiveCategory === 'football' ? `football-${football.activeDate}` : `round-${effectiveCategory}`),
+      roundName: activeRoundObj
+        ? (activeRoundObj.name || `${activeRoundObj.drawDate} (${effectiveCategory.toUpperCase()})`)
+        : effectiveCategory === 'football'
+        ? `ပစ်တိုင်းထောင် (${football.activeDate})`
+        : `${effectiveCategory.toUpperCase()} ပွဲစဉ်`,
+      date: activeRoundObj?.drawDate || (effectiveCategory === 'football' ? football.activeDate : new Date().toLocaleDateString('en-CA')),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       voucherNumber: createdVoucherNo || `ဘောင်ချာ (${effectiveCategory})`,
       customerName: finalCustomerName,
@@ -1103,9 +1107,13 @@ export const TelegramOrdersHubModal: React.FC<TelegramOrdersHubModalProps> = ({ 
 
     saveRawClip({
       category: effectiveCategory,
-      roundId: activeRoundObj?.id || `round-${effectiveCategory}`,
-      roundName: activeRoundObj ? (activeRoundObj.name || `${activeRoundObj.drawDate} (${effectiveCategory.toUpperCase()})`) : `${effectiveCategory.toUpperCase()} ပွဲစဉ်`,
-      date: activeRoundObj?.drawDate || new Date().toLocaleDateString('en-CA'),
+      roundId: activeRoundObj?.id || (effectiveCategory === 'football' ? `football-${football.activeDate}` : `round-${effectiveCategory}`),
+      roundName: activeRoundObj
+        ? (activeRoundObj.name || `${activeRoundObj.drawDate} (${effectiveCategory.toUpperCase()})`)
+        : effectiveCategory === 'football'
+        ? `ပစ်တိုင်းထောင် (${football.activeDate})`
+        : `${effectiveCategory.toUpperCase()} ပွဲစဉ်`,
+      date: activeRoundObj?.drawDate || (effectiveCategory === 'football' ? football.activeDate : new Date().toLocaleDateString('en-CA')),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       voucherNumber: createdVoucherNo || `ဘောင်ချာ (${effectiveCategory})`,
       customerName: finalCustomerName,

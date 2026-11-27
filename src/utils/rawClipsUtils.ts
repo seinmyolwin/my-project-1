@@ -193,7 +193,7 @@ function tombstoneRawClips(pred: (c: any) => boolean, reason: string): void {
 }
 
 export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): RawBetClip {
-  const clips = getRawClips();
+  const clips = readAllRawClips();
   const { customerPhone, ...rest } = clipData;
   const newClip: RawBetClip = {
     ...rest,
@@ -232,11 +232,11 @@ export function saveRawClip(clipData: Omit<RawBetClip, 'id' | 'timestamp'>): Raw
   return newClip;
 }
 
-export function updateRawClipCustomerName(voucherNumberOrId: string, newCustomerName: string): void {
+export function updateRawClipCustomerName(voucherNumberOrId: string, newCustomerName: string, category?: '3d' | '2d' | 'football'): void {
   try {
     const raw = readAllRawClips();
     const updated = raw.map((c: any) => {
-      if (c && (c.voucherNumber === voucherNumberOrId || c.id === voucherNumberOrId)) {
+      if (c && (!category || c.category === category) && (c.voucherNumber === voucherNumberOrId || c.id === voucherNumberOrId)) {
         return { ...c, customerName: newCustomerName };
       }
       return c;
@@ -248,8 +248,8 @@ export function updateRawClipCustomerName(voucherNumberOrId: string, newCustomer
   }
 }
 
-export function deleteRawClipsByVoucherNumber(voucherNumber: string): void {
-  tombstoneRawClips(c => c.voucherNumber === voucherNumber, 'voucher-deleted');
+export function deleteRawClipsByVoucherNumber(voucherNumber: string, category?: '3d' | '2d' | 'football'): void {
+  tombstoneRawClips(c => c.voucherNumber === voucherNumber && (!category || c.category === category), 'voucher-deleted');
 }
 
 export function deleteRawClip(id: string): void {

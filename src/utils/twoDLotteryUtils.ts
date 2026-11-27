@@ -1157,13 +1157,26 @@ export function evaluateTwoDWinnings(
   let totalWinnersCount = 0;
 
   const mult = normalizeTwoDMultiplier(multiplier);
+  const targetWin = String(winningNumber || '').trim().padStart(2, '0');
 
   const settledVouchers = vouchers.map(v => {
+    if (v.status === 'cancelled' || (v as any).deletedAt) {
+      return {
+        ...v,
+        status: v.status === 'cancelled' ? ('cancelled' as const) : v.status,
+        items: v.items.map(item => ({
+          ...item,
+          isWon: false,
+          wonAmount: 0
+        }))
+      };
+    }
+
     let voucherHasWin = false;
     const updatedItems = v.items.map(item => {
-      if (item.number === winningNumber) {
+      const itemNum = String(item.number || '').trim().padStart(2, '0');
+      if (itemNum === targetWin) {
         const winAmt = calculatePayout(item.amount, mult);
-        console.log(`[DEBUG] evaluateTwoDWinnings: item.number=${item.number}, item.amount=${item.amount}, winAmt=${winAmt}`);
         totalPayout += winAmt;
         voucherHasWin = true;
         totalWinnersCount++;
@@ -1180,7 +1193,7 @@ export function evaluateTwoDWinnings(
       };
     });
 
-    const newStatus: TwoDVoucher['status'] = v.status === 'cancelled' ? 'cancelled' : voucherHasWin ? 'settled' : 'active';
+    const newStatus: TwoDVoucher['status'] = voucherHasWin ? 'settled' : 'active';
 
     return {
       ...v,
@@ -1250,7 +1263,8 @@ export function exportTwoDLotteryToExcel(
   XLSX.utils.book_append_sheet(wb, wsLedger, '၂ လုံး စာရင်းချုပ် (00-99)');
 
   // Sheet 2: Vouchers
-  const voucherData = vouchers.map(v => {
+  const nonDeletedVouchers = vouchers.filter(v => !(v as any).deletedAt);
+  const voucherData = nonDeletedVouchers.map(v => {
     const statusText = v.status === 'cancelled'
       ? 'ပယ်ဖျက်ထားသည် (Cancelled)'
       : v.isPaid
@@ -1274,7 +1288,8 @@ export function exportTwoDLotteryToExcel(
   XLSX.utils.book_append_sheet(wb, wsVouchers, 'အရောင်းဘောင်ချာများ');
 
   // Sheet 3: Forward Slips
-  const fwdData = forwardSlips.map(f => ({
+  const activeFwdSlips = forwardSlips.filter(f => !(f as any).deletedAt);
+  const fwdData = activeFwdSlips.map(f => ({
     'လွှဲတင်ပြေစာအမှတ်': f.slipNo,
     'ဒိုင်ချုပ်အမည်': f.masterAgentName,
     'ဖုန်း': f.masterAgentPhone || '-',
@@ -1290,10 +1305,12 @@ export function exportTwoDLotteryToExcel(
 
   // Sheet 4: ပေါက်မဲစာရင်းရှင်းတမ်း (Winners Settlement Sheet if winning number exists)
   if (winningNumber) {
-    const winEval = evaluateTwoDWinnings(vouchers, winningNumber, round.multiplier || 0);
+    const winMult = normalizeTwoDMultiplier(round.multiplier);
+    const winEval = evaluateTwoDWinnings(nonDeletedVouchers, winningNumber, winMult);
     const winData: any[] = [];
     
     winEval.settledVouchers.forEach(v => {
+      if (v.status === 'cancelled' || (v as any).deletedAt) return;
       v.items.forEach(it => {
         if (it.isWon) {
           winData.push({
@@ -1302,7 +1319,7 @@ export function exportTwoDLotteryToExcel(
             'ဖုန်းနံပါတ်': ((v) as { customerPhone?: string }).customerPhone || '-',
             'ပေါက်ဂဏန်း': it.number,
             'ထိုးကြေးငွေ': it.amount,
-            'အလျော်ဆ (Multiplier)': `${round.multiplier || 0}ဆ`,
+            'အလျော်ဆ (Multiplier)': `${winMult}ဆ`,
             'ရရှိသောလျော်ကြေးငွေ': it.wonAmount,
             'ဒိုင် အသားတင် ရလဒ်': -(it.wonAmount)
           });

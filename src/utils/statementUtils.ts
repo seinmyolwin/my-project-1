@@ -433,8 +433,10 @@ export function generateStatementRecords(
         let masterPayout = 0;
         let retainedPayout = 0;
         let winnersCount = 0;
-        const winningNum = round.winningNumber ? round.winningNumber.padStart(2, '0') : undefined;
-        let mult = round.multiplier || data.lottery2D.settings.defaultMultiplier;
+        const winningNum = round.winningNumber ? round.winningNumber.trim().padStart(2, '0') : undefined;
+        let mult = normalizeTwoDMultiplier(
+          typeof round.multiplier === 'number' ? round.multiplier : data.lottery2D.settings.defaultMultiplier
+        );
 
         if (winningNum) {
           const evalResult = evaluateTwoDWinnings(roundVouchers, winningNum, mult);
@@ -443,13 +445,13 @@ export function generateStatementRecords(
           let totalSoldForWinNum = 0;
           roundVouchers.forEach((v) => {
             v.items.forEach((it) => {
-              if (it.number === winningNum) totalSoldForWinNum += it.amount;
+              if (String(it.number || '').trim().padStart(2, '0') === winningNum) totalSoldForWinNum += it.amount;
             });
           });
           let totalForwardedForWinNum = 0;
           roundForwards.forEach((f) => {
             f.items.forEach((it) => {
-              if (it.number === winningNum) totalForwardedForWinNum += it.amount;
+              if (String(it.number || '').trim().padStart(2, '0') === winningNum) totalForwardedForWinNum += it.amount;
             });
           });
 
@@ -811,19 +813,28 @@ export function generateStatementRecords(
     });
     const slips = rawSlips.filter(s => !s.deletedAt);
 
-    if (slips.length > 0) {
+    const activeForwardsInRange = data.football.forwardSlips.filter((f) => {
+      if ((f as any).deletedAt) return false;
+      const fDate = f.roundDate || (f.createdAt || '').slice(0, 10);
+      return fDate >= startDate && fDate <= endDate;
+    });
+
+    if (slips.length > 0 || activeForwardsInRange.length > 0) {
       const slipsByDate: { [date: string]: FootballSlip[] } = {};
       slips.forEach((s) => {
         const d = s.roundDate || (s.createdAt || '').slice(0, 10) || todayStr;
         if (!slipsByDate[d]) slipsByDate[d] = [];
         slipsByDate[d].push(s);
       });
+      activeForwardsInRange.forEach((f) => {
+        const d = f.roundDate || (f.createdAt || '').slice(0, 10) || todayStr;
+        if (!slipsByDate[d]) slipsByDate[d] = [];
+      });
 
       Object.keys(slipsByDate).forEach((d) => {
         const daySlips = slipsByDate[d];
-        const dayForwards = data.football.forwardSlips.filter((f) => {
-          if ((f as any).deletedAt) return false;
-          const fDate = f.roundDate || (f.createdAt || '').slice(0, 10);
+        const dayForwards = activeForwardsInRange.filter((f) => {
+          const fDate = f.roundDate || (f.createdAt || '').slice(0, 10) || todayStr;
           return fDate === d;
         });
 
@@ -1071,7 +1082,11 @@ export function calculateTwoDSingleRoundStatement(
   const netPaid = totalForwarded - forwardCommission;
 
   // 3. Multiplier & Winning number evaluation
-  const mult = normalizeTwoDMultiplier(multiplier || round?.multiplier || settings?.defaultMultiplier);
+  const mult = normalizeTwoDMultiplier(
+    typeof multiplier === 'number'
+      ? multiplier
+      : (typeof round?.multiplier === 'number' ? round.multiplier : settings?.defaultMultiplier)
+  );
   const winNum = winningNumber ? winningNumber.trim().padStart(2, '0') : (round?.winningNumber ? round.winningNumber.trim().padStart(2, '0') : undefined);
 
   let totalPayout = 0;
@@ -1086,14 +1101,14 @@ export function calculateTwoDSingleRoundStatement(
     let totalSoldForWinNum = 0;
     validVouchers.forEach((v) => {
       v.items.forEach((it) => {
-        if (it.number === winNum) totalSoldForWinNum += it.amount;
+        if (String(it.number || '').trim().padStart(2, '0') === winNum) totalSoldForWinNum += it.amount;
       });
     });
 
     let totalForwardedForWinNum = 0;
     activeForwards.forEach((f) => {
       f.items.forEach((it) => {
-        if (it.number === winNum) totalForwardedForWinNum += it.amount;
+        if (String(it.number || '').trim().padStart(2, '0') === winNum) totalForwardedForWinNum += it.amount;
       });
     });
 

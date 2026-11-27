@@ -548,7 +548,7 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
 
   const clipWinMap = useMemo(() => {
     const map = new Map<string, { isWinner: boolean; winningNumber: string }>();
-    const toddMult3D = lottery3D.settings.defaultToddMultiplier ?? 0;
+    const defaultToddMult3D = lottery3D.settings.defaultToddMultiplier ?? 0;
 
     clips.forEach((clip) => {
       if (clip.category !== '3d' && clip.category !== '2d') return;
@@ -564,6 +564,9 @@ export const RawTextClipsModal: React.FC<RawTextClipsModalProps> = ({
         if (!round || round.status !== 'settled' || !round.winningNumber) return;
         const winNum = round.winningNumber.trim().padStart(3, '0');
         if (!/^\d{3}$/.test(winNum)) return;
+        const toddMult3D = typeof round.toddMultiplier === 'number' && round.toddMultiplier >= 0
+          ? round.toddMultiplier
+          : defaultToddMult3D;
         const toddSet = toddMult3D > 0 ? new Set(getToddWinningNumbers(winNum)) : null;
 
         let isWinner = false;
