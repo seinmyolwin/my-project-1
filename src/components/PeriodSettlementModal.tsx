@@ -350,9 +350,10 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       payout: number,
       summary: string,
       winningNumber?: string,
-      wonBets?: Array<{ num: string; amt: number; wonAmt: number }>
+      wonBets?: Array<{ num: string; amt: number; wonAmt: number }>,
+      roundId?: string
     ) => {
-      const key = `${date}|${mode}`;
+      const key = `${roundId || date}|${mode}`;
       if (!dayGroupMap[key]) {
         dayGroupMap[key] = {
           date,
@@ -397,6 +398,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       lottery3D.vouchers.forEach((v: any) => {
         if (v.status === 'cancelled' || v.deletedAt) return;
         const round = lottery3D.rounds.find(r => r.id === v.roundId);
+        if (v.roundId && !round) return;
         const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
         if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
           activeModesSet.add('3d');
@@ -445,7 +447,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           totalCommission += comm;
           totalPayout += payout;
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-          addRecord(vDate, 'အိုးစည်လေး', amt, comm, payout, sumText, winningNum, wonBets);
+          addRecord(vDate, 'အိုးစည်လေး', amt, comm, payout, sumText, winningNum, wonBets, v.roundId);
         }
       });
     }
@@ -456,6 +458,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       lottery2D.vouchers.forEach((v: any) => {
         if (v.status === 'cancelled' || v.deletedAt) return;
         const round = lottery2D.rounds.find(r => r.id === v.roundId);
+        if (v.roundId && !round) return;
         const vDate = round?.drawDate || (v.createdAt || '').slice(0, 10);
         if (vDate >= startDate && vDate <= endDate && v.customerName?.trim() === selectedTarget) {
           activeModesSet.add('2d');
@@ -504,7 +507,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
           const dayShort = getMyanmarShortDay(vDate);
           const twoDModeLabel = dayShort ? `${dayShort} (${sessionLabel})` : sessionLabel;
-          addRecord(vDate, twoDModeLabel, amt, comm, payout, sumText, winningNum, wonBets);
+          addRecord(vDate, twoDModeLabel, amt, comm, payout, sumText, winningNum, wonBets, v.roundId);
         }
       });
     }
@@ -547,7 +550,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           totalCommission += comm;
           totalPayout += payout;
           const sumText = s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-';
-          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, comm, payout, sumText);
+          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, comm, payout, sumText, undefined, undefined, s.id);
         }
       });
     }
