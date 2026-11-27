@@ -350,10 +350,9 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
       payout: number,
       summary: string,
       winningNumber?: string,
-      wonBets?: Array<{ num: string; amt: number; wonAmt: number }>,
-      roundId?: string
+      wonBets?: Array<{ num: string; amt: number; wonAmt: number }>
     ) => {
-      const key = `${roundId || date}|${mode}`;
+      const key = `${date}|${mode}`;
       if (!dayGroupMap[key]) {
         dayGroupMap[key] = {
           date,
@@ -447,7 +446,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           totalCommission += comm;
           totalPayout += payout;
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
-          addRecord(vDate, 'အိုးစည်လေး', amt, comm, payout, sumText, winningNum, wonBets, v.roundId);
+          addRecord(vDate, 'အိုးစည်လေး', amt, comm, payout, sumText, winningNum, wonBets);
         }
       });
     }
@@ -507,7 +506,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           const sumText = v.items ? v.items.map((i: any) => `${i.number}(${i.amount})`).join(', ') : '-';
           const dayShort = getMyanmarShortDay(vDate);
           const twoDModeLabel = dayShort ? `${dayShort} (${sessionLabel})` : sessionLabel;
-          addRecord(vDate, twoDModeLabel, amt, comm, payout, sumText, winningNum, wonBets, v.roundId);
+          addRecord(vDate, twoDModeLabel, amt, comm, payout, sumText, winningNum, wonBets);
         }
       });
     }
@@ -550,7 +549,7 @@ export const PeriodSettlementModal: React.FC<PeriodSettlementModalProps> = ({ is
           totalCommission += comm;
           totalPayout += payout;
           const sumText = s.selections ? s.selections.map((sel: any) => sel.matchSummary).join(', ') : '-';
-          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, comm, payout, sumText, undefined, undefined, s.id);
+          addRecord(sDate, 'ပစ်တိုင်းထောင်', amt, comm, payout, sumText);
         }
       });
     }
