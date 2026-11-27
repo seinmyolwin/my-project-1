@@ -421,12 +421,21 @@ export const TwoDLotteryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       nextActiveId = todayOpen ? todayOpen.id : (remainingRounds[0]?.id || '');
     }
 
-    const deletedVoucherIds = new Set(rawVouchers.filter(v => v.roundId === roundId).map(v => v.id));
+    const roundObj = rawRounds.find(r => r.id === roundId);
+    const roundDate = roundObj?.drawDate;
+    const deletedVoucherIds = new Set<string>();
 
-    // Tombstone vouchers for this round
-    const updatedVouchers = rawVouchers.map(v =>
-      v.roundId === roundId ? ({ ...v, deletedAt: nowIso, deletedReason: reason } as any) : v
-    );
+    // Tombstone vouchers for this round OR orphaned vouchers created on round drawDate
+    const updatedVouchers = rawVouchers.map(v => {
+      const vDate = (v.createdAt || '').slice(0, 10);
+      const matchesRoundId = v.roundId === roundId;
+      const matchesOrphanDate = roundDate && (!v.roundId || v.roundId === '') && vDate === roundDate;
+      if (matchesRoundId || matchesOrphanDate) {
+        deletedVoucherIds.add(v.id);
+        return { ...v, status: 'cancelled', deletedAt: nowIso, deletedReason: reason } as any;
+      }
+      return v;
+    });
 
     // Tombstone forward slips for this round
     const updatedForwardSlips = rawForwardSlips.map(f =>
